@@ -9,6 +9,7 @@
 //   MODELO_RESERVA   opcional. Usado se o MODELO falhar.
 //
 // Pedido (POST, JSON): { app, pergunta, pagina, historico:[{papel,texto}], fichas:[...], stream }
+//   panorama (opcional): texto com os totais do diretório por grupo, montado pelo app (até 3000 caracteres).
 //   Aceita também o formato antigo do Argo: sem "app" (vale "argo") e "contexto" no lugar de "fichas".
 // Resposta com stream:true  -> text/event-stream:  data: {"fontes":[...]}  data: {"t":"..."}  data: [DONE]
 // Resposta sem stream       -> JSON { resposta, fontes }
@@ -20,7 +21,7 @@ import { montarMensagens } from './prompt.mjs';
 
 const MODELO_PADRAO = '@cf/meta/llama-3.1-8b-instruct';
 const MAX_PERGUNTA = 500;
-const MAX_CORPO = 24000;
+const MAX_CORPO = 32000;
 const LIMITE_POR_MINUTO = 8;
 const AVISO_PESSOAL = 'Para proteger as famílias, não consigo analisar mensagens com nome, documento, telefone ou endereço residencial. Reescreva a pergunta sem identificar ninguém.';
 
@@ -162,6 +163,7 @@ export function criarManipulador({ base, apps }) {
       pagina: corpo.pagina,
       historico: corpo.historico,
       fichas: Array.isArray(corpo.fichas) ? corpo.fichas : corpo.contexto,
+      panorama: corpo.panorama,
       achados: achados,
       pergunta: pergunta
     });
