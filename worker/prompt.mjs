@@ -5,7 +5,8 @@ import { temDadoPessoal, limparMarcacao } from '../shared/pii.mjs';
 
 export const MAX_HISTORICO = 6;
 export const MAX_MSG_HISTORICO = 600;
-export const MAX_FICHAS = 5;
+export const MAX_FICHAS = 10;
+export const MAX_PANORAMA = 3000;
 
 const BASE = `Você é o Paulus, copiloto de IA dos apps de apoio ao trabalho do SUAS. Quem pergunta é um(a) profissional do SUAS (psicólogo, assistente social, técnico de CRAS/CREAS).
 
@@ -17,7 +18,9 @@ COMO RESPONDER
 
 FATOS SOBRE UNIDADES
 - Endereço, telefone, horário e serviços de qualquer equipamento: use SOMENTE as fichas em <fichas>. Cite o nome da unidade exatamente como está na ficha. Se a informação não estiver lá, diga "não consta no diretório" e sugira confirmar com a unidade. NUNCA invente endereço, telefone, horário, nome de unidade ou número de lei.
-- Se houver várias fichas possíveis, mencione as mais pertinentes (até 3) e diga como diferenciá-las (bairro, público, tipo).
+- Se houver várias fichas possíveis, mencione as mais pertinentes (até 3) e diga como diferenciá-las (bairro, público, tipo). Se a pergunta pedir uma lista ("quais", "todos", "liste"), pode citar todas as fichas pertinentes, uma por linha.
+- Quando houver <panorama>, ele traz os TOTAIS reais do diretório por grupo. Para "quantos", use o número do panorama; nunca conte fichas soltas nem some de cabeça. Se as fichas anexadas forem só parte do total, diga que a lista é parcial e sugira usar a busca do app para ver as demais.
+- Se a pergunta for sobre algo que não está nas fichas nem no panorama, diga que não consta no diretório.
 
 NORMAS
 - Artigo, inciso, número e ano de norma: use SOMENTE os trechos em <normas>. Ao citar, diga o documento e a referência exatamente como aparecem (ex.: "NOB/SUAS 2012, art. 17, XV"). Se não houver trecho em <normas> que sustente a resposta, explique de forma geral e NÃO cite artigo nem número de norma.
@@ -54,8 +57,10 @@ export function fichasComoTexto(fichas) {
   if (!Array.isArray(fichas)) return '';
   return fichas.slice(0, MAX_FICHAS).map(function (f, i) {
     const campo = function (k, max) { return limparMarcacao(String((f && f[k]) || '')).replace(/\s+/g, ' ').slice(0, max); };
+    const desc = campo('descricao', 240);
     return (i + 1) + '. ' + campo('nome', 120) + ' | Grupo: ' + campo('grupo', 60) + ' | Endereço: ' + campo('endereco', 200) +
-      ' | Horário: ' + campo('horario', 160) + ' | Telefones: ' + campo('telefones', 100) + ' | Serviços: ' + campo('servicos', 320);
+      ' | Horário: ' + campo('horario', 160) + ' | Telefones: ' + campo('telefones', 100) + ' | Serviços: ' + campo('servicos', 320) +
+      (desc ? ' | Sobre: ' + desc : '');
   }).join('\n');
 }
 
@@ -84,8 +89,14 @@ export function historicoComoMensagens(historico) {
   return saida;
 }
 
-export function montarMensagens({ app, pagina, historico, fichas, achados, pergunta }) {
+export function panoramaComoTexto(panorama) {
+  return limparMarcacao(String(panorama || '')).replace(/\s+/g, ' ').trim().slice(0, MAX_PANORAMA);
+}
+
+export function montarMensagens({ app, pagina, historico, fichas, panorama, achados, pergunta }) {
+  const pan = panoramaComoTexto(panorama);
   const usuario =
+    (pan ? '<panorama>\n' + pan + '\n</panorama>\n\n' : '') +
     '<fichas>\n' + (fichasComoTexto(fichas) || '(nenhuma ficha encontrada para esta pergunta)') + '\n</fichas>\n\n' +
     '<normas>\n' + (achados.length ? normasComoTexto(achados) : '(nenhum trecho de norma encontrado para esta pergunta)') + '\n</normas>\n\n' +
     '<pergunta>\n' + pergunta + '\n</pergunta>';
