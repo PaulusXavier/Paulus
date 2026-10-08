@@ -1,0 +1,17 @@
+# Publicação pelo terminal:  npx wrangler deploy
+# (pelo painel da Cloudflare também funciona; veja docs/DEPLOY.md)
+name = "paulus-ia"
+main = "worker/index.mjs"
+compatibility_date = "2025-01-01"
+
+[ai]
+binding = "AI"
+
+[vars]
+# Endereços dos apps que podem usar o Paulus, separados por vírgula, SEM barra no fim.
+# É só o "site" (esquema + domínio), sem o caminho: https://paulusxavier.github.io
+ALLOWED_ORIGINS = "https://paulusxavier.github.io"
+# Opcionais:
+# MODELO = "@cf/meta/llama-3.1-8b-instruct"
+# MODELO_RESERVA = "@cf/meta/llama-3.1-8b-instruct"
+# Não há chave de API: o Workers AI usa a sua própria conta Cloudflare.
