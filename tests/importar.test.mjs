@@ -45,7 +45,7 @@ test('importar: artigo longo vira um trecho por inciso e por parágrafo', () => 
   const refs = converterNorma(TEXTO, META, { max: 300 }).trechos.map(x => x.referencia);
   for (const r of ['art. 5º, I', 'art. 5º, II', 'art. 5º, III', 'art. 5º, § 1º', 'art. 5º, parágrafo único']) assert.ok(refs.includes(r), r);
   const inc = converterNorma(TEXTO, META, { max: 300 }).trechos.find(x => x.referencia === 'art. 5º, II');
-  assert.match(inc.texto, /^Os municípios devem manter o cadastro em dia informar as mudanças/);
+  assert.match(inc.texto, /^Os municípios devem manter o cadastro em dia: informar as mudanças/);
 });
 
 test('importar: o .md gerado é lido de volta pelo build-knowledge', () => {
