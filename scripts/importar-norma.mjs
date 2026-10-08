@@ -101,13 +101,19 @@ export function converterNorma(texto, meta, opcoes) {
       const corpo = it.linhas.join(' ').replace(/\s+/g, ' ').trim();
       if (!corpo || /^\(?\s*(revogado|vetado)/i.test(corpo)) continue;
       if (it.tipo === 'inc') {
-        trechos.push({ referencia: rotulo + ', ' + it.rotulo, texto: (caput.replace(/\s*:\s*$/, '') + ' ' + corpo).trim() });
+        trechos.push({ referencia: rotulo + ', ' + it.rotulo, texto: (caput.replace(/\s*:\s*$/, '') + (caput ? ': ' : '') + corpo).trim() });
       } else {
         trechos.push({ referencia: rotulo + ', ' + it.rotulo, texto: corpo });
       }
     }
   }
   if (!trechos.length) throw new Error('Nenhum trecho com texto foi gerado.');
+  // referências repetidas (ex.: alíneas do mesmo inciso) ganham "(parte 2)", "(parte 3)"... para cada trecho ter citação própria
+  const vistas = {};
+  for (const t of trechos) {
+    vistas[t.referencia] = (vistas[t.referencia] || 0) + 1;
+    if (vistas[t.referencia] > 1) { avisos.push(t.referencia + ' aparece mais de uma vez: o repetido virou "(parte ' + vistas[t.referencia] + ')". Confira.'); t.referencia += ' (parte ' + vistas[t.referencia] + ')'; }
+  }
   const longos = trechos.filter(function (t) { return t.texto.length > o.max * 2; });
   if (longos.length) avisos.push(longos.length + ' trecho(s) com mais de ' + o.max * 2 + ' caracteres (a busca funciona melhor com trechos curtos).');
 
