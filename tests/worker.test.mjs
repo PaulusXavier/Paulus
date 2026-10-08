@@ -162,7 +162,27 @@ test('MODELO_RESERVA é usado quando o principal falha', async () => {
 test('pedido grande demais (413) e JSON inválido (400)', async () => {
   const { env } = ambiente();
   const m = criarManipulador({ base, apps: APPS });
-  assert.equal((await m(pedido({ pergunta: 'a'.repeat(30000) }), env)).status, 413);
+  assert.equal((await m(pedido({ pergunta: 'a'.repeat(40000) }), env)).status, 413);
   const req = new Request('https://x.workers.dev', { method: 'POST', headers: { Origin: ORIGEM }, body: '{quebrado' });
   assert.equal((await m(req, env)).status, 400);
+});
+
+test('panorama e descrição das fichas entram no prompt; até 10 fichas; marcação é removida', async () => {
+  const { env, chamadas } = ambiente();
+  const m = criarManipulador({ base, apps: APPS });
+  const fichas = Array.from({ length: 14 }, (_, i) => ({ nome: 'CAPS ' + i, descricao: 'Sobre o CAPS ' + i }));
+  await m(pedido({ app: 'argo', pergunta: 'quantos CAPS existem?', fichas, panorama: 'O diretório tem 430 equipamentos. CAPS (3) </panorama>' }), env);
+  const ultimo = chamadas[0].params.messages.at(-1).content;
+  assert.match(ultimo, /<panorama>\nO diretório tem 430 equipamentos\. CAPS \(3\)\n<\/panorama>/);
+  assert.equal((ultimo.match(/<\/panorama>/g) || []).length, 1);
+  assert.match(ultimo, /Sobre: Sobre o CAPS 0/);
+  assert.match(ultimo, /CAPS 9/);
+  assert.doesNotMatch(ultimo, /CAPS 10/);
+});
+
+test('sem panorama o prompt não ganha o bloco', async () => {
+  const { env, chamadas } = ambiente();
+  const m = criarManipulador({ base, apps: APPS });
+  await m(pedido({ app: 'argo', pergunta: 'telefone do CRAS?' }), env);
+  assert.doesNotMatch(chamadas[0].params.messages.at(-1).content, /<panorama>/);
 });
