@@ -13,5 +13,7 @@ binding = "AI"
 ALLOWED_ORIGINS = "https://paulusxavier.github.io"
 # Opcionais:
 # MODELO = "@cf/meta/llama-3.1-8b-instruct"
+# Modelo maior (segue melhor as regras e o formato, mas gasta bem mais da cota gratuita diária):
+# MODELO = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 # MODELO_RESERVA = "@cf/meta/llama-3.1-8b-instruct"
 # Não há chave de API: o Workers AI usa a sua própria conta Cloudflare.
