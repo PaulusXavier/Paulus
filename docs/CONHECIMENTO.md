@@ -33,6 +33,16 @@ knowledge/
 2. `npm run build:conhecimento` (o teste `tests/conhecimento.test.mjs` avisa se você esquecer).
 3. `npm test`, `npm run build`, publique o Worker e o site ([DEPLOY.md](DEPLOY.md)) e copie `dist/conhecimento.json` para os apps com cópia local (Argo).
 
+## Importar uma norma inteira (sem digitar)
+1. Copie o texto oficial (site do Planalto para leis; site do Ministério para resoluções do CNAS) e cole em um arquivo `.txt`. Se só houver PDF, extraia o texto (`pdftotext -layout arquivo.pdf norma.txt`).
+2. Rode:
+   ```bash
+   node scripts/importar-norma.mjs norma.txt --doc loas-1993 --titulo "LOAS" --norma "Lei nº 8.742, de 7 de dezembro de 1993" --ano 1993
+   ```
+   Isso cria `knowledge/documentos/loas-1993.md` com um trecho por artigo (ou por inciso/parágrafo, nos artigos longos). Títulos, números de página, notas "(Redação dada...)" e artigos revogados ficam de fora.
+3. **Leia o `.md` ao lado do texto oficial.** O programa avisa de palavras cortadas e artigos fora de ordem, mas não confere o conteúdo.
+4. `npm run build:conhecimento`, `npm test` e publique ([DEPLOY.md](DEPLOY.md)).
+
 ## Estado atual
 Só um **trecho** da NOB/SUAS 2012 (arts. 8º a 17, 11 trechos). Faltam:
 - o texto oficial completo da NOB/SUAS 2012;
