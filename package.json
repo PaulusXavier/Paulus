@@ -1,0 +1,16 @@
+{
+  "name": "paulus",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "description": "Paulus: copiloto de IA compartilhado pelos apps (Argo SUAS, Anona, Toth, Umbrella).",
+  "scripts": {
+    "test": "node --test",
+    "build:conhecimento": "node scripts/build-knowledge.mjs",
+    "build": "node scripts/build-knowledge.mjs && node scripts/build.mjs",
+    "deploy:worker": "wrangler deploy"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
