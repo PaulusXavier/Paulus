@@ -37,7 +37,8 @@ const PADROES = [
 
 // Devolve null se não for pedido de socorro.
 export function detectarCrise(texto) {
-  const t = semAcento(texto);
+  // "Pronto Socorro" é um serviço de saúde, não um pedido de socorro ("qual o endereço do pronto-socorro?")
+  const t = semAcento(texto).replace(/pronto[ -]+socorro/g, 'pronto atendimento');
   for (const p of PADROES) {
     if (p.re.test(t)) {
       return {
