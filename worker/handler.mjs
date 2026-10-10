@@ -1,5 +1,5 @@
 // Lógica do Worker (sem nada específico da Cloudflare, para poder ser testada no Node).
-//   criarManipulador({ base, apps }) devolve  async (request, env) => Response
+//   criarManipulador({ base, apps, indice? }) devolve  async (request, env) => Response
 //
 // env:
 //   AI               binding do Workers AI (obrigatório)
@@ -93,8 +93,9 @@ async function chamarIA(env, mensagens, stream) {
   }
 }
 
-export function criarManipulador({ base, apps }) {
-  const indice = criarIndice(base);
+export function criarManipulador({ base, apps, indice: indicePronto }) {
+  // indicePronto (opcional): índice pré-calculado em build-knowledge; sem ele (ou se não bater com a base), calcula aqui.
+  const indice = criarIndice(base, indicePronto);
   const recentes = new Map(); // limite simples por IP (vale por instância do Worker)
 
   function estourouLimite(ip) {
