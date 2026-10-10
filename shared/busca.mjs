@@ -20,8 +20,17 @@ const SIGLAS = {
   bpi: ['beneficio', 'primeira', 'infancia'],
   bvf: ['beneficio', 'variavel', 'familiar'],
   bco: ['beneficio', 'complementar'],
-  sicon: ['sistema', 'condicionalidades']
+  sicon: ['sistema', 'condicionalidades'],
+  eca: ['estatuto', 'crianca', 'adolescente'],
+  paif: ['protecao', 'atendimento', 'integral', 'familia'],
+  paefi: ['protecao', 'atendimento', 'especializado', 'familias', 'individuos'],
+  scfv: ['servico', 'convivencia', 'fortalecimento', 'vinculos'],
+  cfp: ['conselho', 'federal', 'psicologia'],
+  crp: ['conselho', 'regional', 'psicologia']
 };
+
+// Quantos trechos da base vão para a IA e para a resposta offline.
+export const K_PADRAO = 4;
 
 export function normalizar(s) {
   return String(s == null ? '' : s)
@@ -34,7 +43,9 @@ export function normalizar(s) {
 // Formas de "gerir" que as pessoas digitam; a norma costuma usar o infinitivo.
 const ALIAS = { gere: 'gerir', gerem: 'gerir', gerencia: 'gerir', gerenciar: 'gerir', gerencie: 'gerir' };
 
-// Raiz simples: tira o plural (-s, -es, -ões) e corta em 6 letras ("municipal", "município" e "municípios" se encontram).
+// Raiz simples: tira o plural (-s, -es, -ões), as terminações de verbo e de substantivo (-ar, -er, -ir, -ção, -mento),
+// a vogal final e corta em 6 letras. Assim "atuar", "atua" e "atuação" se encontram, "acolher" acha "acolhimento"
+// e "município" e "municipal" também.
 function raiz(t) {
   if (ALIAS[t]) t = ALIAS[t];
   if (t.length > 4) {
@@ -42,6 +53,9 @@ function raiz(t) {
     else if (/(?:or|ar|er|ur)es$/.test(t)) t = t.slice(0, -2);  // valores -> valor, mulheres -> mulher
     else if (t.endsWith('s')) t = t.slice(0, -1);
   }
+  const m = /^(.{3,}?)(?:acao|icao|amento|imento|ar|er|ir)$/.exec(t);
+  if (m) t = m[1];
+  else if (t.length > 3 && /[aeo]$/.test(t)) t = t.slice(0, -1);
   return t.length > 6 ? t.slice(0, 6) : t;
 }
 
@@ -106,4 +120,12 @@ export function consultaComContexto(pergunta, historico) {
     if (h && h.papel === 'usuario' && h.texto) return String(h.texto).slice(0, 300) + ' ' + pergunta;
   }
   return pergunta;
+}
+
+// Como a fonte aparece para a pessoa (e como o Worker a devolve). "tipo" só vai quando NÃO é norma
+// (orientação técnica e material de apoio não obrigam, e o app precisa poder dizer isso).
+export function fonteDe(trecho) {
+  const f = { documento: trecho.titulo || trecho.doc, norma: trecho.norma, ano: trecho.ano, referencia: trecho.referencia };
+  if (trecho.tipo && trecho.tipo !== 'norma') f.tipo = trecho.tipo;
+  return f;
 }
