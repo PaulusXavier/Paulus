@@ -4,6 +4,10 @@ name = "paulus-ia"
 main = "worker/index.mjs"
 compatibility_date = "2025-01-01"
 
+# Gera knowledge/conhecimento.json e indice.json (não ficam no Git) antes de cada publicação.
+[build]
+command = "node scripts/build-knowledge.mjs"
+
 [ai]
 binding = "AI"
 
