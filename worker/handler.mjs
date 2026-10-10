@@ -16,7 +16,7 @@
 // O Worker não grava nada: nem pergunta, nem resposta, nem IP (o IP só fica na memória, por um minuto).
 
 import { temDadoPessoal, limparMarcacao } from '../shared/pii.mjs';
-import { criarIndice, buscar, consultaComContexto } from '../shared/busca.mjs';
+import { criarIndice, buscar, consultaComContexto, fonteDe, K_PADRAO } from '../shared/busca.mjs';
 import { montarMensagens } from './prompt.mjs';
 
 const MODELO_PADRAO = '@cf/meta/llama-3.1-8b-instruct';
@@ -155,10 +155,8 @@ export function criarManipulador({ base, apps }) {
     if (estourouLimite(ip)) return json({ erro: 'Muitas perguntas seguidas. Aguarde um minuto.' }, 429);
 
     const anteriores = Array.isArray(corpo.historico) ? corpo.historico.filter(function (h) { return h && h.papel === 'usuario' && !temDadoPessoal(String(h.texto || '')); }) : [];
-    const achados = buscar(indice, consultaComContexto(pergunta, anteriores), { k: 3 });
-    const fontes = achados.map(function (a) {
-      return { documento: a.trecho.titulo || a.trecho.doc, norma: a.trecho.norma, ano: a.trecho.ano, referencia: a.trecho.referencia };
-    });
+    const achados = buscar(indice, consultaComContexto(pergunta, anteriores), { k: K_PADRAO });
+    const fontes = achados.map(function (a) { return fonteDe(a.trecho); });
     const mensagens = montarMensagens({
       app: app,
       pagina: corpo.pagina,
