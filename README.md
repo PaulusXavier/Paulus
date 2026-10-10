@@ -24,7 +24,7 @@ app (navegador)                            Worker (Cloudflare)             Worke
 | `client/` | módulo do navegador (`paulus.mjs`) e as "peles" de cada app (`skins.mjs`) |
 | `worker/` | o Worker: `handler.mjs` (lógica), `prompt.mjs`, `apps.mjs` (um bloco por app) |
 | `knowledge/` | base de normas: `documentos/*.md` → `conhecimento.json` |
-| `scripts/` | `build.mjs` (gera `dist/paulus.v1.js`) e `build-knowledge.mjs` |
+| `scripts/` | `build.mjs` (gera `dist/`), `build-knowledge.mjs` (base e catálogo), `ingerir.mjs` (lote de PDFs), `importar-documento.mjs` (referências técnicas) e `importar-norma.mjs` (leis, por artigo) |
 | `tests/` | testes (`npm test`), sem dependências |
 | `docs/` | arquitetura, segurança, integração, conhecimento e deploy |
 
@@ -59,6 +59,6 @@ Para publicar, siga [docs/DEPLOY.md](docs/DEPLOY.md). Para ligar a um app, [docs
 
 ## Estado atual
 
-- Base de normas: só um **trecho** da NOB/SUAS 2012 (arts. 8º a 17). Faltam o texto oficial completo, a Tipificação Nacional, a PNAS e os documentos do IsesWeb. Veja [docs/CONHECIMENTO.md](docs/CONHECIMENTO.md).
+- Base de normas: veja `knowledge/catalogo.json`. Já preparada para receber os documentos da **psicologia no SUAS** (mandando os PDFs pelo Claude: [docs/ALIMENTAR-PELO-CLAUDE.md](docs/ALIMENTAR-PELO-CLAUDE.md)) (`npm run ingerir`, passo a passo em [docs/CONHECIMENTO.md](docs/CONHECIMENTO.md) e `knowledge/entrada/LEIA-ME.md`). Ainda faltam o texto completo da NOB/SUAS 2012, a Tipificação Nacional e a PNAS 2004.
 - O módulo é **sem tela**: o chat de cada app continua sendo o painel do mascote. **Argo SUAS já está ligado**; faltam Anona, Toth e Umbrella (passo a passo em [docs/INTEGRACAO.md](docs/INTEGRACAO.md)).
 - Os textos de `worker/apps.mjs` para Anona, Toth e Umbrella foram escritos sem ler o código desses apps. Revise.
