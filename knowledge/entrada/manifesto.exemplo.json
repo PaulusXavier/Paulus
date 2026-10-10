@@ -1,0 +1,23 @@
+[
+  {
+    "arquivo": "referencias-tecnicas-cras.pdf",
+    "doc": "cfp-ref-cras",
+    "titulo": "Referências Técnicas do CFP para atuação no CRAS/SUAS",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) no CRAS/SUAS",
+    "ano": 2007,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "paginaInicial": 9,
+    "deslocamento": 8
+  },
+  {
+    "arquivo": "codigo-de-etica-psicologo.pdf",
+    "doc": "cfp-res-010-2005",
+    "titulo": "Código de Ética Profissional do Psicólogo",
+    "norma": "Resolução CFP nº 010, de 21 de julho de 2005",
+    "ano": 2005,
+    "tipo": "norma",
+    "pacote": "psicologia",
+    "modo": "norma"
+  }
+]
