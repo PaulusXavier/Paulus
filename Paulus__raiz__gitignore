@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.wrangler/
+.DS_Store
+
+# Gerados por `npm run build:conhecimento` a partir de knowledge/documentos/*.md (pesados; o CI e o wrangler os recriam).
+# Só knowledge/catalogo.json (a lista do que está carregado) é versionado.
+knowledge/conhecimento.json
+knowledge/indice.json
