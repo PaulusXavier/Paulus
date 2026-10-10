@@ -27,6 +27,61 @@
     "caracteres": 9618
   },
   {
+    "doc": "cfp-gestores-suas-2011",
+    "titulo": "Como os psicólogos e as psicólogas podem contribuir para avançar o SUAS: informações para gestoras e gestores",
+    "norma": "CFP/CREPOP, Como os psicólogos e as psicólogas podem contribuir para avançar o Sistema Único de Assistência Social (SUAS): informações para gestoras e gestores, 1ª edição",
+    "ano": 2011,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 43,
+    "caracteres": 23401
+  },
+  {
+    "doc": "cfp-ref-cras-2021",
+    "titulo": "Referências Técnicas para atuação de psicólogas(os) no CRAS/SUAS",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) no CRAS/SUAS, 3ª edição",
+    "ano": 2021,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 583,
+    "caracteres": 342976
+  },
+  {
+    "doc": "cfp-ref-creas-2013",
+    "titulo": "Referências Técnicas para a prática de psicólogas(os) no CREAS",
+    "norma": "CFP/CREPOP, Referências Técnicas para a Prática de Psicólogas(os) no Centro de Referência Especializado da Assistência Social (CREAS), 1ª edição",
+    "ano": 2013,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 255,
+    "caracteres": 149919
+  },
+  {
+    "doc": "cfp-ref-riscos-desastres-2021",
+    "titulo": "Referências Técnicas para atuação de psicólogas(os) na gestão integral de riscos, emergências e desastres",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) na Gestão Integral de Riscos, Emergências e Desastres, 1ª edição",
+    "ano": 2021,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 274,
+    "caracteres": 157859
+  },
+  {
+    "doc": "cfp-res-010-2005",
+    "titulo": "Código de Ética Profissional do Psicólogo",
+    "norma": "Resolução CFP nº 010, de 21 de julho de 2005 (Código de Ética Profissional do Psicólogo)",
+    "ano": 2005,
+    "tipo": "norma",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 73,
+    "caracteres": 15395
+  },
+  {
     "doc": "decreto-12064-2024",
     "titulo": "Regulamento do Programa Bolsa Família",
     "norma": "Decreto nº 12.064, de 17 de junho de 2024 (texto compilado, Planalto, com alterações dos Decretos nº 12.417/2025 e nº 13.120/2026)",
