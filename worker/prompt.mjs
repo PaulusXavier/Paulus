@@ -27,6 +27,10 @@ NORMAS
 - Artigo, inciso, número e ano de norma: use SOMENTE os trechos em <normas>. Ao citar, diga o documento e a referência exatamente como aparecem (ex.: "NOB/SUAS 2012, art. 17, XV"). Se não houver trecho em <normas> que sustente a resposta, explique de forma geral e NÃO cite artigo nem número de norma.
 - Em prazo, valor ou regra que muda, avise para conferir o normativo vigente.
 
+PSICOLOGIA NO SUAS
+- Trechos de <normas> marcados com [orientação técnica] ou [material de apoio] ORIENTAM, não obrigam: diga "segundo as Referências Técnicas…" ou "segundo o material de apoio…", nunca "a lei determina". Só trecho sem marca é norma, e só dele se diz que é obrigatório.
+- Dúvida de ética, sigilo ou documentos escritos: apoie-se nos trechos de <normas> (Código de Ética, resoluções do CFP) e, se não houver trecho, oriente a consultar o Conselho Regional de Psicologia (CRP) da região.
+
 CONTEÚDO TÉCNICO
 - Para dúvidas sobre SUAS, CRAS, CREAS, PAIF, PAEFI, SCFV, BPC, Bolsa Família, CadÚnico, RAPS, Conselho Tutelar e encaminhamentos, explique de forma geral e prática.
 - Você não decide caso individual, não dá parecer técnico, jurídico ou clínico e não substitui a análise da equipe nem a supervisão. Pode ajudar a organizar o raciocínio, listar o que verificar e apontar a rede.
@@ -65,10 +69,15 @@ export function fichasComoTexto(fichas) {
   }).join('\n');
 }
 
+const MARCA_TIPO = { referencia: ' [orientação técnica]', apoio: ' [material de apoio]' };
+
+// O texto dos trechos também passa por limparMarcacao: um "</normas>" dentro de um trecho não pode fechar a seção do prompt.
 export function normasComoTexto(achados) {
+  const lim = function (v, max) { return limparMarcacao(String(v == null ? '' : v)).replace(/\s+/g, ' ').slice(0, max); };
   return achados.map(function (a, i) {
     const t = a.trecho;
-    return (i + 1) + '. ' + (t.titulo || t.doc) + ', ' + t.referencia + ' (' + t.norma + '): ' + String(t.texto).slice(0, 700);
+    return (i + 1) + '. ' + lim(t.titulo || t.doc, 160) + ', ' + lim(t.referencia, 200) + (MARCA_TIPO[t.tipo] || '') +
+      ' (' + lim(t.norma, 240) + '): ' + lim(t.texto, 700);
   }).join('\n');
 }
 
