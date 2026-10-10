@@ -16,7 +16,7 @@
 
 import { temDadoPessoal } from '../shared/pii.mjs';
 import { detectarCrise } from '../shared/crise.mjs';
-import { normalizar, criarIndice, buscar, consultaComContexto } from '../shared/busca.mjs';
+import { normalizar, criarIndice, buscar, consultaComContexto, fonteDe, K_PADRAO } from '../shared/busca.mjs';
 import { SKINS } from './skins.mjs';
 
 const AVISO_PESSOAL = 'Para proteger as famílias, não consigo analisar mensagens com nome, documento, telefone ou endereço residencial. Reescreva a pergunta sem identificar ninguém.';
@@ -307,10 +307,10 @@ function respostaDasNormas(achados) {
   return {
     tipo: 'norma',
     texto: resumirTrecho(melhor.texto, 900),
-    fontes: achados.map(function (a) {
-      return { documento: a.trecho.titulo || a.trecho.doc, norma: a.trecho.norma, ano: a.trecho.ano, referencia: a.trecho.referencia };
-    }),
-    avisos: ['Trecho da base de normas do Paulus. Confira o texto oficial vigente.']
+    fontes: achados.map(function (a) { return fonteDe(a.trecho); }),
+    avisos: [melhor.tipo && melhor.tipo !== 'norma'
+      ? 'Trecho de ' + (melhor.tipo === 'apoio' ? 'material de apoio' : 'orientação técnica') + ' (não é norma legal: orienta, não obriga). Confira o documento original.'
+      : 'Trecho da base de normas do Paulus. Confira o texto oficial vigente.']
   };
 }
 
@@ -337,7 +337,7 @@ async function perguntar(texto, opcoes) {
   }
 
   await estado.pronto;
-  const achados = estado.indice ? buscar(estado.indice, consultaComContexto(t, Array.isArray(o.historico) ? o.historico : estado.historico), { k: 3 }) : [];
+  const achados = estado.indice ? buscar(estado.indice, consultaComContexto(t, Array.isArray(o.historico) ? o.historico : estado.historico), { k: K_PADRAO }) : [];
 
   if (iaLigada()) {
     try {
