@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { readFileSync } from 'node:fs';
+import { montarBase } from '../scripts/build-knowledge.mjs';
 import { juntar } from '../scripts/build.mjs';
 import { criarManipulador } from '../worker/handler.mjs';
 import { APPS } from '../worker/apps.mjs';
 
-const base = JSON.parse(readFileSync(new URL('../knowledge/conhecimento.json', import.meta.url), 'utf8'));
+const base = montarBase();
 const ORIGEM = 'https://paulusxavier.github.io';
 const ENDPOINT = 'https://paulus-ia.exemplo.workers.dev';
 
