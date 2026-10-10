@@ -38,6 +38,50 @@
     "caracteres": 23401
   },
   {
+    "doc": "cfp-gestores-suas-2025",
+    "titulo": "Como as psicólogas e os psicólogos podem contribuir para avançar o SUAS: informações para gestoras e gestores (2ª edição)",
+    "norma": "CFP/CREPOP, Como as Psicólogas e os Psicólogos podem Contribuir para Avançar o Sistema Único de Assistência Social (SUAS): informações para gestoras e gestores, 2ª edição revisada e ampliada",
+    "ano": 2025,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 406,
+    "caracteres": 243196
+  },
+  {
+    "doc": "cfp-ref-alcool-drogas-2019",
+    "titulo": "Referências Técnicas para atuação de psicólogas(os) em políticas públicas de álcool e outras drogas",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) em Políticas Públicas de Álcool e Outras Drogas, edição revisada",
+    "ano": 2019,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 306,
+    "caracteres": 166992
+  },
+  {
+    "doc": "cfp-ref-atencao-basica-2019",
+    "titulo": "Referências Técnicas para atuação de psicólogas(os) na atenção básica à saúde",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) na Atenção Básica à Saúde, 2ª edição",
+    "ano": 2019,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 272,
+    "caracteres": 161237
+  },
+  {
+    "doc": "cfp-ref-caps-2022",
+    "titulo": "Referências Técnicas para atuação de psicólogas(os) no Centro de Atenção Psicossocial (CAPS)",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) no Centro de Atenção Psicossocial (CAPS), edição revisada",
+    "ano": 2022,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 355,
+    "caracteres": 205667
+  },
+  {
     "doc": "cfp-ref-cras-2021",
     "titulo": "Referências Técnicas para atuação de psicólogas(os) no CRAS/SUAS",
     "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) no CRAS/SUAS, 3ª edição",
@@ -60,6 +104,105 @@
     "caracteres": 149919
   },
   {
+    "doc": "cfp-ref-educacao-basica-2019",
+    "titulo": "Referências Técnicas para a atuação de psicólogas(os) na educação básica",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) na Educação Básica, 2ª edição",
+    "ano": 2019,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 193,
+    "caracteres": 110878
+  },
+  {
+    "doc": "cfp-ref-hospitalar-sus-2019",
+    "titulo": "Referências Técnicas para atuação de psicólogas(os) nos serviços hospitalares do SUS",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) nos Serviços Hospitalares do SUS, 1ª edição",
+    "ano": 2019,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 372,
+    "caracteres": 208825
+  },
+  {
+    "doc": "cfp-ref-ist-hiv-aids-2020",
+    "titulo": "Referências Técnicas para atuação de psicólogas(os) nos programas e serviços de IST/HIV/aids",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) nos Programas e Serviços de IST/HIV/Aids, edição revisada",
+    "ano": 2020,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 206,
+    "caracteres": 110488
+  },
+  {
+    "doc": "cfp-ref-mulher-violencia-2013",
+    "titulo": "Referências Técnicas para a prática de psicólogas(os) em programas de atenção à mulher em situação de violência",
+    "norma": "CFP/CREPOP, Referências Técnicas para a Prática de Psicólogas(os) em Programas de Atenção à Mulher em Situação de Violência, 1ª edição",
+    "ano": 2013,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 240,
+    "caracteres": 138387
+  },
+  {
+    "doc": "cfp-ref-pessoas-idosas-2025",
+    "titulo": "Referências Técnicas para atuação de psicólogas(os) junto às pessoas idosas nas políticas públicas",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) junto às Pessoas Idosas nas Políticas Públicas, 1ª edição",
+    "ano": 2025,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 735,
+    "caracteres": 430030
+  },
+  {
+    "doc": "cfp-ref-pop-rua-2025",
+    "titulo": "Referências Técnicas para atuação de psicólogas(os) em políticas públicas para a população em situação de rua",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) em Políticas Públicas para a População em Situação de Rua",
+    "ano": 2025,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 345,
+    "caracteres": 198267
+  },
+  {
+    "doc": "cfp-ref-povos-indigenas-2024",
+    "titulo": "Referências Técnicas para atuação de psicólogas(os) junto aos povos indígenas",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) junto aos Povos Indígenas (Nota técnica sobre atuação de psicólogas(os) junto aos povos indígenas), 2ª edição",
+    "ano": 2024,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 608,
+    "caracteres": 362541
+  },
+  {
+    "doc": "cfp-ref-prisional-2021",
+    "titulo": "Referências Técnicas para atuação de psicólogas(os) no sistema prisional",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) no Sistema Prisional",
+    "ano": 2021,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 589,
+    "caracteres": 367435
+  },
+  {
+    "doc": "cfp-ref-quilombolas-2025",
+    "titulo": "Referências Técnicas para atuação de psicólogas(os) junto aos povos quilombolas",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) junto aos Povos Quilombolas, 1ª edição",
+    "ano": 2025,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 454,
+    "caracteres": 274910
+  },
+  {
     "doc": "cfp-ref-riscos-desastres-2021",
     "titulo": "Referências Técnicas para atuação de psicólogas(os) na gestão integral de riscos, emergências e desastres",
     "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) na Gestão Integral de Riscos, Emergências e Desastres, 1ª edição",
@@ -71,6 +214,28 @@
     "caracteres": 157859
   },
   {
+    "doc": "cfp-ref-socioeducativas-2021",
+    "titulo": "Referências Técnicas para atuação de psicólogas(os) no âmbito das medidas socioeducativas",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) no Âmbito das Medidas Socioeducativas, edição revisada",
+    "ano": 2021,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 211,
+    "caracteres": 121460
+  },
+  {
+    "doc": "cfp-ref-violencia-sexual-2020",
+    "titulo": "Referências Técnicas para atuação de psicólogas(os) na rede de proteção às crianças e adolescentes em situação de violência sexual",
+    "norma": "CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) na Rede de Proteção às Crianças e Adolescentes em Situação de Violência Sexual, 2ª edição (revisada)",
+    "ano": 2020,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 181,
+    "caracteres": 108505
+  },
+  {
     "doc": "cfp-res-010-2005",
     "titulo": "Código de Ética Profissional do Psicólogo",
     "norma": "Resolução CFP nº 010, de 21 de julho de 2005 (Código de Ética Profissional do Psicólogo)",
@@ -80,6 +245,17 @@
     "revisao": "pendente",
     "trechos": 73,
     "caracteres": 15395
+  },
+  {
+    "doc": "cfp-seminario-migracoes-2024",
+    "titulo": "Seminário de Psicologia e Políticas Públicas: interface entre psicologia e populações em situação de refúgio, migração e apatridia",
+    "norma": "CFP, Relatório do Seminário de Psicologia e Políticas Públicas: Interface entre Psicologia e Populações em Situação de Refúgio, Migração e Apatridia (Brasília, junho de 2024)",
+    "ano": 2024,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 549,
+    "caracteres": 345229
   },
   {
     "doc": "decreto-12064-2024",
