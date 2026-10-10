@@ -7,7 +7,7 @@ São duas publicações separadas:
 | **Worker** (`worker/`) | Cloudflare | a IA em si (Workers AI, gratuito, sem chave de API) |
 | **Site estático** (`dist/`) | GitHub Pages | `paulus.v1.js` e `conhecimento.json`, que os apps carregam |
 
-Antes de tudo: `npm test` precisa passar.
+Antes de tudo: `npm test` precisa passar. (`knowledge/conhecimento.json` e `indice.json` não estão no Git: o `npm test`, o `npm run build` e o `wrangler deploy` os geram a partir de `knowledge/documentos/*.md`.)
 
 ## 1. Worker na Cloudflare
 
