@@ -1,0 +1,128 @@
+[
+  {
+    "doc": "bolsa-familia-2026",
+    "titulo": "Bolsa Família (informações 2026)",
+    "norma": "Material informativo do MDS e da Caixa sobre o Programa Bolsa Família, valores atualizados em outubro de 2026",
+    "ano": 2026,
+    "tipo": "norma",
+    "trechos": 13,
+    "caracteres": 4696
+  },
+  {
+    "doc": "cadunico-mds",
+    "titulo": "Cadastro Único (orientações do MDS)",
+    "norma": "Material informativo do MDS sobre o Cadastro Único para Programas Sociais (gov.br/mds)",
+    "ano": 2026,
+    "tipo": "norma",
+    "trechos": 5,
+    "caracteres": 1879
+  },
+  {
+    "doc": "cf-1988-extratos",
+    "titulo": "Constituição Federal (trechos da seguridade e assistência social)",
+    "norma": "Constituição da República Federativa do Brasil, de 5 de outubro de 1988 (trechos reproduzidos na edição da Câmara, 2013)",
+    "ano": 1988,
+    "tipo": "norma",
+    "trechos": 30,
+    "caracteres": 9618
+  },
+  {
+    "doc": "decreto-12064-2024",
+    "titulo": "Regulamento do Programa Bolsa Família",
+    "norma": "Decreto nº 12.064, de 17 de junho de 2024 (texto compilado, Planalto, com alterações dos Decretos nº 12.417/2025 e nº 13.120/2026)",
+    "ano": 2024,
+    "tipo": "norma",
+    "trechos": 15,
+    "caracteres": 5400
+  },
+  {
+    "doc": "decreto-13120-2026",
+    "titulo": "Correção dos valores do Bolsa Família (2026)",
+    "norma": "Decreto nº 13.120, de 17 de setembro de 2026",
+    "ano": 2026,
+    "tipo": "norma",
+    "trechos": 3,
+    "caracteres": 916
+  },
+  {
+    "doc": "decreto-6214-2007",
+    "titulo": "Regulamento do BPC",
+    "norma": "Regulamento do BPC, anexo ao Decreto nº 6.214, de 26 de setembro de 2007 (texto de 2013)",
+    "ano": 2007,
+    "tipo": "norma",
+    "trechos": 132,
+    "caracteres": 40689
+  },
+  {
+    "doc": "decreto-6307-2007",
+    "titulo": "Decreto dos Benefícios Eventuais",
+    "norma": "Decreto nº 6.307, de 14 de dezembro de 2007",
+    "ano": 2007,
+    "tipo": "norma",
+    "trechos": 21,
+    "caracteres": 5550
+  },
+  {
+    "doc": "decreto-6308-2007",
+    "titulo": "Decreto das Entidades de Assistência Social",
+    "norma": "Decreto nº 6.308, de 14 de dezembro de 2007",
+    "ano": 2007,
+    "tipo": "norma",
+    "trechos": 10,
+    "caracteres": 4101
+  },
+  {
+    "doc": "decreto-7788-2012",
+    "titulo": "Decreto do FNAS",
+    "norma": "Decreto nº 7.788, de 15 de agosto de 2012",
+    "ano": 2012,
+    "tipo": "norma",
+    "trechos": 32,
+    "caracteres": 9194
+  },
+  {
+    "doc": "guia-bolsa-familia-cadunico-2026",
+    "titulo": "Guia rápido Bolsa Família e CadÚnico (orientação, não é norma)",
+    "norma": "Material orientativo compilado de MDS/Caixa e das normas citadas (Lei 14.601/2023, Decretos 12.064/2024 e 13.120/2026, Decreto 11.016/2022, Portaria MDS 1.058/2025, IN SENARC/MDS 50/2025); atualizado em 09/10/2026",
+    "ano": 2026,
+    "tipo": "norma",
+    "trechos": 14,
+    "caracteres": 6157
+  },
+  {
+    "doc": "lei-14601-2023",
+    "titulo": "Lei do Programa Bolsa Família",
+    "norma": "Lei nº 14.601, de 19 de junho de 2023 (texto compilado, Planalto, com alterações da Lei nº 15.077/2024)",
+    "ano": 2023,
+    "tipo": "norma",
+    "trechos": 16,
+    "caracteres": 5698
+  },
+  {
+    "doc": "loas-1993",
+    "titulo": "LOAS",
+    "norma": "Lei nº 8.742, de 7 de dezembro de 1993 (texto compilado pela Câmara, atualizado até 26/11/2013)",
+    "ano": 1993,
+    "tipo": "norma",
+    "trechos": 167,
+    "caracteres": 46738
+  },
+  {
+    "doc": "nob-suas-2012",
+    "titulo": "NOB/SUAS 2012",
+    "norma": "Resolução CNAS nº 33, de 12 de dezembro de 2012",
+    "ano": 2012,
+    "tipo": "norma",
+    "trechos": 11,
+    "caracteres": 2089
+  },
+  {
+    "doc": "raps-ministerio-saude",
+    "titulo": "RAPS (Ministério da Saúde)",
+    "norma": "Material informativo do Ministério da Saúde (SAES/DESMAD) sobre a Rede de Atenção Psicossocial (RAPS), gov.br/saude, páginas da RAPS e de cada ponto de atenção",
+    "ano": 2026,
+    "tipo": "norma",
+    "trechos": 18,
+    "caracteres": 9285
+  }
+]
