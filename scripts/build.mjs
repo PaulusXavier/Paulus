@@ -46,6 +46,13 @@ export function construir() {
   const base = join(RAIZ, 'knowledge', 'conhecimento.json');
   if (!existsSync(base)) throw new Error('Falta knowledge/conhecimento.json. Rode: npm run build:conhecimento');
   copyFileSync(base, join(saida, 'conhecimento.json'));
+  // um arquivo por pacote (ex.: conhecimento-psicologia.json), só quando há mais de um grupo; o que não tem pacote vai em "geral"
+  const todos = JSON.parse(readFileSync(base, 'utf8'));
+  const grupos = {};
+  for (const t of todos) (grupos[t.pacote || 'geral'] = grupos[t.pacote || 'geral'] || []).push(t);
+  if (Object.keys(grupos).length > 1) {
+    for (const nome of Object.keys(grupos)) writeFileSync(join(saida, 'conhecimento-' + nome + '.json'), JSON.stringify(grupos[nome]));
+  }
   return saida;
 }
 
