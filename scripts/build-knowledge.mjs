@@ -14,15 +14,18 @@
 //   ## art. 17, XV                       (a referência que será citada)
 //   Texto do trecho, copiado da norma.   (um ou mais parágrafos; viram um texto só)
 //
-// Comentários <!-- ... --> são ignorados. Gera também knowledge/catalogo.json. Uso: npm run build:conhecimento
+// Comentários <!-- ... --> são ignorados. Gera também knowledge/indice.json (índice de busca) e knowledge/catalogo.json.
+// conhecimento.json e indice.json NÃO vão para o Git (são gerados); só catalogo.json é versionado. Uso: npm run build:conhecimento
 
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { criarIndice, serializarIndice } from '../shared/busca.mjs';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PASTA = join(RAIZ, 'knowledge', 'documentos');
 const SAIDA = join(RAIZ, 'knowledge', 'conhecimento.json');
+const SAIDA_INDICE = join(RAIZ, 'knowledge', 'indice.json');
 const SAIDA_CATALOGO = join(RAIZ, 'knowledge', 'catalogo.json');
 const ID = /^[a-z0-9][a-z0-9-]*$/;
 const TIPOS = ['norma', 'referencia', 'apoio'];
@@ -123,8 +126,11 @@ export function avisosDaBase(pasta) {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const base = montarBase();
-  writeFileSync(SAIDA, JSON.stringify(base, null, 2) + '\n');
+  // JSON compacto (sem recuo) e FORA do Git (veja .gitignore): é gerado a partir de knowledge/documentos/*.md.
+  writeFileSync(SAIDA, JSON.stringify(base));
+  // Índice de busca já calculado: o Worker o carrega pronto em vez de montá-lo na partida (leva ~0,6 s com a base toda).
+  writeFileSync(SAIDA_INDICE, JSON.stringify(serializarIndice(criarIndice(base))));
   writeFileSync(SAIDA_CATALOGO, JSON.stringify(montarCatalogo(), null, 2) + '\n');
-  console.log(base.length + ' trecho(s) em ' + new Set(base.map(function (x) { return x.doc; })).size + ' documento(s) → knowledge/conhecimento.json e catalogo.json');
+  console.log(base.length + ' trecho(s) em ' + new Set(base.map(function (x) { return x.doc; })).size + ' documento(s) → knowledge/conhecimento.json, indice.json e catalogo.json');
   avisosDaBase().forEach(function (a) { console.log('ATENÇÃO: ' + a); });
 }
