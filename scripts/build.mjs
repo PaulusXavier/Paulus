@@ -1,10 +1,11 @@
 // Gera os arquivos que vão para o ar:
 //   dist/paulus.v1.js       módulo do navegador (shared/*.mjs + client/*.mjs em um arquivo só, sem import/export)
-//   dist/conhecimento.json  base de normas (cópia de knowledge/conhecimento.json)
+//   dist/conhecimento.json  base de normas completa (cópia de knowledge/conhecimento.json; pesada)
+//   dist/conhecimento-<pacote>.json  um arquivo por pacote (geral = leis e decretos, leve; psicologia = referências do CFP)
 //
 // Uso: npm run build   (antes, rode npm run build:conhecimento se mudou algo em knowledge/documentos)
 
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -56,7 +57,16 @@ export function construir() {
   return saida;
 }
 
+// Mostra quanto cada arquivo de conhecimento pesa, para ninguém mandar a base inteira a um app que só precisa do pacote leve.
+export function relatorioDeTamanho(saida) {
+  return ['conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json']
+    .filter(function (n) { return existsSync(join(saida, n)); })
+    .map(function (n) { return '  ' + n + ': ' + (statSync(join(saida, n)).size / 1048576).toFixed(2) + ' MB'; })
+    .join('\n');
+}
+
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const pasta = construir();
-  console.log('Pronto: ' + pasta + '/paulus.v1.js e conhecimento.json');
+  console.log('Pronto: ' + pasta + '/paulus.v1.js e conhecimento*.json\n' + relatorioDeTamanho(pasta));
+  console.log('Apps que só precisam do básico (ex.: Argo) devem usar conhecimento-geral.json, não o conhecimento.json inteiro.');
 }
