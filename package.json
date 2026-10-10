@@ -8,6 +8,9 @@
     "test": "node --test",
     "build:conhecimento": "node scripts/build-knowledge.mjs",
     "build": "node scripts/build-knowledge.mjs && node scripts/build.mjs",
+    "ingerir": "node scripts/ingerir.mjs",
+    "inspecionar": "node scripts/inspecionar.mjs",
+    "conferir": "node scripts/conferir.mjs",
     "deploy:worker": "wrangler deploy"
   },
   "engines": {
