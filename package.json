@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Paulus: copiloto de IA compartilhado pelos apps (Argo SUAS, Anona, Toth, Umbrella).",
   "scripts": {
+    "pretest": "node scripts/build-knowledge.mjs",
     "test": "node --test",
     "build:conhecimento": "node scripts/build-knowledge.mjs",
     "build": "node scripts/build-knowledge.mjs && node scripts/build.mjs",
