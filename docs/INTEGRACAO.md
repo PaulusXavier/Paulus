@@ -21,7 +21,7 @@ Paulus.perguntar(texto, {
   sinal, onToken, onFontes
 });
 ```
-`semAcoes`, `fichas` e `historico` por chamada existem para apps que já têm o próprio cérebro. Se `paulus.v1.js` não carregar, o Argo volta ao transporte antigo do `ArgoCerebro`. Quando o Paulus muda: `npm run build` aqui e copie `dist/paulus.v1.js` e `dist/conhecimento.json` para o Argo.
+`semAcoes`, `fichas` e `historico` por chamada existem para apps que já têm o próprio cérebro. Se `paulus.v1.js` não carregar, o Argo volta ao transporte antigo do `ArgoCerebro`. Quando o Paulus muda: `npm run build` aqui e copie `dist/paulus.v1.js` e `dist/conhecimento-geral.json` (como `assets/conhecimento.json`) para o Argo. Não use o `conhecimento.json` inteiro em app de celular.
 
 **Ainda não feito:** `Paulus.registrarAcao`/`registrarBusca` no Argo (o `ArgoCerebro` já cobre abas e buscas) e consulta à base de normas sem internet (hoje, offline, o Argo responde com o diretório e o glossário; a norma offline só aparece quando a IA falha com internet).
 
