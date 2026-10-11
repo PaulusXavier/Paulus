@@ -84,7 +84,7 @@ function normalizarFluxo(upstream, fontes) {
 async function chamarIA(env, mensagens, stream) {
   const principal = env.MODELO || MODELO_PADRAO;
   const reserva = env.MODELO_RESERVA || MODELO_PADRAO;
-  const params = { messages: mensagens, max_tokens: 560, temperature: 0.25, stream: !!stream };
+  const params = { messages: mensagens, max_tokens: 640, temperature: 0.25, stream: !!stream };
   try {
     return await env.AI.run(principal, params);
   } catch (e) {
