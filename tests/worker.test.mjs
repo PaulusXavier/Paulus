@@ -195,3 +195,11 @@ test('histórico que termina em pergunta sem resposta não gera dois "user" segu
   ]);
   assert.deepEqual(m.map(x => x.role), ['user', 'assistant']);
 });
+
+test('prompt: regras de valor, norma desatualizada e mapa do SUAS', async () => {
+  const { montarSistema } = await import('../worker/prompt.mjs');
+  const s = montarSistema(APPS.argo, 'CRAS');
+  assert.match(s, /SOMENTE número que apareça/);
+  assert.match(s, /atualizado até 2013/);
+  assert.match(s, /MAPA DO SUAS/);
+});
