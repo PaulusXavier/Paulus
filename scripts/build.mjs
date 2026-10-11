@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path';
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Ordem importa: quem é usado vem antes de quem usa.
-const MODULOS = ['shared/pii.mjs', 'shared/crise.mjs', 'shared/busca.mjs', 'client/skins.mjs', 'client/paulus.mjs'];
+const MODULOS = ['shared/pii.mjs', 'shared/crise.mjs', 'shared/busca.mjs', 'shared/sugestoes.mjs', 'client/skins.mjs', 'client/paulus.mjs'];
 
 const CABECALHO = '/*! Paulus v1 — gerado por scripts/build.mjs. Não edite: altere shared/ e client/. */\n(function (root) {\n\'use strict\';\n';
 const RODAPE = '})(typeof self !== \'undefined\' ? self : this);\n';
