@@ -26,7 +26,10 @@ const SIGLAS = {
   paefi: ['protecao', 'atendimento', 'especializado', 'familias', 'individuos'],
   scfv: ['servico', 'convivencia', 'fortalecimento', 'vinculos'],
   cfp: ['conselho', 'federal', 'psicologia'],
-  crp: ['conselho', 'regional', 'psicologia']
+  crp: ['conselho', 'regional', 'psicologia'],
+  cid: ['classificacao', 'internacional', 'doencas'],
+  cif: ['classificacao', 'internacional', 'funcionalidade', 'incapacidade', 'saude'],
+  oms: ['organizacao', 'mundial', 'saude']
 };
 
 // Quantos trechos da base vão para a IA e para a resposta offline.
