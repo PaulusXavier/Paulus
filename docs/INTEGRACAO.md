@@ -23,7 +23,12 @@ Paulus.perguntar(texto, {
 ```
 `semAcoes`, `fichas` e `historico` por chamada existem para apps que já têm o próprio cérebro. Se `paulus.v1.js` não carregar, o Argo volta ao transporte antigo do `ArgoCerebro`. Quando o Paulus muda: `npm run build` aqui e copie `dist/paulus.v1.js` e `dist/conhecimento-geral.json` (como `assets/conhecimento.json`) para o Argo. Não use o `conhecimento.json` inteiro em app de celular.
 
-**Ainda não feito:** `Paulus.registrarAcao`/`registrarBusca` no Argo (o `ArgoCerebro` já cobre abas e buscas) e consulta à base de normas sem internet (hoje, offline, o Argo responde com o diretório e o glossário; a norma offline só aparece quando a IA falha com internet).
+**Desde a v0.2.0:**
+- O Argo repassa o `panorama` (totais reais do diretório por grupo) que o `ArgoCerebro` já montava. Sem ele, "quantos CAPS existem?" chegava à IA só com fichas soltas e ela contava errado. Qualquer app com diretório pode mandar `panorama: 'texto com os totais'` (até 3000 caracteres) em `perguntar`.
+- `Paulus.consultarNormas(texto, { historico })` consulta **só** a base de normas, no aparelho, sem IA e sem rede. Devolve `{ tipo: 'norma', texto, fontes, avisos }` ou `null`. O Argo a usa quando não há IA (offline ou desligada) e nenhuma resposta pronta serve (`argoAskNormasOffline`, em `js/app.js`). Se devolver `null`, o app mostra a resposta de reserva de sempre.
+- O motivo das falhas do Worker não se perde mais. Limite por minuto (HTTP 429) volta como `{ tipo: 'erro', limite: true, texto }` (a norma offline não resolve; é só esperar). Cota do dia esgotada (502) ainda entrega a norma da base, ou, se não houver, `sem_resposta` com `motivo`.
+
+**Ainda não feito:** `Paulus.registrarAcao`/`registrarBusca` no Argo (o `ArgoCerebro` já cobre abas e buscas).
 
 ## 2. Outros apps (Anona, Toth, Umbrella, ...)
 
@@ -62,7 +67,7 @@ async function enviar(texto) {
   (r.avisos || []).forEach(mostrarAviso);                          // "Resposta gerada por IA..."
 }
 ```
-Tipos de `r.tipo`: `ia`, `norma`, `busca`, `acao`, `acao_desconhecida`, `crise`, `bloqueio`, `sem_resposta`, `erro`.
+Tipos de `r.tipo`: `ia`, `norma`, `busca`, `acao`, `acao_desconhecida`, `crise`, `bloqueio`, `sem_resposta`, `erro`. Em `erro`, `r.limite === true` indica limite de perguntas (basta esperar); em `sem_resposta`, `r.motivo` traz o que o Worker informou, se informou.
 
 Ao trancar o app ou tocar em "Nova conversa", chame `Paulus.limpar()`.
 
