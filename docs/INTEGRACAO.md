@@ -28,6 +28,12 @@ Paulus.perguntar(texto, {
 - `Paulus.consultarNormas(texto, { historico })` consulta **só** a base de normas, no aparelho, sem IA e sem rede. Devolve `{ tipo: 'norma', texto, fontes, avisos }` ou `null`. O Argo a usa quando não há IA (offline ou desligada) e nenhuma resposta pronta serve (`argoAskNormasOffline`, em `js/app.js`). Se devolver `null`, o app mostra a resposta de reserva de sempre.
 - O motivo das falhas do Worker não se perde mais. Limite por minuto (HTTP 429) volta como `{ tipo: 'erro', limite: true, texto }` (a norma offline não resolve; é só esperar). Cota do dia esgotada (502) ainda entrega a norma da base, ou, se não houver, `sem_resposta` com `motivo`.
 
+**Desde a v0.3.0 (interação com o mascote):**
+- A IA termina respostas explicativas com `SUGESTÕES: a | b | c`. O Paulus tira esse rótulo do texto (inclusive durante o streaming, em `onToken`) e devolve `r.sugestoes` (até 3 perguntas curtas) para o app mostrar como botões.
+- No Worker, o prompt agora define a persona (primeira pessoa, sem "Olá/Claro!", honesta quando o dado não consta) e o bloco do Argo diz que a IA aparece como o mascote.
+- No Argo, o mascote usa isso para: botões de continuação, lista de fontes que abre e fecha, humor que acompanha o que foi dito ("não consta" → carinha de dúvida; telefone fora do diretório → preocupado), fases no cabeçalho ("procurando no diretório…", "consultando as normas…", "escrevendo…"), cabeça que inclina enquanto você digita e assente enquanto ele escreve, 👍 com coração e 👎 com opções de "explicar de outro jeito"/"mais curto", e "↻ Tentar de novo" quando a IA falha. Para outros apps: copie as mesmas ideias de `mountAssistant` em `argo-mascot.js`.
+- Depois de mudar o prompt, publique o Worker de novo (`npm run deploy:worker`); sem isso a IA não envia as sugestões (o app continua funcionando, só sem os botões).
+
 **Ainda não feito:** `Paulus.registrarAcao`/`registrarBusca` no Argo (o `ArgoCerebro` já cobre abas e buscas).
 
 ## 2. Outros apps (Anona, Toth, Umbrella, ...)
