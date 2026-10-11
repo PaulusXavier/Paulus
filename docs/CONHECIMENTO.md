@@ -44,7 +44,7 @@ O Paulus devolve o tipo em cada fonte (`fontes[i].tipo`, só quando não é norm
    - Um trecho por artigo ou inciso. Trechos curtos (até uns 700 caracteres) funcionam melhor na busca.
    - Arquivos que começam com `_` são ignorados (bom para rascunho).
 2. `npm run build:conhecimento` (o teste `tests/conhecimento.test.mjs` avisa se você esquecer).
-3. `npm test`, `npm run build`, publique o Worker e o site ([DEPLOY.md](DEPLOY.md)) e copie `dist/conhecimento.json` para os apps com cópia local (Argo).
+3. `npm test`, `npm run build`, publique o Worker e o site ([DEPLOY.md](DEPLOY.md)) e copie `dist/conhecimento-geral.json` (não o `conhecimento.json` inteiro) para os apps com cópia local (Argo, como `assets/conhecimento.json`).
 
 ## Alimentar com vários documentos (psicologia no SUAS e outros)
 **Mandando os PDFs pelo Claude (o jeito mais simples): veja [ALIMENTAR-PELO-CLAUDE.md](ALIMENTAR-PELO-CLAUDE.md).** Abaixo, o fluxo manual, no seu computador.
