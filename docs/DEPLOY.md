@@ -60,6 +60,6 @@ Sem o cabeçalho `Origin` o Worker responde `403` de propósito.
 Para testar o build no computador: `npm run build` e confira a pasta `dist/`.
 
 ## 3. Depois de publicar
-- **Argo SUAS:** ele usa cópias locais. Copie `dist/paulus.v1.js` para `js/paulus.v1.js` e `dist/conhecimento.json` para `assets/conhecimento.json` (atenção: `assets/`, não `assets/img/`). Se mudou o texto das normas, publique o Worker de novo também.
+- **Argo SUAS:** ele usa cópias locais. Copie `dist/paulus.v1.js` para `js/paulus.v1.js` e `dist/conhecimento-geral.json` (pacote leve, ~0,4 MB; **não** o `conhecimento.json` inteiro, que passa de 8 MB) para `assets/conhecimento.json` (atenção: `assets/`, não `assets/img/`). Se mudou o texto das normas, publique o Worker de novo também.
 - **Outros apps:** carregam do GitHub Pages; veja [INTEGRACAO.md](INTEGRACAO.md).
 - **Cota:** o plano gratuito dá 10.000 "neurons" por dia no Workers AI. Acabando, a IA para até 00:00 UTC (20h em Roraima) e os apps usam a base offline. Não há cobrança por excesso no plano gratuito.
