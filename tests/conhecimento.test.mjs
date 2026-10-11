@@ -78,3 +78,20 @@ test('base compacta do Worker: mesmas fontes e mesmos resultados da busca que a 
     assert.deepEqual(b, a, q);
   }
 });
+
+test('busca: parágrafo herda o assunto do artigo e nenhum documento ocupa todas as fontes', async () => {
+  const { criarIndice: ci, buscar: bu } = await import('../shared/busca.mjs');
+  const mk = (id, doc, ref, texto, tipo) => ({ id, doc, titulo: doc, norma: 'N', ano: 2020, referencia: ref, texto, ...(tipo ? { tipo } : {}) });
+  const fill = Array.from({ length: 8 }, (_, i) => mk('f#' + i, 'f', 'art. ' + (50 + i), 'texto sobre outro assunto qualquer número ' + i));
+  const base = [
+    mk('a#1', 'a', 'art. 20', 'O benefício de prestação continuada é a garantia de um salário-mínimo mensal.'),
+    mk('a#2', 'a', 'art. 20, § 3º', 'Considera-se incapaz a família cuja renda mensal per capita seja inferior a 1/4 do salário mínimo.')
+  ].concat(fill);
+  const r = bu(ci(base), 'renda per capita incapaz do benefício de prestação continuada', { k: 1 });
+  assert.equal(r[0].trecho.id, 'a#2');
+  const muitos = Array.from({ length: 6 }, (_, i) => mk('d#' + i, 'd', 'art. ' + (1 + i), 'o serviço de convivência atende famílias ' + i))
+    .concat([mk('e#1', 'e', 'p. 1', 'o serviço de convivência atende famílias e grupos', 'referencia')]).concat(fill);
+  const top = bu(ci(muitos), 'serviço de convivência famílias', { k: 4 });
+  assert.ok(top.filter(x => x.trecho.doc === 'd').length <= 3);
+  assert.ok(top.some(x => x.trecho.doc === 'e'));
+});
