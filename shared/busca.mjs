@@ -35,6 +35,10 @@ const SIGLAS = {
 // Quantos trechos da base vão para a IA e para a resposta offline.
 export const K_PADRAO = 4;
 
+// Do texto de cada trecho, a IA só recebe os primeiros caracteres (worker/prompt.mjs). O Worker, por isso, guarda só esse começo
+// (limite de tamanho do plano gratuito), e a assinatura do índice conta só até aqui para valer nas duas versões da base.
+export const MAX_TEXTO_TRECHO = 700;
+
 export function normalizar(s) {
   return String(s == null ? '' : s)
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -94,7 +98,7 @@ function trechosValidos(trechos) {
 // pré-calculado ainda corresponde à base que está sendo usada.
 function assinatura(validos) {
   let chars = 0;
-  for (const c of validos) chars += c.texto.length;
+  for (const c of validos) chars += Math.min(c.texto.length, MAX_TEXTO_TRECHO);
   return validos.length + ':' + chars;
 }
 
@@ -103,7 +107,7 @@ function assinatura(validos) {
 // Se "pre" não corresponder à base (assinatura diferente), o índice é calculado do zero.
 export function criarIndice(trechos, pre) {
   const validos = trechosValidos(trechos);
-  if (pre && pre.sig === assinatura(validos) && Array.isArray(pre.v) && Array.isArray(pre.d) && pre.d.length === validos.length) {
+  if (pre && pre.f === 2 && pre.sig === assinatura(validos) && Array.isArray(pre.v) && Array.isArray(pre.d) && pre.d.length === validos.length) {
     return restaurarIndice(validos, pre);
   }
   const docs = [];
@@ -121,16 +125,22 @@ export function criarIndice(trechos, pre) {
   return { docs, df, N: docs.length, avg: docs.length ? soma / docs.length : 0 };
 }
 
-// Índice em forma compacta (só números e um vocabulário), para guardar em arquivo: { sig, v:[termos], d:[[len, idTermo, vezes, ...], ...] }
+// Índice em forma compacta, para guardar em arquivo: { f:2, sig, v:[termos], d:[[len, delta, vezes, delta, vezes, ...], ...] }
+// O vocabulário vai ordenado do termo mais comum para o mais raro e os ids de cada trecho vão em ordem crescente, só pela
+// diferença para o anterior: números pequenos e repetidos comprimem muito mais (importa porque o Worker tem limite de tamanho).
 export function serializarIndice(indice) {
-  const v = Object.keys(indice.df);
-  const id = new Map(v.map(function (t, i) { return [t, i]; }));
+  const termos = Object.keys(indice.df);
+  termos.sort(function (a, b) { return indice.df[b] - indice.df[a]; }); // estável: empate mantém a ordem de inserção
+  const id = new Map(termos.map(function (t, i) { return [t, i]; }));
   const d = indice.docs.map(function (x) {
+    const pares = Object.keys(x.tf).map(function (t) { return [id.get(t), x.tf[t]]; });
+    pares.sort(function (a, b) { return a[0] - b[0]; });
     const linha = [x.len];
-    for (const t in x.tf) linha.push(id.get(t), x.tf[t]);
+    let ant = 0;
+    for (const p of pares) { linha.push(p[0] - ant, p[1]); ant = p[0]; }
     return linha;
   });
-  return { sig: assinatura(indice.docs.map(function (x) { return x.c; })), v, d };
+  return { f: 2, sig: assinatura(indice.docs.map(function (x) { return x.c; })), v: termos, d: d };
 }
 
 function restaurarIndice(validos, pre) {
@@ -140,8 +150,10 @@ function restaurarIndice(validos, pre) {
   for (let i = 0; i < validos.length; i++) {
     const linha = pre.d[i];
     const tf = Object.create(null);
+    let idTermo = 0;
     for (let j = 1; j < linha.length; j += 2) {
-      const t = pre.v[linha[j]];
+      idTermo += linha[j];
+      const t = pre.v[idTermo];
       tf[t] = linha[j + 1];
       df[t] = (df[t] || 0) + 1;
     }
