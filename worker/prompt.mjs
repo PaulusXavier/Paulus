@@ -2,6 +2,7 @@
 // O contexto de cada app (worker/apps.mjs) é acrescentado ao texto comum abaixo.
 
 import { temDadoPessoal, limparMarcacao } from '../shared/pii.mjs';
+import { MAX_TEXTO_TRECHO } from '../shared/busca.mjs';
 
 export const MAX_HISTORICO = 6;
 export const MAX_MSG_HISTORICO = 600;
@@ -77,7 +78,7 @@ export function normasComoTexto(achados) {
   return achados.map(function (a, i) {
     const t = a.trecho;
     return (i + 1) + '. ' + lim(t.titulo || t.doc, 160) + ', ' + lim(t.referencia, 200) + (MARCA_TIPO[t.tipo] || '') +
-      ' (' + lim(t.norma, 240) + '): ' + lim(t.texto, 700);
+      ' (' + lim(t.norma, 240) + '): ' + lim(t.texto, MAX_TEXTO_TRECHO);
   }).join('\n');
 }
 
