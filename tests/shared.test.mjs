@@ -49,8 +49,12 @@ test('crise: "estou sendo agredida", "risco de vida" e "socorro" acionam; "incon
 });
 
 test('busca: sigla do Bolsa Família (BVF) acha o trecho por extenso', () => {
-  const idx = ci2([{ id: 'x#1', doc: 'x', titulo: 'T', norma: 'N', ano: 2026, referencia: 'Valores', texto: 'Benefício Variável Familiar: R$ 50 por gestante.' }]);
-  assert.equal(bu2(idx, 'valor do BVF', { k: 1 }).length, 1);
+  // com poucos trechos o idf fica minúsculo e o limite mínimo de pontuação corta tudo; por isso os trechos de enchimento
+  const enchimento = ['frequência escolar', 'vacinação das crianças', 'pré-natal das gestantes', 'cadastro atualizado', 'renda por pessoa', 'serviço de convivência'].map((t, i) => ({ id: 'y#' + i, doc: 'y', titulo: 'T', norma: 'N', ano: 2026, referencia: 'Outro ' + i, texto: t }));
+  const idx = ci2([{ id: 'x#1', doc: 'x', titulo: 'T', norma: 'N', ano: 2026, referencia: 'Valores', texto: 'Benefício Variável Familiar: R$ 50 por gestante.' }].concat(enchimento));
+  const r = bu2(idx, 'valor do BVF', { k: 1 });
+  assert.equal(r.length, 1);
+  assert.equal(r[0].trecho.id, 'x#1');
 });
 
 import { consultaComContexto } from '../shared/busca.mjs';
