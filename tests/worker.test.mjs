@@ -186,3 +186,12 @@ test('sem panorama o prompt não ganha o bloco', async () => {
   await m(pedido({ app: 'argo', pergunta: 'telefone do CRAS?' }), env);
   assert.doesNotMatch(chamadas[0].params.messages.at(-1).content, /<panorama>/);
 });
+
+test('histórico que termina em pergunta sem resposta não gera dois "user" seguidos', async () => {
+  const { historicoComoMensagens } = await import('../worker/prompt.mjs');
+  const m = historicoComoMensagens([
+    { papel: 'usuario', texto: 'o que é PAIF?' }, { papel: 'argo', texto: 'É um serviço.' },
+    { papel: 'usuario', texto: 'e o CREAS?' }
+  ]);
+  assert.deepEqual(m.map(x => x.role), ['user', 'assistant']);
+});
