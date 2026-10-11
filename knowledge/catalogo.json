@@ -348,6 +348,18 @@
     "caracteres": 2089
   },
   {
+    "doc": "oms-cid11-guia-2024",
+    "titulo": "CID-11: Guia de Referência (seleção para saúde mental e SUAS)",
+    "norma": "OMS, Classificação Internacional de Doenças, 11ª Revisão (CID-11), Guia de Referência, versão 2024-01 em português (licença CC BY-ND 3.0 IGO). Seleção: introdução, convenções, funcionalidade, morbidade, Capítulos 06, 07 e 24",
+    "ano": 2024,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "url": "https://icdcdn.who.int/icd11referenceguide/en/html/index.html",
+    "revisao": "pendente",
+    "trechos": 340,
+    "caracteres": 224760
+  },
+  {
     "doc": "raps-ministerio-saude",
     "titulo": "RAPS (Ministério da Saúde)",
     "norma": "Material informativo do Ministério da Saúde (SAES/DESMAD) sobre a Rede de Atenção Psicossocial (RAPS), gov.br/saude, páginas da RAPS e de cada ponto de atenção",
