@@ -29,7 +29,19 @@ const SIGLAS = {
   crp: ['conselho', 'regional', 'psicologia'],
   cid: ['classificacao', 'internacional', 'doencas'],
   cif: ['classificacao', 'internacional', 'funcionalidade', 'incapacidade', 'saude'],
-  oms: ['organizacao', 'mundial', 'saude']
+  oms: ['organizacao', 'mundial', 'saude'],
+  cras: ['centro', 'referencia', 'assistencia', 'social'],
+  creas: ['centro', 'referencia', 'especializado', 'assistencia', 'social'],
+  suas: ['sistema', 'unico', 'assistencia', 'social'],
+  pnas: ['politica', 'nacional', 'assistencia', 'social'],
+  peti: ['programa', 'erradicacao', 'trabalho', 'infantil'],
+  nob: ['norma', 'operacional', 'basica'],
+  fnas: ['fundo', 'nacional', 'assistencia', 'social'],
+  fmas: ['fundo', 'municipal', 'assistencia', 'social'],
+  caps: ['centro', 'atencao', 'psicossocial'],
+  raps: ['rede', 'atencao', 'psicossocial'],
+  pcd: ['pessoa', 'deficiencia'],
+  mds: ['ministerio', 'desenvolvimento', 'social']
 };
 
 // Quantos trechos da base vão para a IA e para a resposta offline.
@@ -38,6 +50,12 @@ export const K_PADRAO = 4;
 // Do texto de cada trecho, a IA só recebe os primeiros caracteres (worker/prompt.mjs). O Worker, por isso, guarda só esse começo
 // (limite de tamanho do plano gratuito), e a assinatura do índice conta só até aqui para valer nas duas versões da base.
 export const MAX_TEXTO_TRECHO = 700;
+
+// Na hora de ordenar, lei e decreto valem um pouco mais que orientação técnica, e esta mais que material de apoio
+// (para "o que é o BPC?" a lei vem antes de um caderno de orientação). Só muda a ordem, não quem entra.
+const PESO_TIPO = { norma: 1.2, referencia: 1, apoio: 0.85 };
+// Evita as 4 fontes serem do mesmo documento (ex.: 4 incisos do mesmo artigo).
+const MAX_POR_DOC = 3;
 
 export function normalizar(s) {
   return String(s == null ? '' : s)
@@ -90,6 +108,19 @@ export function tokenizar(s, { expandir = false } = {}) {
   return saida;
 }
 
+// Termos da pergunta com peso: o que a pessoa escreveu vale 1; a forma por extenso de uma sigla vale PESO_EXTENSO
+// (senão "BPC" favorece qualquer trecho que repita "Benefício de Prestação Continuada", mesmo sem falar do assunto).
+const PESO_EXTENSO = 0.35;
+function termosDaConsulta(consulta) {
+  const pesos = new Map();
+  for (const t of tokenizar(consulta)) pesos.set(t, 1);
+  for (const t of normalizar(consulta).split(' ')) {
+    if (STOP.has(t) || !SIGLAS[t]) continue;
+    for (const x of SIGLAS[t]) { const r = raiz(x); if (!pesos.has(r)) pesos.set(r, PESO_EXTENSO); }
+  }
+  return pesos;
+}
+
 function trechosValidos(trechos) {
   return (Array.isArray(trechos) ? trechos : []).filter(function (c) { return c && c.texto; });
 }
@@ -105,6 +136,24 @@ function assinatura(validos) {
 // "pre" (opcional) é um índice já calculado por serializarIndice(). Montar o índice de uma base grande leva
 // centenas de milissegundos; o Worker tem limite de partida, então ele recebe o índice pronto no pacote.
 // Se "pre" não corresponder à base (assinatura diferente), o índice é calculado do zero.
+// Parágrafo, inciso e alínea ("art. 20, § 3º") quase nunca repetem o assunto do artigo ("benefício de prestação continuada"):
+// quem pergunta pelo assunto não os encontrava. Para a busca (e só para ela), o trecho "filho" herda o começo do texto do artigo (caput).
+const MAX_HERANCA = 300;
+const REF_FILHO = /^(art\. [0-9]+[º°o]?(?:-[A-Z])?),\s*\S/;
+function mapaDeCaput(validos) {
+  const m = new Map();
+  for (const c of validos) {
+    const r = String(c.referencia || '').trim();
+    if (/^art\. [0-9]+[º°o]?(?:-[A-Z])?(?:, caput)?$/.test(r)) m.set(c.doc + '|' + r.replace(/, caput$/, ''), c);
+  }
+  return m;
+}
+function textoHerdado(c, caputs) {
+  const f = REF_FILHO.exec(String(c.referencia || '').trim());
+  const pai = f && caputs.get(c.doc + '|' + f[1]);
+  return pai && pai !== c ? ' ' + pai.texto.slice(0, MAX_HERANCA) : '';
+}
+
 export function criarIndice(trechos, pre) {
   const validos = trechosValidos(trechos);
   if (pre && pre.f === 2 && pre.sig === assinatura(validos) && Array.isArray(pre.v) && Array.isArray(pre.d) && pre.d.length === validos.length) {
@@ -113,9 +162,10 @@ export function criarIndice(trechos, pre) {
   const docs = [];
   const df = Object.create(null);
   let soma = 0;
+  const caputs = mapaDeCaput(validos);
   for (const c of validos) {
     // a referência ("art. 17, XV") e o título pesam o dobro
-    const toks = tokenizar((c.referencia || '') + ' ' + (c.referencia || '') + ' ' + (c.titulo || '') + ' ' + c.texto);
+    const toks = tokenizar((c.referencia || '') + ' ' + (c.referencia || '') + ' ' + (c.titulo || '') + ' ' + c.texto + textoHerdado(c, caputs));
     const tf = Object.create(null);
     for (const t of toks) tf[t] = (tf[t] || 0) + 1;
     for (const t in tf) df[t] = (df[t] || 0) + 1;
@@ -167,8 +217,11 @@ function restaurarIndice(validos, pre) {
 // cobertura = fração dos termos da pergunta que aparecem no trecho (filtra resultados "de sorte").
 export function buscar(indice, consulta, { k = 3, minScore = 1.2, minCobertura = 0.5 } = {}) {
   if (!indice || !indice.N) return [];
-  const termos = Array.from(new Set(tokenizar(consulta, { expandir: true })));
+  const pesos = termosDaConsulta(consulta);
+  const termos = Array.from(pesos.keys());
   if (!termos.length) return [];
+  let pesoTotal = 0;
+  for (const p of pesos.values()) pesoTotal += p;
   const k1 = 1.4, b = 0.75;
   const res = [];
   for (const d of indice.docs) {
@@ -176,15 +229,25 @@ export function buscar(indice, consulta, { k = 3, minScore = 1.2, minCobertura =
     for (const t of termos) {
       const f = d.tf[t];
       if (!f) continue;
-      achou++;
+      const w = pesos.get(t);
+      achou += w;
       const idf = Math.log(1 + (indice.N - (indice.df[t] || 0) + 0.5) / ((indice.df[t] || 0) + 0.5));
-      score += idf * (f * (k1 + 1)) / (f + k1 * (1 - b + b * d.len / (indice.avg || 1)));
+      score += w * idf * (f * (k1 + 1)) / (f + k1 * (1 - b + b * d.len / (indice.avg || 1)));
     }
-    const cobertura = achou / termos.length;
-    if (score >= minScore && cobertura >= minCobertura) res.push({ trecho: d.c, score, cobertura });
+    const cobertura = achou / pesoTotal;
+    if (score >= minScore && cobertura >= minCobertura) res.push({ trecho: d.c, score, cobertura, ordem: score * (PESO_TIPO[d.c.tipo || 'norma'] || 1) });
   }
-  res.sort((x, y) => y.score - x.score);
-  return res.slice(0, k);
+  res.sort((x, y) => y.ordem - x.ordem);
+  // No máximo MAX_POR_DOC trechos do mesmo documento; se faltar resultado, completa com os que ficaram de fora.
+  const escolhidos = [], sobras = [], porDoc = Object.create(null);
+  for (const r of res) {
+    if (escolhidos.length >= k) break;
+    const n = porDoc[r.trecho.doc] || 0;
+    if (n < MAX_POR_DOC) { porDoc[r.trecho.doc] = n + 1; escolhidos.push(r); } else sobras.push(r);
+  }
+  while (escolhidos.length < k && sobras.length) escolhidos.push(sobras.shift());
+  escolhidos.sort((x, y) => y.ordem - x.ordem);
+  return escolhidos;
 }
 
 // Pergunta curta de seguimento ("e o horário?", "e para adolescente?") sozinha não acha norma:
