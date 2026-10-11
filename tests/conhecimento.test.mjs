@@ -56,3 +56,25 @@ test('base: perguntas-chave acham a norma certa', () => {
   assert.ok(buscar(ind, 'o que é o PAEFI?').some(a => a.trecho.doc === 'loas-1993'));
   assert.equal(buscar(ind, 'receita de bolo de cenoura').length, 0);
 });
+
+test('base compacta do Worker: mesmas fontes e mesmos resultados da busca que a base completa', async () => {
+  const { compactarBase, expandirBase } = await import('../shared/base-compacta.mjs');
+  const { MAX_TEXTO_TRECHO } = await import('../shared/busca.mjs');
+  const base = lerJson('conhecimento.json');
+  const exp = expandirBase(JSON.parse(JSON.stringify(compactarBase(base))));
+  assert.equal(exp.length, base.length);
+  exp.forEach((c, i) => {
+    const o = base[i];
+    assert.deepEqual({ ...c, texto: '' }, { ...o, texto: '' }); // id, doc, titulo, norma, ano, referencia, tipo, pacote
+    assert.equal(c.texto, o.texto.slice(0, MAX_TEXTO_TRECHO));
+  });
+  // índice pronto (gerado da base completa) vale também para a base cortada
+  const pre = lerJson('indice.json');
+  const cheio = criarIndice(base);
+  const cortado = criarIndice(exp, pre);
+  for (const q of ['quais as atribuições do psicólogo no CRAS', 'sigilo profissional registro documental', 'bolsa família condicionalidades', 'medidas socioeducativas']) {
+    const a = buscar(cheio, q, { k: 4 }).map(r => r.trecho.id);
+    const b = buscar(cortado, q, { k: 4 }).map(r => r.trecho.id);
+    assert.deepEqual(b, a, q);
+  }
+});
