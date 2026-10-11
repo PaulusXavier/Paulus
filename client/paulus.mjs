@@ -17,6 +17,7 @@
 import { temDadoPessoal } from '../shared/pii.mjs';
 import { detectarCrise } from '../shared/crise.mjs';
 import { normalizar, criarIndice, buscar, consultaComContexto, fonteDe, K_PADRAO } from '../shared/busca.mjs';
+import { separarSugestoes, ocultarSugestoes } from '../shared/sugestoes.mjs';
 import { SKINS } from './skins.mjs';
 
 const AVISO_PESSOAL = 'Para proteger as famílias, não consigo analisar mensagens com nome, documento, telefone ou endereço residencial. Reescreva a pergunta sem identificar ninguém.';
@@ -220,7 +221,8 @@ function lerSSE(resp, ganchos, controle) {
           if (typeof ev.t === 'string') {
             recebeu = true;
             acumulado += ev.t;
-            if (ganchos.onToken) ganchos.onToken(ev.t, acumulado);
+            // O rótulo "SUGESTÕES:" e o que vem depois nunca chegam à tela.
+            if (ganchos.onToken) ganchos.onToken(ev.t, ocultarSugestoes(acumulado));
           }
         }
         if (fim) {
@@ -287,13 +289,15 @@ async function pedirIA(texto, opcoes) {
       const j = await resp.json();
       if (!j || typeof j.resposta !== 'string' || !j.resposta) throw new Error(j && j.erro ? String(j.erro) : 'Resposta vazia.');
       saida = { texto: j.resposta, fontes: Array.isArray(j.fontes) ? j.fontes : [] };
-      if (opcoes.onToken) opcoes.onToken(saida.texto, saida.texto);
+      if (opcoes.onToken) opcoes.onToken(saida.texto, ocultarSugestoes(saida.texto));
     }
+    const partes = separarSugestoes(saida.texto);
+    saida.texto = partes.texto || saida.texto;
     const avisos = ['Resposta gerada por IA. Confira antes de usar em atendimento.'];
     if (telefonesDesconhecidos(saida.texto, fichas).length) {
       avisos.push('A IA citou um telefone que não consta no diretório. Confirme com a unidade antes de passar adiante.');
     }
-    return { tipo: 'ia', texto: saida.texto, fontes: saida.fontes, avisos: avisos, geradoPorIA: true };
+    return { tipo: 'ia', texto: saida.texto, fontes: saida.fontes, sugestoes: partes.sugestoes, avisos: avisos, geradoPorIA: true };
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -392,6 +396,6 @@ async function consultarNormas(texto, opcoes) {
   return achados.length ? respostaDasNormas(achados) : null;
 }
 
-const Paulus = { init, perguntar, consultarNormas, registrarAcao, registrarBusca, limpar, skin, iaLigada, temDadoPessoal, detectarCrise, versao: '0.2.0' };
+const Paulus = { init, perguntar, consultarNormas, registrarAcao, registrarBusca, limpar, skin, iaLigada, temDadoPessoal, detectarCrise, versao: '0.3.0' };
 
 export default Paulus;
