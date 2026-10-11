@@ -96,6 +96,8 @@ export function historicoComoMensagens(historico) {
     else saida.push({ role: papel, content: texto });
   }
   while (saida.length && saida[0].role !== 'user') saida.shift();
+  // Pergunta anterior que ficou sem resposta (IA falhou): a pergunta atual já vai como 'user', então não pode haver dois seguidos.
+  while (saida.length && saida[saida.length - 1].role === 'user') saida.pop();
   return saida;
 }
 
