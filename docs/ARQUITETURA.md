@@ -19,6 +19,7 @@ app (navegador)                            Worker (Cloudflare)             Worke
 6. IA (Worker), em streaming.
 7. Se a IA falhar ou estiver offline → trecho da norma ou "não encontrei".
 Os passos 3 e 4 são pulados com `{ semAcoes: true }` (apps que já tratam isso, como o Argo).
+Apps com fluxo próprio, que só querem a norma quando não há IA, usam `Paulus.consultarNormas(texto)` (só o passo 5).
 
 ## Código compartilhado
 `shared/` roda no navegador **e** no Worker, para o filtro e a busca serem idênticos nos dois lados:
