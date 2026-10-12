@@ -1,12 +1,23 @@
 [
   {
+    "doc": "abp-cfm-suicidio-2014",
+    "titulo": "Suicídio: informando para prevenir",
+    "norma": "ABP/CFM, Suicídio: informando para prevenir (cartilha da Associação Brasileira de Psiquiatria e do Conselho Federal de Medicina), Brasília, 2014",
+    "ano": 2014,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "revisao": "conferido",
+    "trechos": 99,
+    "caracteres": 49842
+  },
+  {
     "doc": "bolsa-familia-2026",
     "titulo": "Bolsa Família (informações 2026)",
     "norma": "Material informativo do MDS e da Caixa sobre o Programa Bolsa Família, valores atualizados em outubro de 2026",
     "ano": 2026,
     "tipo": "norma",
     "trechos": 13,
-    "caracteres": 4780
+    "caracteres": 4696
   },
   {
     "doc": "cadunico-mds",
@@ -15,7 +26,7 @@
     "ano": 2026,
     "tipo": "norma",
     "trechos": 5,
-    "caracteres": 3496
+    "caracteres": 1879
   },
   {
     "doc": "cf-1988-extratos",
