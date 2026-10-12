@@ -9,6 +9,17 @@ export const MAX_MSG_HISTORICO = 600;
 export const MAX_FICHAS = 10;
 export const MAX_PANORAMA = 3000;
 
+// Bloco de suicídio (~550 tokens): só entra quando a pergunta é sobre o tema, para não gastar a cota gratuita em todas as perguntas.
+const BLOCO_SUICIDIO = `SUICÍDIO E COMPORTAMENTO SUICIDA
+- Fonte: a cartilha ABP/CFM (2014), "Suicídio: informando para prevenir", que aparece em <normas> como [material de apoio]. Ela orienta, não obriga, foi escrita para médicos e é de 2014: diga isso e adapte ao trabalho do SUAS (acolher, escutar, articular a rede e encaminhar), sem apresentar como atribuição do(a) psicólogo(a) do CRAS o que a cartilha descreve para a medicina. Cite página e seção como estão em <normas>; sem trecho, responda em termos gerais e não cite a cartilha.
+- Perguntas técnicas gerais (avaliar, abordar, encaminhar, mitos, fatores de risco e de proteção, posvenção, papel da rede, notificação): responda com a cartilha em poucos passos. Para avaliar, apresente as seis perguntas e os níveis de risco como a cartilha traz, lembrando que a avaliação é clínica e que a cartilha afirma não haver classificação precisa do risco.
+- Reforce o que a cartilha desfaz: falar sobre suicídio não aumenta o risco, perguntar com cuidado costuma aliviar, quem fala em se matar deve ser levado a sério, e a pessoa quase sempre está ambivalente. Não deixe a pessoa sozinha no risco imediato.
+- Nunca descreva métodos, meios, doses, locais nem letalidade, nem diga o que é "mais eficaz" ou "mais rápido". Se pedirem isso, recuse com gentileza e volte ao cuidado e à rede.
+- Não classifique o risco de uma pessoa real nem dê parecer sobre um caso: ajude a organizar o que verificar e quem acionar.
+- Não sugira "contrato de não suicídio". Não prometa sigilo absoluto a quem está em risco. Não minimize ("isso passa") nem dê sermão.
+- Linguagem: prefira "morrer por suicídio" e "tentativa de suicídio"; evite "cometer suicídio", "suicida" como rótulo da pessoa, "tentativa fracassada" e "chamar atenção".
+- Se quem escreve parecer estar em sofrimento, trate como pedido de ajuda: acolha, sem validar o desejo de morrer, e indique o CVV (188, 24h) e, em perigo imediato, o SAMU (192).`;
+
 const BASE = `Você é o Paulus, copiloto de IA dos apps de apoio ao trabalho do SUAS. Quem pergunta é um(a) profissional do SUAS (psicólogo, assistente social, técnico de CRAS/CREAS).
 
 QUEM VOCÊ É PARA QUEM PERGUNTA
@@ -71,10 +82,10 @@ export function dataDeHoje() {
   } catch (e) { return ''; }
 }
 
-export function montarSistema(app, pagina) {
+export function montarSistema(app, pagina, comSuicidio = true) {
   const hoje = dataDeHoje();
   const aba = String(pagina || '').replace(/[<>\n]/g, ' ').trim().slice(0, 80);
-  return BASE + '\n' + app.contexto +
+  return BASE + (comSuicidio ? '\n' + BLOCO_SUICIDIO + '\n' : '') + '\n' + app.contexto +
     (hoje ? '\n\nHoje é ' + hoje + '.' : '') +
     (aba ? '\nO(a) profissional está na aba "' + aba + '" do app.' : '');
 }
@@ -128,7 +139,7 @@ export function panoramaComoTexto(panorama) {
   return limparMarcacao(String(panorama || '')).replace(/\s+/g, ' ').trim().slice(0, MAX_PANORAMA);
 }
 
-export function montarMensagens({ app, pagina, historico, fichas, panorama, achados, pergunta }) {
+export function montarMensagens({ app, pagina, historico, fichas, panorama, achados, pergunta, suicidio = true }) {
   const pan = panoramaComoTexto(panorama);
   const usuario =
     (pan ? '<panorama>\n' + pan + '\n</panorama>\n\n' : '') +
@@ -136,7 +147,7 @@ export function montarMensagens({ app, pagina, historico, fichas, panorama, acha
     '<normas>\n' + (achados.length ? normasComoTexto(achados) : '(nenhum trecho de norma encontrado para esta pergunta)') + '\n</normas>\n\n' +
     '<pergunta>\n' + pergunta + '\n</pergunta>';
   return [
-    { role: 'system', content: montarSistema(app, pagina) },
+    { role: 'system', content: montarSistema(app, pagina, suicidio) },
     ...historicoComoMensagens(historico),
     { role: 'user', content: usuario }
   ];
