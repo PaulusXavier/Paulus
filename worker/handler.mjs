@@ -16,7 +16,9 @@
 // O Worker não grava nada: nem pergunta, nem resposta, nem IP (o IP só fica na memória, por um minuto).
 
 import { temDadoPessoal, limparMarcacao } from '../shared/pii.mjs';
-import { criarIndice, buscar, consultaComContexto, fonteDe, K_PADRAO } from '../shared/busca.mjs';
+import { normalizar, criarIndice, buscar, consultaComContexto, fonteDe, K_PADRAO } from '../shared/busca.mjs';
+import { detectarCrise } from '../shared/crise.mjs';
+import { trechosDaRota, combinarComBusca } from '../shared/suicidio.mjs';
 import { montarMensagens } from './prompt.mjs';
 
 const MODELO_PADRAO = '@cf/meta/llama-3.1-8b-instruct';
@@ -146,6 +148,14 @@ export function criarManipulador({ base, apps, indice: indicePronto }) {
     if (!pergunta) return json({ erro: 'Pergunta vazia.' }, 400);
     const querStream = corpo.stream === true;
 
+    // Socorro vem antes do filtro de dados pessoais e do limite por minuto: nunca é barrado e não chama a IA.
+    const crise = detectarCrise(pergunta);
+    if (crise) {
+      const resposta = crise.titulo + '\n' + crise.texto + '\n' + crise.telefones.map(function (t) { return '- ' + t.numero + ' ' + t.nome; }).join('\n');
+      if (!querStream) return json({ resposta: resposta, fontes: [], crise: true, subtipo: crise.subtipo });
+      return sse('data: ' + JSON.stringify({ t: resposta }) + '\n\ndata: [DONE]\n\n');
+    }
+
     // O navegador já filtrou; aqui se confere de novo, porque o Worker não pode confiar em quem chama.
     if (temDadoPessoal(pergunta)) {
       if (!querStream) return json({ resposta: AVISO_PESSOAL, fontes: [] });
@@ -156,9 +166,16 @@ export function criarManipulador({ base, apps, indice: indicePronto }) {
     if (estourouLimite(ip)) return json({ erro: 'Muitas perguntas seguidas. Aguarde um minuto.' }, 429);
 
     const anteriores = Array.isArray(corpo.historico) ? corpo.historico.filter(function (h) { return h && h.papel === 'usuario' && !temDadoPessoal(String(h.texto || '')); }) : [];
-    const achados = buscar(indice, consultaComContexto(pergunta, anteriores), { k: K_PADRAO });
+    const consulta = consultaComContexto(pergunta, anteriores);
+    // Pergunta técnica sobre suicídio: a rota puxa o conjunto certo da cartilha e a busca completa as vagas.
+    const rota = trechosDaRota(indice, consulta);
+    const achados = rota.length
+      ? combinarComBusca(rota, buscar(indice, consulta, { k: K_PADRAO }))
+      : buscar(indice, consulta, { k: K_PADRAO });
     const fontes = achados.map(function (a) { return fonteDe(a.trecho); });
+    const tema = rota.length > 0 || /suicid|ideacao|autolesao|automutil/.test(normalizar(consulta));
     const mensagens = montarMensagens({
+      suicidio: tema,
       app: app,
       pagina: corpo.pagina,
       historico: corpo.historico,
