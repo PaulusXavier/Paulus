@@ -5,12 +5,15 @@
 //   AI               binding do Workers AI (obrigatório)
 //   ALLOWED_ORIGINS  endereços dos apps, separados por vírgula, sem barra no fim
 //                    (aceita também o nome antigo ALLOWED_ORIGIN)
-//   MODELO           opcional. Padrão: @cf/meta/llama-3.1-8b-instruct
-//   MODELO_RESERVA   opcional. Usado se o MODELO falhar.
+//   MODELO           opcional. Padrão: @cf/meta/llama-3.3-70b-instruct-fp8-fast
+//   MODELO_RESERVA   opcional. Padrão: @cf/meta/llama-3.1-8b-instruct. Usado se o MODELO falhar (ex.: cota gratuita do dia acabou).
+//   MODELO_INTERPRETE opcional. Modelo do passo de interpretação (padrão: o mesmo MODELO).
 //
 // Pedido (POST, JSON): { app, pergunta, pagina, historico:[{papel,texto}], fichas:[...], stream }
 //   panorama (opcional): texto com os totais do diretório por grupo, montado pelo app (até 3000 caracteres).
 //   Aceita também o formato antigo do Argo: sem "app" (vale "argo") e "contexto" no lugar de "fichas".
+//   modo: 'interpretar'  (opcional): em vez de responder, devolve { interpretacao: { pergunta, intencao, bairro, esclarecer } | null }
+//   (a pergunta reescrita de forma completa, usando a conversa; ver worker/interpretar.mjs).
 // Resposta com stream:true  -> text/event-stream:  data: {"fontes":[...]}  data: {"t":"..."}  data: [DONE]
 // Resposta sem stream       -> JSON { resposta, fontes }
 // O Worker não grava nada: nem pergunta, nem resposta, nem IP (o IP só fica na memória, por um minuto).
@@ -20,11 +23,16 @@ import { normalizar, criarIndice, buscar, consultaComContexto, fonteDe, K_PADRAO
 import { detectarCrise } from '../shared/crise.mjs';
 import { trechosDaRota, combinarComBusca } from '../shared/suicidio.mjs';
 import { montarMensagens } from './prompt.mjs';
+import { montarMensagensInterpretacao, lerInterpretacao } from './interpretar.mjs';
 
-const MODELO_PADRAO = '@cf/meta/llama-3.1-8b-instruct';
+// Padrão: modelo grande (raciocina e segue as regras muito melhor) e, se ele falhar (ex.: cota gratuita do dia),
+// o pequeno assume sozinho.
+const MODELO_PADRAO = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+const MODELO_RESERVA_PADRAO = '@cf/meta/llama-3.1-8b-instruct';
 const MAX_PERGUNTA = 500;
 const MAX_CORPO = 32000;
-const LIMITE_POR_MINUTO = 8;
+// Cada pergunta usa até 2 chamadas (interpretar + responder), por isso o limite é o dobro do antigo.
+const LIMITE_POR_MINUTO = 16;
 const AVISO_PESSOAL = 'Para proteger as famílias, não consigo analisar mensagens com nome, documento, telefone ou endereço residencial. Reescreva a pergunta sem identificar ninguém.';
 
 function origensPermitidas(env) {
@@ -83,10 +91,11 @@ function normalizarFluxo(upstream, fontes) {
   }));
 }
 
-async function chamarIA(env, mensagens, stream) {
-  const principal = env.MODELO || MODELO_PADRAO;
-  const reserva = env.MODELO_RESERVA || MODELO_PADRAO;
-  const params = { messages: mensagens, max_tokens: 640, temperature: 0.25, stream: !!stream };
+async function chamarIA(env, mensagens, stream, extra) {
+  const ajuste = extra || {};
+  const principal = ajuste.modelo || env.MODELO || MODELO_PADRAO;
+  const reserva = env.MODELO_RESERVA || MODELO_RESERVA_PADRAO;
+  const params = { messages: mensagens, max_tokens: ajuste.max_tokens || 640, temperature: ajuste.temperature != null ? ajuste.temperature : 0.25, stream: !!stream };
   try {
     return await env.AI.run(principal, params);
   } catch (e) {
@@ -146,10 +155,12 @@ export function criarManipulador({ base, apps, indice: indicePronto }) {
 
     const pergunta = limparMarcacao(String(corpo.pergunta || '')).replace(/\s+/g, ' ').slice(0, MAX_PERGUNTA);
     if (!pergunta) return json({ erro: 'Pergunta vazia.' }, 400);
-    const querStream = corpo.stream === true;
+    const interpretar = corpo.modo === 'interpretar';
+    const querStream = corpo.stream === true && !interpretar;
 
     // Socorro vem antes do filtro de dados pessoais e do limite por minuto: nunca é barrado e não chama a IA.
     const crise = detectarCrise(pergunta);
+    if (crise && interpretar) return json({ interpretacao: null, crise: true });
     if (crise) {
       const resposta = crise.titulo + '\n' + crise.texto + '\n' + crise.telefones.map(function (t) { return '- ' + t.numero + ' ' + t.nome; }).join('\n');
       if (!querStream) return json({ resposta: resposta, fontes: [], crise: true, subtipo: crise.subtipo });
@@ -158,12 +169,25 @@ export function criarManipulador({ base, apps, indice: indicePronto }) {
 
     // O navegador já filtrou; aqui se confere de novo, porque o Worker não pode confiar em quem chama.
     if (temDadoPessoal(pergunta)) {
+      if (interpretar) return json({ interpretacao: null });
       if (!querStream) return json({ resposta: AVISO_PESSOAL, fontes: [] });
       return sse('data: ' + JSON.stringify({ t: AVISO_PESSOAL }) + '\n\ndata: [DONE]\n\n');
     }
 
     const ip = request.headers.get('CF-Connecting-IP') || 'desconhecido';
     if (estourouLimite(ip)) return json({ erro: 'Muitas perguntas seguidas. Aguarde um minuto.' }, 429);
+
+    // Interpretação: só reescreve e classifica a pergunta (nada de busca nem resposta). Falha da IA não derruba o app.
+    if (interpretar) {
+      let texto;
+      try {
+        texto = extrairTexto(await chamarIA(env, montarMensagensInterpretacao({ app: app, historico: corpo.historico, pergunta: pergunta }), false,
+          { modelo: env.MODELO_INTERPRETE, max_tokens: 220, temperature: 0 }));
+      } catch (e) {
+        return json({ erro: 'A IA não respondeu agora.' }, 502);
+      }
+      return json({ interpretacao: lerInterpretacao(texto, pergunta) });
+    }
 
     const anteriores = Array.isArray(corpo.historico) ? corpo.historico.filter(function (h) { return h && h.papel === 'usuario' && !temDadoPessoal(String(h.texto || '')); }) : [];
     const consulta = consultaComContexto(pergunta, anteriores);
