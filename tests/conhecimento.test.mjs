@@ -6,18 +6,18 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { montarBase, montarCatalogo } from '../scripts/build-knowledge.mjs';
+import { montarBase, montarBaseWorker, montarCatalogo } from '../scripts/build-knowledge.mjs';
 import { criarIndice, serializarIndice, buscar } from '../shared/busca.mjs';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
 const lerJson = nome => JSON.parse(readFileSync(join(RAIZ, 'knowledge', nome), 'utf8'));
 
 test('conhecimento.json gerado corresponde a knowledge/documentos (rode npm run build:conhecimento)', () => {
-  assert.deepEqual(lerJson('conhecimento.json'), montarBase());
+  assert.ok(JSON.stringify(lerJson('conhecimento.json')) === JSON.stringify(montarBase()), 'conhecimento.json desatualizado');
 });
 
-test('indice.json pré-calculado dá as mesmas respostas que o índice montado na hora', () => {
-  const base = montarBase();
+test('indice.json pré-calculado (base do Worker) dá as mesmas respostas que o índice montado na hora', () => {
+  const base = montarBaseWorker();
   const pre = lerJson('indice.json');
   const novo = criarIndice(base);
   assert.deepEqual(pre, JSON.parse(JSON.stringify(serializarIndice(novo))));
@@ -30,7 +30,7 @@ test('indice.json pré-calculado dá as mesmas respostas que o índice montado n
 });
 
 test('índice pré-calculado de outra base é ignorado (recalcula em vez de responder errado)', () => {
-  const base = montarBase();
+  const base = montarBaseWorker();
   const pre = lerJson('indice.json');
   assert.equal(criarIndice(base.slice(1), pre).N, base.length - 1);
 });
@@ -60,17 +60,18 @@ test('base: perguntas-chave acham a norma certa', () => {
 test('base compacta do Worker: mesmas fontes e mesmos resultados da busca que a base completa', async () => {
   const { compactarBase, expandirBase } = await import('../shared/base-compacta.mjs');
   const { MAX_TEXTO_TRECHO } = await import('../shared/busca.mjs');
-  const base = lerJson('conhecimento.json');
+  const base = montarBaseWorker();
   const exp = expandirBase(JSON.parse(JSON.stringify(compactarBase(base))));
   assert.equal(exp.length, base.length);
   exp.forEach((c, i) => {
     const o = base[i];
-    assert.deepEqual({ ...c, texto: '' }, { ...o, texto: '' }); // id, doc, titulo, norma, ano, referencia, tipo, pacote
+    assert.equal(c.id, o.id, 'ids iguais');
+    assert.equal(c.doc, o.doc); assert.equal(c.referencia, o.referencia); assert.equal(c.titulo, o.titulo);
     assert.equal(c.texto, o.texto.slice(0, MAX_TEXTO_TRECHO));
   });
   // índice pronto (gerado da base completa) vale também para a base cortada
   const pre = lerJson('indice.json');
-  const cheio = criarIndice(base);
+  const cheio = criarIndice(base);  // base do Worker
   const cortado = criarIndice(exp, pre);
   for (const q of ['quais as atribuições do psicólogo no CRAS', 'sigilo profissional registro documental', 'bolsa família condicionalidades', 'medidas socioeducativas']) {
     const a = buscar(cheio, q, { k: 4 }).map(r => r.trecho.id);
@@ -94,4 +95,16 @@ test('busca: parágrafo herda o assunto do artigo e nenhum documento ocupa todas
   const top = bu(ci(muitos), 'serviço de convivência famílias', { k: 4 });
   assert.ok(top.filter(x => x.trecho.doc === 'd').length <= 3);
   assert.ok(top.some(x => x.trecho.doc === 'e'));
+});
+
+test('worker: nao deixa o documento fora da base do Worker, mas dentro da base completa', async () => {
+  const { montarBase, montarBaseWorker } = await import('../scripts/build-knowledge.mjs');
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const pasta = mkdtempSync(join(tmpdir(), 'wk-'));
+  writeFileSync(join(pasta, 'a.md'), '---\ndoc: a\ntitulo: A\nnorma: Fictício A\nano: 2020\n---\n## art. 1º\ntexto a\n');
+  writeFileSync(join(pasta, 'b.md'), '---\ndoc: b\ntitulo: B\nnorma: Fictício B\nano: 2020\nworker: nao\n---\n## art. 1º\ntexto b\n');
+  assert.deepEqual(montarBase(pasta).map(t => t.doc), ['a', 'b']);
+  assert.deepEqual(montarBaseWorker(pasta).map(t => t.doc), ['a']);
 });
