@@ -32,7 +32,7 @@ O terminal mostra o endereço, algo como `https://paulus-ia.SEU-NOME.workers.dev
 - **`ALLOWED_ORIGINS`**: os sites que podem usar o Paulus, separados por vírgula, sem barra no fim e sem caminho.
   Certo: `https://paulusxavier.github.io`. Errado: `https://paulusxavier.github.io/Argo/` (o navegador envia só o domínio).
   Se um app novo estiver em outro domínio, acrescente-o aqui e publique de novo.
-- `MODELO` e `MODELO_RESERVA` (opcionais): outro modelo da lista de Workers AI.
+- `MODELO`, `MODELO_RESERVA` e `MODELO_INTERPRETE` (opcionais): outro modelo da lista de Workers AI. Padrão: Llama 3.3 70B como principal e Llama 3.1 8B como reserva (assume sozinho quando a cota gratuita do dia acaba ou o principal falha). Cada pergunta usa até duas chamadas à IA (interpretar e responder); o limite do Worker é de 16 chamadas por minuto por pessoa.
 
 > Se você mudar variáveis só pelo painel e depois publicar pelo `wrangler.toml`, o painel é sobrescrito. Mude no `wrangler.toml`.
 
