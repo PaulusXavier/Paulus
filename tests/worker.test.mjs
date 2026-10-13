@@ -304,3 +304,14 @@ test('prompt: traz o bloco de raciocínio antes de responder', async () => {
   await m(pedido({ pergunta: 'o que é CRAS?' }), env);
   assert.match(chamadas[0].params.messages[0].content, /COMO PENSAR ANTES DE RESPONDER/);
 });
+
+test('prompt: voz de psicólogo do SUAS, autonomia separada de fonte e honestidade sobre ser IA', async () => {
+  const { montarSistema } = await import('../worker/prompt.mjs');
+  const s = montarSistema(APPS.argo, 'CRAS');
+  assert.match(s, /VOZ E JEITO: UM COLEGA PSICÓLOGO/);
+  assert.match(s, /AUTONOMIA: O QUE VEM DE FONTE/);
+  assert.match(s, /TEXTO PRONTO/);
+  assert.match(s, /continua sendo um assistente de IA/);
+  assert.match(s, /sem diagnóstico, sem classificar o risco/);
+  assert.match(s, /NUNCA invente endereço, telefone/); // o rigor com fatos continua
+});
