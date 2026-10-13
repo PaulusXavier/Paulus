@@ -25,7 +25,7 @@ export const SKINS = {
   umbrella: {
     app: 'umbrella',
     mascote: 'Umbrella',
-    saudacao: 'Oi! Eu sou o Paulus. Posso ajudar a usar o app e tirar dúvidas do SUAS.',
-    sugestoes: ['o que posso fazer neste app?']
+    saudacao: 'Oi! Eu sou o Paulus, aqui como Umbrella. Posso ajudar a usar o app, abrir telas e tirar dúvidas do PAIF e do SUAS. Não tenho acesso aos dados das famílias.',
+    sugestoes: ['como funciona o Formulário de Encaminhamento?', 'quando reavaliar o Plano de Acompanhamento?', 'abrir prioridades']
   }
 };
