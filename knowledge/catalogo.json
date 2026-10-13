@@ -46,7 +46,7 @@
     "pacote": "psicologia",
     "revisao": "pendente",
     "trechos": 43,
-    "caracteres": 23401
+    "caracteres": 23261
   },
   {
     "doc": "cfp-gestores-suas-2025",
@@ -56,8 +56,8 @@
     "tipo": "apoio",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 406,
-    "caracteres": 243196
+    "trechos": 389,
+    "caracteres": 234496
   },
   {
     "doc": "cfp-ref-alcool-drogas-2019",
@@ -67,8 +67,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 306,
-    "caracteres": 166992
+    "trechos": 292,
+    "caracteres": 158979
   },
   {
     "doc": "cfp-ref-atencao-basica-2019",
@@ -78,8 +78,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 272,
-    "caracteres": 161237
+    "trechos": 236,
+    "caracteres": 140601
   },
   {
     "doc": "cfp-ref-caps-2022",
@@ -89,8 +89,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 355,
-    "caracteres": 205667
+    "trechos": 343,
+    "caracteres": 197588
   },
   {
     "doc": "cfp-ref-cras-2021",
@@ -100,8 +100,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 583,
-    "caracteres": 342976
+    "trechos": 580,
+    "caracteres": 335882
   },
   {
     "doc": "cfp-ref-creas-2013",
@@ -111,8 +111,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 255,
-    "caracteres": 149919
+    "trechos": 251,
+    "caracteres": 146197
   },
   {
     "doc": "cfp-ref-educacao-basica-2019",
@@ -122,8 +122,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 193,
-    "caracteres": 110878
+    "trechos": 165,
+    "caracteres": 93927
   },
   {
     "doc": "cfp-ref-hospitalar-sus-2019",
@@ -133,8 +133,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 372,
-    "caracteres": 208825
+    "trechos": 367,
+    "caracteres": 204234
   },
   {
     "doc": "cfp-ref-ist-hiv-aids-2020",
@@ -144,8 +144,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 206,
-    "caracteres": 110488
+    "trechos": 204,
+    "caracteres": 107510
   },
   {
     "doc": "cfp-ref-mulher-violencia-2013",
@@ -155,8 +155,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 240,
-    "caracteres": 138387
+    "trechos": 233,
+    "caracteres": 134162
   },
   {
     "doc": "cfp-ref-pessoas-idosas-2025",
@@ -166,8 +166,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 735,
-    "caracteres": 430030
+    "trechos": 706,
+    "caracteres": 405726
   },
   {
     "doc": "cfp-ref-pop-rua-2025",
@@ -177,8 +177,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 345,
-    "caracteres": 198267
+    "trechos": 326,
+    "caracteres": 186766
   },
   {
     "doc": "cfp-ref-povos-indigenas-2024",
@@ -188,8 +188,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 608,
-    "caracteres": 362541
+    "trechos": 602,
+    "caracteres": 356350
   },
   {
     "doc": "cfp-ref-prisional-2021",
@@ -199,8 +199,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 589,
-    "caracteres": 367435
+    "trechos": 460,
+    "caracteres": 285825
   },
   {
     "doc": "cfp-ref-quilombolas-2025",
@@ -210,8 +210,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 454,
-    "caracteres": 274910
+    "trechos": 434,
+    "caracteres": 261621
   },
   {
     "doc": "cfp-ref-riscos-desastres-2021",
@@ -221,8 +221,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 274,
-    "caracteres": 157859
+    "trechos": 259,
+    "caracteres": 148859
   },
   {
     "doc": "cfp-ref-socioeducativas-2021",
@@ -232,8 +232,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 211,
-    "caracteres": 121460
+    "trechos": 209,
+    "caracteres": 119224
   },
   {
     "doc": "cfp-ref-violencia-sexual-2020",
@@ -243,8 +243,8 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "revisao": "pendente",
-    "trechos": 181,
-    "caracteres": 108505
+    "trechos": 177,
+    "caracteres": 105604
   },
   {
     "doc": "cfp-res-010-2005",
@@ -264,9 +264,10 @@
     "ano": 2024,
     "tipo": "apoio",
     "pacote": "psicologia",
+    "worker": "nao",
     "revisao": "pendente",
-    "trechos": 549,
-    "caracteres": 345229
+    "trechos": 533,
+    "caracteres": 339258
   },
   {
     "doc": "decreto-12064-2024",
@@ -366,9 +367,10 @@
     "tipo": "referencia",
     "pacote": "psicologia",
     "url": "https://icdcdn.who.int/icd11referenceguide/en/html/index.html",
+    "worker": "nao",
     "revisao": "pendente",
     "trechos": 340,
-    "caracteres": 224760
+    "caracteres": 224756
   },
   {
     "doc": "raps-ministerio-saude",
@@ -378,6 +380,50 @@
     "tipo": "norma",
     "trechos": 18,
     "caracteres": 9285
+  },
+  {
+    "doc": "roraima-municipios-2022",
+    "titulo": "Municípios de Roraima (população do Censo 2022)",
+    "norma": "IBGE, Censo Demográfico 2022, população dos municípios (relação publicada para o TCU em 2023); Governo de Roraima, SEPLAN, Informativo nº 013/2023, e SESAU/RR, Informação CDS (2024)",
+    "ano": 2022,
+    "tipo": "apoio",
+    "url": "https://ftp.ibge.gov.br/Informacoes_Gerais_e_Referencia/Relacao_da_Populacao_dos_Municipios_para_publicacao_no_DOU_em_2023/POP_TCU_2023_Municipios_POP2022_Malha2023.pdf",
+    "revisao": "pendente",
+    "trechos": 17,
+    "caracteres": 2837
+  },
+  {
+    "doc": "roraima-operacao-acolhida-2026",
+    "titulo": "Operação Acolhida em Roraima (migração venezuelana, abrigos e interiorização)",
+    "norma": "ACNUR Brasil, Oito anos da Operação Acolhida (24/02/2026), dados até jan/2026; ACNUR Brasil/MDS, 100 mil interiorizados (31/03/2023), dados de jan/2023",
+    "ano": 2026,
+    "tipo": "apoio",
+    "url": "https://www.acnur.org/br/noticias/notas-informativas/oito-anos-da-operacao-acolhida-no-brasil",
+    "revisao": "pendente",
+    "trechos": 4,
+    "caracteres": 2468
+  },
+  {
+    "doc": "roraima-perfil-ibge",
+    "titulo": "Roraima, perfil do estado (IBGE e Governo de Roraima)",
+    "norma": "IBGE, Censo Demográfico 2022 e portal Cidades e Estados (ibge.gov.br/cidades-e-estados/rr); Governo de Roraima, SEPLAN, Informativo nº 003/2024 (idade da população)",
+    "ano": 2025,
+    "tipo": "apoio",
+    "url": "https://ibge.gov.br/cidades-e-estados/rr/",
+    "revisao": "pendente",
+    "trechos": 6,
+    "caracteres": 1683
+  },
+  {
+    "doc": "roraima-povos-indigenas-2022",
+    "titulo": "População indígena em Roraima (Censo 2022)",
+    "norma": "Governo de Roraima, SEPLAN, Informativo nº 013/2023, População indígena em Roraima (a partir do Censo Demográfico 2022, IBGE)",
+    "ano": 2023,
+    "tipo": "apoio",
+    "url": "https://seplan.rr.gov.br/wp-content/uploads/2023/11/Informativo-013-2023-POPULACAO-INDIGENA-2023.pdf.pdf",
+    "revisao": "pendente",
+    "trechos": 5,
+    "caracteres": 1539
   },
   {
     "doc": "unasus-ufma-raps-2018",
