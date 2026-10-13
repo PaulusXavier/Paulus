@@ -36,7 +36,25 @@ Paulus.perguntar(texto, {
 
 **Ainda não feito:** `Paulus.registrarAcao`/`registrarBusca` no Argo (o `ArgoCerebro` já cobre abas e buscas).
 
-## 2. Outros apps (Anona, Toth, Umbrella, ...)
+## 1b. Umbrella (PAF/PAIF do CRAS)
+
+**Feito.** O Umbrella carrega uma cópia local de `paulus.v1.js` e de `conhecimento.json` (pacote *geral*),
+como o Argo. A ligação inteira está em `paulus-umbrella.js` (no Umbrella): o clique no mascote abre um painel
+de conversa, e o `app.js` só tem dois ganchos (`paulusAbrir` no clique do mascote e `paulusEncerrar` ao sair da conta).
+
+- **Sem dados de família.** O Umbrella guarda PAFs, mas a integração não lê `state.pafs`, anexos nem Firestore,
+  não passa `fichas` e **não registra buscas sobre os PAFs** (de propósito: seria ligar o Paulus a dados de família).
+- **Ações registradas** (mesmas funções dos botões do topo): `registros`, `prioridades`, `graficos`, `configuracoes` e
+  `novo-paf` (com `confirmar: true`, porque `newPAF()` salva um PAF em branco na hora).
+- **Pergunta com dado pessoal:** o Paulus bloqueia antes de qualquer rede e o painel oculta a mensagem na tela.
+- **Fim de sessão** (sair, inatividade, conta desativada): `Paulus.limpar()` e o painel é removido.
+- **CSP** (`index.html`): `connect-src` ganhou `https://*.workers.dev`. `script-src` não muda (cópia local).
+- **Service worker** (`sw.js`): guarda `paulus.v1.js`, `paulus-umbrella.js` e `conhecimento.json` para uso offline.
+- O texto de `worker/apps.mjs` para o Umbrella foi escrito a partir do README e do código do app; revise quando o app mudar
+  (abas, seções do PAF, regras como o botão "Família desistiu"). **Depois de mudar, publique o Worker de novo.**
+- Falta no Umbrella: botões 👍/👎 e "↻ Tentar de novo" (o Argo tem).
+
+## 2. Outros apps (Anona, Toth, ...)
 
 ```html
 <script src="https://SEU-USUARIO.github.io/paulus/paulus.v1.js"></script>
