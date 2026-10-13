@@ -11,6 +11,16 @@
     "caracteres": 49842
   },
   {
+    "doc": "boa-vista-diagnostico-socioterritorial-2026",
+    "titulo": "Boa Vista, diagnóstico socioterritorial por setor censitário (Cadastro Único, IVCAD, Bolsa Família, BPC e Censo 2022)",
+    "norma": "Relatório \"Diagnóstico Socioterritorial por setor censitário\" (Cadastro Único, IVCAD, Programas e Censo Demográfico 2022), gerado em 13/10/2026; soma de 493 setores censitários de Boa Vista (código IBGE 1400100)",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 17,
+    "caracteres": 6173
+  },
+  {
     "doc": "bolsa-familia-2026",
     "titulo": "Bolsa Família (informações 2026)",
     "norma": "Material informativo do MDS e da Caixa sobre o Programa Bolsa Família, valores atualizados em outubro de 2026",
@@ -247,29 +257,6 @@
     "caracteres": 105604
   },
   {
-    "doc": "cfp-res-010-2005",
-    "titulo": "Código de Ética Profissional do Psicólogo",
-    "norma": "Resolução CFP nº 010, de 21 de julho de 2005 (Código de Ética Profissional do Psicólogo)",
-    "ano": 2005,
-    "tipo": "norma",
-    "pacote": "psicologia",
-    "revisao": "pendente",
-    "trechos": 73,
-    "caracteres": 15395
-  },
-  {
-    "doc": "cfp-seminario-migracoes-2024",
-    "titulo": "Seminário de Psicologia e Políticas Públicas: interface entre psicologia e populações em situação de refúgio, migração e apatridia",
-    "norma": "CFP, Relatório do Seminário de Psicologia e Políticas Públicas: Interface entre Psicologia e Populações em Situação de Refúgio, Migração e Apatridia (Brasília, junho de 2024)",
-    "ano": 2024,
-    "tipo": "apoio",
-    "pacote": "psicologia",
-    "worker": "nao",
-    "revisao": "pendente",
-    "trechos": 533,
-    "caracteres": 339258
-  },
-  {
     "doc": "decreto-12064-2024",
     "titulo": "Regulamento do Programa Bolsa Família",
     "norma": "Decreto nº 12.064, de 17 de junho de 2024 (texto compilado, Planalto, com alterações dos Decretos nº 12.417/2025 e nº 13.120/2026)",
@@ -373,15 +360,6 @@
     "caracteres": 224756
   },
   {
-    "doc": "raps-ministerio-saude",
-    "titulo": "RAPS (Ministério da Saúde)",
-    "norma": "Material informativo do Ministério da Saúde (SAES/DESMAD) sobre a Rede de Atenção Psicossocial (RAPS), gov.br/saude, páginas da RAPS e de cada ponto de atenção",
-    "ano": 2026,
-    "tipo": "norma",
-    "trechos": 18,
-    "caracteres": 9285
-  },
-  {
     "doc": "roraima-municipios-2022",
     "titulo": "Municípios de Roraima (população do Censo 2022)",
     "norma": "IBGE, Censo Demográfico 2022, população dos municípios (relação publicada para o TCU em 2023); Governo de Roraima, SEPLAN, Informativo nº 013/2023, e SESAU/RR, Informação CDS (2024)",
@@ -424,15 +402,5 @@
     "revisao": "pendente",
     "trechos": 5,
     "caracteres": 1539
-  },
-  {
-    "doc": "unasus-ufma-raps-2018",
-    "titulo": "Redes de Atenção à Saúde: Rede de Atenção Psicossocial (RAPS), UNA-SUS/UFMA",
-    "norma": "UNA-SUS/UFMA. GARCIA, P. T.; REIS, R. S. (Org.). Redes de Atenção à Saúde: Rede de Atenção Psicossocial - RAPS. São Luís: EDUFMA, 2018",
-    "ano": 2018,
-    "tipo": "apoio",
-    "revisao": "pendente",
-    "trechos": 134,
-    "caracteres": 66049
   }
 ]
