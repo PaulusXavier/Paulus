@@ -9,6 +9,7 @@
 //   tipo: norma                         (opcional: norma | referencia | apoio; padrão norma)
 //   pacote: psicologia                  (opcional: agrupa documentos; gera conhecimento-<pacote>.json no build)
 //   url: https://...                    (opcional: endereço do documento oficial)
+//   worker: nao                         (opcional: o documento fica só nos pacotes offline e fora do Worker, para poupar o limite de tamanho)
 //   revisao: pendente                   (opcional: pendente | conferido; os importadores escrevem pendente)
 //   ---
 //   ## art. 17, XV                       (a referência que será citada)
@@ -52,6 +53,7 @@ export function lerDocumentoCompleto(markdown, nomeArquivo) {
   if (meta.tipo && !TIPOS.includes(meta.tipo)) throw new Error(nomeArquivo + ': "tipo" deve ser norma, referencia ou apoio.');
   if (meta.pacote && !ID.test(meta.pacote)) throw new Error(nomeArquivo + ': "pacote" só pode ter letras minúsculas, números e hífen.');
   if (meta.revisao && !REVISOES.includes(meta.revisao)) throw new Error(nomeArquivo + ': "revisao" deve ser pendente ou conferido.');
+  if (meta.worker && !['sim', 'nao'].includes(meta.worker)) throw new Error(nomeArquivo + ': "worker" deve ser sim ou nao.');
   if (meta.url && !/^https?:\/\//.test(meta.url)) throw new Error(nomeArquivo + ': "url" deve começar com http:// ou https:// (ou apague a linha).');
   meta.tipo = meta.tipo || 'norma';
 
@@ -101,12 +103,20 @@ export function montarBase(pasta) {
   return todos;
 }
 
+// Base do Worker: igual à completa, menos os documentos marcados com "worker: nao" (ficam só nos pacotes offline).
+export function montarBaseWorker(pasta) {
+  const todos = [];
+  for (const d of lerPasta(pasta || PASTA)) if (d.meta.worker !== 'nao') todos.push.apply(todos, d.trechos);
+  return todos;
+}
+
 // Lista do que está carregado (um item por documento).
 export function montarCatalogo(pasta) {
   return lerPasta(pasta || PASTA).map(function (d) {
     const c = { doc: d.meta.doc, titulo: d.meta.titulo, norma: d.meta.norma, ano: Number(d.meta.ano), tipo: d.meta.tipo };
     if (d.meta.pacote) c.pacote = d.meta.pacote;
     if (d.meta.url) c.url = d.meta.url;
+    if (d.meta.worker === 'nao') c.worker = 'nao';
     if (d.meta.revisao) c.revisao = d.meta.revisao;
     c.trechos = d.trechos.length;
     c.caracteres = d.trechos.reduce(function (n, t) { return n + t.texto.length; }, 0);
@@ -131,10 +141,12 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   // JSON compacto (sem recuo) e FORA do Git (veja .gitignore): é gerado a partir de knowledge/documentos/*.md.
   writeFileSync(SAIDA, JSON.stringify(base));
   // Índice de busca já calculado: o Worker o carrega pronto em vez de montá-lo na partida (leva ~0,6 s com a base toda).
-  writeFileSync(SAIDA_INDICE, JSON.stringify(serializarIndice(criarIndice(base))));
+  // O Worker não leva os documentos marcados com "worker: nao": a base e o índice dele são só do resto.
+  const baseWorker = montarBaseWorker();
+  writeFileSync(SAIDA_INDICE, JSON.stringify(serializarIndice(criarIndice(baseWorker))));
   // Base enxuta só para o Worker (veja shared/base-compacta.mjs): é o que cabe no limite de 3 MB do plano gratuito.
-  writeFileSync(SAIDA_WORKER, JSON.stringify(compactarBase(base)));
+  writeFileSync(SAIDA_WORKER, JSON.stringify(compactarBase(baseWorker)));
   writeFileSync(SAIDA_CATALOGO, JSON.stringify(montarCatalogo(), null, 2) + '\n');
-  console.log(base.length + ' trecho(s) em ' + new Set(base.map(function (x) { return x.doc; })).size + ' documento(s) → knowledge/conhecimento.json, indice.json e catalogo.json');
+  console.log(base.length + ' trecho(s) em ' + new Set(base.map(function (x) { return x.doc; })).size + ' documento(s) → knowledge/conhecimento.json, indice.json e catalogo.json (Worker: ' + baseWorker.length + ' trechos)');
   avisosDaBase().forEach(function (a) { console.log('ATENÇÃO: ' + a); });
 }
