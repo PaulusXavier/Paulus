@@ -315,3 +315,15 @@ test('prompt: voz de psicólogo do SUAS, autonomia separada de fonte e honestida
   assert.match(s, /sem diagnóstico, sem classificar o risco/);
   assert.match(s, /NUNCA invente endereço, telefone/); // o rigor com fatos continua
 });
+
+test('umbrella: o prompt leva o contexto real do app (sem acesso a dados de família; "Família desistiu" exclui o PAF)', async () => {
+  const { env, chamadas } = ambiente();
+  const m = criarManipulador({ base, apps: APPS });
+  const r = await m(pedido({ app: 'umbrella', pergunta: 'o que faz o botão Família desistiu?', stream: false }), env);
+  assert.equal(r.status, 200);
+  const sistema = chamadas.flatMap(c => c.params.messages || []).filter(x => x.role === 'system').map(x => x.content).join('\n');
+  assert.match(sistema, /Plano de Acompanhamento Familiar \(PAF\)/);
+  assert.match(sistema, /NÃO tem acesso/);
+  assert.match(sistema, /Família desistiu.*EXCLUI/);
+  assert.match(sistema, /nunca peça nome, CPF, NIS ou endereço/);
+});
