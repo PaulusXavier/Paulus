@@ -60,5 +60,5 @@ Para publicar, siga [docs/DEPLOY.md](docs/DEPLOY.md). Para ligar a um app, [docs
 ## Estado atual
 
 - Base de normas: veja `knowledge/catalogo.json`. Já preparada para receber os documentos da **psicologia no SUAS** (mandando os PDFs pelo Claude: [docs/ALIMENTAR-PELO-CLAUDE.md](docs/ALIMENTAR-PELO-CLAUDE.md)) (`npm run ingerir`, passo a passo em [docs/CONHECIMENTO.md](docs/CONHECIMENTO.md) e `knowledge/entrada/LEIA-ME.md`). Ainda faltam o texto completo da NOB/SUAS 2012, a Tipificação Nacional e a PNAS 2004.
-- O módulo é **sem tela**: o chat de cada app continua sendo o painel do mascote. **Argo SUAS já está ligado**; faltam Anona, Toth e Umbrella (passo a passo em [docs/INTEGRACAO.md](docs/INTEGRACAO.md)).
-- Os textos de `worker/apps.mjs` para Anona, Toth e Umbrella foram escritos sem ler o código desses apps. Revise.
+- O módulo é **sem tela**: o chat de cada app continua sendo o painel do mascote. **Argo SUAS e Umbrella já estão ligados**; faltam Anona e Toth (passo a passo em [docs/INTEGRACAO.md](docs/INTEGRACAO.md)).
+- Os textos de `worker/apps.mjs` para Anona e Toth foram escritos sem ler o código desses apps. Revise. O do Umbrella foi escrito a partir do código e do README do app.
