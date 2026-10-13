@@ -29,7 +29,7 @@ import { montarMensagensInterpretacao, lerInterpretacao } from './interpretar.mj
 // o pequeno assume sozinho.
 const MODELO_PADRAO = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const MODELO_RESERVA_PADRAO = '@cf/meta/llama-3.1-8b-instruct';
-const MAX_PERGUNTA = 500;
+const MAX_PERGUNTA = 1200;
 const MAX_CORPO = 32000;
 // Cada pergunta usa até 2 chamadas (interpretar + responder), por isso o limite é o dobro do antigo.
 const LIMITE_POR_MINUTO = 16;
@@ -95,7 +95,7 @@ async function chamarIA(env, mensagens, stream, extra) {
   const ajuste = extra || {};
   const principal = ajuste.modelo || env.MODELO || MODELO_PADRAO;
   const reserva = env.MODELO_RESERVA || MODELO_RESERVA_PADRAO;
-  const params = { messages: mensagens, max_tokens: ajuste.max_tokens || 640, temperature: ajuste.temperature != null ? ajuste.temperature : 0.25, stream: !!stream };
+  const params = { messages: mensagens, max_tokens: ajuste.max_tokens || 900, temperature: ajuste.temperature != null ? ajuste.temperature : 0.4, stream: !!stream };
   try {
     return await env.AI.run(principal, params);
   } catch (e) {
