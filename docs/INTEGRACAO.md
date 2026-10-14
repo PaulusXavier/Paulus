@@ -91,7 +91,8 @@ de conversa, e o `app.js` só tem dois ganchos (`paulusAbrir` no clique do masco
 - **Fim de sessão:** o `app.js` dispara o evento `grafia:auth` em `onAuthStateChanged` (e guarda `window.__grafiaLogado`); ao sair da conta, `Paulus.limpar()` e o painel é removido.
 - **Endereço do Worker:** constante `ENDPOINT` no topo de `paulus-grafia.js` (o mesmo dos outros apps). O `ALLOWED_ORIGINS` já serve se o Grafia estiver em `https://paulusxavier.github.io`.
 - **CSP** (`index.html`): `connect-src` ganhou `https://*.workers.dev`. `script-src` não muda (cópia local).
-- **Service worker** (`service-worker.js`, v20): guarda `paulus.v1.js`, `paulus-grafia.js` e `conhecimento.json` para uso offline.
+- **Estados do mascote:** o `<svg class="mascot">` tem `data-estado` (`repouso`, `pensando`, `escrevendo`, `atento`, `duvida`, `ouvindo`, `dormindo`), trocado por `estado()` em `paulus-grafia.js`. Mapeamento: fase "pensando…" → `pensando`; "escrevendo…" → `escrevendo`; `r.tipo` `crise`/`bloqueio` → `atento`; `sem_resposta`/`erro` → `duvida`; digitando no campo → `ouvindo`; sem internet → `dormindo`. As animações ficam em `style.css` e respeitam `prefers-reduced-motion`. O mascote só muda de aparência: não lê nota, título nem busca.
+- **Service worker** (`service-worker.js`, v21): guarda `paulus.v1.js`, `paulus-grafia.js` e `conhecimento.json` para uso offline.
 - O painel tem Copiar, "Mais curto", sugestões, fontes que abrem e fecham, telefones de emergência em caso de crise, Parar e "↻ Tentar de novo". Falta 👍/👎.
 - O texto de `worker/apps.mjs` para o Grafia foi escrito a partir do código e do README do app. **Publique o Worker de novo** (`npm run deploy:worker`); sem isso o Worker rejeita `app: 'grafia'` (app desconhecido).
 - Quando o Paulus mudar: `npm run build` aqui e copie `dist/paulus.v1.js` e `dist/conhecimento-geral.json` (como `conhecimento.json`) para o Grafia.
