@@ -81,6 +81,21 @@ de conversa, e o `app.js` só tem dois ganchos (`paulusAbrir` no clique do masco
 - O texto de `worker/apps.mjs` para o Toth foi reescrito a partir do código do app. **Publique o Worker de novo** (`npm run deploy:worker`); sem isso a IA ainda usa o texto antigo (só o nome do app).
 - Quando o Paulus mudar: `npm run build` aqui e copie `dist/paulus.v1.js` e `dist/conhecimento-geral.json` (como `conhecimento.json`) para o Toth.
 
+## 1e. Grafia (bloco de notas)
+
+**Feito.** Mesma estrutura do Toth: cópia local de `paulus.v1.js` e de `conhecimento.json` (pacote *geral*, `dist/conhecimento-geral.json` renomeado) e a ligação inteira em `paulus-grafia.js` (no Grafia).
+
+- **Painel:** abre ao tocar no mascote do topo (caderninho), só com a conta logada. O painel usa o mesmo desenho do mascote do app (clonado do `<template id="mascot-template">`).
+- **Sem dados de nota.** A integração não lê `allNotes`, o modal de nota, o campo de busca nem o Firestore, não passa `fichas` e **não registra buscas** (de propósito). Pergunta com nome, documento, telefone ou endereço é bloqueada antes de qualquer rede e a mensagem é ocultada na tela.
+- **Ações registradas** (só navegação, nada salva ou apaga): `nova-nota` (clica em "+ Nova nota"; abre a nota em branco) e `buscar-notas` (foca o campo de busca).
+- **Fim de sessão:** o `app.js` dispara o evento `grafia:auth` em `onAuthStateChanged` (e guarda `window.__grafiaLogado`); ao sair da conta, `Paulus.limpar()` e o painel é removido.
+- **Endereço do Worker:** constante `ENDPOINT` no topo de `paulus-grafia.js` (o mesmo dos outros apps). O `ALLOWED_ORIGINS` já serve se o Grafia estiver em `https://paulusxavier.github.io`.
+- **CSP** (`index.html`): `connect-src` ganhou `https://*.workers.dev`. `script-src` não muda (cópia local).
+- **Service worker** (`service-worker.js`, v20): guarda `paulus.v1.js`, `paulus-grafia.js` e `conhecimento.json` para uso offline.
+- O painel tem Copiar, "Mais curto", sugestões, fontes que abrem e fecham, telefones de emergência em caso de crise, Parar e "↻ Tentar de novo". Falta 👍/👎.
+- O texto de `worker/apps.mjs` para o Grafia foi escrito a partir do código e do README do app. **Publique o Worker de novo** (`npm run deploy:worker`); sem isso o Worker rejeita `app: 'grafia'` (app desconhecido).
+- Quando o Paulus mudar: `npm run build` aqui e copie `dist/paulus.v1.js` e `dist/conhecimento-geral.json` (como `conhecimento.json`) para o Grafia.
+
 ## 2. Outros apps
 
 ```html
