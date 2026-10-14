@@ -450,6 +450,50 @@
     "caracteres": 224756
   },
   {
+    "doc": "paif-acompanhamento-familiar-guia",
+    "titulo": "Guia de orientação técnica/metodológica sobre o acompanhamento familiar no PAIF",
+    "norma": "Guia Orientação Técnica/metodológica sobre o acompanhamento familiar no PAIF (autoria e ano não constam no texto consultado; arquivo publicado em repositório de proteção social em 03/2025). Material de apoio, resumido.",
+    "ano": 2025,
+    "tipo": "apoio",
+    "url": "https://repositorioprotecaosocial.ciclovirtual.org.br/wp-content/uploads/2025/03/Orientacao-Tecnica_metodologica-sobre-o-acompanhamento-familiar-no-PAIF.pdf",
+    "revisao": "pendente",
+    "trechos": 9,
+    "caracteres": 3421
+  },
+  {
+    "doc": "paif-orientacoes-tecnicas-vol2",
+    "titulo": "Orientações Técnicas sobre o PAIF, vol. 2: Trabalho Social com Famílias (ações do PAIF)",
+    "norma": "MDS/SNAS, Orientações Técnicas sobre o PAIF, vol. 2, Trabalho Social com Famílias do Serviço de Proteção e Atendimento Integral à Família (PAIF); resumo de partes (acolhida, oficinas, ações comunitárias), não é o texto literal",
+    "ano": 2012,
+    "tipo": "referencia",
+    "url": "https://www.mds.gov.br/webarquivos/publicacao/assistencia_social/Cadernos/Orientacoes_PAIF_2.pdf",
+    "revisao": "pendente",
+    "trechos": 6,
+    "caracteres": 2117
+  },
+  {
+    "doc": "paif-tipificacao-2009",
+    "titulo": "PAIF na Tipificação Nacional de Serviços Socioassistenciais (síntese)",
+    "norma": "Síntese do item \"Serviço de Proteção e Atendimento Integral à Família (PAIF)\" da Tipificação Nacional de Serviços Socioassistenciais (Resolução CNAS nº 109, de 11 de novembro de 2009). Resumo, não é o texto literal.",
+    "ano": 2009,
+    "tipo": "apoio",
+    "url": "https://www.normasbrasil.com.br/norma/resolucao-109-2009_110778.html",
+    "revisao": "pendente",
+    "trechos": 10,
+    "caracteres": 3386
+  },
+  {
+    "doc": "paif-trilhas-mds-2024-2026",
+    "titulo": "Trilhas do PAIF (MDS): Trabalho Social com Famílias e Territórios",
+    "norma": "MDS, Coleção Trilhas do PAIF: \"Trabalho social com famílias e territórios no PAIF: trilha para o contexto das condicionalidades do Programa Bolsa Família\" (MDS/UNICEF, 2024) e \"Trilha para a primeira infância\" (MDS, 2026); resumo de partes, não é o texto literal",
+    "ano": 2026,
+    "tipo": "referencia",
+    "url": "https://www.gov.br/mds/pt-br/acoes-e-programas/SUAS/servicos-e-programas-1/protecao-e-atendimento-integral-a-familia/trilhas_do_PAIF/trilha_4.pdf",
+    "revisao": "pendente",
+    "trechos": 10,
+    "caracteres": 3958
+  },
+  {
     "doc": "roraima-municipios-2022",
     "titulo": "Municípios de Roraima (população do Censo 2022)",
     "norma": "IBGE, Censo Demográfico 2022, população dos municípios (relação publicada para o TCU em 2023); Governo de Roraima, SEPLAN, Informativo nº 013/2023, e SESAU/RR, Informação CDS (2024)",
