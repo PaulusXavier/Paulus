@@ -131,6 +131,15 @@ test('o sistema traz o contexto do app e a página aberta', async () => {
   assert.match(sistema, /aba "Calendário"/);
 });
 
+test('Anona: o contexto avisa que a IA não vê notas, planilhas nem famílias', async () => {
+  const { env, chamadas } = ambiente();
+  const m = criarManipulador({ base, apps: APPS });
+  await m(pedido({ app: 'anona', pergunta: 'o que é a repercussão?' }), env);
+  const sistema = chamadas[0].params.messages[0].content;
+  assert.match(sistema, /NÃO tem acesso/);
+  assert.match(sistema, /nunca peça nome, CPF, NIS/);
+});
+
 test('limite por IP: a 17ª chamada no mesmo minuto leva 429', async () => {
   const { env } = ambiente();
   const m = criarManipulador({ base, apps: APPS });
