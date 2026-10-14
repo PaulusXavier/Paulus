@@ -108,3 +108,23 @@ test('worker: nao deixa o documento fora da base do Worker, mas dentro da base c
   assert.deepEqual(montarBase(pasta).map(t => t.doc), ['a', 'b']);
   assert.deepEqual(montarBaseWorker(pasta).map(t => t.doc), ['a']);
 });
+
+test('PAIF: as perguntas do dia a dia da equipe acham o documento certo (e o apoio não vira norma)', () => {
+  const base = montarBase();
+  const indice = criarIndice(base);
+  const casos = [
+    ['qual a diferença entre atendimento e acompanhamento familiar?', 'paif-acompanhamento-familiar-guia'],
+    ['como construir o PAF junto com a família?', 'paif-acompanhamento-familiar-guia'],
+    ['quando reavaliar o PAF?', 'paif-acompanhamento-familiar-guia'],
+    ['oficina com famílias quantas pessoas', 'paif-orientacoes-tecnicas-vol2'],
+    ['o que é acolhida particularizada', 'paif-orientacoes-tecnicas-vol2'],
+    ['participação no PAIF é obrigatória para o bolsa família?', 'paif-trilhas-mds-2024-2026'],
+    ['PAIF ou PAEFI indício de violência', 'paif-tipificacao-2009']
+  ];
+  for (const [pergunta, doc] of casos) {
+    const docs = buscar(indice, pergunta, { k: 4 }).map(r => r.trecho.doc);
+    assert.ok(docs.includes(doc), pergunta + ' deveria achar ' + doc + ', achou ' + docs.join(', '));
+  }
+  // o guia de acompanhamento não identifica autor: nunca pode entrar como "norma"
+  for (const t of base.filter(x => x.doc.startsWith('paif-'))) assert.notEqual(t.tipo || 'norma', 'norma', t.doc + ' não é texto oficial literal');
+});
