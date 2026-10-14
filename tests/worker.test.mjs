@@ -325,6 +325,20 @@ test('prompt: voz de psicólogo do SUAS, autonomia separada de fonte e honestida
   assert.match(s, /NUNCA invente endereço, telefone/); // o rigor com fatos continua
 });
 
+test('prompt: olhar profissional (social, jurídico, antropológico, drogas) sem biografia emprestada', async () => {
+  const { montarSistema } = await import('../worker/prompt.mjs');
+  const s = montarSistema(APPS.argo, 'CRAS');
+  assert.match(s, /DE ONDE VOCÊ PENSA/);
+  assert.match(s, /familismo/);
+  assert.match(s, /não é perícia nem laudo/);
+  assert.match(s, /Warao/);
+  assert.match(s, /redução de danos/);
+  assert.match(s, /mestre em Antropologia Social/);
+  assert.match(s, /em primeira pessoa/);
+  assert.match(s, /uma IA feita à imagem da trajetória/);
+  assert.match(s, /Nunca invente caso, atendimento/);
+});
+
 test('umbrella: o prompt leva o contexto real do app (sem acesso a dados de família; "Família desistiu" exclui o PAF)', async () => {
   const { env, chamadas } = ambiente();
   const m = criarManipulador({ base, apps: APPS });
