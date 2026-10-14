@@ -54,7 +54,20 @@ de conversa, e o `app.js` só tem dois ganchos (`paulusAbrir` no clique do masco
   (abas, seções do PAF, regras como o botão "Família desistiu"). **Depois de mudar, publique o Worker de novo.**
 - Falta no Umbrella: botões 👍/👎 e "↻ Tentar de novo" (o Argo tem).
 
-## 2. Outros apps (Anona, Toth, ...)
+## 1c. Anona (condicionalidades do Bolsa Família)
+
+**Feito.** Mesma estrutura do Umbrella: cópia local de `paulus.v1.js` e de `conhecimento.json` (pacote *geral*, `dist/conhecimento-geral.json` renomeado) e a ligação inteira em `paulus-anona.js` (no Anona).
+
+- **Painel:** abre ao tocar no mascote, só com a conta logada (sem login o mascote segue dando dicas). `anona-mascot.js` ganhou `AnonaMascot.aoClicar(fn)`; se `fn` devolver `true`, a dica aleatória não aparece.
+- **Sem dados de família.** O Anona guarda notas e planilhas, mas a integração não lê `notes`, planilhas, PDFs nem Firestore, não passa `fichas` e **não registra buscas** (de propósito). Pergunta com NIS, CPF, nome ou endereço é bloqueada antes de qualquer rede e a mensagem é ocultada na tela.
+- **Ações registradas** (só rolam a página até o cartão; nada que altere dado): `calendario`, `nis`, `sicon`, `destaques`, `territorio`, `exportar`, `sacar`, `devolucao`, `participar`, `condicionalidades`, `cadunico`, `cronograma`, `recurso`, `motivos`. O app é uma página única; a ação procura o `<h2>` pelo título. Se mudar o título de um cartão, ajuste `registrarAcoes()` em `paulus-anona.js`.
+- **Fim de sessão:** o `index.html` dispara o evento `anona:auth` em `runAuthUI`; ao sair da conta, `Paulus.limpar()` e o painel é removido.
+- **Endereço do Worker:** constante `ENDPOINT` no topo de `paulus-anona.js` (o mesmo do Argo). Já aponta para `https://paulus-ia.paulo-ae18.workers.dev`; com a constante vazia, a IA fica desligada e só a base de normas offline responde.
+- **Worker:** o `ALLOWED_ORIGINS` precisa conter o domínio do Anona (`https://paulusxavier.github.io` já serve, se o Anona estiver nele). O texto de `worker/apps.mjs` foi reescrito a partir do README e do código do Anona. **Publique o Worker de novo** (`npm run deploy:worker`).
+- **Service worker** (`sw.js`, v23): guarda `paulus.v1.js`, `paulus-anona.js` e `conhecimento.json` para uso offline. O Anona não tem CSP, então nada a acrescentar.
+- O painel tem Copiar, 👍/👎 (só no aparelho; 👎 oferece "explicar de outro jeito" e "mais curto") e "↻ Tentar de novo" quando a IA falha.
+
+## 2. Outros apps (Toth, ...)
 
 ```html
 <script src="https://SEU-USUARIO.github.io/paulus/paulus.v1.js"></script>
