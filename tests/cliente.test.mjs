@@ -249,3 +249,13 @@ test('o panorama do app chega ao Worker só quando o app o manda', async () => {
   await P.perguntar('e os CRAS?', { semAcoes: true, fichas: [] });
   assert.equal('panorama' in capturas[1], false);
 });
+
+test('grafia: app registrado no Worker e na skin, e o Worker aceita o pedido', async () => {
+  assert.ok(APPS.grafia && /Grafia/.test(APPS.grafia.contexto));
+  assert.match(APPS.grafia.contexto, /NÃO tem acesso/);
+  const P = carregar(fetchComWorker({ resposta: 'Cada nota pode ter várias páginas.' }));
+  P.init({ app: 'grafia', endpoint: ENDPOINT, conhecimento: base, ...semEspera });
+  assert.equal(P.skin('grafia').mascote, 'Grafia');
+  const r = await P.perguntar('quantas páginas uma nota pode ter?');
+  assert.equal(r.tipo, 'ia');
+});
