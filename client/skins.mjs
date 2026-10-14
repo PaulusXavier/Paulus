@@ -19,8 +19,8 @@ export const SKINS = {
   toth: {
     app: 'toth',
     mascote: 'Toth',
-    saudacao: 'Oi! Eu sou o Paulus, aqui como Toth. Posso ajudar a usar o diário de campo e a achar telas e funções.',
-    sugestoes: ['como organizar um registro de campo?', 'abrir registros']
+    saudacao: 'Oi! Eu sou o Paulus, aqui como Toth. Posso explicar o app, abrir filtros e tirar dúvidas do SUAS e da prática da psicologia. Não tenho acesso aos seus registros.',
+    sugestoes: ['como estruturar o registro de um atendimento?', 'o que o CFP orienta sobre sigilo no registro?', 'abrir acompanhamento']
   },
   umbrella: {
     app: 'umbrella',
