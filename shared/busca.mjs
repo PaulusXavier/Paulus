@@ -41,7 +41,12 @@ const SIGLAS = {
   caps: ['centro', 'atencao', 'psicossocial'],
   raps: ['rede', 'atencao', 'psicossocial'],
   pcd: ['pessoa', 'deficiencia'],
-  mds: ['ministerio', 'desenvolvimento', 'social']
+  mds: ['ministerio', 'desenvolvimento', 'social'],
+  paf: ['plano', 'acompanhamento', 'familiar'],
+  tsft: ['trabalho', 'social', 'familias', 'territorios'],
+  rma: ['relatorio', 'mensal', 'atendimentos'],
+  gpte: ['grupos', 'populacionais', 'tradicionais', 'especificos'],
+  spsbd: ['servico', 'protecao', 'social', 'basica', 'domicilio']
 };
 
 // Quantos trechos da base vão para a IA e para a resposta offline.
