@@ -1,6 +1,6 @@
 # Paulus
 
-Copiloto de IA compartilhado pelos apps (Argo SUAS, Anona, Toth, Umbrella). Em cada app ele aparece com o rosto do mascote daquele app.
+Copiloto de IA compartilhado pelos apps (Argo SUAS, Anona, Toth, Umbrella, Grafia). Em cada app ele aparece com o rosto do mascote daquele app.
 
 **O que faz:** responde dúvidas de uso e do SUAS, abre telas, busca coisas dentro do app e cita a norma de onde tirou a resposta (artigo e documento).
 
@@ -60,5 +60,5 @@ Para publicar, siga [docs/DEPLOY.md](docs/DEPLOY.md). Para ligar a um app, [docs
 ## Estado atual
 
 - Base de normas: veja `knowledge/catalogo.json`. Já preparada para receber os documentos da **psicologia no SUAS** (mandando os PDFs pelo Claude: [docs/ALIMENTAR-PELO-CLAUDE.md](docs/ALIMENTAR-PELO-CLAUDE.md)) (`npm run ingerir`, passo a passo em [docs/CONHECIMENTO.md](docs/CONHECIMENTO.md) e `knowledge/entrada/LEIA-ME.md`). Ainda faltam o texto completo da NOB/SUAS 2012, a Tipificação Nacional e a PNAS 2004.
-- O módulo é **sem tela**: o chat de cada app continua sendo o painel do mascote. **Argo SUAS, Umbrella, Anona e Toth já estão ligados** (passo a passo em [docs/INTEGRACAO.md](docs/INTEGRACAO.md)).
-- Os textos de `worker/apps.mjs` para Toth, Umbrella e Anona foram escritos a partir do código e do README dos apps. Revise quando os apps mudarem.
+- O módulo é **sem tela**: o chat de cada app continua sendo o painel do mascote. **Argo SUAS, Umbrella, Anona, Toth e Grafia já estão ligados** (passo a passo em [docs/INTEGRACAO.md](docs/INTEGRACAO.md)).
+- Os textos de `worker/apps.mjs` para Toth, Umbrella, Anona e Grafia foram escritos a partir do código e do README dos apps. Revise quando os apps mudarem.
