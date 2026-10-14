@@ -67,7 +67,21 @@ de conversa, e o `app.js` só tem dois ganchos (`paulusAbrir` no clique do masco
 - **Service worker** (`sw.js`, v23): guarda `paulus.v1.js`, `paulus-anona.js` e `conhecimento.json` para uso offline. O Anona não tem CSP, então nada a acrescentar.
 - O painel tem Copiar, 👍/👎 (só no aparelho; 👎 oferece "explicar de outro jeito" e "mais curto") e "↻ Tentar de novo" quando a IA falha.
 
-## 2. Outros apps (Toth, ...)
+## 1d. Toth (Diário de Campo)
+
+**Feito.** Mesma estrutura do Anona: cópia local de `paulus.v1.js` e de `conhecimento.json` (pacote *geral*, `dist/conhecimento-geral.json` renomeado) e a ligação inteira em `paulus-toth.js` (no Toth).
+
+- **Painel:** abre ao tocar no mascote, só com a conta logada (sem login o mascote segue dando dicas). `toth-mascot.js` ganhou `TothMascot.aoClicar(fn)`; se `fn` devolver `true`, a dica aleatória não aparece.
+- **Sem dados de caso.** O diário guarda relatos de atendimento, mas a integração não lê `registros`, o formulário, a busca, nem o Firestore, não passa `fichas` e **não registra buscas** (de propósito). Pergunta com nome, documento, telefone ou endereço é bloqueada antes de qualquer rede e a mensagem é ocultada na tela.
+- **Ações registradas** (só navegação): as seis abas (`aba-todos`, `aba-atendimento`, `aba-visita`, `aba-visitatecnica`, `aba-grupo`, `aba-pendente`), `novo-registro` (só abre o formulário, não salva) e `exportar-json/csv/word/pdf` (com `confirmar: true`, porque baixam os relatos). Importar backup, excluir e sair **não** são ações do Paulus.
+- **Fim de sessão:** o `app.js` dispara o evento `toth:auth` em `onAuthStateChanged` (e guarda `window.__tothLogado`); ao sair da conta, `Paulus.limpar()` e o painel é removido.
+- **Endereço do Worker:** constante `ENDPOINT` no topo de `paulus-toth.js` (o mesmo do Argo e do Anona). O `ALLOWED_ORIGINS` já serve se o Toth estiver em `https://paulusxavier.github.io`.
+- **Service worker** (`sw.js`, v32): guarda `paulus.v1.js`, `paulus-toth.js` e `conhecimento.json` para uso offline. O Toth não tem CSP, então nada a acrescentar.
+- O painel tem Copiar, "Mais curto", sugestões, fontes que abrem e fecham, telefones de emergência em caso de crise e "↻ Tentar de novo" quando a IA falha. Falta 👍/👎 (o Anona tem).
+- O texto de `worker/apps.mjs` para o Toth foi reescrito a partir do código do app. **Publique o Worker de novo** (`npm run deploy:worker`); sem isso a IA ainda usa o texto antigo (só o nome do app).
+- Quando o Paulus mudar: `npm run build` aqui e copie `dist/paulus.v1.js` e `dist/conhecimento-geral.json` (como `conhecimento.json`) para o Toth.
+
+## 2. Outros apps
 
 ```html
 <script src="https://SEU-USUARIO.github.io/paulus/paulus.v1.js"></script>
