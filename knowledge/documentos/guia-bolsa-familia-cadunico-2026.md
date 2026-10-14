@@ -1,7 +1,7 @@
 ---
 doc: guia-bolsa-familia-cadunico-2026
 titulo: Guia rápido Bolsa Família e CadÚnico (orientação, não é norma)
-norma: Material orientativo compilado de MDS/Caixa e das normas citadas (Lei 14.601/2023, Decretos 12.064/2024 e 13.120/2026, Decreto 11.016/2022, Portaria MDS 1.058/2025, IN SENARC/MDS 50/2025); atualizado em 09/10/2026
+norma: Material orientativo compilado de MDS/Caixa e das normas citadas (Lei 14.601/2023, Decretos 12.064/2024 e 13.120/2026, Decreto 11.016/2022, Portaria MDS 1.058/2025, IN SENARC/MDS 50/2025); atualizado em 14/10/2026
 ano: 2026
 ---
 
@@ -25,7 +25,7 @@ Renda mensal de, no máximo, R$ 218 por pessoa da família e inscrição no Cada
 
 ## Regra de proteção (renda acima de R$ 218)
 
-Se a renda per capita da família subir acima de R$ 218, mas não passar do limite fixado pelo Ministério (máximo de meio salário mínimo), a família pode continuar no programa por até 24 meses recebendo 50% do benefício. Acima do limite, é desligada. Fonte: Lei 14.601/2023, art. 6º; Decreto 12.064/2024, art. 33.
+Se a renda per capita da família subir acima de R$ 218, mas não passar do limite fixado pelo Ministério (máximo de meio salário mínimo), a família pode continuar no programa recebendo 50% do benefício. O prazo mudou em 2025 (Portaria MDS 1.084/2025, conforme noticiado): até 24 meses para quem já estava na regra e, para novos ingressantes, 12 meses (sem renda estável) ou 2 meses (com renda estável de aposentadoria, pensão ou BPC-Idoso); os detalhes e limites em reais estão no trecho "Regra de proteção atualizada em 2025" do material Bolsa Família 2026. Acima do limite, é desligada. Fonte: Lei 14.601/2023, art. 6º; Decreto 12.064/2024, art. 33.
 
 ## Pagamento: datas e prazo para saque
 
@@ -49,7 +49,7 @@ Educação: frequência mínima de 60% para 4 a 6 anos incompletos e de 75% para
 
 ## Efeitos do descumprimento das condicionalidades
 
-Os efeitos são graduais e consideram o histórico da família: alerta (a família continua recebendo), bloqueio por um mês, suspensão por dois meses e, em último caso, cancelamento. Famílias em descumprimento têm prioridade nos serviços da assistência social, e o acompanhamento no Sicon pode interromper temporariamente os efeitos. Fonte: Portaria MDS 1.058/2025 e Decreto 12.064/2024, arts. 41 e 42.
+Os efeitos são graduais e consideram o histórico da família (Portaria MDS 1.058/2025, art. 15, na redação da Portaria 1.095/2025). 1º descumprimento: alerta, sem impacto no benefício. 2º registro: bloqueio por um mês (a família não saca naquele mês, mas saca a parcela seguinte). 3º registro e reincidências: suspensão por dois meses. Por último, cancelamento. Cada efeito vale por seis meses: novo descumprimento nesse prazo avança para o efeito seguinte, e um novo efeito durante a fase de suspensão é sempre suspensão. Se o intervalo entre descumprimentos for maior que seis meses, os registros anteriores deixam de contar para a gradação. O cancelamento ocorre a partir do 12º mês do Período de Atenção (fase de suspensão com acompanhamento familiar ativo no Sicon) se houver novo efeito sem sair da suspensão. Para crianças de 0 a 15 anos e gestantes o efeito incide sobre todos os benefícios; para o adolescente com Benefício Variável Familiar Jovem, só sobre esse benefício. Famílias em descumprimento têm prioridade no SUAS e o acompanhamento no Sicon pode interromper temporariamente os efeitos. Fonte: Portaria MDS 1.058/2025, arts. 15 a 19, 21 e 22; Decreto 12.064/2024, arts. 41 e 42.
 
 ## Cronograma de repercussão 2026 e prazo de recurso
 
