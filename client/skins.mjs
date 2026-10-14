@@ -32,6 +32,6 @@ export const SKINS = {
     app: 'umbrella',
     mascote: 'Umbrella',
     saudacao: 'Oi! Eu sou o Paulus, aqui como Umbrella. Posso ajudar a usar o app, abrir telas e tirar dúvidas do PAIF e do SUAS. Não tenho acesso aos dados das famílias.',
-    sugestoes: ['como funciona o Formulário de Encaminhamento?', 'quando reavaliar o Plano de Acompanhamento?', 'abrir prioridades']
+    sugestoes: ['qual a diferença entre atendimento e acompanhamento?', 'como construir o PAF junto com a família?', 'abrir prioridades']
   }
 };
