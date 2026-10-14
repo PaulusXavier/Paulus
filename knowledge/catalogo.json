@@ -26,8 +26,8 @@
     "norma": "Material informativo do MDS e da Caixa sobre o Programa Bolsa Família, valores atualizados em outubro de 2026",
     "ano": 2026,
     "tipo": "norma",
-    "trechos": 13,
-    "caracteres": 4696
+    "trechos": 29,
+    "caracteres": 15595
   },
   {
     "doc": "cadunico-mds",
@@ -403,11 +403,11 @@
   {
     "doc": "guia-bolsa-familia-cadunico-2026",
     "titulo": "Guia rápido Bolsa Família e CadÚnico (orientação, não é norma)",
-    "norma": "Material orientativo compilado de MDS/Caixa e das normas citadas (Lei 14.601/2023, Decretos 12.064/2024 e 13.120/2026, Decreto 11.016/2022, Portaria MDS 1.058/2025, IN SENARC/MDS 50/2025); atualizado em 09/10/2026",
+    "norma": "Material orientativo compilado de MDS/Caixa e das normas citadas (Lei 14.601/2023, Decretos 12.064/2024 e 13.120/2026, Decreto 11.016/2022, Portaria MDS 1.058/2025, IN SENARC/MDS 50/2025); atualizado em 14/10/2026",
     "ano": 2026,
     "tipo": "norma",
     "trechos": 14,
-    "caracteres": 6157
+    "caracteres": 7294
   },
   {
     "doc": "lei-14601-2023",
