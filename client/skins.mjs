@@ -13,8 +13,8 @@ export const SKINS = {
   anona: {
     app: 'anona',
     mascote: 'Anona',
-    saudacao: 'Oi! Eu sou o Paulus, aqui como Anona. Posso explicar o app e as regras de condicionalidades.',
-    sugestoes: ['como funciona o acompanhamento de condicionalidades?', 'abrir calendário']
+    saudacao: 'Oi! Eu sou o Paulus, aqui como Anona. Posso explicar o app, abrir cartões e tirar dúvidas sobre condicionalidades. Não tenho acesso às suas notas nem às planilhas das famílias.',
+    sugestoes: ['como funciona o acompanhamento de condicionalidades?', 'o que é a repercussão?', 'abrir calendário']
   },
   toth: {
     app: 'toth',
