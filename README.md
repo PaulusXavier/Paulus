@@ -2,7 +2,7 @@
 
 Copiloto de IA compartilhado pelos apps (Argo SUAS, Anona, Toth, Umbrella, Grafia). Em cada app ele aparece com o rosto do mascote daquele app.
 
-**O que faz:** responde dúvidas de uso e do SUAS, abre telas, busca coisas dentro do app e cita a norma de onde tirou a resposta (artigo e documento).
+**O que faz:** responde dúvidas de uso e do SUAS, abre telas, busca coisas dentro do app, cita a norma de onde tirou a resposta (artigo e documento) e **sabe fazer tarefas do trabalho** (habilidades): escrever registro, relatório e ofício, montar PAF, preparar visita, grupo e discussão de caso.
 
 **O que não faz:** não guarda dado de família, não lê planilha nem registro dos apps e não decide caso individual.
 
@@ -24,7 +24,8 @@ app (navegador)                            Worker (Cloudflare)             Worke
 | `client/` | módulo do navegador (`paulus.mjs`) e as "peles" de cada app (`skins.mjs`) |
 | `worker/` | o Worker: `handler.mjs` (lógica), `prompt.mjs`, `apps.mjs` (um bloco por app) |
 | `knowledge/` | base de normas: `documentos/*.md` → `conhecimento.json` |
-| `scripts/` | `build.mjs` (gera `dist/`), `build-knowledge.mjs` (base e catálogo), `ingerir.mjs` (lote de PDFs), `importar-documento.mjs` (referências técnicas) e `importar-norma.mjs` (leis, por artigo) |
+| `habilidades/` | roteiros de trabalho (relatório, ofício, visita, PAF...) que o Paulus carrega quando o pedido combina; veja [docs/HABILIDADES.md](docs/HABILIDADES.md) |
+| `scripts/` | `build.mjs` (gera `dist/`), `build-knowledge.mjs` (base e catálogo), `build-habilidades.mjs` (habilidades), `ingerir.mjs` (lote de PDFs), `importar-documento.mjs` (referências técnicas) e `importar-norma.mjs` (leis, por artigo) |
 | `tests/` | testes (`npm test`), sem dependências |
 | `docs/` | arquitetura, segurança, integração, conhecimento e deploy |
 
@@ -33,6 +34,7 @@ app (navegador)                            Worker (Cloudflare)             Worke
 ```bash
 npm test                  # roda todos os testes
 npm run build:conhecimento
+npm run build:habilidades
 npm run build             # gera dist/paulus.v1.js e dist/conhecimento.json
 ```
 
