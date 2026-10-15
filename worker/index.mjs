@@ -4,11 +4,12 @@
 
 import compacta from '../knowledge/worker-base.json';
 import indice from '../knowledge/indice.json';
+import habilidades from '../knowledge/habilidades.json';
 import { expandirBase } from '../shared/base-compacta.mjs';
 import { APPS } from './apps.mjs';
 import { criarManipulador } from './handler.mjs';
 
-const manipular = criarManipulador({ base: expandirBase(compacta), apps: APPS, indice });
+const manipular = criarManipulador({ base: expandirBase(compacta), apps: APPS, indice, habilidades });
 
 export default {
   fetch(request, env) {
