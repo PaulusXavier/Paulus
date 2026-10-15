@@ -10,6 +10,7 @@
 //   MODELO_INTERPRETE opcional. Modelo do passo de interpretação (padrão: o mesmo MODELO).
 //
 // Pedido (POST, JSON): { app, pergunta, pagina, historico:[{papel,texto}], fichas:[...], stream }
+//   preferencias (opcional): { tamanho:"curto"|"detalhado", exemplos:true, temas:[idDoDocumento] } aprendidas no aparelho; só códigos de lista fechada e ids de documentos da própria base (worker/prompt.mjs). Ignoradas em tema de suicídio.
 //   panorama (opcional): texto com os totais do diretório por grupo, montado pelo app (até 3000 caracteres).
 //   acoes (opcional): [{ id, rotulo, descricao? }] o que o app sabe abrir/fazer; a IA pode PROPOR até 2 (linha "AÇÕES NO APP: id"), o navegador valida e vira botão.
 //   Aceita também o formato antigo do Argo: sem "app" (vale "argo") e "contexto" no lugar de "fichas".
@@ -25,7 +26,7 @@ import { normalizar, criarIndice, buscar, consultaComContexto, fonteDe, K_PADRAO
 import { detectarCrise } from '../shared/crise.mjs';
 import { trechosDaRota, combinarComBusca } from '../shared/suicidio.mjs';
 import { escolherHabilidades } from '../shared/habilidades.mjs';
-import { montarMensagens } from './prompt.mjs';
+import { montarMensagens, preferenciasValidas } from './prompt.mjs';
 import { montarMensagensInterpretacao, lerInterpretacao } from './interpretar.mjs';
 
 // Padrão: modelo grande (raciocina e segue as regras muito melhor) e, se ele falhar (ex.: cota gratuita do dia),
@@ -113,6 +114,9 @@ async function chamarIA(env, mensagens, stream, extra) {
 export function criarManipulador({ base, apps, indice: indicePronto, habilidades: listaHabilidades = [] }) {
   // indicePronto (opcional): índice pré-calculado em build-knowledge; sem ele (ou se não bater com a base), calcula aqui.
   const indice = criarIndice(base, indicePronto);
+  // doc -> título, para validar as preferências que o navegador manda (só entram documentos que existem na própria base)
+  const titulosPorDoc = new Map();
+  for (const c of base) if (c && c.doc && !titulosPorDoc.has(c.doc)) titulosPorDoc.set(c.doc, c.titulo || c.doc);
   const recentes = new Map(); // limite simples por IP (vale por instância do Worker)
 
   function estourouLimite(ip) {
@@ -197,11 +201,13 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
 
     const anteriores = Array.isArray(corpo.historico) ? corpo.historico.filter(function (h) { return h && h.papel === 'usuario' && !temDadoPessoal(String(h.texto || '')); }) : [];
     const consulta = consultaComContexto(pergunta, anteriores);
+    const pref = preferenciasValidas(corpo.preferencias, titulosPorDoc);
+    const preferir = pref ? Object.fromEntries(pref.temas.map(function (t) { return [t.doc, 1.15]; })) : null;
     // Pergunta técnica sobre suicídio: a rota puxa o conjunto certo da cartilha e a busca completa as vagas.
     const rota = trechosDaRota(indice, consulta);
     const achados = rota.length
-      ? combinarComBusca(rota, buscar(indice, consulta, { k: K_PADRAO }))
-      : buscar(indice, consulta, { k: K_PADRAO });
+      ? combinarComBusca(rota, buscar(indice, consulta, { k: K_PADRAO, preferir: preferir }))
+      : buscar(indice, consulta, { k: K_PADRAO, preferir: preferir });
     const fontes = achados.map(function (a) { return fonteDe(a.trecho); });
     const tema = rota.length > 0 || /suicid|ideacao|autolesao|automutil/.test(normalizar(consulta));
     // Habilidades (roteiros de trabalho): só quando a pergunta combina. Em tema de suicídio a resposta é só cuidado e rede, sem roteiro.
@@ -217,14 +223,18 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       panorama: corpo.panorama,
       // Em tema de suicídio a resposta é só cuidado e rede de apoio: nada de botões de navegação.
       acoes: tema ? [] : corpo.acoes,
+      // Em tema de suicídio a resposta segue o protocolo de cuidado, sem ajuste de estilo.
+      preferencias: tema ? null : pref,
       achados: achados,
       pergunta: pergunta
     });
 
     let saida;
     try {
-      // Habilidade que entrega texto pronto (relatório, ofício, plano...) precisa de mais espaço que a resposta de conversa.
-      saida = await chamarIA(env, mensagens, querStream, habilidades.some(function (h) { return h.texto; }) ? { max_tokens: 1400 } : undefined);
+      // Habilidade que entrega texto pronto (relatório, ofício, plano...) precisa de mais espaço que a resposta de conversa;
+      // sem ela, quem prefere respostas curtas (memória do aparelho) recebe um teto menor.
+      const ajuste = habilidades.some(function (h) { return h.texto; }) ? { max_tokens: 1400 } : (!tema && pref && pref.tamanho === 'curto' ? { max_tokens: 500 } : undefined);
+      saida = await chamarIA(env, mensagens, querStream, ajuste);
     } catch (e) {
       return json({ erro: 'A IA não respondeu agora (a cota gratuita do dia pode ter acabado).' }, 502);
     }
