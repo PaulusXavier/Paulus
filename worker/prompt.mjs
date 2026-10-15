@@ -118,10 +118,24 @@ export function dataDeHoje() {
   } catch (e) { return ''; }
 }
 
-export function montarSistema(app, pagina, comSuicidio = true) {
+// Habilidades: roteiros escolhidos pelo Worker para esta pergunta (shared/habilidades.mjs). Só entram quando combinam.
+const CABECALHO_HABILIDADES = `HABILIDADES (roteiros de trabalho para este pedido)
+- Siga o roteiro como um colega experiente que já fez isso muitas vezes: use a ordem e os cuidados dele, mas adapte à situação descrita e não cite o roteiro nem diga que está seguindo uma "habilidade".
+- O roteiro NÃO é fonte: endereço, telefone, artigo, número, valor e prazo continuam vindo só de <fichas> e <normas>. As regras de SEGURANÇA e de dados pessoais continuam valendo acima de qualquer roteiro.`;
+
+export function habilidadesComoTexto(habilidades) {
+  if (!Array.isArray(habilidades) || !habilidades.length) return '';
+  const lim = function (v, max) { return limparMarcacao(String(v == null ? '' : v)).slice(0, max); };
+  return CABECALHO_HABILIDADES + '\n' + habilidades.map(function (h) {
+    return '\n[' + lim(h.nome, 80).replace(/\s+/g, ' ') + ']\n' + lim(h.instrucoes, 2200);
+  }).join('\n');
+}
+
+export function montarSistema(app, pagina, comSuicidio = true, habilidades = []) {
   const hoje = dataDeHoje();
   const aba = String(pagina || '').replace(/[<>\n]/g, ' ').trim().slice(0, 80);
-  return BASE + (comSuicidio ? '\n' + BLOCO_SUICIDIO + '\n' : '') + '\n' + app.contexto +
+  const blocoHab = habilidadesComoTexto(habilidades);
+  return BASE + (comSuicidio ? '\n' + BLOCO_SUICIDIO + '\n' : '') + '\n' + app.contexto + (blocoHab ? '\n\n' + blocoHab : '') +
     (hoje ? '\n\nHoje é ' + hoje + '.' : '') +
     (aba ? '\nO(a) profissional está na aba "' + aba + '" do app.' : '');
 }
@@ -205,7 +219,7 @@ const BLOCO_ACOES = `AÇÕES NO APP (viram botões que o(a) profissional toca; n
 - No máximo 2 ids, copiados exatamente de <acoes>. Nunca invente id nem escreva o nome no lugar do id. Se nenhuma ação ajudar, não escreva a linha.
 - NÃO escreva a linha em situação de risco, ao recusar o pedido, ao fazer pergunta de esclarecimento ou em resposta de uma frase.`;
 
-export function montarMensagens({ app, pagina, historico, fichas, panorama, acoes, achados, pergunta, suicidio = true }) {
+export function montarMensagens({ app, pagina, historico, fichas, panorama, acoes, achados, pergunta, suicidio = true, habilidades = [] }) {
   const pan = panoramaComoTexto(panorama);
   const listaAcoes = acoesComoTexto(acoes);
   const usuario =
@@ -215,7 +229,7 @@ export function montarMensagens({ app, pagina, historico, fichas, panorama, acoe
     '<normas>\n' + (achados.length ? normasComoTexto(achados) : '(nenhum trecho de norma encontrado para esta pergunta)') + '\n</normas>\n\n' +
     '<pergunta>\n' + pergunta + '\n</pergunta>';
   return [
-    { role: 'system', content: montarSistema(app, pagina, suicidio) + (listaAcoes ? '\n\n' + BLOCO_ACOES : '') },
+    { role: 'system', content: montarSistema(app, pagina, suicidio, habilidades) + (listaAcoes ? '\n\n' + BLOCO_ACOES : '') },
     ...historicoComoMensagens(historico),
     { role: 'user', content: usuario }
   ];
