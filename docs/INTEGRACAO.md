@@ -34,6 +34,13 @@ Paulus.perguntar(texto, {
 - No Argo, o mascote usa isso para: botões de continuação, lista de fontes que abre e fecha, humor que acompanha o que foi dito ("não consta" → carinha de dúvida; telefone fora do diretório → preocupado), fases no cabeçalho ("procurando no diretório…", "consultando as normas…", "escrevendo…"), cabeça que inclina enquanto você digita e assente enquanto ele escreve, 👍 com coração e 👎 com opções de "explicar de outro jeito"/"mais curto", e "↻ Tentar de novo" quando a IA falha. Para outros apps: copie as mesmas ideias de `mountAssistant` em `argo-mascot.js`.
 - Depois de mudar o prompt, publique o Worker de novo (`npm run deploy:worker`); sem isso a IA não envia as sugestões (o app continua funcionando, só sem os botões).
 
+**Desde a v0.4.0 (a IA propõe ações como botões):**
+- Quando o app informa o que sabe abrir ou fazer, a IA pode terminar a resposta com uma linha `AÇÕES NO APP: id1 | id2` (antes de `SUGESTÕES:`). O Paulus tira essa linha do texto (inclusive durante o streaming) e devolve `r.acoes`: até 2 itens `{ id, rotulo, confirmar, executar }`, só com ids que o app mandou. **A IA não executa nada**: o app mostra botões e quem toca é a pessoa.
+- Duas formas de informar as ações: as registradas com `Paulus.registrarAcao({ id, titulo, rotulos, descricao?, executar, confirmar? })` ou, para apps com cérebro próprio (como o Argo, que usa `semAcoes: true`), a lista por chamada em `Paulus.perguntar(texto, { acoes: [{ id, rotulo, descricao?, confirmar?, executar? }] })`. Só id, nome e descrição vão ao Worker; `executar` fica no aparelho. Sem ações, nada muda (o prompt nem fala do assunto).
+- No botão: `if (a.confirmar) pedirConfirmacao(a.executar); else a.executar();`. Ação que apaga ou altera dado deve ter `confirmar: true`, como sempre.
+- O Worker repete a limpeza da lista (id `[a-z0-9_-]`, rótulo sem marcação, até 20 itens) e **não envia a lista em pergunta sobre suicídio**. A rotulagem é "AÇÕES NO APP:" (e não "Ações:") para não confundir com um título comum da resposta.
+- Exemplo no Argo (`argoStreamIA`, em `js/app.js`): passar `acoes: [{ id: 'mapa', rotulo: 'Mapa de unidades', executar: () => argoAssistantGoTo('mapa') }, ...]` e desenhar `r.acoes` ao lado das sugestões no painel do mascote. **Publique o Worker de novo** (`npm run deploy:worker`) e copie o novo `dist/paulus.v1.js`.
+
 **Ainda não feito:** `Paulus.registrarAcao`/`registrarBusca` no Argo (o `ArgoCerebro` já cobre abas e buscas).
 
 ## 1b. Umbrella (PAF/PAIF do CRAS)
