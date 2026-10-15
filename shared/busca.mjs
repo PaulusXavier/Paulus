@@ -218,9 +218,16 @@ function restaurarIndice(validos, pre) {
   return { docs, df, N: docs.length, avg: docs.length ? soma / docs.length : 0 };
 }
 
+function fatorPreferido(preferir, doc) {
+  const f = preferir && preferir[doc];
+  return typeof f === 'number' && f > 1 ? Math.min(f, 1.3) : 1;
+}
+
 // Devolve [{ trecho, score, cobertura }] do melhor para o pior.
 // cobertura = fração dos termos da pergunta que aparecem no trecho (filtra resultados "de sorte").
-export function buscar(indice, consulta, { k = 3, minScore = 1.2, minCobertura = 0.5 } = {}) {
+// preferir (opcional): { [doc]: fator } leve favorecimento dos documentos que a pessoa mais consulta (memória do Paulus).
+// Só desempata a ORDEM entre trechos que já passaram nos cortes; nunca traz resultado que a busca não traria. Fator limitado a 1,3.
+export function buscar(indice, consulta, { k = 3, minScore = 1.2, minCobertura = 0.5, preferir = null } = {}) {
   if (!indice || !indice.N) return [];
   const pesos = termosDaConsulta(consulta);
   const termos = Array.from(pesos.keys());
@@ -240,7 +247,7 @@ export function buscar(indice, consulta, { k = 3, minScore = 1.2, minCobertura =
       score += w * idf * (f * (k1 + 1)) / (f + k1 * (1 - b + b * d.len / (indice.avg || 1)));
     }
     const cobertura = achou / pesoTotal;
-    if (score >= minScore && cobertura >= minCobertura) res.push({ trecho: d.c, score, cobertura, ordem: score * (PESO_TIPO[d.c.tipo || 'norma'] || 1) });
+    if (score >= minScore && cobertura >= minCobertura) res.push({ trecho: d.c, score, cobertura, ordem: score * (PESO_TIPO[d.c.tipo || 'norma'] || 1) * fatorPreferido(preferir, d.c.doc) });
   }
   res.sort((x, y) => y.ordem - x.ordem);
   // No máximo MAX_POR_DOC trechos do mesmo documento; se faltar resultado, completa com os que ficaram de fora.
