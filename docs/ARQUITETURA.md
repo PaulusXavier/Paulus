@@ -21,6 +21,15 @@ app (navegador)                            Worker (Cloudflare)             Worke
 Os passos 3 e 4 são pulados com `{ semAcoes: true }` (apps que já tratam isso, como o Argo).
 Apps com fluxo próprio, que só querem a norma quando não há IA, usam `Paulus.consultarNormas(texto)` (só o passo 5).
 
+## Memória (v0.5.0, `client/memoria.mjs`)
+O Paulus aprende com o uso **no aparelho**; nada é gravado no Worker. Onde a memória entra em cada pergunta:
+- **Antes da busca:** `preferencias()` dá um fator de 1,0 a 1,3 aos documentos mais consultados (`buscar({ preferir })`; só reordena).
+- **"abrir ...":** apelidos ensinados valem antes dos rótulos do app (e não pulam a confirmação).
+- **Passo da IA:** vai junto o objeto `preferencias` (códigos fechados + ids de documentos). O Worker valida, escreve um bloco "PREFERÊNCIAS DESTA PESSOA" no prompt (só estilo) e ignora em tema de suicídio.
+- **Depois da resposta:** `aprenderPergunta` (contagem + temas, com peso pequeno); o app chama `Paulus.avaliar(r, sinal)` quando a pessoa reage (👍/👎/mais curto/...).
+- **Se a IA falhar:** resposta aprovada que combina (`deMemoria: true`) → trecho de norma → "não encontrei".
+Tudo envelhece (meia-vida), tem limite de tamanho e é reconstruído pelo `memSanear` ao ler/importar. Detalhes de privacidade em [SEGURANCA](SEGURANCA.md).
+
 ## Código compartilhado
 `shared/` roda no navegador **e** no Worker, para o filtro e a busca serem idênticos nos dois lados:
 - `pii.mjs`: filtro de dados pessoais.
