@@ -403,11 +403,11 @@
   {
     "doc": "guia-bolsa-familia-cadunico-2026",
     "titulo": "Guia rápido Bolsa Família e CadÚnico (orientação, não é norma)",
-    "norma": "Material orientativo compilado de MDS/Caixa e das normas citadas (Lei 14.601/2023, Decretos 12.064/2024 e 13.120/2026, Decreto 11.016/2022, Portaria MDS 1.058/2025, IN SENARC/MDS 50/2025); atualizado em 14/10/2026",
+    "norma": "Material orientativo compilado de MDS/Caixa e das normas citadas (Lei 14.601/2023, Decretos 12.064/2024 e 13.120/2026, Decreto 11.016/2022, Portaria MDS 1.058/2025, IN SENARC/MDS 50/2025, Portarias Interministeriais MDS/MS 38/2026 e MEC/MDS 12/2025); atualizado em 15/10/2026",
     "ano": 2026,
     "tipo": "norma",
     "trechos": 14,
-    "caracteres": 7294
+    "caracteres": 7557
   },
   {
     "doc": "lei-14601-2023",
@@ -492,6 +492,26 @@
     "revisao": "pendente",
     "trechos": 10,
     "caracteres": 3958
+  },
+  {
+    "doc": "portaria-interministerial-mds-ms-38-2026",
+    "titulo": "Portaria Interministerial MDS/MS nº 38/2026 (condicionalidades de saúde do Bolsa Família; resumo)",
+    "norma": "Portaria Interministerial MDS/MS nº 38, de 27 de maio de 2026 (DOU de 28/05/2026), resumo dos artigos a partir de transcrição e noticiário; confirme o texto no Diário Oficial",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 5,
+    "caracteres": 2114
+  },
+  {
+    "doc": "portaria-interministerial-mec-mds-12-2025",
+    "titulo": "Portaria Interministerial MEC/MDS nº 12/2025 (acompanhamento educacional do Bolsa Família; resumo)",
+    "norma": "Portaria Interministerial MEC/MDS nº 12, de 17 de dezembro de 2025 (publicada em dezembro de 2025 e listada pelo MDS com publicação em 12/02/2026), resumo a partir do Informe Bolsa Família nº 103 (MDS, 08/01/2026); confirme o texto no Diário Oficial",
+    "ano": 2025,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 3,
+    "caracteres": 1593
   },
   {
     "doc": "roraima-municipios-2022",
