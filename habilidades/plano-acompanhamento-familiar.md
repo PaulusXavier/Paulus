@@ -1,7 +1,7 @@
 ---
 id: plano-acompanhamento-familiar
 nome: Plano de Acompanhamento Familiar (PAF)
-quando: plano de acompanhamento familiar; plano de acompanhamento; paf; acompanhamento familiar; montar o plano; elaborar o plano; plano da família; objetivos do acompanhamento; paif acompanhamento
+quando: plano de acompanhamento familiar; plano de acompanhamento; paf; montar o plano; elaborar o plano; plano da família; objetivos do acompanhamento
 texto: sim
 ---
 - O plano é construído COM a família, não para ela: parte do que a família quer mudar e dos recursos que já tem. Descreva o plano como pactuação, com linguagem que a família entenda.
