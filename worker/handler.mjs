@@ -15,14 +15,16 @@
 //   Aceita também o formato antigo do Argo: sem "app" (vale "argo") e "contexto" no lugar de "fichas".
 //   modo: 'interpretar'  (opcional): em vez de responder, devolve { interpretacao: { pergunta, intencao, bairro, esclarecer } | null }
 //   (a pergunta reescrita de forma completa, usando a conversa; ver worker/interpretar.mjs).
-// Resposta com stream:true  -> text/event-stream:  data: {"fontes":[...]}  data: {"t":"..."}  data: [DONE]
-// Resposta sem stream       -> JSON { resposta, fontes }
+//   habilidades (opcional em criarManipulador): roteiros de trabalho carregados de knowledge/habilidades.json (ver docs/HABILIDADES.md).
+// Resposta com stream:true  -> text/event-stream:  data: {"fontes":[...]}  data: {"habilidades":["nome"]}  data: {"t":"..."}  data: [DONE]
+// Resposta sem stream       -> JSON { resposta, fontes, habilidades }
 // O Worker não grava nada: nem pergunta, nem resposta, nem IP (o IP só fica na memória, por um minuto).
 
 import { temDadoPessoal, limparMarcacao } from '../shared/pii.mjs';
 import { normalizar, criarIndice, buscar, consultaComContexto, fonteDe, K_PADRAO } from '../shared/busca.mjs';
 import { detectarCrise } from '../shared/crise.mjs';
 import { trechosDaRota, combinarComBusca } from '../shared/suicidio.mjs';
+import { escolherHabilidades } from '../shared/habilidades.mjs';
 import { montarMensagens } from './prompt.mjs';
 import { montarMensagensInterpretacao, lerInterpretacao } from './interpretar.mjs';
 
@@ -60,7 +62,7 @@ function extrairPedaco(ev) {
 }
 
 // Converte o fluxo do Workers AI no formato simples que o navegador lê: data: {"t":"..."}
-function normalizarFluxo(upstream, fontes) {
+function normalizarFluxo(upstream, fontes, habilidades) {
   const dec = new TextDecoder();
   const enc = new TextEncoder();
   let buf = '';
@@ -77,7 +79,10 @@ function normalizarFluxo(upstream, fontes) {
     } catch (e) { /* linha incompleta ou de controle: ignora */ }
   };
   return upstream.pipeThrough(new TransformStream({
-    start(ctl) { if (fontes.length) emitir(ctl, { fontes: fontes }); },
+    start(ctl) {
+      if (fontes.length) emitir(ctl, { fontes: fontes });
+      if (habilidades.length) emitir(ctl, { habilidades: habilidades });
+    },
     transform(chunk, ctl) {
       buf += typeof chunk === 'string' ? chunk : dec.decode(chunk, { stream: true });
       const linhas = buf.split('\n');
@@ -105,7 +110,7 @@ async function chamarIA(env, mensagens, stream, extra) {
   }
 }
 
-export function criarManipulador({ base, apps, indice: indicePronto }) {
+export function criarManipulador({ base, apps, indice: indicePronto, habilidades: listaHabilidades = [] }) {
   // indicePronto (opcional): índice pré-calculado em build-knowledge; sem ele (ou se não bater com a base), calcula aqui.
   const indice = criarIndice(base, indicePronto);
   const recentes = new Map(); // limite simples por IP (vale por instância do Worker)
@@ -199,8 +204,12 @@ export function criarManipulador({ base, apps, indice: indicePronto }) {
       : buscar(indice, consulta, { k: K_PADRAO });
     const fontes = achados.map(function (a) { return fonteDe(a.trecho); });
     const tema = rota.length > 0 || /suicid|ideacao|autolesao|automutil/.test(normalizar(consulta));
+    // Habilidades (roteiros de trabalho): só quando a pergunta combina. Em tema de suicídio a resposta é só cuidado e rede, sem roteiro.
+    const habilidades = tema ? [] : escolherHabilidades(listaHabilidades, pergunta, anteriores, nomeApp);
+    const nomesHabilidades = habilidades.map(function (h) { return h.nome; });
     const mensagens = montarMensagens({
       suicidio: tema,
+      habilidades: habilidades,
       app: app,
       pagina: corpo.pagina,
       historico: corpo.historico,
@@ -214,15 +223,16 @@ export function criarManipulador({ base, apps, indice: indicePronto }) {
 
     let saida;
     try {
-      saida = await chamarIA(env, mensagens, querStream);
+      // Habilidade que entrega texto pronto (relatório, ofício, plano...) precisa de mais espaço que a resposta de conversa.
+      saida = await chamarIA(env, mensagens, querStream, habilidades.some(function (h) { return h.texto; }) ? { max_tokens: 1400 } : undefined);
     } catch (e) {
       return json({ erro: 'A IA não respondeu agora (a cota gratuita do dia pode ter acabado).' }, 502);
     }
 
-    if (querStream && saida && typeof saida.pipeThrough === 'function') return sse(normalizarFluxo(saida, fontes));
+    if (querStream && saida && typeof saida.pipeThrough === 'function') return sse(normalizarFluxo(saida, fontes, nomesHabilidades));
 
     const resposta = extrairTexto(saida);
     if (!resposta) return json({ erro: 'Resposta vazia.' }, 502);
-    return json({ resposta: resposta, fontes: fontes });
+    return json({ resposta: resposta, fontes: fontes, habilidades: nomesHabilidades });
   };
 }
