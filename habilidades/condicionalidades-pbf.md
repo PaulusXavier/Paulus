@@ -1,10 +1,12 @@
 ---
 id: condicionalidades-pbf
 nome: Acompanhamento de condicionalidades do Bolsa Família
-quando: condicionalidades; descumprimento de condicionalidade; descumprimento; repercussão; acompanhamento de condicionalidades; família em descumprimento; sicon; frequência escolar bolsa família; acompanhamento do bolsa família; busca ativa bolsa família
+quando: condicionalidades; condicionalidade; descumprimento; repercussão; recurso sicon; interrupção temporária; benefício bloqueado; benefício suspenso; benefício cancelado; bolsa família bloqueado; bolsa família suspenso; baixa frequência escolar; frequência escolar bolsa família; vacina bolsa família; pré-natal bolsa família; pesagem bolsa família; sicon; acompanhamento do bolsa família
+texto: sim
 ---
-- Descumprimento é sinal, não culpa: antes de qualquer repercussão, o objetivo do serviço é entender por que a família não está conseguindo acessar saúde ou educação (distância, documento, doença, violência, falta de vaga) e remover o obstáculo.
-- Roteiro para acompanhar: (1) confirmar o motivo com a família e com a escola ou a UBS; (2) registrar o motivo no sistema do programa conforme o fluxo vigente; (3) combinar com a família o que muda; (4) articular com a rede; (5) priorizar famílias em vulnerabilidade maior e as que podem perder o benefício.
-- Regras, prazos, tipos de efeito e valores mudam: use SÓ o que estiver nas normas fornecidas (por exemplo, o guia do Bolsa Família e o Decreto vigente); sem trecho, diga que é preciso conferir o normativo atual no MDS. Nunca complete número ou prazo de cabeça.
-- No Anona, lembre que o app não guarda nem lê dado de família por mim: oriente a registrar no sistema oficial.
-- Se pedirem texto (ofício à escola, UBS, registro de acompanhamento), entregue pronto com [CAMPOS], sem identificar ninguém.
+- Descumprimento é sinal de barreira de acesso (escola, UBS, transporte, documento, violência), não culpa da família. As portarias atuais de saúde e de educação dizem isso e vedam punição e exposição vexatória: nada de comunicar a família de forma constrangedora.
+- O fluxo: o MDS monta o público pelo CadÚnico e pela folha; a escola registra a frequência no sistema de frequência escolar e a Atenção Primária registra pré-natal, vacina e estado nutricional; o resultado volta ao Sicon e os efeitos são aplicados em meses fixos. Os efeitos são graduais (alerta sem perda de valor, depois bloqueio, suspensão e por último cancelamento) e dependem do histórico da família.
+- Roteiro: (1) acolher e perguntar o que aconteceu; (2) no Sicon, ver qual condicionalidade, o período e o motivo registrado; (3) checar se o caso devia ficar sem efeito (força maior, falta de oferta do serviço, saúde, questão étnica ou cultural, outro motivo social) ou se há erro de registro; (4) se couber, recurso pela coordenação municipal do PBF dentro do prazo, com prova (declaração da escola ou da UBS, relatório do CRAS, autodeclaração); (5) incluir a família no PAIF e registrar o acompanhamento no Sicon, o que dá prioridade no SUAS e permite pedir a interrupção temporária dos efeitos; (6) desfazer a barreira com escola e UBS (matrícula, vaga, vacina, pesagem, pré-natal) e atualizar escola e série no CadÚnico; (7) registrar o que foi feito.
+- Bloqueio por cadastro desatualizado é outro caso: leve à atualização no CadÚnico. Família indígena aldeada: a saúde é acompanhada pelo DSEI.
+- Percentual de frequência, meses, prazo de recurso, valores e número de portaria: só se vierem das normas fornecidas, porque mudam e houve portarias novas em 2025 e 2026. Sem trecho, diga para conferir no Sicon ou no MDS.
+- Se pedirem texto (ofício à escola ou UBS, relato para recurso, registro), entregue pronto com [CAMPOS], sem identificar ninguém.
