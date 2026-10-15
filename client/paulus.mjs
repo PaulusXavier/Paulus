@@ -19,6 +19,7 @@ import { detectarCrise } from '../shared/crise.mjs';
 import { normalizar, criarIndice, buscar, consultaComContexto, fonteDe, K_PADRAO } from '../shared/busca.mjs';
 import { separarControles, ocultarControles, RE_ID_ACAO } from '../shared/sugestoes.mjs';
 import { SKINS } from './skins.mjs';
+import { criarMemoria, memEhSensivel } from './memoria.mjs';
 
 const AVISO_PESSOAL = 'Para proteger as famílias, não consigo analisar mensagens com nome, documento, telefone ou endereço residencial. Reescreva a pergunta sem identificar ninguém.';
 
@@ -34,7 +35,9 @@ const PADRAO = {
   porMinuto: 8,            // limite local (o Worker também limita)
   minIntervaloMs: 1200,
   primeiroByteMs: 20000,
-  silencioMs: 15000
+  silencioMs: 15000,
+  memoria: true,           // aprende com o uso, só no aparelho (veja client/memoria.mjs); false = desligada
+  perfil: ''               // id opaco da conta no app (nunca e-mail/nome): memórias separadas por pessoa no mesmo navegador
 };
 
 let cfg = Object.assign({}, PADRAO);
@@ -46,6 +49,7 @@ const estado = {
   historico: [],
   envios: [],
   fichas: null,
+  mem: criarMemoria({ app: '' }),
   pronto: Promise.resolve()
 };
 
@@ -64,6 +68,7 @@ function init(opcoes) {
   estado.fichas = typeof o.fichas === 'function' ? o.fichas : null;
   estado.historico = [];
   estado.envios = [];
+  estado.mem = criarMemoria({ app: cfg.app, perfil: o.perfil, armazenamento: o.armazenamento, agora: o.agora, ativa: o.memoria !== false });
   if (Array.isArray(o.conhecimento)) {
     definirBase(o.conhecimento);
   } else if (o.conhecimentoUrl && typeof fetch === 'function') {
@@ -117,18 +122,24 @@ function acharPorRotulo(lista, alvo) {
 }
 
 function tratarAcao(resto) {
-  const a = acharPorRotulo(estado.acoes, resto);
+  // Apelido que a pessoa ensinou ("cadunico" -> tela X) vale antes do rótulo cadastrado pelo app.
+  const idApelido = estado.mem.apelidoDe(resto.trim());
+  const a = (idApelido && estado.acoes.filter(function (x) { return x.id === idApelido; })[0]) || acharPorRotulo(estado.acoes, resto);
   if (!a) {
     return {
       tipo: 'acao_desconhecida',
       texto: 'Não encontrei essa tela ou função neste app.',
-      opcoes: estado.acoes.map(function (x) { return x.rotulos[0]; })
+      opcoes: estado.acoes.map(function (x) { return x.rotulos[0]; }),
+      // Para o app oferecer "era esta?": ao tocar numa opção, aprender(id) grava o apelido e da próxima vez o Paulus já sabe.
+      opcoesAcoes: estado.acoes.map(function (x) { return { id: x.id, rotulo: x.titulo }; }),
+      aprender: function (id) { return estado.mem.vincular(resto, id); }
     };
   }
   if (a.confirmar) {
-    return { tipo: 'acao', acao: a.id, texto: 'Posso fazer isso, mas preciso da sua confirmação.', pedeConfirmacao: true, confirmar: a.executar };
+    return { tipo: 'acao', acao: a.id, texto: 'Posso fazer isso, mas preciso da sua confirmação.', pedeConfirmacao: true, confirmar: function () { estado.mem.aprenderAcao(a.id); return a.executar(); } };
   }
   a.executar();
+  estado.mem.aprenderAcao(a.id);
   return { tipo: 'acao', acao: a.id, texto: 'Pronto.', executada: true };
 }
 
@@ -282,6 +293,9 @@ async function pedirIA(texto, opcoes) {
   // O que o app sabe abrir/fazer: a IA só pode propor ids desta lista.
   const acoes = acoesDisponiveis(opcoes.acoes);
   if (acoes.length) corpo.acoes = acoes.map(function (a) { return { id: a.id, rotulo: a.rotulo, descricao: a.descricao }; });
+  // O que o Paulus aprendeu sobre o estilo da pessoa: só códigos de lista fechada e ids públicos de documentos (nunca texto livre).
+  const prefs = memEhSensivel(texto) ? null : estado.mem.paraEnvio();
+  if (prefs) corpo.preferencias = prefs;
   // Visão geral do diretório (totais por grupo), montada pelo app. Só vai quando o app a manda.
   if (typeof opcoes.panorama === 'string' && opcoes.panorama.trim()) corpo.panorama = opcoes.panorama.trim().slice(0, 3000);
 
@@ -365,6 +379,47 @@ function respostaDasNormas(achados) {
   };
 }
 
+// Mesmo formato de uma resposta da IA (os apps já sabem mostrar), marcada como vinda da memória e com a data.
+function respostaAprovada(a, pergunta) {
+  let quando = '';
+  try { quando = ' em ' + new Date(a.ts).toLocaleDateString('pt-BR'); } catch (e) { /* sem data */ }
+  return {
+    tipo: 'ia', texto: a.r, fontes: a.f, sugestoes: [], acoes: [], geradoPorIA: true, deMemoria: true, pergunta: pergunta, docs: a.d,
+    avisos: ['Resposta que você aprovou' + quando + ', mostrada porque a IA não respondeu agora. Pode estar desatualizada: confira a norma antes de usar em atendimento.']
+  };
+}
+
+// ------------------------------------------------------------------ memória (o que o Paulus aprende com o uso)
+
+// O app chama quando a pessoa reage a uma resposta: 'bom' (👍), 'ruim' (👎), 'mais_curto', 'mais_detalhe', 'outro_jeito', 'copiou'.
+// r é o resultado de perguntar() (ele já traz pergunta e docs). Para apps com o próprio cérebro: avaliar({ pergunta, texto, fontes }, sinal).
+function avaliar(r, sinal) { return estado.mem.avaliar(r, sinal); }
+
+// Sugestões para o mascote: o que a pessoa mais pergunta e abre, completado com as sugestões padrão do app.
+function sugestoesPessoais(n) {
+  const max = n || 3;
+  const lista = estado.mem.frequentes(max).map(function (x) { return x.texto; });
+  estado.mem.acoesFrequentes(max).forEach(function (x) {
+    const a = estado.acoes.filter(function (y) { return y.id === x.id; })[0];
+    if (a) lista.push('abrir ' + a.titulo.toLowerCase());
+  });
+  const padrao = (skin() || {}).sugestoes || [];
+  padrao.forEach(function (p) { if (lista.indexOf(p) === -1) lista.push(p); });
+  return lista.slice(0, max);
+}
+
+const memoria = {
+  resumo: function () { return estado.mem.resumo(estado.base); },
+  ativa: function () { return estado.mem.ativa(); },
+  ligar: function (sim) { estado.mem.ligar(sim); },
+  esquecer: function (parte) { return estado.mem.esquecer(parte); },
+  exportar: function () { return estado.mem.exportar(); },
+  importar: function (json) { return estado.mem.importar(json); },
+  vincular: function (frase, idAcao) { return estado.mem.vincular(frase, idAcao); },
+  registrarUsoAcao: function (id) { estado.mem.aprenderAcao(id); },
+  frequentes: function (n) { return estado.mem.frequentes(n); }
+};
+
 // ------------------------------------------------------------------ pergunta
 
 async function perguntar(texto, opcoes) {
@@ -388,7 +443,8 @@ async function perguntar(texto, opcoes) {
   }
 
   await estado.pronto;
-  const achados = estado.indice ? buscar(estado.indice, consultaComContexto(t, Array.isArray(o.historico) ? o.historico : estado.historico), { k: K_PADRAO }) : [];
+  const achados = estado.indice ? buscar(estado.indice, consultaComContexto(t, Array.isArray(o.historico) ? o.historico : estado.historico), { k: K_PADRAO, preferir: estado.mem.preferencias() }) : [];
+  const docs = achados.map(function (a) { return a.trecho.doc; }).filter(function (d, i, l) { return d && l.indexOf(d) === i; });
 
   let motivo = '';
   if (iaLigada()) {
@@ -398,6 +454,9 @@ async function perguntar(texto, opcoes) {
         estado.historico.push({ papel: 'usuario', texto: t }, { papel: 'paulus', texto: r.texto });
         estado.historico = estado.historico.slice(-cfg.maxHistorico * 2);
       }
+      // pergunta e docs ficam no resultado para o app devolver em Paulus.avaliar(r, 'bom'|'ruim'|...)
+      r.pergunta = t; r.docs = docs;
+      estado.mem.aprenderPergunta(t, docs);
       return r;
     } catch (e) {
       // Quem apertou "Parar" não quer resposta nenhuma (nem a da base offline).
@@ -409,7 +468,18 @@ async function perguntar(texto, opcoes) {
     }
   }
 
-  if (achados.length) return respostaDasNormas(achados);
+  // Sem IA: primeiro a resposta que a própria pessoa aprovou antes (se combina), depois o trecho da norma.
+  const aprovada = estado.mem.aprovadaPara(t);
+  if (aprovada) {
+    estado.mem.aprenderPergunta(t, aprovada.d);
+    return respostaAprovada(aprovada, t);
+  }
+  if (achados.length) {
+    const rn = respostaDasNormas(achados);
+    rn.pergunta = t; rn.docs = docs;
+    estado.mem.aprenderPergunta(t, docs);
+    return rn;
+  }
   return {
     tipo: 'sem_resposta',
     texto: iaLigada()
@@ -431,10 +501,10 @@ async function consultarNormas(texto, opcoes) {
   await estado.pronto;
   if (!estado.indice) return null;
   const hist = Array.isArray(o.historico) ? o.historico : estado.historico;
-  const achados = buscar(estado.indice, consultaComContexto(t, hist), { k: K_PADRAO });
+  const achados = buscar(estado.indice, consultaComContexto(t, hist), { k: K_PADRAO, preferir: estado.mem.preferencias() });
   return achados.length ? respostaDasNormas(achados) : null;
 }
 
-const Paulus = { init, perguntar, consultarNormas, registrarAcao, registrarBusca, limpar, skin, iaLigada, temDadoPessoal, detectarCrise, versao: '0.4.0' };
+const Paulus = { init, perguntar, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, temDadoPessoal, detectarCrise, versao: '0.5.0' };
 
 export default Paulus;
