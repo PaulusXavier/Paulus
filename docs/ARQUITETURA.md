@@ -39,5 +39,8 @@ Pedido `POST` JSON: `{ app, pergunta, pagina, historico:[{papel,texto}], fichas:
 ### Interpretação da pergunta (`modo: "interpretar"`)
 Antes de responder, o app pode pedir ao Worker que **só interprete** a pergunta: `{ modo: "interpretar", app, pergunta, historico }` devolve `{ interpretacao: { pergunta, intencao, bairro, esclarecer } | null }`. A IA lê a conversa, completa o que ficou subentendido ("e o horário?" vira "Qual o horário do CRAS Cauamé?"), corrige a digitação e escreve a pergunta na forma que o app sabe consultar com dados reais (`worker/interpretar.mjs`). Ela não responde, não busca e não inventa dado. Socorro e dado pessoal nunca chegam à IA nesse modo (voltam `interpretacao: null`); a reescrita é descartada se trouxer dado pessoal que a pergunta não tinha. Se a IA falhar (502) ou devolver lixo, o app segue com a pergunta original. No Argo, quem usa isso é `ArgoCerebro.interpretar` + `argoAssistantAskHybrid` (`js/app.js`).
 
+### Habilidades
+O Worker escolhe até 2 roteiros de `habilidades/` (`shared/habilidades.mjs`) pela pergunta e os coloca no prompt (`worker/prompt.mjs`, bloco HABILIDADES). Ficam fora do prompt quando nada combina e em tema de suicídio. Veja [HABILIDADES.md](HABILIDADES.md).
+
 ## Cada app
 Um bloco em `worker/apps.mjs` (contexto para a IA) e outro em `client/skins.mjs` (nome do mascote, saudação, sugestões). O Worker rejeita app que não esteja em `apps.mjs`.
