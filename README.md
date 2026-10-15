@@ -4,6 +4,8 @@ Copiloto de IA compartilhado pelos apps (Argo SUAS, Anona, Toth, Umbrella, Grafi
 
 **O que faz:** responde dúvidas de uso e do SUAS, abre telas, busca coisas dentro do app, cita a norma de onde tirou a resposta (artigo e documento) e **sabe fazer tarefas do trabalho** (habilidades): escrever registro, relatório e ofício, montar PAF, preparar visita, grupo e discussão de caso.
 
+**Aprende com o uso (v0.5.0):** estilo de resposta (curto, detalhado, com exemplos), documentos e perguntas frequentes, apelidos para as telas e respostas que você aprovou. **Tudo no aparelho** (nada vai para o servidor) e sob seu controle: ver, desligar, exportar e apagar. Veja [INTEGRACAO](docs/INTEGRACAO.md) (v0.5.0) e [SEGURANCA](docs/SEGURANCA.md).
+
 **O que não faz:** não guarda dado de família, não lê planilha nem registro dos apps e não decide caso individual.
 
 ```
@@ -21,7 +23,7 @@ app (navegador)                            Worker (Cloudflare)             Worke
 | Pasta | O que tem |
 |---|---|
 | `shared/` | filtro de dados pessoais, detector de socorro e busca nas normas (usados no navegador **e** no Worker) |
-| `client/` | módulo do navegador (`paulus.mjs`) e as "peles" de cada app (`skins.mjs`) |
+| `client/` | módulo do navegador (`paulus.mjs`), as "peles" de cada app (`skins.mjs`) e a memória que aprende com o uso (`memoria.mjs`) |
 | `worker/` | o Worker: `handler.mjs` (lógica), `prompt.mjs`, `apps.mjs` (um bloco por app) |
 | `knowledge/` | base de normas: `documentos/*.md` → `conhecimento.json` |
 | `habilidades/` | roteiros de trabalho (relatório, ofício, visita, PAF...) que o Paulus carrega quando o pedido combina; veja [docs/HABILIDADES.md](docs/HABILIDADES.md) |
@@ -55,7 +57,9 @@ Para publicar, siga [docs/DEPLOY.md](docs/DEPLOY.md). Para ligar a um app, [docs
   });
   Paulus.registrarAcao({ id: 'calendario', rotulos: ['calendário', 'calendario pbf'], executar: () => abrirAba('calendario') });
   Paulus.perguntar('quem gere o Cadastro Único no município?', { onToken: (t, tudo) => mostrar(tudo) })
-    .then(r => mostrarResultado(r));   // r.tipo: ia | norma | busca | acao | crise | bloqueio | sem_resposta | erro
+    .then(r => mostrarResultado(r));
+  // no 👍/👎/"mais curto": Paulus.avaliar(r, 'bom' | 'ruim' | 'mais_curto' | 'mais_detalhe' | 'outro_jeito' | 'copiou')
+  // sugestões do mascote: Paulus.sugestoesPessoais(3)   // r.tipo: ia | norma | busca | acao | crise | bloqueio | sem_resposta | erro
 </script>
 ```
 
