@@ -219,7 +219,40 @@ const BLOCO_ACOES = `AÇÕES NO APP (viram botões que o(a) profissional toca; n
 - No máximo 2 ids, copiados exatamente de <acoes>. Nunca invente id nem escreva o nome no lugar do id. Se nenhuma ação ajudar, não escreva a linha.
 - NÃO escreva a linha em situação de risco, ao recusar o pedido, ao fazer pergunta de esclarecimento ou em resposta de uma frase.`;
 
-export function montarMensagens({ app, pagina, historico, fichas, panorama, acoes, achados, pergunta, suicidio = true, habilidades = [] }) {
+// Preferências aprendidas no aparelho (client/memoria.mjs). O Worker NÃO confia no que chega: aceita só códigos de uma lista fechada
+// e ids de documentos que existem na própria base (o título vem da base, nunca do pedido). Nenhum texto livre entra no prompt.
+export const TAMANHOS_VALIDOS = ['curto', 'detalhado'];
+const MAX_TEMAS_PREF = 3;
+
+export function preferenciasValidas(pref, titulosPorDoc) {
+  if (!pref || typeof pref !== 'object') return null;
+  const tamanho = TAMANHOS_VALIDOS.indexOf(pref.tamanho) !== -1 ? pref.tamanho : 'normal';
+  const exemplos = pref.exemplos === true;
+  const temas = [];
+  if (Array.isArray(pref.temas) && titulosPorDoc && typeof titulosPorDoc.get === 'function') {
+    for (const d of pref.temas.slice(0, MAX_TEMAS_PREF)) {
+      const doc = typeof d === 'string' ? d : '';
+      if (doc && titulosPorDoc.has(doc) && !temas.some(function (t) { return t.doc === doc; })) {
+        temas.push({ doc: doc, titulo: limparMarcacao(String(titulosPorDoc.get(doc))).replace(/\s+/g, ' ').slice(0, 160) });
+      }
+    }
+  }
+  if (tamanho === 'normal' && !exemplos && !temas.length) return null;
+  return { tamanho: tamanho, exemplos: exemplos, temas: temas };
+}
+
+// Só ajusta estilo. As regras de segurança, de escopo e o uso das normas continuam valendo por cima.
+export function preferenciasComoTexto(pref) {
+  if (!pref) return '';
+  const linhas = [];
+  if (pref.tamanho === 'curto') linhas.push('- Esta pessoa prefere respostas CURTAS: vá direto ao ponto, no máximo cerca de 5 frases ou 5 itens, sem repetir a pergunta nem introduções.');
+  if (pref.tamanho === 'detalhado') linhas.push('- Esta pessoa prefere respostas DETALHADAS: explique o raciocínio e os passos, e mostre em que parte da norma você se apoia.');
+  if (pref.exemplos) linhas.push('- Esta pessoa costuma pedir para explicar de outro jeito: quando couber, inclua um exemplo prático curto do dia a dia do serviço, sem dados de pessoas reais.');
+  if (pref.temas.length) linhas.push('- Ela costuma consultar: ' + pref.temas.map(function (t) { return t.titulo; }).join('; ') + '. Use isso só para escolher o que destacar; não force o assunto nem deixe de responder o que foi perguntado.');
+  return linhas.length ? 'PREFERÊNCIAS DESTA PESSOA (aprendidas com o uso; ajustam só o estilo, nunca as regras de segurança, o escopo ou a fidelidade às normas)\n' + linhas.join('\n') : '';
+}
+
+export function montarMensagens({ app, pagina, historico, fichas, panorama, acoes, achados, pergunta, suicidio = true, habilidades = [], preferencias = null }) {
   const pan = panoramaComoTexto(panorama);
   const listaAcoes = acoesComoTexto(acoes);
   const usuario =
@@ -229,7 +262,7 @@ export function montarMensagens({ app, pagina, historico, fichas, panorama, acoe
     '<normas>\n' + (achados.length ? normasComoTexto(achados) : '(nenhum trecho de norma encontrado para esta pergunta)') + '\n</normas>\n\n' +
     '<pergunta>\n' + pergunta + '\n</pergunta>';
   return [
-    { role: 'system', content: montarSistema(app, pagina, suicidio, habilidades) + (listaAcoes ? '\n\n' + BLOCO_ACOES : '') },
+    { role: 'system', content: montarSistema(app, pagina, suicidio, habilidades) + (listaAcoes ? '\n\n' + BLOCO_ACOES : '') + (preferenciasComoTexto(preferencias) ? '\n\n' + preferenciasComoTexto(preferencias) : '') },
     ...historicoComoMensagens(historico),
     { role: 'user', content: usuario }
   ];
