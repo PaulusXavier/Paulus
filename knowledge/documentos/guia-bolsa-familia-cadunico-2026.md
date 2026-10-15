@@ -1,7 +1,7 @@
 ---
 doc: guia-bolsa-familia-cadunico-2026
 titulo: Guia rápido Bolsa Família e CadÚnico (orientação, não é norma)
-norma: Material orientativo compilado de MDS/Caixa e das normas citadas (Lei 14.601/2023, Decretos 12.064/2024 e 13.120/2026, Decreto 11.016/2022, Portaria MDS 1.058/2025, IN SENARC/MDS 50/2025); atualizado em 14/10/2026
+norma: Material orientativo compilado de MDS/Caixa e das normas citadas (Lei 14.601/2023, Decretos 12.064/2024 e 13.120/2026, Decreto 11.016/2022, Portaria MDS 1.058/2025, IN SENARC/MDS 50/2025, Portarias Interministeriais MDS/MS 38/2026 e MEC/MDS 12/2025); atualizado em 15/10/2026
 ano: 2026
 ---
 
@@ -45,11 +45,11 @@ Famílias com renda mensal de até meio salário mínimo por pessoa (Decreto 11.
 
 ## Condicionalidades
 
-Educação: frequência mínima de 60% para 4 a 6 anos incompletos e de 75% para 6 a 18 anos incompletos que não concluíram a educação básica. Saúde: pré-natal para gestantes; vacinação conforme o calendário nacional; acompanhamento do estado nutricional (peso e altura) de crianças com menos de 7 anos. Fonte: Lei 14.601/2023, art. 10; Decreto 12.064/2024, art. 39.
+Educação: frequência mínima de 60% para 4 a 6 anos incompletos e de 75% para 6 a 18 anos incompletos que não concluíram a educação básica. Saúde: pré-natal para gestantes; vacinação conforme o calendário nacional; acompanhamento do estado nutricional (peso e altura) de crianças com menos de 7 anos. Fonte: Lei 14.601/2023, art. 10; Decreto 12.064/2024, art. 39. O acompanhamento da saúde segue a Portaria Interministerial MDS/MS 38/2026 (de 28/05/2026, que revogou a de 2022) e o da educação a Portaria Interministerial MEC/MDS 12/2025 (faixa até 18 anos incompletos; ver os resumos na base).
 
 ## Efeitos do descumprimento das condicionalidades
 
-Os efeitos são graduais e consideram o histórico da família (Portaria MDS 1.058/2025, art. 15, na redação da Portaria 1.095/2025). 1º descumprimento: alerta, sem impacto no benefício. 2º registro: bloqueio por um mês (a família não saca naquele mês, mas saca a parcela seguinte). 3º registro e reincidências: suspensão por dois meses. Por último, cancelamento. Cada efeito vale por seis meses: novo descumprimento nesse prazo avança para o efeito seguinte, e um novo efeito durante a fase de suspensão é sempre suspensão. Se o intervalo entre descumprimentos for maior que seis meses, os registros anteriores deixam de contar para a gradação. O cancelamento ocorre a partir do 12º mês do Período de Atenção (fase de suspensão com acompanhamento familiar ativo no Sicon) se houver novo efeito sem sair da suspensão. Para crianças de 0 a 15 anos e gestantes o efeito incide sobre todos os benefícios; para o adolescente com Benefício Variável Familiar Jovem, só sobre esse benefício. Famílias em descumprimento têm prioridade no SUAS e o acompanhamento no Sicon pode interromper temporariamente os efeitos. Fonte: Portaria MDS 1.058/2025, arts. 15 a 19, 21 e 22; Decreto 12.064/2024, arts. 41 e 42.
+Os efeitos são graduais e consideram o histórico da família (Portaria MDS 1.058/2025, art. 15; os arts. 17, 18 e 20 foram alterados pela Portaria MDS 1.095/2025). 1º descumprimento: alerta, sem impacto no benefício. 2º registro: bloqueio por um mês (a família não saca naquele mês, mas saca a parcela seguinte). 3º registro e reincidências: suspensão por dois meses. Por último, cancelamento. Cada efeito vale por seis meses: novo descumprimento nesse prazo avança para o efeito seguinte, e um novo efeito durante a fase de suspensão é sempre suspensão. Se o intervalo entre descumprimentos for maior que seis meses, os registros anteriores deixam de contar para a gradação. O cancelamento ocorre a partir do 12º mês do Período de Atenção (fase de suspensão com acompanhamento familiar ativo no Sicon) se houver novo efeito sem sair da suspensão. Para crianças de 0 a 15 anos e gestantes o efeito incide sobre todos os benefícios; para o adolescente com Benefício Variável Familiar Jovem, só sobre esse benefício. Famílias em descumprimento têm prioridade no SUAS e o acompanhamento no Sicon pode interromper temporariamente os efeitos. Fonte: Portaria MDS 1.058/2025, arts. 15 a 19, 21 e 22; Decreto 12.064/2024, arts. 41 e 42.
 
 ## Cronograma de repercussão 2026 e prazo de recurso
 
