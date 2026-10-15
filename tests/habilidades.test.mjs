@@ -49,18 +49,58 @@ test('escolhe a habilidade certa e não dispara em pergunta comum', () => {
   assert.deepEqual(id(''), []);
 });
 
-test('condicionalidades: dispara nas formas que o profissional usa e não em pergunta de valor', () => {
+test('condicionalidades: cada pergunta chama a habilidade certa, e a visão geral junto quando cabe', () => {
   const lista = lerTodas();
   const id = (q) => escolherHabilidades(lista, q, [], 'anona').map((h) => h.id);
-  for (const q of [
-    'família em descumprimento de condicionalidade', 'o benefício foi bloqueado, o que fazer?', 'como fazer recurso no Sicon',
-    'baixa frequência escolar no Bolsa Família', 'a criança está com a vacina atrasada e o bolsa família suspenso',
-    'como pedir a interrupção temporária dos efeitos', 'ofício para a escola sobre condicionalidades'
-  ]) assert.ok(id(q).includes('condicionalidades-pbf'), q);
+  const casos = [
+    ['família em descumprimento de condicionalidade', 'condicionalidades-pbf'],
+    ['o benefício foi bloqueado, o que fazer?', 'condicionalidades-pbf'],
+    ['o bolsa família da família foi suspenso', 'condicionalidades-pbf'],
+    ['como fazer recurso no Sicon', 'condicionalidades-recurso'],
+    ['como pedir a interrupção temporária dos efeitos', 'condicionalidades-recurso'],
+    ['escrever o relatório para recurso do bolsa família', 'condicionalidades-recurso'],
+    ['a criança está com a vacina atrasada no bolsa família', 'condicionalidades-saude'],
+    ['gestante sem pré-natal registrado no bolsa família', 'condicionalidades-saude'],
+    ['ofício para a UBS sobre pesagem das crianças', 'condicionalidades-saude'],
+    ['baixa frequência escolar no Bolsa Família', 'condicionalidades-educacao'],
+    ['criança fora da escola, família no bolsa família', 'condicionalidades-educacao'],
+    ['o que é o sistema presença?', 'condicionalidades-educacao'],
+    ['ofício para a escola sobre frequência', 'condicionalidades-educacao'],
+    ['o cadastro está desatualizado e o benefício foi bloqueado', 'condicionalidades-cadastro'],
+    ['o que é a ação de qualificação cadastral?', 'condicionalidades-cadastro'],
+    ['família indígena no bolsa família com frequência baixa', 'condicionalidades-casos-especiais'],
+    ['família quilombola e as condicionalidades do bolsa família', 'condicionalidades-casos-especiais'],
+    ['família em situação de rua no bolsa família', 'condicionalidades-casos-especiais'],
+    ['como monitorar as condicionalidades no município?', 'condicionalidades-gestao'],
+    ['pauta de reunião intersetorial do bolsa família', 'condicionalidades-gestao'],
+    ['como explicar o bloqueio para uma família com medo de perder o bolsa família', 'condicionalidades-conversa'],
+    ['família reclama do bloqueio, como atender?', 'condicionalidades-conversa'],
+    ['família mudou de município, bolsa família', 'condicionalidades-casos'],
+    ['adolescente grávida e o bolsa família', 'condicionalidades-casos'],
+    ['como inserir no PAIF as famílias em descumprimento', 'condicionalidades-paif'],
+    ['como organizar um grupo de famílias em descumprimento', 'condicionalidades-paif'],
+    ['para que serve o relatório de repercussão individual?', 'condicionalidades-anona'],
+    ['como usar o território volante para dividir por técnico', 'condicionalidades-anona'],
+    ['modelo de ofício à escola do bolsa família', 'condicionalidades-modelos'],
+    ['preciso de um convite para a acolhida do bolsa família', 'condicionalidades-modelos'],
+    ['como consultar o histórico no Sicon', 'condicionalidades-sicon'],
+    ['a renda aumentou, a família perde o bolsa família?', 'bolsa-familia-regra-protecao'],
+    ['o que é o retorno garantido?', 'bolsa-familia-regra-protecao']
+  ];
+  for (const [q, esperado] of casos) assert.ok(id(q).includes(esperado), q + ' -> ' + id(q));
   assert.deepEqual(id('qual o valor do Bolsa Família em outubro?'), []);
   assert.deepEqual(id('quem tem direito ao Bolsa Família?'), []);
   // "Bolsa Família" + "acompanha" não pode puxar o roteiro do PAF.
-  assert.deepEqual(escolherHabilidades(lista, 'Quem acompanha a vacina e o pré-natal no Bolsa Família?', [], 'anona').map((h) => h.id), ['condicionalidades-pbf']);
+  assert.ok(!id('Quem acompanha a vacina e o pré-natal no Bolsa Família?').includes('plano-acompanhamento-familiar'));
+  // nunca mais de duas, e cada uma dentro do limite
+  for (const [q] of casos) assert.ok(id(q).length <= 2, q);
+});
+
+test('habilidade do Anona só vale no Anona', () => {
+  const lista = lerTodas();
+  const q = 'para que serve o relatório de repercussão individual?';
+  assert.ok(escolherHabilidades(lista, q, [], 'anona').some((h) => h.id === 'condicionalidades-anona'));
+  assert.ok(!escolherHabilidades(lista, q, [], 'argo').some((h) => h.id === 'condicionalidades-anona'));
 });
 
 test('habilidade com "apps" só vale nesses apps', () => {
