@@ -11,6 +11,7 @@
 //
 // Pedido (POST, JSON): { app, pergunta, pagina, historico:[{papel,texto}], fichas:[...], stream }
 //   panorama (opcional): texto com os totais do diretório por grupo, montado pelo app (até 3000 caracteres).
+//   acoes (opcional): [{ id, rotulo, descricao? }] o que o app sabe abrir/fazer; a IA pode PROPOR até 2 (linha "AÇÕES NO APP: id"), o navegador valida e vira botão.
 //   Aceita também o formato antigo do Argo: sem "app" (vale "argo") e "contexto" no lugar de "fichas".
 //   modo: 'interpretar'  (opcional): em vez de responder, devolve { interpretacao: { pergunta, intencao, bairro, esclarecer } | null }
 //   (a pergunta reescrita de forma completa, usando a conversa; ver worker/interpretar.mjs).
@@ -205,6 +206,8 @@ export function criarManipulador({ base, apps, indice: indicePronto }) {
       historico: corpo.historico,
       fichas: Array.isArray(corpo.fichas) ? corpo.fichas : corpo.contexto,
       panorama: corpo.panorama,
+      // Em tema de suicídio a resposta é só cuidado e rede de apoio: nada de botões de navegação.
+      acoes: tema ? [] : corpo.acoes,
       achados: achados,
       pergunta: pergunta
     });
