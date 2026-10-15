@@ -49,6 +49,20 @@ test('escolhe a habilidade certa e não dispara em pergunta comum', () => {
   assert.deepEqual(id(''), []);
 });
 
+test('condicionalidades: dispara nas formas que o profissional usa e não em pergunta de valor', () => {
+  const lista = lerTodas();
+  const id = (q) => escolherHabilidades(lista, q, [], 'anona').map((h) => h.id);
+  for (const q of [
+    'família em descumprimento de condicionalidade', 'o benefício foi bloqueado, o que fazer?', 'como fazer recurso no Sicon',
+    'baixa frequência escolar no Bolsa Família', 'a criança está com a vacina atrasada e o bolsa família suspenso',
+    'como pedir a interrupção temporária dos efeitos', 'ofício para a escola sobre condicionalidades'
+  ]) assert.ok(id(q).includes('condicionalidades-pbf'), q);
+  assert.deepEqual(id('qual o valor do Bolsa Família em outubro?'), []);
+  assert.deepEqual(id('quem tem direito ao Bolsa Família?'), []);
+  // "Bolsa Família" + "acompanha" não pode puxar o roteiro do PAF.
+  assert.deepEqual(escolherHabilidades(lista, 'Quem acompanha a vacina e o pré-natal no Bolsa Família?', [], 'anona').map((h) => h.id), ['condicionalidades-pbf']);
+});
+
 test('habilidade com "apps" só vale nesses apps', () => {
   const lista = lerTodas();
   assert.deepEqual(escolherHabilidades(lista, 'quero escrever no diário de campo', [], 'toth').map((h) => h.id), ['diario-de-campo']);
