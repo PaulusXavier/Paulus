@@ -133,6 +133,32 @@ test('avisa quando a IA cita telefone que não está nas fichas', async () => {
   assert.ok(r.avisos.some(a => /telefone/.test(a)));
 });
 
+test('telefone da IA: pega fixo sem DDD e 0800, aceita o que consta nas fichas e ignora protocolo e anos', async () => {
+  const fichas = () => [{ nome: 'CRAS', telefones: '95 3623-0000' }];
+  async function avisos(resposta) {
+    const P = carregar(fetchComWorker({ resposta }));
+    P.init(Object.assign({ app: 'argo', endpoint: ENDPOINT, fichas }, semEspera));
+    const r = await P.perguntar('qual o telefone do CRAS Cauamé?');
+    return r.avisos.some(a => /telefone/.test(a));
+  }
+  assert.equal(await avisos('Ligue 3623-1234 agora'), true);          // fixo sem DDD inventado
+  assert.equal(await avisos('Ligue 0800 707 1234 agora'), true);      // 0800 inventado
+  assert.equal(await avisos('Ligue (95) 3623-1234 agora'), true);
+  assert.equal(await avisos('Ligue 3623-0000 agora'), false);         // consta na ficha (sem DDD)
+  assert.equal(await avisos('Ligue (95) 3623-0000 agora'), false);
+  assert.equal(await avisos('Protocolo 20230123456789 e plano 2023-2026'), false);
+});
+
+test('bundle do navegador: pergunta técnica sobre suicídio não lança erro (suicidio.mjs está no build)', async () => {
+  const P = carregar(async () => { throw new Error('sem rede'); });
+  P.init({ app: 'argo', conhecimento: base });
+  assert.equal(P.detectarCrise('como avaliar o risco de suicídio?'), null);   // pergunta técnica: vai para a IA e a cartilha
+  assert.equal(P.detectarCrise('o que é posvenção?'), null);
+  assert.equal(P.detectarCrise('suicídio').subtipo, 'suicidio');              // palavra solta continua sendo socorro
+  const r = await P.perguntar('como avaliar o risco de suicídio?');
+  assert.notEqual(r.tipo, 'crise');
+});
+
 test('se a IA falhar, cai para a base de normas', async () => {
   const P = carregar(fetchComWorker({ falhar: true }));
   P.init(Object.assign({ app: 'argo', endpoint: ENDPOINT, conhecimento: base }, semEspera));
