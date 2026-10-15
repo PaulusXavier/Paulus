@@ -8,6 +8,7 @@ export const MAX_HISTORICO = 6;
 export const MAX_MSG_HISTORICO = 1200;
 export const MAX_FICHAS = 10;
 export const MAX_PANORAMA = 3000;
+export const MAX_ACOES = 20;
 
 // Bloco de suicídio (~550 tokens): só entra quando a pergunta é sobre o tema, para não gastar a cota gratuita em todas as perguntas.
 const BLOCO_SUICIDIO = `SUICÍDIO E COMPORTAMENTO SUICIDA
@@ -174,15 +175,47 @@ export function panoramaComoTexto(panorama) {
   return limparMarcacao(String(panorama || '')).replace(/\s+/g, ' ').trim().slice(0, MAX_PANORAMA);
 }
 
-export function montarMensagens({ app, pagina, historico, fichas, panorama, achados, pergunta, suicidio = true }) {
+// Ações do app que a IA pode PROPOR (viram botões; a IA não executa nada). Vêm do app, não da pessoa:
+// mesmo assim passam por limpeza, porque o Worker não confia em quem chama.
+const RE_ID_ACAO_PROMPT = /^[a-z0-9_-]{1,40}$/i;
+
+export function acoesValidas(acoes) {
+  if (!Array.isArray(acoes)) return [];
+  const lim = function (v, max) { return limparMarcacao(String(v == null ? '' : v)).replace(/\s+/g, ' ').trim().slice(0, max); };
+  const vistos = new Set();
+  const saida = [];
+  for (const a of acoes.slice(0, MAX_ACOES)) {
+    const id = String((a && a.id) || '');
+    const rotulo = lim(a && a.rotulo, 60);
+    if (!RE_ID_ACAO_PROMPT.test(id) || !rotulo || vistos.has(id.toLowerCase())) continue;
+    vistos.add(id.toLowerCase());
+    saida.push({ id: id, rotulo: rotulo, descricao: lim(a && a.descricao, 100) });
+  }
+  return saida;
+}
+
+export function acoesComoTexto(acoes) {
+  return acoesValidas(acoes).map(function (a) { return a.id + ' | ' + a.rotulo + (a.descricao ? ' | ' + a.descricao : ''); }).join('\n');
+}
+
+// Só entra no prompt quando o app mandou ações (senão o modelo não tem o que propor).
+const BLOCO_ACOES = `AÇÕES NO APP (viram botões que o(a) profissional toca; não aparecem no texto)
+- Em <acoes> está a lista do que este app sabe abrir ou fazer (id | nome | descrição). Você NÃO executa nada: só pode sugerir.
+- Quando a resposta apontar para uma tela ou função da lista que ajude de verdade (ex.: você falou de achar uma unidade e há a ação do mapa), escreva, depois da resposta e ANTES da linha SUGESTÕES, UMA linha: AÇÕES NO APP: id1 | id2
+- No máximo 2 ids, copiados exatamente de <acoes>. Nunca invente id nem escreva o nome no lugar do id. Se nenhuma ação ajudar, não escreva a linha.
+- NÃO escreva a linha em situação de risco, ao recusar o pedido, ao fazer pergunta de esclarecimento ou em resposta de uma frase.`;
+
+export function montarMensagens({ app, pagina, historico, fichas, panorama, acoes, achados, pergunta, suicidio = true }) {
   const pan = panoramaComoTexto(panorama);
+  const listaAcoes = acoesComoTexto(acoes);
   const usuario =
     (pan ? '<panorama>\n' + pan + '\n</panorama>\n\n' : '') +
+    (listaAcoes ? '<acoes>\n' + listaAcoes + '\n</acoes>\n\n' : '') +
     '<fichas>\n' + (fichasComoTexto(fichas) || '(nenhuma ficha encontrada para esta pergunta)') + '\n</fichas>\n\n' +
     '<normas>\n' + (achados.length ? normasComoTexto(achados) : '(nenhum trecho de norma encontrado para esta pergunta)') + '\n</normas>\n\n' +
     '<pergunta>\n' + pergunta + '\n</pergunta>';
   return [
-    { role: 'system', content: montarSistema(app, pagina, suicidio) },
+    { role: 'system', content: montarSistema(app, pagina, suicidio) + (listaAcoes ? '\n\n' + BLOCO_ACOES : '') },
     ...historicoComoMensagens(historico),
     { role: 'user', content: usuario }
   ];
