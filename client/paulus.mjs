@@ -17,13 +17,14 @@
 import { temDadoPessoal } from '../shared/pii.mjs';
 import { detectarCrise } from '../shared/crise.mjs';
 import { normalizar, criarIndice, buscar, consultaComContexto, fonteDe, K_PADRAO } from '../shared/busca.mjs';
-import { separarSugestoes, ocultarSugestoes } from '../shared/sugestoes.mjs';
+import { separarControles, ocultarControles, RE_ID_ACAO } from '../shared/sugestoes.mjs';
 import { SKINS } from './skins.mjs';
 
 const AVISO_PESSOAL = 'Para proteger as famílias, não consigo analisar mensagens com nome, documento, telefone ou endereço residencial. Reescreva a pergunta sem identificar ninguém.';
 
 // Igual ao limite do Worker (worker/prompt.mjs). Antes eram 5 aqui, e o Argo mandava até 10 (lista de bairros, "liste todos").
 const MAX_FICHAS = 10;
+const MAX_ACOES_ENVIADAS = 20;
 
 const PADRAO = {
   app: '',
@@ -74,14 +75,15 @@ function init(opcoes) {
   return Paulus;
 }
 
-// Ação de navegação. { id, rotulos:['mapa','mapa de unidades'], executar(), confirmar?:true }
+// Ação de navegação. { id, rotulos:['mapa','mapa de unidades'], titulo?:'Mapa de unidades', descricao?, executar(), confirmar?:true }
+// Além de "abrir ...", a IA pode PROPOR a ação como botão (r.acoes); quem toca é a pessoa.
 // Ações que alteram ou apagam dados DEVEM ter confirmar:true.
 function registrarAcao(a) {
   if (!a || !a.id || typeof a.executar !== 'function' || !Array.isArray(a.rotulos) || !a.rotulos.length) {
     throw new Error('Paulus.registrarAcao: use { id, rotulos:[...], executar() }');
   }
   estado.acoes = estado.acoes.filter(function (x) { return x.id !== a.id; });
-  estado.acoes.push({ id: a.id, rotulos: a.rotulos.map(normalizar).filter(Boolean), descricao: a.descricao || '', executar: a.executar, confirmar: !!a.confirmar });
+  estado.acoes.push({ id: a.id, titulo: String(a.titulo || a.rotulos[0] || a.id), rotulos: a.rotulos.map(normalizar).filter(Boolean), descricao: a.descricao || '', executar: a.executar, confirmar: !!a.confirmar });
 }
 
 // Busca dentro do app. { id, rotulos:['unidade','equipamento'], buscar(consulta) -> [{titulo, detalhe?, abrir?()}] }
@@ -197,6 +199,20 @@ function telefonesDesconhecidos(texto, fichas) {
   });
 }
 
+// Ações que a IA pode PROPOR neste app: as registradas ou as passadas na chamada (opcoes.acoes, para apps com o próprio cérebro).
+// Cada uma: { id, rotulo|titulo, descricao?, confirmar?, executar? }. Só id, nome e descrição vão ao Worker; nada executa sozinho.
+function acoesDisponiveis(externas) {
+  const lista = Array.isArray(externas) ? externas : estado.acoes;
+  const saida = [];
+  for (const a of lista) {
+    if (!a || !RE_ID_ACAO.test(String(a.id || ''))) continue;
+    const rotulo = String(a.rotulo || a.titulo || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    if (!rotulo) continue;
+    saida.push({ id: String(a.id), rotulo: rotulo, descricao: String(a.descricao || '').replace(/\s+/g, ' ').trim().slice(0, 100), confirmar: !!a.confirmar, executar: a.executar });
+  }
+  return saida.slice(0, MAX_ACOES_ENVIADAS);
+}
+
 function lerSSE(resp, ganchos, controle) {
   return new Promise(function (resolve, reject) {
     const leitor = resp.body.getReader();
@@ -221,8 +237,8 @@ function lerSSE(resp, ganchos, controle) {
           if (typeof ev.t === 'string') {
             recebeu = true;
             acumulado += ev.t;
-            // O rótulo "SUGESTÕES:" e o que vem depois nunca chegam à tela.
-            if (ganchos.onToken) ganchos.onToken(ev.t, ocultarSugestoes(acumulado));
+            // Os rótulos "AÇÕES NO APP:" e "SUGESTÕES:" (e o que vem depois) nunca chegam à tela.
+            if (ganchos.onToken) ganchos.onToken(ev.t, ocultarControles(acumulado));
           }
         }
         if (fim) {
@@ -247,6 +263,9 @@ async function pedirIA(texto, opcoes) {
     fichas: fichas,
     stream: true
   };
+  // O que o app sabe abrir/fazer: a IA só pode propor ids desta lista.
+  const acoes = acoesDisponiveis(opcoes.acoes);
+  if (acoes.length) corpo.acoes = acoes.map(function (a) { return { id: a.id, rotulo: a.rotulo, descricao: a.descricao }; });
   // Visão geral do diretório (totais por grupo), montada pelo app. Só vai quando o app a manda.
   if (typeof opcoes.panorama === 'string' && opcoes.panorama.trim()) corpo.panorama = opcoes.panorama.trim().slice(0, 3000);
 
@@ -289,15 +308,19 @@ async function pedirIA(texto, opcoes) {
       const j = await resp.json();
       if (!j || typeof j.resposta !== 'string' || !j.resposta) throw new Error(j && j.erro ? String(j.erro) : 'Resposta vazia.');
       saida = { texto: j.resposta, fontes: Array.isArray(j.fontes) ? j.fontes : [] };
-      if (opcoes.onToken) opcoes.onToken(saida.texto, ocultarSugestoes(saida.texto));
+      if (opcoes.onToken) opcoes.onToken(saida.texto, ocultarControles(saida.texto));
     }
-    const partes = separarSugestoes(saida.texto);
+    const partes = separarControles(saida.texto, acoes.map(function (a) { return a.id; }));
     saida.texto = partes.texto || saida.texto;
+    const propostas = partes.acoes.map(function (id) {
+      const a = acoes.filter(function (x) { return x.id === id; })[0];
+      return { id: a.id, rotulo: a.rotulo, confirmar: a.confirmar, executar: a.executar };
+    });
     const avisos = ['Resposta gerada por IA. Confira antes de usar em atendimento.'];
     if (telefonesDesconhecidos(saida.texto, fichas).length) {
       avisos.push('A IA citou um telefone que não consta no diretório. Confirme com a unidade antes de passar adiante.');
     }
-    return { tipo: 'ia', texto: saida.texto, fontes: saida.fontes, sugestoes: partes.sugestoes, avisos: avisos, geradoPorIA: true };
+    return { tipo: 'ia', texto: saida.texto, fontes: saida.fontes, sugestoes: partes.sugestoes, acoes: propostas, avisos: avisos, geradoPorIA: true };
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -396,6 +419,6 @@ async function consultarNormas(texto, opcoes) {
   return achados.length ? respostaDasNormas(achados) : null;
 }
 
-const Paulus = { init, perguntar, consultarNormas, registrarAcao, registrarBusca, limpar, skin, iaLigada, temDadoPessoal, detectarCrise, versao: '0.3.0' };
+const Paulus = { init, perguntar, consultarNormas, registrarAcao, registrarBusca, limpar, skin, iaLigada, temDadoPessoal, detectarCrise, versao: '0.4.0' };
 
 export default Paulus;
