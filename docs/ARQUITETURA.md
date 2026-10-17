@@ -30,11 +30,35 @@ O Paulus aprende com o uso **no aparelho**; nada é gravado no Worker. Onde a me
 - **Se a IA falhar:** resposta aprovada que combina (`deMemoria: true`) → trecho de norma → "não encontrei".
 Tudo envelhece (meia-vida), tem limite de tamanho e é reconstruído pelo `memSanear` ao ler/importar. Detalhes de privacidade em [SEGURANCA](SEGURANCA.md).
 
+## Pedido dinâmico (v0.6.0, `shared/pedido.mjs`)
+Antes de buscar e de chamar a IA, o Paulus **lê o tipo do pedido por regra** (sem gastar cota de IA), no navegador e no Worker:
+
+| Tipo | Exemplo | O que muda |
+|---|---|---|
+| `saudacao` | "oi", "obrigado" | prompt mínimo (~700 caracteres em vez de ~17 mil), modelo pequeno (o grande é a reserva), nenhuma norma, até 160 tokens |
+| `refinamento` | "mais curto", "deixe mais formal", "de outro jeito" | a IA **reescreve a última resposta** (que vai inteira, até 3000 caracteres), a busca usa o assunto anterior (não as palavras do ajuste), até 3 trechos, até 1200 tokens, sem botões de ação; a habilidade do turno anterior continua (ofício segue ofício) |
+| `seguimento` | "e para adolescente?", "e o horário?" | a busca e as habilidades herdam o assunto, inclusive em cadeia ("e para idoso?" depois de "e para adolescente?") |
+| `consulta` | telefone, endereço, horário, "quantos" (com fichas) | temperatura 0,2: sem criatividade em dado de diretório |
+| `normal` | o resto | como antes (900 tokens, temperatura 0,4); pergunta com muitas ideias busca um trecho a mais |
+
+Pergunta curta com termo próprio do SUAS ("como funciona o BPC?") **não** é seguimento: se sustenta sozinha. Em tema de suicídio nada disso muda o protocolo (sem roteiro, sem ajuste de estilo).
+
+O prompt também é montado por partes: sem fichas nem panorama (Toth, Grafia, Umbrella) entra a versão curta das regras de unidade, com o mesmo rigor ("NUNCA invente endereço, telefone...").
+Se o modelo principal devolver texto vazio, o reserva tenta antes de dar erro.
+
+### Conferência de citações (`shared/verificacao.mjs`)
+O Worker informa quais artigos e leis estavam nos trechos que a IA leu (`citaveis: { a: [...], l: [...] }`, evento SSE ou campo do JSON). O navegador compara com o que a resposta citou; citação fora da lista vira **aviso** ("A IA citou art. 99, que não aparece nas normas consultadas. Confira..."). O texto não é alterado. Artigos já vistos nas respostas anteriores da conversa não avisam de novo. Worker antigo (sem `citaveis`): o navegador usa só as fontes que vieram.
+
+### Memória
+Cumprimento, ajuste e seguimento **não** entram nas "perguntas frequentes" nem nos temas aprendidos (antes, "oi" virava sugestão do mascote).
+
 ## Código compartilhado
 `shared/` roda no navegador **e** no Worker, para o filtro e a busca serem idênticos nos dois lados:
 - `pii.mjs`: filtro de dados pessoais.
 - `crise.mjs`: detector de pedido de socorro e telefones.
 - `busca.mjs`: busca BM25 na base de normas.
+- `pedido.mjs`: tipo do pedido (cumprimento, ajuste, seguimento, consulta) e parâmetros da IA por situação.
+- `verificacao.mjs`: conferência de artigos e leis citados pela IA.
 
 `scripts/build.mjs` junta `shared/*` + `client/*` em `dist/paulus.v1.js` (um arquivo, sem `import`/`export`). Por isso, nesses arquivos: imports **em uma linha**, `export function/const` (sem `export {}`), e nomes de função que não se repetem entre módulos.
 
