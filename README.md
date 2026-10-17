@@ -4,6 +4,8 @@ Copiloto de IA compartilhado pelos apps (Argo SUAS, Anona, Toth, Umbrella, Grafi
 
 **O que faz:** responde dúvidas de uso e do SUAS, abre telas, busca coisas dentro do app, cita a norma de onde tirou a resposta (artigo e documento) e **sabe fazer tarefas do trabalho** (habilidades): escrever registro, relatório e ofício, montar PAF, preparar visita, grupo e discussão de caso.
 
+**Dinâmico (v0.6.0):** lê o tipo do pedido (cumprimento, "mais curto", "e para adolescente?", consulta de unidade) e muda busca, prompt e tamanho da resposta; reescreve a resposta anterior quando você pede ajuste; e avisa quando a IA cita artigo ou lei que não estava nas normas consultadas. Veja [ARQUITETURA](docs/ARQUITETURA.md#pedido-dinâmico-v060-sharedpedidomjs).
+
 **Aprende com o uso (v0.5.0):** estilo de resposta (curto, detalhado, com exemplos), documentos e perguntas frequentes, apelidos para as telas e respostas que você aprovou. **Tudo no aparelho** (nada vai para o servidor) e sob seu controle: ver, desligar, exportar e apagar. Veja [INTEGRACAO](docs/INTEGRACAO.md) (v0.5.0) e [SEGURANCA](docs/SEGURANCA.md).
 
 **O que não faz:** não guarda dado de família, não lê planilha nem registro dos apps e não decide caso individual.
