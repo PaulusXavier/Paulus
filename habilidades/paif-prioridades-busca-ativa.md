@@ -1,7 +1,8 @@
 ---
 id: paif-prioridades-busca-ativa
 nome: PAIF: prioridades, busca ativa e territórios
-quando: prioridade no paif; quem tem prioridade no paif; busca ativa no paif; famílias prioritárias do paif; equipe volante do paif; cadúnico no paif; visita domiciliar no paif; trilhas do paif
+quando: prioridade no paif; quem tem prioridade no paif; busca ativa no paif; famílias prioritárias do paif; equipe volante do paif; trilhas do paif
+texto: sim
 ---
 - Prioridade: famílias beneficiárias de transferência de renda e de benefícios socioassistenciais, elegíveis ainda não contempladas, famílias com membro em dificuldade, pessoas idosas e pessoas com deficiência em vulnerabilidade ou risco. A prioridade orienta a busca ativa e a fila do acompanhamento, não o direito de ser atendida.
 - Busca ativa no PAIF: procura famílias em vulnerabilidade e risco para incluir ou atualizar o CadÚnico e garantir acesso aos serviços do SUAS. Priorize quem é do Bolsa Família e ainda não está no PAIF.

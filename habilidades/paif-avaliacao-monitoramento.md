@@ -2,6 +2,7 @@
 id: paif-avaliacao-monitoramento
 nome: PAIF: avaliação e monitoramento
 quando: avaliar o paif; avaliação do paif; avaliar o paf; indicadores do paif; monitoramento do paif; avaliação da oficina; avaliar oficina com famílias; resultados do paif; como saber se o paif funciona
+texto: sim
 ---
 - O PAIF busca como impacto reduzir situações de vulnerabilidade e risco no território, ampliar o acesso das famílias aos serviços e melhorar a qualidade de vida. Avalie nessa direção, e não só contando atendimentos.
 - Avaliar o PAF: pelo alcance dos objetivos pactuados com a família, nos encontros de monitoramento. Pergunte à família: o que mudou, o que ajudou, o que ainda falta, o que quer manter. Objetivo não alcançado pede ajustar o plano. A periodicidade (por exemplo, seis encontros por ano) é recomendação de guia: diga "este guia recomenda" e mande conferir o protocolo do município.

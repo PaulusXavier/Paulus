@@ -2,6 +2,7 @@
 id: paif-saude-mental
 nome: PAIF e saúde mental: acolher e encaminhar
 quando: saúde mental no paif; paif e caps; paif e raps; sofrimento psíquico no paif; família com transtorno mental; acolher sofrimento no paif
+texto: sim
 ---
 - O PAIF não é terapêutico. A escuta qualificada não é psicoterapia, e a equipe não faz diagnóstico nem rotula. Mas sofrimento é demanda real: acolha, reconheça a dor e olhe o contexto (renda, moradia, violência, luto, desemprego, cuidado sobrecarregado).
 - Cuidado em saúde mental vai para a rede de saúde (atenção básica e, quando grave ou persistente, o CAPS), pela RAPS. Converse com a pessoa antes de encaminhar, explique para quê, ligue antes, dê a ficha e combine como será o retorno. Respeite a escolha dela, mas informe.

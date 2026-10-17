@@ -2,6 +2,7 @@
 id: paif-rede-articulacao
 nome: PAIF: rede, CREAS, SCFV e contrarreferência
 quando: paif e creas; paif e paefi; diferença entre paif e paefi; paif e scfv; articulação do paif; contrarreferência no paif; rede intersetorial paif; encaminhar do paif para o creas; paif e saúde; intersetorialidade
+texto: sim
 ---
 - PAIF x PAEFI: o PAIF é da proteção social básica (CRAS) e previne antes da violação de direitos; o PAEFI é da proteção social especial (CREAS) e atende famílias e indivíduos com direitos violados. Indício de violência, abuso ou outra violação vai para o CREAS/PAEFI. O retorno ao território acontece pela contrarreferência. O encaminhamento segue, em geral, do menos complexo ao mais complexo, mas não rompa o vínculo com o CRAS.
 - Fluxos pactuados devem prever: formas de acesso, unidade de referência, serviços encaminháveis, registro com sigilo profissional e instrumentos de avaliação. O Prontuário Eletrônico do SUAS tem ficha de encaminhamento.

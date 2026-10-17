@@ -1,7 +1,8 @@
 ---
 id: paif-acolhida
 nome: PAIF: acolhida, estudo social e prontuário
-quando: acolhida no paif; acolhida em grupo; acolhida particularizada; estudo social; prontuário da família; prontuário do paif; roteiro de acolhida do paif; acolhida no domicílio; ficha de evolução familiar
+quando: acolhida no paif; acolhida em grupo; acolhida particularizada; prontuário da família; prontuário do paif; roteiro de acolhida do paif; acolhida no domicílio; ficha de evolução familiar
+texto: sim
 ---
 - A acolhida é a escuta qualificada da demanda e a porta de entrada do trabalho social. Não condicione a acolhida a comprovação prévia. Pode ser em grupo ou particularizada.
 - Em grupo: boas-vindas coletivas, explicar o que é o CRAS, os direitos, os serviços e como funcionam. Ajuda a perceber demandas comuns. Quem precisa de conversa reservada vai para a acolhida particularizada.

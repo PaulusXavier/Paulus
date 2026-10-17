@@ -1,12 +1,12 @@
 ---
 id: paif-psicologia
-nome: PAIF: o que faz o(a) psicólogo(a)
-quando: psicólogo no paif; psicologia no paif; psicóloga no paif; psicólogo no cras; psicologia no cras; papel do psicólogo no paif; atuação do psicólogo no cras; psicólogo no suas
+nome: PAIF: o que faz a psicologia
+quando: psicólogo no paif; psicologia no paif; atuação do psicólogo no cras; o que o psicólogo faz no paif; psicóloga no cras; papel da psicologia no paif; psicologia no cras
 ---
-- No PAIF, a psicologia atua na proteção social básica: o trabalho é preventivo e protetivo, com foco nos vínculos, na função protetiva da família e na vida no território. Não é psicoterapia nem clínica, e não se faz diagnóstico para encerrar o caso.
-- O que o(a) psicólogo(a) costuma fazer: acolhida e escuta qualificada, estudo social em conjunto com o serviço social, acompanhamento familiar, condução de grupos e oficinas, visita domiciliar, ações comunitárias, articulação com a rede (CAPS, saúde, educação, CREAS) e registro técnico.
-- Olhar próprio da psicologia: subjetividade, sofrimento ético-político, relações familiares e comunitárias, sempre ligados a renda, raça, gênero, território e acesso a direitos. Evite culpar a família ou individualizar o que é desigualdade social.
-- Sofrimento psíquico intenso, risco de vida ou uso problemático de substâncias: acolha, avalie o risco e encaminhe para a rede (saúde mental, CAPS, urgência) com contato prévio e contrarreferência. Não prometa tratamento no CRAS.
-- Sigilo e ética: o código de ética da profissão vale também no CRAS. Registre só o necessário, sem expor a família, e compartilhe com a equipe apenas o que serve ao trabalho. Laudo e parecer psicológico têm limites: não faça avaliação que fuja da atribuição do serviço.
-- Trabalho em equipe e diálogo com o serviço social, sem sobrepor atribuições, e sempre com a família como sujeito de direitos.
-- Se faltar contexto sobre o município ou o caso, diga o que depende do protocolo local; não invente fluxo.
+- No PAIF a psicologia trabalha com assistente social e o restante da equipe, de forma interdisciplinar. Não é consultório: não faz psicoterapia, diagnóstico nem laudo clínico. Demanda de cuidado em saúde mental vai para a rede de saúde, com acompanhamento do retorno.
+- Acolhida: a escuta qualificada não separa fatores materiais e subjetivos. Busca entender as dimensões materiais, culturais, psicológicas e relacionais da demanda, partindo do diálogo, da participação e da autonomia da família. Afaste a postura assistencialista e tutelar, que culpabiliza e intimida.
+- Olhe a família em seu contexto sócio-histórico. Evite patologizar famílias ou reduzi-las a sintomas: pense em vulnerabilidades e em potencialidades, e em como a dinâmica da família afeta e é afetada por elas.
+- Evite ações fragmentadas ou centradas só no caso individual. A subjetividade se compreende junto à vida do território. Participe de oficinas, ações comunitárias, escuta coletiva, SCFV (como referência técnica), benefícios eventuais e acompanhamento de famílias do BPC.
+- Em grupo, cuide do sigilo e dos combinados, e equilibre a escuta coletiva com o atendimento individual.
+- No registro e no relatório, descreva fatos e o que a família disse, com linguagem técnica e ética, sem julgamento, sem exposição desnecessária e sem parecer sobre o que não é de sua competência.
+- Orientações do CFP e do CREPOP orientam, não obrigam. Em dúvida ética, consulte o Conselho Regional de Psicologia e a equipe. A análise e a decisão do caso são do profissional e da equipe.

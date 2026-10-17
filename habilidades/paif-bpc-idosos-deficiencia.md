@@ -1,7 +1,7 @@
 ---
 id: paif-bpc-idosos-deficiencia
 nome: PAIF: BPC, pessoas idosas, com deficiência e cuidadores
-quando: bpc no paif; bpc e paif; família de beneficiário do bpc; bpc trabalho; bpc na escola; serviço no domicílio para pessoas com deficiência e idosas; paif pessoa idosa; paif pessoa com deficiência; cuidador no paif; grupo de cuidadores
+quando: bpc no paif; bpc e paif; família de beneficiário do bpc; bpc trabalho; bpc na escola; serviço no domicílio para pessoas com deficiência e idosas; paif pessoa com deficiência; cuidador no paif; grupo de cuidadores
 texto: sim
 ---
 - O CRAS deve estar disponível para orientar sobre o acesso ao BPC. Quem pede precisa estar no CadÚnico, e a pessoa com deficiência passa por avaliação médica e social no INSS. Idade, renda e outras regras mudam: não dê número de memória, mande conferir o guia vigente do MDS.

@@ -2,6 +2,7 @@
 id: paif-primeira-infancia
 nome: PAIF: primeira infância, gestantes e visita domiciliar
 quando: primeira infância no paif; criança feliz; gestantes no paif; visita domiciliar a gestantes e crianças; marco legal da primeira infância; desenvolvimento infantil no paif; parentalidade
+texto: sim
 ---
 - O Criança Feliz foi um programa de visitas domiciliares ligado ao Marco Legal da Primeira Infância. Segundo o material do CFP (2021), o público prioritário era formado por gestantes e crianças pequenas de famílias do Bolsa Família, crianças de famílias do BPC e crianças afastadas do convívio por medida protetiva.
 - Objetivos: promover o desenvolvimento integral na primeira infância, apoiar gestantes e famílias, colaborar no exercício da parentalidade, fortalecer vínculos e cuidados e mediar o acesso a políticas e serviços. Dois eixos: visitas domiciliares e integração das políticas de primeira infância no território.

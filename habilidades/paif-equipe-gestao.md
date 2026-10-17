@@ -1,11 +1,15 @@
 ---
 id: paif-equipe-gestao
-nome: PAIF: equipe, coordenação e RMA
-quando: equipe do paif; papéis na equipe do paif; equipe de referência do cras; equipe de referência; coordenador do cras; coordenação do cras; rma; registro mensal de atendimentos; gestão do paif; planejamento do paif; educação permanente no cras
+nome: PAIF: equipe, planejamento e registro
+quando: equipe do paif; papéis na equipe do paif; técnico de referência; distribuir famílias entre técnicos; reunião de planejamento do paif; plano de ação do cras; relatório mensal de atendimentos; rma; vigilância socioassistencial; organizar o paif
+texto: sim
 ---
-- A equipe de referência do CRAS é quem executa o PAIF: técnicos de nível superior (assistente social e, em geral, psicólogo, com outros profissionais do SUAS conforme o porte do município) e profissionais de nível médio. O tamanho muda com o porte do município e o número de famílias referenciadas, então confira o desenho oficial da sua rede antes de dar número.
-- Papéis (o PAIF é trabalho de equipe, não de uma categoria só): o nível superior conduz acolhida, estudo social, acompanhamento familiar, grupos e oficinas; o nível médio apoia a recepção, a logística, a mobilização e a busca ativa, sem fazer o que é atribuição técnica; todos participam do planejamento.
-- Coordenação do CRAS: organiza o trabalho, articula a rede, cuida da gestão do território, da equipe e dos registros, e garante condições para o sigilo e para a educação permanente. Não substitui a referência técnica das famílias.
-- RMA (Registro Mensal de Atendimentos): é o registro mensal que o CRAS informa sobre o que foi feito (atendimentos, acompanhamentos, grupos, visitas, encaminhamentos). Ele serve para a vigilância socioassistencial e para a gestão enxergarem o serviço. Conte só o que foi realizado e registrado, sem inflar; dúvida de preenchimento: use o manual vigente do RMA.
-- Reunião de equipe, estudo de caso, planejamento e avaliação em conjunto fazem parte do trabalho, e o tempo para isso precisa estar na agenda.
-- Não invente composição mínima, número de técnicos ou prazo do RMA se não estiver nas fichas fornecidas; diga que depende da norma vigente e do porte do município.
+- Equipe técnica de nível superior (assistente social e psicólogo): faz a acolhida particularizada, elabora e monitora o PAF, conduz encontros e avaliação e participa dos grupos.
+- Nível médio: apoia a busca ativa, a acolhida em grupo, a execução das atividades e, junto com a equipe técnica, as visitas domiciliares.
+- Gestão: distribui as famílias entre técnicos de referência, organiza reuniões de planejamento e estudo de caso e constrói o fluxo de referência e contrarreferência com o CREAS. Mantenha o horário mínimo de funcionamento do PAIF.
+- Planejamento: o plano de ação do CRAS parte do diagnóstico socioterritorial e do conhecimento da realidade local, e deve ser coerente com a política municipal de assistência social, dialogando com outras políticas do território. Interligue as ações: o evento comunitário abre oficinas, a oficina revela acompanhamento.
+- Fila do acompanhamento: a prioridade (renda, BPC, descumprimento, pessoas idosas e com deficiência) organiza a busca ativa e a fila, nunca o direito de ser atendida.
+- Registro: cada ação no prontuário, no mesmo dia, em fatos. A equipe analisa o RMA ou o relatório da vigilância socioassistencial todo mês: o que cresceu, quem não vem, o que o território pede. O RMA é consequência do registro bem feito.
+- Estudo de caso e reunião de equipe: tragam casos complexos, dúvidas éticas e fluxos. A decisão sobre cada família é da equipe, não de uma pessoa só.
+- Cuide da equipe: sobrecarga e dilema ético precisam de espaço. Em dúvida ética, o conselho profissional.
+- Para pauta ou ata, entregue rascunho com [CAMPOS], sem identificar ninguém.

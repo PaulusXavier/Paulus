@@ -1,11 +1,13 @@
 ---
 id: paif-modelos-texto
-nome: PAIF: modelos de texto (convite, relatório de encerramento)
-quando: modelo de convite para oficina; modelo de convite; convite para oficina; convite para grupo do paif; modelo de relatório de encerramento; relatório de encerramento do acompanhamento; encerramento do acompanhamento familiar modelo; modelo de texto do paif
+nome: PAIF: modelos de texto (registro, convite, relatório, ata)
+quando: modelo de registro do paif; modelo de acolhida; convite para oficina; convite para o paif; relatório de acompanhamento familiar; relatório de encerramento do acompanhamento; ata de oficina; modelo de ficha de evolução
 texto: sim
 ---
-- Entregue o texto pronto, com [CAMPOS] para preencher, sem nome, CPF, NIS, endereço ou outro dado que identifique alguém. Termine com uma linha avisando que é modelo para adaptar.
-- Convite para oficina ou grupo: [NOME DO CRAS], título e tema do encontro, dia, horário e local [DATA], [HORÁRIO], [LOCAL]; frase acolhedora que deixe claro que a participação é um convite e um direito, sem cobrança nem condição de benefício; o que haverá (conversa, atividade, lanche se houver); contato do CRAS [TELEFONE]; assinatura da equipe.
-- Relatório de encerramento do acompanhamento familiar: identificação do serviço e período [PERÍODO]; motivo do acompanhamento; o que foi feito (acolhida, visitas, grupos, encaminhamentos); mudanças percebidas e compromissos cumpridos, nas palavras da família; potencialidades e o que segue pendente; motivo do encerramento (objetivos alcançados, mudança de território, desligamento por vontade da família, outro) [MOTIVO]; encaminhamentos e contrarreferência; orientação de que a família pode voltar ao CRAS quando quiser; local, data e assinatura da equipe técnica.
-- No relatório, descreva fatos e evolução sem rótulos, sem julgamento e sem expor mais do que o necessário. Respeite o sigilo profissional.
-- Se a pessoa pedir outro modelo, siga o mesmo cuidado e pergunte só o que for essencial.
+- Regras de todo modelo: nada de nome, CPF, NIS ou endereço (use [CAMPOS]); descreva fatos e o que a família disse, sem julgamento, sem rótulo e sem estigma; linguagem que a família entenda quando o texto for para ela.
+- Registro de acolhida: data; tipo (em grupo ou particularizada); quem participou (iniciais ou código); demanda nas palavras da família; o que foi observado, em fatos; orientações dadas; encaminhamentos; combinados; próximo contato; técnico de referência.
+- Ficha de evolução familiar: data; ação (atendimento, visita, oficina, encontro do PAF); o que aconteceu; o que avançou; o que travou; próximo passo e prazo; técnico.
+- Convite para oficina: curto e caloroso. Diga o tema, dia, hora, local, duração, se crianças podem ir e como confirmar. É um CONVITE: deixe claro que a participação é voluntária e não muda nada no atendimento nem em benefícios. Sem tom de intimação.
+- Relatório de acompanhamento ou de encerramento: situação de partida; o que foi pactuado no PAF; o que foi feito (por família, serviço e rede); o que mudou, em fatos; o que segue em aberto; encaminhamentos e referência atual da família.
+- Ata de oficina ou ação comunitária: data; tema; número de participantes; método; o que emergiu do território; encaminhamentos; avaliação. Nada de nome nem caso individual.
+- Entregue o modelo com [CAMPOS] e diga à pessoa o que preencher e o que deve ser conferido pela equipe.

@@ -2,6 +2,7 @@
 id: paif-populacoes-tradicionais
 nome: PAIF em territórios de populações tradicionais
 quando: paif populações tradicionais; trabalho social com famílias em comunidade tradicional; paif comunidade tradicional; paif território indígena; paif indígena; paif quilombola; paif ribeirinho; cras em comunidade indígena; cras quilombola; cras ribeirinho; paif em território indígena; território disperso; cras itinerante
+texto: sim
 ---
 - O CRAS que atende povos indígenas, ribeirinhos, populações rurais, quilombolas e ciganos lida com muita diversidade cultural, rede de serviços frágil e, às vezes, conflito entre referências culturais. Isso pede reflexão, não um modelo pronto de cidade.
 - Antes de propor, conheça: crenças e práticas, formas de solidariedade e apoio mútuo, formas de inclusão e de exclusão, relações de parentesco e de afeto. Visitas iniciais para conhecer e criar vínculo vêm antes da demanda: muitas vezes a demanda só aparece quando há confiança.
