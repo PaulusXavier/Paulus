@@ -56,3 +56,16 @@ O Paulus guarda, **no aparelho** (`localStorage`), o que aprendeu sobre o estilo
 - Mostre a resposta com `textContent`, **nunca** `innerHTML`.
 - Ações que apagam ou alteram dados precisam de `confirmar: true`.
 - Ao trancar o app ou em "Nova conversa", chame `Paulus.limpar()`.
+
+## Cobertura do detector de socorro (`shared/crise.mjs`)
+
+O cartão de socorro é a única camada que funciona sem internet e sem IA, então uma frase que ele não reconhece depende só de o modelo lembrar da instrução do prompt. Por isso a cobertura é testada com frases reais (`tests/crise-lacunas.test.mjs`), nos dois sentidos: o que **tem** de mostrar o cartão e o que **não pode** virar alarme.
+
+- **Ideação sem a palavra "suicídio"**: cansaço de viver, desejo de não acordar, "ninguém sentiria minha falta", despedida, meio já à mão, autolesão relatada.
+- **Ameaça de morte** ("ele vai me matar") mostra 190, 180 e 100. Antes casava com "me matar" e levava a vítima ao cartão de suicídio (CVV), sem os telefones de proteção.
+- **Violência relatada por quem sofre** ("meu padrasto me toca", "estou sendo estuprada"), criança ou pessoa idosa abandonada ou trancada.
+- **Quem diz que vai machucar alguém** (cuidador esgotado, raiva): cartão próprio, sem sermão, que pede para se afastar, aponta o 188 e o 190 e protege quem está perto.
+- **Emergência de saúde** além de "overdose": respiração, desmaio, AVC e infarto, sangramento, engasgo, ferimento por arma (192 e 190).
+- Pergunta geral ("o que fazer em caso de ameaça de morte?", "qual o fluxo para criança abandonada?") continua indo para a IA e a base de normas.
+
+Ao achar uma frase nova que ficou de fora, acrescente-a ao teste **e** ao detector, e rode também a lista de frases comuns do trabalho para conferir que não virou falso alarme. Não entram expressões ambíguas demais (por exemplo, "estou com uma corda em casa").
