@@ -1,7 +1,7 @@
 ---
 id: condicionalidades-sicon
 nome: Sicon na prática (consulta e registro)
-quando: sicon; sistema de condicionalidades; consultar o sicon; registrar no sicon; histórico no sicon; acompanhamento familiar no sicon; ativar interrupção no sicon; credencial do sicon; perfil do sicon; legenda de motivos
+quando: sicon; sistema de condicionalidades; consultar o sicon; registrar no sicon; histórico no sicon; acompanhamento familiar no sicon; ativar interrupção no sicon; credencial do sicon; perfil do sicon; legenda de motivos; sicon histórico
 texto: sim
 ---
 - O Sicon é o sistema de condicionalidades: reúne os registros de descumprimento vindos da educação e da saúde, o histórico de efeitos de cada família e o acompanhamento familiar do SUAS. Eu não acesso o sistema nem dado de família; explico o raciocínio e você opera.
@@ -11,3 +11,4 @@ texto: sim
 - Motivos de descumprimento: use a legenda de motivos para registrar exatamente o que ocorreu (doença, falta de vaga, mudança, trabalho infantil). Motivo certo evita efeito indevido e orienta o serviço.
 - Segurança: a senha e o perfil são pessoais; quem lança responde pela veracidade. Não compartilhe credencial, não envie print ou lista de famílias por mensagem e não deixe a tela aberta. Acesso e permissões: com a coordenação municipal do PBF.
 - Se pedirem passo a passo de tela, diga que menus e nomes mudam e que o suporte do MDS e a coordenação municipal têm o manual atual.
+- O Sicon tem dois ambientes: o Sicon, com os dados recentes, onde se registra recurso e acompanhamento, e o Sicon Histórico, só para consultar e extrair relatórios de períodos antigos. Planilhas e listas: veja o roteiro próprio.
