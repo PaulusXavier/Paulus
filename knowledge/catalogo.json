@@ -26,8 +26,9 @@
     "norma": "Material informativo do MDS e da Caixa sobre o Programa Bolsa Família, valores atualizados em outubro de 2026",
     "ano": 2026,
     "tipo": "norma",
+    "revisao": "pendente",
     "trechos": 29,
-    "caracteres": 15595
+    "caracteres": 15712
   },
   {
     "doc": "cadunico-mds",
@@ -35,6 +36,7 @@
     "norma": "Material informativo do MDS sobre o Cadastro Único para Programas Sociais (gov.br/mds)",
     "ano": 2026,
     "tipo": "norma",
+    "revisao": "pendente",
     "trechos": 5,
     "caracteres": 1879
   },
@@ -44,6 +46,7 @@
     "norma": "Constituição da República Federativa do Brasil, de 5 de outubro de 1988 (trechos reproduzidos na edição da Câmara, 2013)",
     "ano": 1988,
     "tipo": "norma",
+    "revisao": "pendente",
     "trechos": 30,
     "caracteres": 9618
   },
@@ -262,6 +265,7 @@
     "norma": "Decreto nº 12.064, de 17 de junho de 2024 (texto compilado, Planalto, com alterações dos Decretos nº 12.417/2025 e nº 13.120/2026)",
     "ano": 2024,
     "tipo": "norma",
+    "revisao": "pendente",
     "trechos": 15,
     "caracteres": 5400
   },
@@ -271,6 +275,7 @@
     "norma": "Decreto nº 13.120, de 17 de setembro de 2026",
     "ano": 2026,
     "tipo": "norma",
+    "revisao": "conferido",
     "trechos": 3,
     "caracteres": 916
   },
@@ -280,6 +285,7 @@
     "norma": "Regulamento do BPC, anexo ao Decreto nº 6.214, de 26 de setembro de 2007 (texto de 2013)",
     "ano": 2007,
     "tipo": "norma",
+    "revisao": "pendente",
     "trechos": 132,
     "caracteres": 40689
   },
@@ -289,6 +295,7 @@
     "norma": "Decreto nº 6.307, de 14 de dezembro de 2007",
     "ano": 2007,
     "tipo": "norma",
+    "revisao": "pendente",
     "trechos": 21,
     "caracteres": 5550
   },
@@ -298,6 +305,7 @@
     "norma": "Decreto nº 6.308, de 14 de dezembro de 2007",
     "ano": 2007,
     "tipo": "norma",
+    "revisao": "pendente",
     "trechos": 10,
     "caracteres": 4101
   },
@@ -307,6 +315,7 @@
     "norma": "Decreto nº 7.788, de 15 de agosto de 2012",
     "ano": 2012,
     "tipo": "norma",
+    "revisao": "pendente",
     "trechos": 32,
     "caracteres": 9194
   },
@@ -406,6 +415,7 @@
     "norma": "Material orientativo compilado de MDS/Caixa e das normas citadas (Lei 14.601/2023, Decretos 12.064/2024 e 13.120/2026, Decreto 11.016/2022, Portaria MDS 1.058/2025, IN SENARC/MDS 50/2025, Portarias Interministeriais MDS/MS 38/2026 e MEC/MDS 12/2025); atualizado em 15/10/2026",
     "ano": 2026,
     "tipo": "norma",
+    "revisao": "pendente",
     "trechos": 14,
     "caracteres": 7557
   },
@@ -415,6 +425,7 @@
     "norma": "Lei nº 14.601, de 19 de junho de 2023 (texto compilado, Planalto, com alterações da Lei nº 15.077/2024)",
     "ano": 2023,
     "tipo": "norma",
+    "revisao": "pendente",
     "trechos": 16,
     "caracteres": 5698
   },
@@ -424,6 +435,7 @@
     "norma": "Lei nº 8.742, de 7 de dezembro de 1993 (texto compilado pela Câmara, atualizado até 26/11/2013)",
     "ano": 1993,
     "tipo": "norma",
+    "revisao": "pendente",
     "trechos": 167,
     "caracteres": 46738
   },
@@ -433,6 +445,7 @@
     "norma": "Resolução CNAS nº 33, de 12 de dezembro de 2012",
     "ano": 2012,
     "tipo": "norma",
+    "revisao": "pendente",
     "trechos": 11,
     "caracteres": 2089
   },
@@ -556,5 +569,15 @@
     "revisao": "pendente",
     "trechos": 5,
     "caracteres": 1539
+  },
+  {
+    "doc": "sicon-condicionalidades-gestao",
+    "titulo": "Sicon e gestão das condicionalidades do Bolsa Família: relatórios, registro de dados, recurso e interrupção (orientação, não é norma)",
+    "norma": "Material orientativo compilado da Portaria MDS nº 1.058/2025 (texto transcrito), do Informe Bolsa Família nº 40 (MDS, 12/04/2024), de tutoriais do Sicon do MDS (recurso e acompanhamento familiar, versões anteriores à Portaria 1.058/2025), do Manual do Usuário do Sicon v4.5 (2013) e do Guia Sicon e o acompanhamento pela assistência social (SEDES/RS, 2025); consultado em 19/10/2026",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 14,
+    "caracteres": 10053
   }
 ]
