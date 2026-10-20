@@ -54,6 +54,12 @@ Paulus.perguntar(texto, {
 - `Paulus.limpar()` ("Nova conversa"/trancar o app) **não** apaga a memória: é o que ela aprendeu, não a conversa. Em computador compartilhado, chame `Paulus.memoria.esquecer()` ao sair da conta (ou use `perfil`).
 - **Worker:** o pedido ganhou o campo opcional `preferencias: { tamanho, exemplos, temas }`. O Worker só aceita `tamanho` de uma lista fechada e `temas` que sejam ids de documentos da própria base (o título vem da base). Em pergunta técnica sobre suicídio as preferências são ignoradas. **Publique o Worker de novo** (`npm run deploy:worker`) e copie o novo `dist/paulus.v1.js`; sem republicar, o app aprende e usa tudo no aparelho, só a IA não adapta o estilo.
 
+**Desde a v0.7.0 (a IA lê o cartão inteiro da ficha e a base do app):**
+- Antes, só o começo de cada ficha (120 a 240 caracteres) chegava à IA, e o Worker cortava o "Sobre" em 240. Agora o app escolhe os **trechos do cartão que combinam com a pergunta** (requisitos, documentos, valores, passo a passo) e manda em `fichas[].descricao`; o Worker aceita até 1800 caracteres por ficha, com teto de 9500 no conjunto (as últimas fichas perdem o excesso primeiro). `MAX_CORPO` subiu para 64000.
+- Campo novo `baseApp: [{ titulo, texto, origem }]` (até 4) em `Paulus.perguntar(texto, { baseApp })`: verbetes conferidos do app (glossário, base do psicólogo), valores de referência e calendários. Vai para o prompt em `<base_do_app>`, com a base legal entre parênteses; é descartado em tema de suicídio. No Argo é montado por `ArgoCerebro.baseApp(texto)`.
+- No Argo, quando a pergunta é de requisito/documento/valor/como solicitar de um serviço que o diretório identifica pelo nome, o mascote responde na hora com os trechos da ficha (`plan.kind === 'ficha'`), com "Aprofundar com a IA" a um toque.
+- **Publique o Worker de novo** (`npm run deploy:worker`) e copie `dist/paulus.v1.js` para o Argo. Sem republicar, o Worker antigo continua cortando o "Sobre" em 240 caracteres e ignora `baseApp`.
+
 **Ainda não feito:** `Paulus.registrarAcao`/`registrarBusca` no Argo (o `ArgoCerebro` já cobre abas e buscas).
 
 ## 1b. Umbrella (PAF/PAIF do CRAS)
