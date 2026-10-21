@@ -240,6 +240,15 @@ Registros de RH nos CRAS em 2025, interior: Pacaraima 41; Caracaraí 25; Alto Al
 ## Atendimento coletivo do PAIF nos CRAS do interior de Roraima, por município
 Pessoas em atendimento coletivo do PAIF em 2025, soma dos CRAS de cada município do interior: Caracaraí 610; Alto Alegre 475; Caroebe 456; São Luiz 275; Mucajaí 259; Rorainópolis 229; São João da Baliza 168; Iracema 152; Uiramutã 116; Pacaraima 75; Cantá 59; Normandia 0. Total informado, 2.874. Sem número informado: Amajari, Bonfim e Caracaraí (falta o número de um CRAS em cada um; em Caracaraí o total refere-se só ao outro CRAS; em Normandia o valor informado é zero). Em Boa Vista foram 5.749 e em Roraima, 8.623. Não é contagem de pessoas únicas.
 
+## Computadores dos CRAS do interior de Roraima, por município
+Computadores (com internet) nos CRAS em 2025, interior: Cantá 20 (20); Bonfim 10 (10); Caracaraí 10 (10); Caroebe 8 (8); Amajari 7 (7); Normandia 6 (6); Alto Alegre 5 (5); São Luiz 5 (5); Iracema 4 (4); Rorainópolis 4 (4); Mucajaí 3 (3); Pacaraima 3 (2); São João da Baliza 3 (3); Uiramutã 3 (3). Total do interior, 91 computadores (90 com internet); Boa Vista tem 207 (202 com internet). Pacaraima tem 3 computadores, 2 com internet.
+
+## Veículos dos CRAS do interior de Roraima, por município
+Veículos de uso exclusivo dos CRAS em 2025, interior: Pacaraima 3; São Luiz 2; Bonfim 1; Iracema 1. Os demais municípios do interior não têm veículo exclusivo. Total do interior, 7 veículos exclusivos e 33 compartilhados; Boa Vista tem 22 exclusivos. Compartilhados por município: Iracema 7; Caracaraí 5; Alto Alegre 3; Cantá 3; Rorainópolis 3; Mucajaí 2; Normandia 2; São João da Baliza 2; Amajari 1; Bonfim 1; Caroebe 1; Pacaraima 1; São Luiz 1; Uiramutã 1.
+
+## Capacidade de famílias referenciadas dos CRAS do interior de Roraima, por município
+Capacidade para referenciar famílias em 2025, soma dos CRAS de cada município: Alto Alegre 5.000; Caracaraí 5.000; São Luiz 5.000; Rorainópolis 3.500; Amajari 2.500; Bonfim 2.500; Cantá 2.500; Caroebe 2.500; Iracema 2.500; Mucajaí 2.500; Normandia 2.500; Pacaraima 2.500; São João da Baliza 2.500; Uiramutã 2.500. Total do interior, 43.500; Boa Vista, 38.500; Roraima, 82.000. É a capacidade declarada de cada CRAS, não o número de famílias acompanhadas.
+
 ## Equipe dos CRAS do interior de Roraima por função no Censo SUAS 2025
 Dos 224 registros de RH nos CRAS do interior, por função: 58 técnico(a) de nível superior, 47 técnico(a) de nível médio, 42 educador(a) social, 18 serviços gerais, 17 cadastrador(a), 15 coordenador(a), 14 outros e 13 apoio administrativo. Calculado como Roraima (547) menos Boa Vista (323) na planilha complementar de CRAS. Registros de RH, não pessoas únicas.
 
