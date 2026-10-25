@@ -47,7 +47,7 @@ O prompt também é montado por partes: sem fichas nem panorama (Toth, Grafia, U
 Se o modelo principal devolver texto vazio, o reserva tenta antes de dar erro.
 
 ### Conferência de citações (`shared/verificacao.mjs`)
-O Worker informa quais artigos e leis estavam nos trechos que a IA leu (`citaveis: { a: [...], l: [...] }`, evento SSE ou campo do JSON). O navegador compara com o que a resposta citou; citação fora da lista vira **aviso** ("A IA citou art. 99, que não aparece nas normas consultadas. Confira..."). O texto não é alterado. Artigos já vistos nas respostas anteriores da conversa não avisam de novo. Worker antigo (sem `citaveis`): o navegador usa só as fontes que vieram.
+O Worker informa quais artigos e leis estavam nos trechos que a IA leu (`citaveis: { a: [...], l: [...], v: [...] }`, evento SSE ou campo do JSON; `v` são os valores em R$ que estavam nas normas, fichas, base do app, panorama ou na própria conversa). O navegador compara com o que a resposta citou; citação (artigo, lei ou valor em R$) fora da lista vira **aviso** ("A IA citou art. 99, que não aparece nas normas consultadas. Confira..."). O texto não é alterado. Artigos já vistos nas respostas anteriores da conversa não avisam de novo. Worker antigo (sem `citaveis`): o navegador usa só as fontes que vieram.
 
 ### Memória
 Cumprimento, ajuste e seguimento **não** entram nas "perguntas frequentes" nem nos temas aprendidos (antes, "oi" virava sugestão do mascote).
@@ -94,3 +94,7 @@ O Worker escolhe até 2 roteiros de `habilidades/` (`shared/habilidades.mjs`) pe
 
 ## Cada app
 Um bloco em `worker/apps.mjs` (contexto para a IA) e outro em `client/skins.mjs` (nome do mascote, saudação, sugestões). O Worker rejeita app que não esteja em `apps.mjs`.
+
+
+## Resiliência do streaming
+Se o fluxo do modelo grande falhar ou terminar sem nenhum texto antes de sair qualquer pedaço, o Worker chama o modelo de reserva (sem stream) e envia a resposta no lugar: a pessoa não vê erro. Se o fluxo cair no meio da resposta, o texto parcial não é emendado por outro modelo; o navegador recebe `{"erro":"A resposta foi interrompida."}`.
