@@ -98,3 +98,26 @@ Um bloco em `worker/apps.mjs` (contexto para a IA) e outro em `client/skins.mjs`
 
 ## Resiliência do streaming
 Se o fluxo do modelo grande falhar ou terminar sem nenhum texto antes de sair qualquer pedaço, o Worker chama o modelo de reserva (sem stream) e envia a resposta no lugar: a pessoa não vê erro. Se o fluxo cair no meio da resposta, o texto parcial não é emendado por outro modelo; o navegador recebe `{"erro":"A resposta foi interrompida."}`.
+
+
+## Cálculo (v0.9.0, shared/calculo.mjs)
+
+Modelo de linguagem erra conta; programa não. Por isso a IA nunca faz aritmética: ela escreve, o programa executa.
+
+**Motor (`shared/calculo.mjs`, navegador e Worker).** Interpretador próprio, sem `eval`: `+ - * / ^`, parênteses, `%` (com a leitura de calculadora: `1200 + 15%` = 1380), comparações (`<= >= ==`, resultado SIM/NÃO), `raiz`, `media`, `min`, `max`, `arred`, `teto`, `piso`, `abs` e `#n` (resultado da conta n). Números no jeito brasileiro (`1.518,50`, `R$ 3.200`, `15,04%`). Sem ruído de ponto flutuante (0,1 + 0,2 = 0,3), arredondamento comercial e limites contra conta gigante ou expoente absurdo. Sem BigInt nem lookbehind (Safari antigo).
+
+**Três caminhos, do mais barato ao mais caro:**
+
+1. *Só a conta* (\"quanto é 15% de 1200?\"): o cliente resolve no aparelho (`respostaDeConta`), `tipo: 'calculo'`, sem rede nem cota.
+2. *Conta com mais assunto* (\"calcule a renda per capita 3200 / 4\"): o Worker acha a conta (`contasConfiaveis`) e a IA recebe `<calculos>` já resolvido.
+3. *Problema em palavras*: `pareceProblemaDeCalculo` aciona o passo de planejamento (`worker/planejar.mjs`): uma chamada com temperatura 0 em que a IA só escreve linhas `CONTA: rótulo | expressão | unidade` (e `FALTA:` quando falta dado), vendo as mesmas normas, fichas e base do app da resposta. O programa executa e a resposta final recebe `<calculos>`. Se o passo falhar, a resposta sai como antes.
+
+**Contra invenção de número.** Todo número literal da conta precisa constar na pergunta, na conversa ou nas fontes lidas (normas, fichas, base do app); constantes de unidade (12, 100, 365...) são livres. O que sobrar é marcado com ⚠ no `<calculos>` e o prompt obriga a IA a apresentar como suposição. Número por extenso (\"três mil\") libera inteiros novos. Dado que falta vira `FALTA:`, nunca chute.
+
+**Verificador.** Resultados da conta (inteiros e em centavos) e os números que a própria pessoa escreveu entram em `citaveis.v`; sem isso, o aviso \"valor sem fonte\" dispararia em toda resposta calculada.
+
+**Não confundir com conta.** Datas, \"Lei 8.742/1993\", \"art. 20, § 3º\", \"CRAS 14 - 18h\" e faixas como \"10-20\" são mascarados; sem palavra de conta (\"quanto é\", \"calcule\", \"soma\"...) só vira resposta direta se houver operador claro.
+
+**Filtro de dados pessoais.** `1518 - 218 - 164 - 58` somava 12 dígitos e era barrado como documento. Agora cadeia com operador entre espaços passa quando a mensagem tem palavra ou símbolo de conta e cada número tem até 8 dígitos. CPF, NIS e telefone (`95-3623-1234`, `123.456.789-01`) continuam barrados.
+
+**Prompt.** O bloco `CONTAS E RACIOCÍNIO NUMÉRICO` só entra em pergunta quantitativa (poupa cota). O trecho \"Como pensar antes de responder\" ganhou etapas explícitas (fato, regra, aplicação, exceção, conclusão com grau de segurança) e a conferência de unidade, período e critério (per capita ou total). Temperatura 0,2 em pergunta de conta. `MODELO_CALCULO` (opcional) troca o modelo do passo de planejamento.
