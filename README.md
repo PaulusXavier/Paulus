@@ -4,6 +4,8 @@ Copiloto de IA compartilhado pelos apps (Argo SUAS, Anona, Toth, Umbrella, Grafi
 
 **O que faz:** responde dúvidas de uso e do SUAS, abre telas, busca coisas dentro do app, cita a norma de onde tirou a resposta (artigo e documento) e **sabe fazer tarefas do trabalho** (habilidades): escrever registro, relatório e ofício, montar PAF, preparar visita, grupo e discussão de caso.
 
+**Faz conta (v0.9.0):** a IA não faz aritmética de cabeça: ela escreve a conta e um programa executa, exato. Pergunta que é só uma conta ("quanto é 15% de 1200?", "1518 - 218 - 164 - 58") é resolvida no próprio aparelho, sem rede e sem gastar cota; problema em palavras ("família de 4 pessoas, renda R$ 3.200, está dentro da linha?") passa por um passo em que a IA só escreve as contas, o programa calcula e a IA explica o resultado. Todo número da conta precisa vir da pergunta ou das fontes lidas; o que não vier é marcado como suposição. Veja [ARQUITETURA](docs/ARQUITETURA.md#cálculo-v090-sharedcalculomjs).
+
 **Dinâmico (v0.6.0):** lê o tipo do pedido (cumprimento, "mais curto", "e para adolescente?", consulta de unidade) e muda busca, prompt e tamanho da resposta; reescreve a resposta anterior quando você pede ajuste; e avisa quando a IA cita artigo ou lei que não estava nas normas consultadas. Veja [ARQUITETURA](docs/ARQUITETURA.md#pedido-dinâmico-v060-sharedpedidomjs).
 
 **Conversa inteira (v0.8.0):** considera a conversa toda, não só as últimas trocas (janela de 5 trocas + resumo das perguntas antigas + estado firmado: unidade, bairro, município e assunto) e só pergunta de volta quando o dado falta de verdade; no mais, responde com a premissa mais provável. Veja [ARQUITETURA](docs/ARQUITETURA.md#conversa-inteira-v080-sharedconversamjs).
@@ -63,7 +65,7 @@ Para publicar, siga [docs/DEPLOY.md](docs/DEPLOY.md). Para ligar a um app, [docs
   Paulus.perguntar('quem gere o Cadastro Único no município?', { onToken: (t, tudo) => mostrar(tudo) })
     .then(r => mostrarResultado(r));
   // no 👍/👎/"mais curto": Paulus.avaliar(r, 'bom' | 'ruim' | 'mais_curto' | 'mais_detalhe' | 'outro_jeito' | 'copiou')
-  // sugestões do mascote: Paulus.sugestoesPessoais(3)   // r.tipo: ia | norma | busca | acao | crise | bloqueio | sem_resposta | erro
+  // sugestões do mascote: Paulus.sugestoesPessoais(3)   // r.tipo: ia | norma | busca | acao | calculo | crise | bloqueio | sem_resposta | erro
 </script>
 ```
 
