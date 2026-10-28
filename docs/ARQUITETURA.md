@@ -121,3 +121,17 @@ Modelo de linguagem erra conta; programa não. Por isso a IA nunca faz aritméti
 **Filtro de dados pessoais.** `1518 - 218 - 164 - 58` somava 12 dígitos e era barrado como documento. Agora cadeia com operador entre espaços passa quando a mensagem tem palavra ou símbolo de conta e cada número tem até 8 dígitos. CPF, NIS e telefone (`95-3623-1234`, `123.456.789-01`) continuam barrados.
 
 **Prompt.** O bloco `CONTAS E RACIOCÍNIO NUMÉRICO` só entra em pergunta quantitativa (poupa cota). O trecho \"Como pensar antes de responder\" ganhou etapas explícitas (fato, regra, aplicação, exceção, conclusão com grau de segurança) e a conferência de unidade, período e critério (per capita ou total). Temperatura 0,2 em pergunta de conta. `MODELO_CALCULO` (opcional) troca o modelo do passo de planejamento.
+
+## Raciocínio (v0.9.1, `worker/raciocinar.mjs`)
+Pergunta de **análise** ("posso/devo", elegibilidade, caso pensado junto, "o que fazer", escolha entre caminhos) ganha um passo antes da resposta: a IA monta em silêncio um esqueleto em linhas rotuladas (`FATOS`, `FONTE`, `EXCECAO`, `FALTA`, `CAMINHO`, `SEGURANCA`), lendo as mesmas fontes da resposta (normas, fichas, base do app, roteiros). A resposta final recebe o esqueleto em `<raciocinio>`, com a regra de que ele é rascunho e não fonte: o que não bater com as fontes é descartado, e a resposta diz o grau de segurança.
+
+- **Quando roda:** `pedeAnalise(pergunta, modo)` decide por regra, sem IA. Não roda em saudação, ajuste, consulta de unidade, pergunta curta, pedido de conta resolvido só pelo programa nem em tema de suicídio.
+- **Custo:** uma chamada a mais (até 480 tokens, temperatura 0,2) só nessas perguntas. `RACIOCINIO = "desligado"` nas variáveis do Worker pula o passo; `MODELO_RACIOCINIO` troca o modelo do passo.
+- **Falha:** se a IA falhar, vier vazia ou fora do formato, a resposta segue como antes.
+
+**Melhorias da v0.9.2**
+- **Mais campos:** além de fato, fonte, exceção, o que falta e caminho, o esqueleto traz `ALTERNATIVA` (o outro caminho razoável e o que ele custa) e `RISCO` (o cuidado ético ou legal que não pode se perder). A resposta final oferece a alternativa em uma frase e traz o cuidado no ponto em que ele pesa. A IA também testa a própria conclusão ("e se o contrário fosse verdade?", "e se a família recusar?") e segue uma ordem de peso das fontes (conversa, lei ou decreto, orientação técnica, leitura profissional).
+- **Segunda busca:** quando as normas lidas não cobrem a pergunta, o passo devolve `BUSCA` (2 a 6 palavras-chave, sem dado de pessoa). O Worker busca de novo e junta até 2 trechos novos às normas que a resposta final vai ler, e as fontes mostradas acompanham.
+- **Conferência do rascunho:** artigo, lei ou valor em R$ que o rascunho cite e que não esteja nas fontes lidas, na ficha, na base do app nem na conversa vira uma linha `ATENCAO`, e a resposta final é instruída a não usar a citação.
+- **Seguimento:** "e se ela recusar?" logo depois de uma pergunta de análise também passa pelo passo (`pedeAnalise(pergunta, modo, historico)`).
+- O passo agora pode usar até 560 tokens.
