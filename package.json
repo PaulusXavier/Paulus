@@ -3,7 +3,7 @@
   "version": "0.6.0",
   "private": true,
   "type": "module",
-  "description": "Paulus: copiloto de IA compartilhado pelos apps (Argo SUAS, Anona, Toth, Umbrella, Grafia).",
+  "description": "Paulus: copiloto de IA compartilhado pelos apps (Argo SUAS, Anona, Toth, Umbrella, Grafia, Verbus).",
   "scripts": {
     "pretest": "node scripts/build-knowledge.mjs && node scripts/build-habilidades.mjs",
     "test": "node --test",
