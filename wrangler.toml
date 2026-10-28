@@ -24,3 +24,6 @@ ALLOWED_ORIGINS = "https://paulusxavier.github.io"
 # Passo que reescreve a pergunta antes de responder (padrão: o mesmo MODELO):
 # MODELO_INTERPRETE = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 # Não há chave de API: o Workers AI usa a sua própria conta Cloudflare.
+# Passo de raciocínio (perguntas de análise): uma chamada a mais, só nessas perguntas. "desligado" pula o passo e poupa cota.
+# RACIOCINIO = "desligado"
+# MODELO_RACIOCINIO = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
