@@ -27,3 +27,11 @@ ALLOWED_ORIGINS = "https://paulusxavier.github.io"
 # Passo de raciocínio (perguntas de análise): uma chamada a mais, só nessas perguntas. "desligado" pula o passo e poupa cota.
 # RACIOCINIO = "desligado"
 # MODELO_RACIOCINIO = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+
+# Limite de pedidos GLOBAL por IP (recomendado): o contador em memória do Worker vale só por instância, então um abuso espalhado passa por ele.
+# Descomente e CONFIRA a sintaxe na documentação atual da Cloudflare ("Workers Rate Limiting binding"); o handler usa env.LIMITADOR se existir.
+# [[unsafe.bindings]]
+# name = "LIMITADOR"
+# type = "ratelimit"
+# namespace_id = "1001"
+# simple = { limit = 16, period = 60 }
