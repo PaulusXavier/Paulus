@@ -12,6 +12,8 @@ Copiloto de IA compartilhado pelos apps (Argo SUAS, Anona, Toth, Umbrella, Grafi
 
 **Conversa inteira (v0.8.0):** considera a conversa toda, não só as últimas trocas (janela de 5 trocas + resumo das perguntas antigas + estado firmado: unidade, bairro, município e assunto) e só pergunta de volta quando o dado falta de verdade; no mais, responde com a premissa mais provável. Veja [ARQUITETURA](docs/ARQUITETURA.md#conversa-inteira-v080-sharedconversamjs).
 
+**Se compreende (v0.10.0):** o Paulus sabe o que ele mesmo é, tem e não faz. A pergunta sobre ele ("o que você sabe fazer?", "de onde vêm suas respostas?", "você guarda minhas conversas?", "quais normas você tem?") é reconhecida sem gastar IA e respondida com uma **ficha de si montada do próprio repositório** (versão, catálogo da base com o que está conferido e o que não, as habilidades, os apps, o jeito de funcionar, o que não faz e as lacunas conhecidas). Ensinou uma habilidade nova ou acrescentou um documento: a ficha muda sozinha. Nessas perguntas ele não busca norma nem cita artigo, e o que não consta na ficha ele diz que não sabe dizer de si. Veja [ARQUITETURA](docs/ARQUITETURA.md#autoconhecimento-v0100-sharedautoconhecimentomjs).
+
 **Aprende com o uso (v0.5.0):** estilo de resposta (curto, detalhado, com exemplos), documentos e perguntas frequentes, apelidos para as telas e respostas que você aprovou. **Tudo no aparelho** (nada vai para o servidor) e sob seu controle: ver, desligar, exportar e apagar. Veja [INTEGRACAO](docs/INTEGRACAO.md) (v0.5.0) e [SEGURANCA](docs/SEGURANCA.md).
 
 **O que não faz:** não guarda dado de família, não lê planilha nem registro dos apps e não decide caso individual.
