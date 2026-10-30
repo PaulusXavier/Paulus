@@ -122,6 +122,22 @@ Modelo de linguagem erra conta; programa não. Por isso a IA nunca faz aritméti
 
 **Prompt.** O bloco `CONTAS E RACIOCÍNIO NUMÉRICO` só entra em pergunta quantitativa (poupa cota). O trecho \"Como pensar antes de responder\" ganhou etapas explícitas (fato, regra, aplicação, exceção, conclusão com grau de segurança) e a conferência de unidade, período e critério (per capita ou total). Temperatura 0,2 em pergunta de conta. `MODELO_CALCULO` (opcional) troca o modelo do passo de planejamento.
 
+## Autoconhecimento (v0.10.0, `shared/autoconhecimento.mjs`)
+
+Antes, o Paulus sabia de si uma linha ("sou uma IA do app"), então improvisava ao falar de si, e improvisar sobre si é a forma mais fácil de prometer o que não faz ("vou pesquisar", "da próxima vez eu lembro"). Agora ele tem duas camadas:
+
+1. **Sempre ligada, curta** (`O QUE VOCÊ É POR DENTRO`, em `worker/prompt.mjs`): por quais vias ele sabe o que sabe (normas, habilidades, o que o app manda), o que ele não faz (navegar, gravar, lembrar entre conversas, ver dados dos apps), que quem calcula é um programa e que sobre si só afirma o que estiver em `<voce>`.
+2. **Só quando a pergunta é sobre ele** (`<voce>` + `SOBRE VOCÊ MESMO`): a ficha de si.
+
+Fluxo no Worker (`worker/handler.mjs`):
+
+- `ehPerguntaSobreSi(pergunta)` reconhece, por regras (sem IA), perguntas como "o que você sabe fazer?", "como você funciona?", "de onde vêm suas respostas?", "você guarda minhas conversas?", "você tem a LOAS?". "O que você sabe **sobre o BPC**?" e "você conhece o **artigo 20** da LOAS?" são perguntas do assunto e seguem para a busca de normas. Um seguimento ("e quais normas?") continua sendo sobre ele quando a pergunta-raiz da conversa era sobre ele; pedido de ajuste ("mais curto") só reescreve a resposta anterior.
+- Sendo sobre ele: não busca norma, não escolhe habilidade, não calcula e não monta esqueleto de raciocínio (falar de si não pode citar artigo); a temperatura cai para no máximo 0,3. Socorro e filtro de dados pessoais continuam vindo antes de tudo.
+- `montarAutoconhecimento({ versao, catalogo, habilidades, apps })` monta a ficha **do repositório**: versão (`package.json`), documentos e trechos por tipo e o que está conferido (`knowledge/catalogo.json`), habilidades por família (`knowledge/habilidades.json`) e apps (`worker/apps.mjs`). O `worker/index.mjs` já passa tudo isso; sem o catálogo, o Worker o refaz a partir da própria base. O nome do modelo que aparece na ficha é o que o Worker usa de fato naquele momento (`MODELO` e `MODELO_RESERVA`).
+- `fichaComoTexto(ficha, pergunta)` escolhe o que mostrar: pergunta geral ("o que você sabe?") vira o resumo de tudo; pergunta específica ("quais normas você tem?", "como você funciona?") traz só a parte certa em detalhe. Identidade e **limites** vão sempre: quem fala de si diz também o que não faz. Teto de cerca de 6500 caracteres, e o prompt comum não paga nada por isso.
+
+O que não dá para derivar do código é texto escrito à mão no mesmo arquivo: `COMO_FUNCIONA`, `LIMITES`, `APRENDIZADO`, `CONFIANCA` e `LACUNAS`. **Quando o Paulus mudar de jeito de funcionar** (um passo novo, uma regra nova, um documento que deixou de faltar), revise essas constantes; os testes em `tests/autoconhecimento.test.mjs` garantem que a ficha bate com o catálogo e com as habilidades, mas não sabem se o texto à mão ficou velho.
+
 ## Raciocínio (v0.9.1, `worker/raciocinar.mjs`)
 Pergunta de **análise** ("posso/devo", elegibilidade, caso pensado junto, "o que fazer", escolha entre caminhos) ganha um passo antes da resposta: a IA monta em silêncio um esqueleto em linhas rotuladas (`FATOS`, `FONTE`, `EXCECAO`, `FALTA`, `CAMINHO`, `SEGURANCA`), lendo as mesmas fontes da resposta (normas, fichas, base do app, roteiros). A resposta final recebe o esqueleto em `<raciocinio>`, com a regra de que ele é rascunho e não fonte: o que não bater com as fontes é descartado, e a resposta diz o grau de segurança.
 
