@@ -505,17 +505,6 @@
     "caracteres": 13196
   },
   {
-    "doc": "paif-tipificacao-2009",
-    "titulo": "PAIF na Tipificação Nacional de Serviços Socioassistenciais (síntese)",
-    "norma": "Síntese do item \"Serviço de Proteção e Atendimento Integral à Família (PAIF)\" da Tipificação Nacional de Serviços Socioassistenciais (Resolução CNAS nº 109, de 11 de novembro de 2009). Resumo, não é o texto literal.",
-    "ano": 2009,
-    "tipo": "apoio",
-    "url": "https://www.normasbrasil.com.br/norma/resolucao-109-2009_110778.html",
-    "revisao": "pendente",
-    "trechos": 10,
-    "caracteres": 3386
-  },
-  {
     "doc": "paif-trilhas-mds-2024-2026",
     "titulo": "Trilhas do PAIF (MDS): Trabalho Social com Famílias e Territórios",
     "norma": "MDS, Coleção Trilhas do PAIF: \"Trabalho social com famílias e territórios no PAIF: trilha para o contexto das condicionalidades do Programa Bolsa Família\" (MDS/UNICEF, 2024) e \"Trilha para a primeira infância\" (MDS, 2026); resumo de partes, não é o texto literal",
@@ -534,8 +523,8 @@
     "tipo": "apoio",
     "worker": "nao",
     "revisao": "pendente",
-    "trechos": 23,
-    "caracteres": 14719
+    "trechos": 38,
+    "caracteres": 24814
   },
   {
     "doc": "portaria-interministerial-mds-ms-38-2026",
@@ -556,6 +545,17 @@
     "revisao": "pendente",
     "trechos": 3,
     "caracteres": 1593
+  },
+  {
+    "doc": "resolucao-cnas-218-2025",
+    "titulo": "Serviço de Proteção Social Básica no Domicílio para gestantes e crianças de 0 a 6 anos (inclusão na Tipificação)",
+    "norma": "Resolução CNAS/MDS nº 218, de 25 de novembro de 2025 (DOU de 26/11/2025, Seção 1, p. 74), que inclui na Tipificação Nacional (Resolução CNAS nº 109/2009) o público Gestantes e Crianças de 0 a 6 anos completos no Serviço de Proteção Social Básica no Domicílio",
+    "ano": 2025,
+    "tipo": "norma",
+    "url": "https://www.in.gov.br/en/web/dou/-/resolucao-cnas/mds-n-218-de-25-de-novembro-de-2025-671036324",
+    "revisao": "pendente",
+    "trechos": 42,
+    "caracteres": 19321
   },
   {
     "doc": "roraima-municipios-2022",
@@ -610,5 +610,15 @@
     "revisao": "pendente",
     "trechos": 14,
     "caracteres": 10053
+  },
+  {
+    "doc": "tipificacao-2009",
+    "titulo": "Tipificação Nacional de Serviços Socioassistenciais",
+    "norma": "Resolução CNAS nº 109, de 11 de novembro de 2009 (texto original; alterações posteriores, como a Resolução CNAS/MDS nº 218/2025, estão em documento próprio)",
+    "ano": 2009,
+    "tipo": "norma",
+    "revisao": "pendente",
+    "trechos": 213,
+    "caracteres": 107002
   }
 ]
