@@ -1,0 +1,4 @@
+# PDFs e textos de entrada ficam fora do Git: o que vale é o .md gerado em ../documentos/.
+*.pdf
+*.txt
+*.docx
