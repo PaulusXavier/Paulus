@@ -22,5 +22,28 @@
     "paginaInicial": 78,
     "paginaFinal": 159,
     "deslocamento": 1
+  },
+  {
+    "arquivo": "NOBSUAS_2012.pdf",
+    "doc": "nob-suas-2012",
+    "titulo": "NOB/SUAS 2012",
+    "norma": "Resolução CNAS nº 33, de 12 de dezembro de 2012 (Norma Operacional Básica do SUAS); edição MDS/SNAS, 2012",
+    "ano": 2012,
+    "tipo": "norma",
+    "modo": "norma",
+    "paginaInicial": 16,
+    "paginaFinal": 55
+  },
+  {
+    "arquivo": "NOB-RH_SUAS_Anotada_Comentada.pdf",
+    "doc": "nob-rh-suas-anotada-2011",
+    "titulo": "NOB-RH/SUAS Anotada e Comentada",
+    "norma": "MDS/SNAS, NOB-RH/SUAS: Anotada e Comentada, Brasília, dezembro de 2011 (inclui a Resolução CNAS nº 269, de 13 de dezembro de 2006, que aprova a NOB-RH/SUAS)",
+    "ano": 2011,
+    "tipo": "referencia",
+    "modo": "documento",
+    "paginaInicial": 8,
+    "paginaFinal": 105,
+    "deslocamento": 1
   }
 ]
