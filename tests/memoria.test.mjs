@@ -394,12 +394,12 @@ test('Paulus.limpar() (nova conversa) não apaga o que foi aprendido', () => {
 test('buscar({ preferir }) só reordena o que já passou nos cortes e limita o favorecimento', () => {
   const indice = criarIndice(base);
   const consulta = 'cadastro único gestão município';
-  const normal = buscar(indice, consulta, { k: 500 });
+  const normal = buscar(indice, consulta, { k: 5000 });
   assert.ok(normal.length >= 2);
   const ultimo = normal[normal.length - 1].trecho.doc;
-  const com = buscar(indice, consulta, { k: 500, preferir: { [ultimo]: 99, 'doc-que-nao-existe': 5 } });
+  const com = buscar(indice, consulta, { k: 5000, preferir: { [ultimo]: 99, 'doc-que-nao-existe': 5 } });
   assert.deepEqual(com.map(x => x.trecho.id).sort(), normal.map(x => x.trecho.id).sort(), 'mesmos resultados, nenhum a mais');
   const razao = com.find(x => x.trecho.doc === ultimo).ordem / com.find(x => x.trecho.doc === ultimo).score;
   assert.ok(razao <= 1.3 * 1.2 + 1e-9, 'fator limitado a 1,3 (e 1,2 é o peso de norma)');
-  assert.deepEqual(buscar(indice, consulta, { k: 500, preferir: {} }).map(x => x.trecho.id), normal.map(x => x.trecho.id));
+  assert.deepEqual(buscar(indice, consulta, { k: 5000, preferir: {} }).map(x => x.trecho.id), normal.map(x => x.trecho.id));
 });
