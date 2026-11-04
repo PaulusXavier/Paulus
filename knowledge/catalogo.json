@@ -61,6 +61,17 @@
     "caracteres": 9618
   },
   {
+    "doc": "cfp-avaliacao-psicologica-guia",
+    "titulo": "Avaliação psicológica e documentos da psicologia: guia de apoio (Res. CFP 31/2022 e 06/2019)",
+    "norma": "Síntese de apoio sobre a avaliação psicológica (Resolução CFP nº 31, de 15/12/2022) e os documentos escritos da psicologia (Resolução CFP nº 06, de 29/03/2019), com os limites de atuação no CRAS segundo as Referências Técnicas do CFP/CREPOP para o CRAS/SUAS (2021). As partes marcadas como \"prática sugerida\" são orientação de trabalho, não norma. Resumo, não é o texto literal.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 11,
+    "caracteres": 7627
+  },
+  {
     "doc": "cfp-gestores-suas-2011",
     "titulo": "Como os psicólogos e as psicólogas podem contribuir para avançar o SUAS: informações para gestoras e gestores",
     "norma": "CFP/CREPOP, Como os psicólogos e as psicólogas podem contribuir para avançar o Sistema Único de Assistência Social (SUAS): informações para gestoras e gestores, 1ª edição",
@@ -545,6 +556,17 @@
     "revisao": "pendente",
     "trechos": 3,
     "caracteres": 1593
+  },
+  {
+    "doc": "psicodiagnostico-guia-apoio",
+    "titulo": "Psicodiagnóstico: guia de apoio conceitual e limites no SUAS",
+    "norma": "Síntese de apoio sobre psicodiagnóstico como modalidade de avaliação psicológica, a partir da Res. CFP 31/2022 e 06/2019 (ver guia de avaliação psicológica) e da prática descrita na literatura da área. Partes marcadas como \"prática sugerida\" são orientação de trabalho, não norma. Resumo, não é o texto literal.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 5,
+    "caracteres": 1816
   },
   {
     "doc": "resolucao-cnas-13-2014",
