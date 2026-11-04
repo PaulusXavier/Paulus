@@ -461,14 +461,24 @@
     "caracteres": 46738
   },
   {
+    "doc": "nob-suas-2005",
+    "titulo": "NOB/SUAS 2005 (versão histórica, substituída pela NOB/SUAS 2012)",
+    "norma": "Resolução CNAS nº 130, de 15 de julho de 2005 (Norma Operacional Básica do SUAS); edição MDS/SNAS, Brasília, 2005, reimpressa em 2009",
+    "ano": 2005,
+    "tipo": "norma",
+    "revisao": "pendente",
+    "trechos": 453,
+    "caracteres": 213594
+  },
+  {
     "doc": "nob-suas-2012",
     "titulo": "NOB/SUAS 2012",
-    "norma": "Resolução CNAS nº 33, de 12 de dezembro de 2012",
+    "norma": "Resolução CNAS nº 33, de 12 de dezembro de 2012 (Norma Operacional Básica do SUAS); edição MDS/SNAS, 2012",
     "ano": 2012,
     "tipo": "norma",
     "revisao": "pendente",
-    "trechos": 11,
-    "caracteres": 2089
+    "trechos": 530,
+    "caracteres": 139165
   },
   {
     "doc": "oms-cid11-guia-2024",
@@ -536,6 +546,16 @@
     "revisao": "pendente",
     "trechos": 38,
     "caracteres": 24814
+  },
+  {
+    "doc": "pnas-2004",
+    "titulo": "Política Nacional de Assistência Social (PNAS/2004)",
+    "norma": "Resolução CNAS nº 145, de 15 de outubro de 2004 (aprova a Política Nacional de Assistência Social); edição MDS/SNAS, Brasília, 2005, reimpressa em 2009",
+    "ano": 2004,
+    "tipo": "norma",
+    "revisao": "pendente",
+    "trechos": 261,
+    "caracteres": 143105
   },
   {
     "doc": "portaria-interministerial-mds-ms-38-2026",
