@@ -2,6 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+import { juntar } from '../scripts/build.mjs';
 import { criarManipulador } from '../worker/handler.mjs';
 import { APPS } from '../worker/apps.mjs';
 import { montarMensagens, montarSistema, blocoPartes } from '../worker/prompt.mjs';
@@ -108,4 +110,19 @@ test('Worker: pergunta composta avisa o prompt de que são várias', async () =>
   const m = criarManipulador({ base, apps: APPS, habilidades: lerTodas() });
   await m(pedido({ app: 'argo', pergunta: 'O que é o PAIF? Como funciona o BPC? Quando o CadÚnico precisa ser atualizado?' }), env);
   assert.match(chamadas[chamadas.length - 1].params.messages[0].content, /VÁRIAS PERGUNTAS/);
+});
+
+test('navegador: Paulus.pedido.sobreResposta deixa o app reconhecer o pedido antes de reescrever a pergunta (Argo usa papel "argo")', () => {
+  const sandbox = { self: {}, TextDecoder, AbortController, setTimeout, clearTimeout, navigator: { onLine: true } };
+  vm.runInNewContext(juntar(), sandbox);
+  const P = sandbox.self.Paulus;
+  assert.equal(typeof P.pedido.sobreResposta, 'function');
+  const argo = [{ papel: 'usuario', texto: 'quem tem direito ao BPC?' }, { papel: 'argo', texto: 'Idosos de 65 anos ou mais e pessoas com deficiência.' }];
+  assert.equal(P.pedido.sobreResposta('continue', argo), 'continuar');
+  assert.equal(P.pedido.sobreResposta('tem certeza?', argo), 'contestacao');
+  assert.equal(P.pedido.sobreResposta('de onde você tirou isso?', argo), 'porque');
+  // pergunta nova com palavras parecidas não é pedido sobre a resposta, e sem resposta anterior nada vale
+  assert.equal(P.pedido.sobreResposta('qual o telefone do CRAS Cauamé?', argo), '');
+  assert.equal(P.pedido.sobreResposta('continue', []), '');
+  assert.equal(P.pedido.sobreResposta('continue', [{ papel: 'usuario', texto: 'oi' }]), '');
 });
