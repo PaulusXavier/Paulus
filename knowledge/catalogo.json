@@ -281,6 +281,17 @@
     "caracteres": 105604
   },
   {
+    "doc": "cnj-resolucao-487-2023-resumo",
+    "titulo": "Resolução CNJ 487/2023 (Política Antimanicomial do Poder Judiciário), resumo",
+    "norma": "Resumo da Resolução CNJ nº 487, de 15 de fevereiro de 2023, que institui a Política Antimanicomial do Poder Judiciário, com as alterações da Resolução CNJ nº 572, de 26 de agosto de 2024. Resumo escrito para o Paulus, não é o texto literal. Prazos foram prorrogados por tribunal: confira o vigente no CNJ.",
+    "ano": 2023,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 7,
+    "caracteres": 2669
+  },
+  {
     "doc": "decreto-12064-2024",
     "titulo": "Regulamento do Programa Bolsa Família",
     "norma": "Decreto nº 12.064, de 17 de junho de 2024 (texto compilado, Planalto, com alterações dos Decretos nº 12.417/2025 e nº 13.120/2026)",
@@ -441,6 +452,29 @@
     "caracteres": 7557
   },
   {
+    "doc": "lei-10216-2001-resumo",
+    "titulo": "Lei da Reforma Psiquiátrica (Lei 10.216), resumo comentado",
+    "norma": "Resumo da Lei nº 10.216, de 6 de abril de 2001 (proteção e direitos das pessoas portadoras de transtornos mentais e redirecionamento do modelo assistencial em saúde mental). Resumo escrito para o Paulus, não é o texto literal. Para citar, confira o texto oficial (planalto.gov.br).",
+    "ano": 2001,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "url": "https://www.planalto.gov.br/ccivil_03/leis/leis_2001/l10216.htm",
+    "revisao": "pendente",
+    "trechos": 8,
+    "caracteres": 4169
+  },
+  {
+    "doc": "lei-13840-2019-drogas-resumo",
+    "titulo": "Lei 13.840 (políticas sobre drogas, internação e acolhimento), resumo comentado",
+    "norma": "Resumo da Lei nº 13.840, de 5 de junho de 2019, que altera a Lei nº 11.343/2006 (Sisnad) e outras para dispor sobre o Sistema Nacional de Políticas Públicas sobre Drogas, as condições de atenção aos usuários ou dependentes de drogas e o financiamento das políticas. Resumo escrito para o Paulus, não é o texto literal. Para citar, confira o texto oficial.",
+    "ano": 2019,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 6,
+    "caracteres": 2917
+  },
+  {
     "doc": "lei-14601-2023",
     "titulo": "Lei do Programa Bolsa Família",
     "norma": "Lei nº 14.601, de 19 de junho de 2023 (texto compilado, Planalto, com alterações da Lei nº 15.077/2024)",
@@ -469,16 +503,6 @@
     "revisao": "pendente",
     "trechos": 308,
     "caracteres": 137215
-  },
-  {
-    "doc": "nob-suas-2005",
-    "titulo": "NOB/SUAS 2005 (versão histórica, substituída pela NOB/SUAS 2012)",
-    "norma": "Resolução CNAS nº 130, de 15 de julho de 2005 (Norma Operacional Básica do SUAS); edição MDS/SNAS, Brasília, 2005, reimpressa em 2009",
-    "ano": 2005,
-    "tipo": "norma",
-    "revisao": "pendente",
-    "trechos": 453,
-    "caracteres": 213594
   },
   {
     "doc": "nob-suas-2012",
@@ -608,6 +632,61 @@
     "revisao": "pendente",
     "trechos": 5,
     "caracteres": 1480
+  },
+  {
+    "doc": "raps-boa-vista-roraima-apoio",
+    "titulo": "RAPS em Boa Vista e Roraima: contexto da rede e do trabalho do CRAS (apoio)",
+    "norma": "Contexto de apoio sobre a RAPS em Boa Vista e em Roraima, a partir de reportagens e documentos públicos citados (Folha BV, Conass 2013, guia municipal de saúde mental) e das bases do Paulus (Censo SUAS, Operação Acolhida, povos indígenas). Não é norma e pode estar desatualizado: nomes, endereços, telefones e horários vêm do diretório do Argo, não daqui.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 5,
+    "caracteres": 2081
+  },
+  {
+    "doc": "raps-guia-apoio",
+    "titulo": "RAPS: guia de apoio (conceitos, serviços, fluxos e interface com o SUAS)",
+    "norma": "Síntese de apoio sobre a Rede de Atenção Psicossocial (conceitos, serviços, fluxos, glossário e articulação SUAS e RAPS), escrita para a prática da psicologia no SUAS. Não é norma. Partes marcadas como \"prática sugerida\" são orientação de trabalho. Resumo, não é o texto literal.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 9,
+    "caracteres": 5517
+  },
+  {
+    "doc": "raps-leis-complementares-resumo",
+    "titulo": "Saúde mental: leis complementares (SUS, Volta para Casa, autismo, pessoa com deficiência, curatela), resumo",
+    "norma": "Resumo de leis e atos que se ligam à RAPS: Lei 8.080/1990 (SUS), Lei 10.708/2003 (Programa de Volta para Casa), Lei 12.764/2012 (Política Nacional da Pessoa com Transtorno do Espectro Autista), Lei 13.146/2015 (Estatuto da Pessoa com Deficiência, curatela e decisão apoiada). Resumo escrito para o Paulus, não é o texto literal. Confira o texto oficial para citar.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 5,
+    "caracteres": 2721
+  },
+  {
+    "doc": "raps-normas-posteriores-resumo",
+    "titulo": "RAPS: normas posteriores à Portaria 3.088 (2012 a 2026), resumo",
+    "norma": "Resumo de normas do Ministério da Saúde posteriores à Portaria 3.088/2011 sobre a RAPS (Portarias de Consolidação 3 e 6/2017, 3.588/2017, 757/2023, 5.500/2024, 5.687/2024, 5.738/2024, 10/2026). Resumo escrito para o Paulus, não é o texto literal; valores de custeio e prazos mudam e devem ser conferidos na norma vigente.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 8,
+    "caracteres": 4863
+  },
+  {
+    "doc": "raps-portaria-3088-2011-resumo",
+    "titulo": "RAPS: resumo da Portaria GM/MS nº 3.088/2011 (Rede de Atenção Psicossocial)",
+    "norma": "Resumo da Portaria GM/MS nº 3.088, de 23 de dezembro de 2011, que institui a Rede de Atenção Psicossocial (RAPS) no SUS; hoje consolidada no Anexo V da Portaria de Consolidação GM/MS nº 3/2017. Resumo escrito para o Paulus, não é o texto literal. Para citar artigo, confira o texto oficial consolidado.",
+    "ano": 2011,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 10,
+    "caracteres": 5347
   },
   {
     "doc": "resolucao-cnas-13-2014",
