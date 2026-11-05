@@ -560,8 +560,11 @@ async function consultarNormas(texto, opcoes) {
   return achados.length ? respostaDasNormas(achados) : null;
 }
 
-const Paulus = { init, perguntar, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, temDadoPessoal, detectarCrise, versao: '0.10.0',
+const Paulus = { init, perguntar, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, temDadoPessoal, detectarCrise, versao: '0.11.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
-  conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou } };
+  conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
+  // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
+  // porque esses pedidos só funcionam com as palavras da pessoa. Devolve 'continuar' | 'contestacao' | 'porque' | '' (sem resposta anterior no histórico, sempre '').
+  pedido: { sobreResposta: pedidoSobreResposta } };
 
 export default Paulus;
