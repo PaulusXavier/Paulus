@@ -442,6 +442,16 @@
     "caracteres": 6091
   },
   {
+    "doc": "dimensao-coletiva-suas-paif-paefi-2026",
+    "titulo": "A dimensão coletiva no SUAS: concepção e práticas no PAIF e no PAEFI",
+    "norma": "MDS/UNICEF, A dimensão coletiva no SUAS: concepção e práticas no PAIF e no PAEFI, 1. ed., Brasília, NDH-PUCPR, 2026 (ISBN 978-85-93855-32-0)",
+    "ano": 2026,
+    "tipo": "referencia",
+    "revisao": "pendente",
+    "trechos": 482,
+    "caracteres": 243636
+  },
+  {
     "doc": "guia-bolsa-familia-cadunico-2026",
     "titulo": "Guia rápido Bolsa Família e CadÚnico (orientação, não é norma)",
     "norma": "Material orientativo compilado de MDS/Caixa e das normas citadas (Lei 14.601/2023, Decretos 12.064/2024 e 13.120/2026, Decreto 11.016/2022, Portaria MDS 1.058/2025, IN SENARC/MDS 50/2025, Portarias Interministeriais MDS/MS 38/2026 e MEC/MDS 12/2025); atualizado em 15/10/2026",
@@ -558,6 +568,46 @@
     "revisao": "pendente",
     "trechos": 21,
     "caracteres": 13196
+  },
+  {
+    "doc": "paif-trilha-1-condicionalidades-2024",
+    "titulo": "Trilha 1 do PAIF: Trabalho Social com Famílias e Territórios, contexto das condicionalidades do Bolsa Família",
+    "norma": "MDS/UNICEF, Trabalho social com famílias e territórios no PAIF: trilha para o contexto das condicionalidades do Programa Bolsa Família, volume único, Brasília, 2024 (ISBN 978-65-01-27495-9)",
+    "ano": 2024,
+    "tipo": "referencia",
+    "revisao": "pendente",
+    "trechos": 260,
+    "caracteres": 138663
+  },
+  {
+    "doc": "paif-trilha-2-inseguranca-alimentar-2025",
+    "titulo": "Trilha 2 do PAIF: Trabalho Social com Famílias e Territórios, contexto da insegurança alimentar e nutricional",
+    "norma": "MDS/UNICEF, Trabalho social com famílias e territórios no PAIF: trilha para o contexto da insegurança alimentar e nutricional, Brasília, 2025 (ISBN 978-65-01-61545-5)",
+    "ano": 2025,
+    "tipo": "referencia",
+    "revisao": "pendente",
+    "trechos": 448,
+    "caracteres": 248120
+  },
+  {
+    "doc": "paif-trilha-3-violencia-mulheres-2026",
+    "titulo": "Trilha 3 do PAIF: Trabalho Social com Famílias e Territórios, prevenção da violência doméstica e familiar contra as mulheres",
+    "norma": "MDS, Trabalho social com famílias e territórios no PAIF: trilha para prevenção da violência doméstica e familiar contra as mulheres, 1. ed., Brasília, 2026 (ISBN 978-65-978980-4-6)",
+    "ano": 2026,
+    "tipo": "referencia",
+    "revisao": "pendente",
+    "trechos": 615,
+    "caracteres": 331538
+  },
+  {
+    "doc": "paif-trilha-4-primeira-infancia-2026",
+    "titulo": "Trilha 4 do PAIF: Trabalho Social com Famílias e Territórios, primeira infância",
+    "norma": "MDS, Trabalho social com famílias e territórios no PAIF: trilha para a primeira infância (Coleção Trilhas, v. 4), 1. ed., Brasília, julho de 2026 (ISBN 978-85-93855-34-4)",
+    "ano": 2026,
+    "tipo": "referencia",
+    "revisao": "pendente",
+    "trechos": 447,
+    "caracteres": 224059
   },
   {
     "doc": "paif-trilhas-mds-2024-2026",
