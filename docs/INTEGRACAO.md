@@ -162,9 +162,32 @@ async function enviar(texto) {
   (r.avisos || []).forEach(mostrarAviso);                          // "Resposta gerada por IA..."
 }
 ```
-Tipos de `r.tipo`: `ia`, `norma`, `busca`, `acao`, `acao_desconhecida`, `calculo` (conta feita no aparelho; `r.texto` é texto simples, `r.itens` traz `{ expressao, valor, texto }`; `perguntar(t, { semCalculo: true })` desliga), `crise`, `bloqueio`, `sem_resposta`, `erro`. Em `erro`, `r.limite === true` indica limite de perguntas (basta esperar); em `sem_resposta`, `r.motivo` traz o que o Worker informou, se informou.
+Tipos de `r.tipo`: `ia`, `norma`, `busca`, `acao`, `acao_desconhecida`, `rota` (veja "Rotas" abaixo), `calculo` (conta feita no aparelho; `r.texto` é texto simples, `r.itens` traz `{ expressao, valor, texto }`; `perguntar(t, { semCalculo: true })` desliga), `crise`, `bloqueio`, `sem_resposta`, `erro`. Em `erro`, `r.limite === true` indica limite de perguntas (basta esperar); em `sem_resposta`, `r.motivo` traz o que o Worker informou, se informou.
 
 Ao trancar o app ou tocar em "Nova conversa", chame `Paulus.limpar()`.
+
+## Rotas (v0.12.0)
+O Paulus traça rota **no aparelho, sem IA**: ordem das paradas, km e tempo estimados, link do mapa. Para isso o app só precisa dizer onde ficam as unidades:
+
+```js
+Paulus.init({
+  app: 'argo', endpoint: '...',
+  cidade: 'Boa Vista, RR',                       // opcional: entra na busca do mapa quando o link é feito só com nome
+  pontos: () => unidades.map(u => ({ nome: u.nome, lat: u.lat, lng: u.lng, apelidos: ['CRAS Sul'] })),   // array ou função; só unidades PÚBLICAS
+  aparelho: () => posicaoAtualOuNull()           // opcional: {lat, lng} (ou Promise). O Paulus nunca pede o GPS.
+});
+const r = await Paulus.perguntar('traçar rota saindo do CRAS Cauamé: UBS Pintolândia, CAPS II e Conselho Tutelar, voltando ao CRAS Cauamé, de moto');
+if (r.tipo === 'rota') {
+  bolha.textContent = r.texto;                    // textContent, nunca innerHTML
+  r.links.forEach(l => botaoDeLink(l.rotulo, l.url));   // "Abrir a rota no app de mapas" (abra com rel="noopener")
+  if (r.svg) bolha.insertAdjacentHTML('beforeend', r.svg);   // SVG montado pelo Paulus, nomes já escapados; ou use r.geojson num mapa seu
+}
+```
+- `r.paradas` (nomes na ordem sugerida), `r.km`, `r.minutos` (viagem + tempo nas paradas) e `r.bloqueio` (pedido recusado, por exemplo endereço de residência).
+- Sem `pontos`, ou com unidade fora do diretório, o Paulus monta só o link por nome, na ordem escrita, e **diz que não estimou** km nem tempo. Nome que combina com mais de uma unidade ("CRAS") gera a pergunta de qual.
+- O que ele entende: "como chegar ao X (saindo do Y)", "rota de X até Y passando por A e B", "melhor ordem para visitar A, B, C e D", "A -> B -> C" (ordem sua), "nessa ordem", "saindo daqui", "voltando ao X", "de moto/carro/bicicleta/a pé", "30 minutos em cada". "Abrir rota de visita" continua sendo uma ação do app, e conversa sobre rota ("o que é rota de visita?", "rota de fuga") segue para a IA.
+- `perguntar(t, { semRota: true })` desliga. Apps com cérebro próprio (Argo) chamam `Paulus.rota.responder(texto, { pontos, aparelho, cidade })`, que devolve o mesmo objeto sem `tipo` ou `null` (aí a pergunta segue o fluxo do app).
+- Privacidade: o pedido nunca vai para a IA nem para a rede; o link só sai quando a pessoa toca nele. Endereço de residência é recusado de propósito (o Paulus protege as famílias).
 
 ## 4. Incluir um app novo
 1. Acrescente o identificador em `worker/apps.mjs` (com o texto de contexto) e em `client/skins.mjs`.
