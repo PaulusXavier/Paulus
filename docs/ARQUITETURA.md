@@ -15,6 +15,7 @@ app (navegador)                            Worker (Cloudflare)             Worke
 2. Dado pessoal na pergunta → bloqueia; nada sai do aparelho.
 3. "abrir ..." → ação registrada pelo app (pede confirmação se mexe em dados).
 4. "buscar ..." → busca registrada pelo app, executada no aparelho; o resultado não vai para a IA.
+4b. Pedido de rota (v0.12.0) → `shared/rota.mjs` ordena, mede e monta o link no aparelho (`tipo: 'rota'`), sem IA; `{ semRota: true }` desliga.
 5. Base de normas offline.
 6. IA (Worker), em streaming.
 7. Se a IA falhar ou estiver offline → trecho da norma ou "não encontrei".
@@ -76,6 +77,7 @@ A interpretação (`modo: "interpretar"`) recebe o mesmo estado e a mesma conver
 - `pedido.mjs`: tipo do pedido (cumprimento, ajuste, seguimento, consulta) e parâmetros da IA por situação.
 - `conversa.mjs`: janela do histórico, resumo das perguntas antigas, estado da conversa e regra do esclarecimento.
 - `verificacao.mjs`: conferência de artigos e leis citados pela IA.
+- `rota.mjs`: rota entre unidades (v0.12.0, abaixo).
 
 `scripts/build.mjs` junta `shared/*` + `client/*` em `dist/paulus.v1.js` (um arquivo, sem `import`/`export`). Por isso, nesses arquivos: imports **em uma linha**, `export function/const` (sem `export {}`), e nomes de função que não se repetem entre módulos.
 
@@ -121,6 +123,15 @@ Modelo de linguagem erra conta; programa não. Por isso a IA nunca faz aritméti
 **Filtro de dados pessoais.** `1518 - 218 - 164 - 58` somava 12 dígitos e era barrado como documento. Agora cadeia com operador entre espaços passa quando a mensagem tem palavra ou símbolo de conta e cada número tem até 8 dígitos. CPF, NIS e telefone (`95-3623-1234`, `123.456.789-01`) continuam barrados.
 
 **Prompt.** O bloco `CONTAS E RACIOCÍNIO NUMÉRICO` só entra em pergunta quantitativa (poupa cota). O trecho \"Como pensar antes de responder\" ganhou etapas explícitas (fato, regra, aplicação, exceção, conclusão com grau de segurança) e a conferência de unidade, período e critério (per capita ou total). Temperatura 0,2 em pergunta de conta. `MODELO_CALCULO` (opcional) troca o modelo do passo de planejamento.
+
+## Rota (v0.12.0, `shared/rota.mjs`)
+Mesma ideia do cálculo: modelo de linguagem inventa km e minuto, então **um programa decide e a IA, se entrar, só explica**.
+1. *Leitura* (`lerPedidoDeRota`): regras em português, sem IA. Tira modo, tempo por parada, volta, saída (nome ou "daqui"), fim fixo, paradas do meio e a lista. Pedido fraco ("rota de fuga", "o que é rota de visita?") não vira rota; o pedido forte é o de verbo de traçar, "como chegar" ou "melhor ordem".
+2. *Resolução* (`resolverParadas`): cada texto vira uma unidade do diretório do app (`pontos`) por palavras, com apelidos e plural; empate gera a pergunta de qual; nome com "e" no meio é reunido.
+3. *Ordem* (`planejarRota`): programação dinâmica sobre subconjuntos, **exata**, até 11 paradas (2^11 × 11 × 11 passos), com saída fixa, fim fixo ou volta. Distância = linha reta (haversine) × 1,3; velocidade média 30 km/h (carro e moto), 12 (bicicleta), 4,5 (a pé).
+4. *Saída*: texto com a comparação com a ordem escrita, link do Google Maps (até 9 pontos de passagem), GeoJSON e SVG sem mapa de fundo (nada é baixado; nomes escapados).
+5. *Limites de propósito*: estimativa sem trânsito nem horário; sem coordenada não há km (só link por nome, dito claramente); endereço de residência de família é recusado.
+O Worker não calcula rota: o prompt só manda a IA não inventar km e ensinar a pedir (`BLOCO_UNIDADES`), e a habilidade `rota-e-deslocamento` cuida do lado de campo (agrupar por território, confirmar horário, dupla, prioridade).
 
 ## Autoconhecimento (v0.10.0, `shared/autoconhecimento.mjs`)
 
