@@ -62,6 +62,12 @@ Paulus.perguntar(texto, {
 
 **Desde a v0.11.0 (pedidos sobre a própria resposta, apps com cérebro próprio):** "continue", "tem certeza?" e "de onde tirou isso?" só funcionam com as palavras da pessoa e com a resposta anterior no `historico`. Um app que **reescreve a pergunta antes de chamar o Paulus** (o Argo faz isso com `ArgoCerebro.interpretar`) os transformaria em assunto novo e a IA repetiria a resposta. Por isso o Paulus expõe `Paulus.pedido.sobreResposta(texto, historico)` (devolve `'continuar' | 'contestacao' | 'porque' | ''`; o histórico aceita `papel: 'paulus'`, `'argo'` ou `'assistente'`). No app: (1) se devolver algo, **não reescreva** a pergunta e vá direto a `Paulus.perguntar`; (2) monte `fichas`, `panorama` e `baseApp` a partir da **pergunta anterior** (o pedido em si não tem assunto), mandando em `perguntar` a mensagem como a pessoa escreveu; (3) não deixe o pedido virar o "assunto" firmado da conversa. No Argo isso está em `pedidoSobre`/`seguimento`/`assuntoAnterior` (`js/argo-cerebro.js`) e é testado por `npm run test:seguimento`. Em computador compartilhado, "Apagar dados salvos neste dispositivo" do Argo agora também chama `Paulus.memoria.esquecer()`.
 
+**Desde a v0.12.0 (rotas no Argo):** o Argo carrega a v0.12.0 e chama `Paulus.rota.responder` **antes** de qualquer outro caminho (`argoRotaAsk`, em `js/app.js`), com:
+- `pontos`: as 11 unidades de CRAS/CREAS com coordenada conferida (`UNITS_CRAS_CREAS`) + os equipamentos do diretório que o mapa já localizou neste aparelho (cache de geocodificação). Coordenada **aproximada** fica de fora: pino errado vira rota errada. Só unidades públicas.
+- `aparelho`: a posição só existe se a pessoa já ligou o "perto de mim" no app ("saindo daqui"). O Paulus nunca pede o GPS.
+- `cidade: 'Boa Vista, RR'`.
+O Argo só assume o pedido quando há **duas paradas ou mais** (ou recusa de endereço de residência); "como chegar ao CRAS X" com uma unidade só continua com o cartão do diretório (telefone, horário, botão de mapa). Em `argoAssistantAskHybrid`, o pedido de rota **não passa pela reescrita da pergunta** (a reescrita perderia paradas). O mascote mostra o texto, o botão "Abrir a rota no app de mapas" (abre com `noopener`) e o esquema em SVG num bloco que abre e fecha (lido como XML, sem script nem atributo de evento: `safeSvg` em `js/argo-mascot.js`). Teste: `npm run test:rota` no Argo.
+
 **Ainda não feito:** `Paulus.registrarAcao`/`registrarBusca` no Argo (o `ArgoCerebro` já cobre abas e buscas).
 
 ## 1b. Umbrella (PAF/PAIF do CRAS)
