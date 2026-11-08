@@ -684,6 +684,28 @@
     "caracteres": 1480
   },
   {
+    "doc": "python-dados-guia-apoio",
+    "titulo": "Dados com Python: guia de apoio (a partir do índice de Python for Data Analysis)",
+    "norma": "Síntese própria de apoio ao estudo de análise de dados com Python, organizada pelos capítulos de \"Python for Data Analysis\" (3ª edição, Wes McKinney, em inglês, edição aberta em wesmckinney.com/book; o texto do site não pode ser reproduzido). Não reproduz o livro. Prática sugerida não é norma.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "url": "https://wesmckinney.com/book/",
+    "revisao": "pendente",
+    "trechos": 4,
+    "caracteres": 1138
+  },
+  {
+    "doc": "r4ds-guia-apoio",
+    "titulo": "Dados com R: guia de apoio (a partir do índice de R para Ciência de Dados)",
+    "norma": "Síntese própria de apoio ao estudo de ciência de dados com R, organizada pelos capítulos de \"R para Ciência de Dados\" (2ª edição, tradução em português, pt.r4ds.hadley.nz; autores Hadley Wickham, Mine Çetinkaya-Rundel e Garrett Grolemund; licença CC BY-NC-ND 3.0). Não reproduz o texto do livro. Prática sugerida não é norma.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "url": "https://pt.r4ds.hadley.nz/",
+    "revisao": "pendente",
+    "trechos": 4,
+    "caracteres": 1215
+  },
+  {
     "doc": "raps-boa-vista-roraima-apoio",
     "titulo": "RAPS em Boa Vista e Roraima: contexto da rede e do trabalho do CRAS (apoio)",
     "norma": "Contexto de apoio sobre a RAPS em Boa Vista e em Roraima, a partir de reportagens e documentos públicos citados (Folha BV, Conass 2013, guia municipal de saúde mental) e das bases do Paulus (Censo SUAS, Operação Acolhida, povos indígenas). Não é norma e pode estar desatualizado: nomes, endereços, telefones e horários vêm do diretório do Argo, não daqui.",
