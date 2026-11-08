@@ -30,6 +30,8 @@ Copiloto de IA compartilhado pelos apps (Argo SUAS, Anona, Toth, Umbrella, Grafi
 
 **Psicopatologia:** guia de apoio conceitual (`psicopatologia-guia-apoio`) e cinco roteiros (`habilidades/psicopatologia-*.md`): modelos de compreensão, semiologia, quadros principais em visão descritiva, crise e rede, estigma e linguagem. Ensina e ajuda a descrever e registrar; não classifica nem sugere diagnóstico de pessoa real, não orienta medicação, e crise com risco de vida segue o fluxo de urgência.
 
+**Dados com R:** guia de apoio na base (`r4ds-guia-apoio`) e quinze roteiros próprios (`habilidades/dados-r-*.md`), seguindo o ciclo de "R para Ciência de Dados" (pt.r4ds.hadley.nz): primeiros passos, scripts e projetos, importar, tidy, dplyr, ggplot2, texto/datas/fatores, joins, valores faltantes, funções, Quarto, erros e uma primeira análise completa. Ensina com dado fictício ou agregado; não roda código, não vê dados da pessoa e não aceita dado de família (há um roteiro de LGPD e cuidado). O livro é CC BY-NC-ND: os roteiros são texto próprio e indicam o capítulo, sem reproduzi-lo.
+
 **Aprende com o uso (v0.5.0):** estilo de resposta (curto, detalhado, com exemplos), documentos e perguntas frequentes, apelidos para as telas e respostas que você aprovou. **Tudo no aparelho** (nada vai para o servidor) e sob seu controle: ver, desligar, exportar e apagar. Veja [INTEGRACAO](docs/INTEGRACAO.md) (v0.5.0) e [SEGURANCA](docs/SEGURANCA.md).
 
 **O que não faz:** não guarda dado de família, não lê planilha nem registro dos apps e não decide caso individual.
