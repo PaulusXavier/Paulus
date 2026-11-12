@@ -168,9 +168,25 @@ async function enviar(texto) {
   (r.avisos || []).forEach(mostrarAviso);                          // "Resposta gerada por IA..."
 }
 ```
-Tipos de `r.tipo`: `ia`, `norma`, `busca`, `acao`, `acao_desconhecida`, `rota` (veja "Rotas" abaixo), `calculo` (conta feita no aparelho; `r.texto` é texto simples, `r.itens` traz `{ expressao, valor, texto }`; `perguntar(t, { semCalculo: true })` desliga), `crise`, `bloqueio`, `sem_resposta`, `erro`. Em `erro`, `r.limite === true` indica limite de perguntas (basta esperar); em `sem_resposta`, `r.motivo` traz o que o Worker informou, se informou.
+Tipos de `r.tipo`: `ia`, `norma`, `busca`, `acao`, `acao_desconhecida`, `rota` (veja "Rotas" abaixo), `pdf` (veja "PDF" abaixo; `r.texto`, `r.arquivos`, `r.precisaArquivo`), `calculo` (conta feita no aparelho; `r.texto` é texto simples, `r.itens` traz `{ expressao, valor, texto }`; `perguntar(t, { semCalculo: true })` desliga), `crise`, `bloqueio`, `sem_resposta`, `erro`. Em `erro`, `r.limite === true` indica limite de perguntas (basta esperar); em `sem_resposta`, `r.motivo` traz o que o Worker informou, se informou.
 
 Ao trancar o app ou tocar em "Nova conversa", chame `Paulus.limpar()`.
+
+## PDF (v0.14.0)
+O Paulus edita PDF **no aparelho, sem IA e sem enviar o arquivo a servidor**. O app só precisa deixar a pessoa anexar o arquivo e entregar os `File` ao Paulus:
+```js
+const r = await Paulus.perguntar('remover a página 2 e numerar as páginas', { arquivos: inputArquivos.files });   // File/Blob ou { nome, bytes }
+if (r.tipo === 'pdf') {
+  mostrar(r.texto);                                   // o que foi feito, ou o erro/limite em português
+  r.arquivos.forEach(a => botaoBaixar(a.nome, () => Paulus.pdf.baixar(a)));   // a.bytes (Uint8Array), a.paginas, a.tamanho
+  if (r.precisaArquivo) abrirSeletorDeArquivo();      // pediu edição mas não anexou nada
+}
+```
+- **Publicar:** `npm run build` copia `vendor/pdf-lib.min.js` para `dist/pdf-lib.min.js`, ao lado do `paulus.v1.js`. O navegador baixa o pdf-lib **só no primeiro pedido de PDF** (de onde veio o `paulus.v1.js`; mude com `Paulus.init({ pdfLibUrl })`). Se o app tem CSP, libere esse script.
+- **Privacidade:** o pedido de PDF é tratado **antes** do filtro de dado pessoal (preencher uma ficha exige nome no texto) e nada dele vai ao Worker; no histórico entra só uma marca neutra, e `r.pergunta` vem vazio para a memória do aparelho não aprender o texto. Pergunta comum com dado pessoal continua bloqueada.
+- **O que entende** (valores e textos sempre **entre aspas**): juntar; dividir (a cada N páginas, em N partes, na página N); extrair e remover (`2 e 5`, `3 a 6`, `última`, `pares`, `a partir da 4`); girar (direita, esquerda, 180); inverter, mover página, nova ordem; numerar (posição, modelo `Página {n} de {total}`, começando em N); marca d'água; escrever texto (`{data}`, posição, cor, tamanho, negrito); colocar imagem anexada (assinatura, carimbo); `listar os campos`, `preencher o campo "X" com "Y"`, `marcar "X"`, `travar o formulário`; título, autor, assunto; `salvar como "nome"`; informações do arquivo. Pedidos encadeiam ("remova a página 2 e numere as páginas").
+- **Limites avisados ao usuário:** não altera texto existente, não tarja de verdade, não comprime, sem OCR, senha ou assinatura digital; juntar, dividir e reordenar podem tirar a edição dos campos de formulário (preencher antes); texto novo usa a fonte Helvetica (alfabeto latino).
+- `perguntar(t, { semPdf: true })` desliga. API direta: `Paulus.pdf.ler(texto, { temArquivo })`, `Paulus.pdf.responder(texto, arquivos)`, `Paulus.pdf.editar(operacoes, arquivos)`. Apps com cérebro próprio (Argo) podem chamar `Paulus.pdf.responder` antes do fluxo deles.
 
 ## Rotas (v0.12.0)
 O Paulus traça rota **no aparelho, sem IA**: ordem das paradas, km e tempo estimados, link do mapa. Para isso o app só precisa dizer onde ficam as unidades:
