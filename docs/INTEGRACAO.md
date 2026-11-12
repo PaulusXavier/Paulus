@@ -211,6 +211,10 @@ if (r.tipo === 'rota') {
 - `perguntar(t, { semRota: true })` desliga. Apps com cérebro próprio (Argo) chamam `Paulus.rota.responder(texto, { pontos, aparelho, cidade })`, que devolve o mesmo objeto sem `tipo` ou `null` (aí a pergunta segue o fluxo do app).
 - Privacidade: o pedido nunca vai para a IA nem para a rede; o link só sai quando a pessoa toca nele. Endereço de residência é recusado de propósito (o Paulus protege as famílias).
 
+## Ordem de visitas com mapa e IA (v0.15.0)
+
+`Paulus.visitas.ordenar(itens, partida, { geo, vizinhanca })` continua devolvendo `{ itens, ... }`, agora com nome de rua normalizado, ordem natural e, se `geo` (`{ ruas:[{rua,bairro,lat,lng}], bairros:[{bairro,lat,lng}] }`, gerado por `node scripts/montar-geografia.mjs`) for passado, ordem das ruas pela menor distância. `vizinhanca` é o que `Paulus.visitas.aprender(viz, itens, partida)` guardou quando a pessoa ajustou a ordem. Para usar uma IA externa **sem mostrar número de casa**: `Paulus.visitas.ruas(itens, partida)` lista as ruas (com `rotulo` e `quantidade`), o app pergunta à IA só a ordem delas e entrega o resultado a `Paulus.visitas.comSugestao(itens, partida, idsDasRuas, opcoes)`, que valida (descarta ordem inválida ou, havendo coordenadas, mais longa que a do programa) e devolve `origem` (`ia` ou `paulus`) e `motivo`. `Paulus.visitas.explicar(resultado)` dá o texto para a tela. Tudo no aparelho; o módulo não faz rede.
+
 ## 4. Incluir um app novo
 1. Acrescente o identificador em `worker/apps.mjs` (com o texto de contexto) e em `client/skins.mjs`.
 2. Rode `npm test`, publique o Worker de novo e rebuild do cliente (o Pages faz sozinho no push).
