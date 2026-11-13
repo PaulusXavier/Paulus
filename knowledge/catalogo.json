@@ -856,6 +856,46 @@
     "caracteres": 10053
   },
   {
+    "doc": "sus-atencao-primaria-pnab-resumo",
+    "titulo": "SUS: atenção primária e Política Nacional de Atenção Básica (resumo)",
+    "norma": "Resumo da Política Nacional de Atenção Básica (Portaria GM/MS nº 2.436/2017, hoje consolidada na Portaria de Consolidação nº 2/2017) e da Estratégia Saúde da Família. Resumo escrito para o Paulus, não é o texto literal. Para citar artigo, confira o texto oficial.",
+    "ano": 2017,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 8,
+    "caracteres": 2610
+  },
+  {
+    "doc": "sus-cf88-lei8080-8142-resumo",
+    "titulo": "SUS: resumo da CF/1988 (saúde), Lei 8.080/1990 e Lei 8.142/1990",
+    "norma": "Resumo dos arts. 196 a 200 da Constituição Federal e das Leis nº 8.080, de 19/09/1990, e nº 8.142, de 28/12/1990. Resumo escrito para o Paulus, não é o texto literal. Para citar artigo, confira o texto oficial.",
+    "ano": 1990,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 8,
+    "caracteres": 3794
+  },
+  {
+    "doc": "sus-controle-social-ouvidoria-direitos-resumo",
+    "titulo": "SUS: controle social, ouvidoria e direitos dos usuários (resumo)",
+    "norma": "Resumo da Lei 8.142/1990, da Resolução CNS nº 453/2012 e da Carta dos Direitos dos Usuários da Saúde (Portaria GM/MS nº 1.820/2009). Resumo escrito para o Paulus, não é o texto literal. Para citar artigo, confira o texto oficial.",
+    "ano": 2012,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 6,
+    "caracteres": 1875
+  },
+  {
+    "doc": "sus-regulacao-acesso-cartao-tfd-resumo",
+    "titulo": "SUS: regulação do acesso, Cartão SUS e TFD (resumo)",
+    "norma": "Resumo da Política Nacional de Regulação do SUS, do Cartão Nacional de Saúde e do Tratamento Fora de Domicílio (Portaria SAS/MS nº 55/1999). Resumo escrito para o Paulus, não é o texto literal. Para citar artigo, confira o texto oficial.",
+    "ano": 2011,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 6,
+    "caracteres": 1911
+  },
+  {
     "doc": "tipificacao-2009",
     "titulo": "Tipificação Nacional de Serviços Socioassistenciais",
     "norma": "Resolução CNAS nº 109, de 11 de novembro de 2009 (texto original; alterações posteriores, como a Resolução CNAS/MDS nº 218/2025, estão em documento próprio)",
