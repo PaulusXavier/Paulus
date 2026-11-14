@@ -219,6 +219,33 @@ if (r.tipo === 'rota') {
 - `perguntar(t, { semRota: true })` desliga. Apps com cérebro próprio (Argo) chamam `Paulus.rota.responder(texto, { pontos, aparelho, cidade })`, que devolve o mesmo objeto sem `tipo` ou `null` (aí a pergunta segue o fluxo do app).
 - Privacidade: o pedido nunca vai para a IA nem para a rede; o link só sai quando a pessoa toca nele. Endereço de residência é recusado de propósito (o Paulus protege as famílias).
 
+## Geografia: coordenadas, endereços, "perto de" e mapa (v0.16.0)
+O Paulus responde **no aparelho, sem IA e sem rede** a perguntas de lugar, só com o que o app passou. O que não consta vira "não consta": ele não chuta latitude, CEP nem quilômetro (a IA, quando entra, só copia a coordenada que estiver na ficha, campo `lat`/`lng`).
+
+```js
+Paulus.init({
+  app: 'argo', endpoint: '...', cidade: 'Boa Vista, RR',
+  pontos: () => unidades,                          // diretório do app, com lat/lng CONFERIDOS (vence qualquer empate)
+  lugaresUrl: 'lugares-boa-vista.json',            // mapa de lugares (OpenStreetMap), baixado uma vez e só quando a pergunta é de lugar; ou lugares: objetoOuLista
+  bairros: [{ bairro: 'Centro', lat: 2.82, lng: -60.67 }],   // opcional (o lugares.json já traz os bairros)
+  ruas: geografia.ruas,                            // opcional: o geografia.json do Anona (centro de RUA, nunca de casa)
+  aparelho: () => posicaoAtualOuNull()             // opcional: habilita "perto daqui"
+});
+const r = await Paulus.perguntar('UBS perto do CRAS Cauamé');
+if (r.tipo === 'geo') {   // r.tipoGeo: 'coordenadas' | 'perto' | 'distancia' | 'bairro' | 'conversao' | 'endereco'
+  bolha.textContent = r.texto;                      // textContent, nunca innerHTML
+  r.links.forEach(l => botaoDeLink(l.rotulo, l.url));
+  pinos(r.lugares);                                 // [{ nome, lat, lng, km?, bairro, fonte: 'diretorio'|'mapa'|'bairro'|'rua' }] para o mapa do app
+  // r.geojson: FeatureCollection pronta para o seu mapa; r.km / r.kmRuas / r.minutos na distância; r.endereco no padrão
+}
+```
+- **O que entende:** "coordenadas do CAPS II", "onde fica a UBS X" (unidade do diretório segue para a ficha, com endereço e horário; lugar só do mapa é respondido aqui), "UBS perto do CRAS Cauamé num raio de 1 km", "qual a UBS mais próxima do CAPS II", "o que tem perto do Conselho Tutelar", "farmácia perto daqui", "distância entre A e B" / "quantos km de A até B de moto", "em que bairro fica X", "converter 2°49'24.6"N 60°40'32.9"W" (ou só colar a coordenada, decimal, graus ou link do mapa) e "padronizar endereço: av ville roy 1234, centro, boa vista - rr, 69301000". "bairro X" e "rua X" forçam o tipo.
+- **Sem chute:** nome que não está no diretório nem no mapa devolve "não encontrei"; nome ambíguo devolve a pergunta de qual; unidade sem coordenada diz isso. Bairro e rua contam pelo **centro** (aproximação); distância é linha reta, e "por ruas" é ×1,3.
+- **Privacidade:** conversão de coordenada, endereço digitado e "perto daqui" têm `r.sensivel = true`: rodam antes do filtro de dado pessoal, nada vai a servidor e **não entram no histórico**. Coordenada solta e endereço de residência nunca viram parada de rota.
+- **Rotas (mesma versão):** paradas também podem ser lugar do mapa, bairro ou rua; rota com mais de 11 pontos sai em partes no link do mapa; `r.gpx` e `r.kml` (texto) para abrir em outros apps; o esquema SVG ganhou escala e norte.
+- **Mapa de lugares:** `node scripts/importar-mapa.mjs overpass.json knowledge/documentos/mapa-boa-vista-osm.md knowledge/geo/lugares-boa-vista.json`; `npm run build` copia o `.json` para `dist/`. É OpenStreetMap (ODbL): incompleto e pode estar desatualizado.
+- `perguntar(t, { semGeo: true })` desliga. API direta: `Paulus.geo.responder`, `.coordenadas`, `.formatar`, `.endereco`, `.perto`, `.distanciaKm`, `.links`, `.gpx`, `.kml`. Fichas do Worker passam a levar `Coordenadas:` quando a ficha tem `lat`/`lng` válidos; o prompt proíbe a IA de inventar coordenada, CEP ou distância.
+
 ## Ordem de visitas com mapa e IA (v0.15.0)
 
 `Paulus.visitas.ordenar(itens, partida, { geo, vizinhanca })` continua devolvendo `{ itens, ... }`, agora com nome de rua normalizado, ordem natural e, se `geo` (`{ ruas:[{rua,bairro,lat,lng}], bairros:[{bairro,lat,lng}] }`, gerado por `node scripts/montar-geografia.mjs`) for passado, ordem das ruas pela menor distância. `vizinhanca` é o que `Paulus.visitas.aprender(viz, itens, partida)` guardou quando a pessoa ajustou a ordem. Para usar uma IA externa **sem mostrar número de casa**: `Paulus.visitas.ruas(itens, partida)` lista as ruas (com `rotulo` e `quantidade`), o app pergunta à IA só a ordem delas e entrega o resultado a `Paulus.visitas.comSugestao(itens, partida, idsDasRuas, opcoes)`, que valida (descarta ordem inválida ou, havendo coordenadas, mais longa que a do programa) e devolve `origem` (`ia` ou `paulus`) e `motivo`. `Paulus.visitas.explicar(resultado)` dá o texto para a tela. Tudo no aparelho; o módulo não faz rede.
