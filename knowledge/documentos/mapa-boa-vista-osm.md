@@ -12,7 +12,7 @@ revisao: pendente
 <!-- Gerado por scripts/importar-mapa.mjs. Não editar à mão: rode o script de novo com um Overpass novo. -->
 
 ## Resumo do mapa
-739 lugares com nome em Boa Vista (RR), em 200 bairros e conjuntos do mapa (6 pontos de fora de Roraima descartados, como os da Boa Vista da Paraíba). Por categoria: assistência social 17; saúde 78; farmácias 57; creches e pré-escolas 50; escolas 181; ensino superior 45; cursos e escolas livres 4; segurança e justiça 41; órgãos públicos 84; terceiro setor 4; cultura, esporte e lazer 95; templos 63; bancos 20. O município é grande: o que está longe de qualquer bairro aparece como zona rural e comunidades.
+747 lugares com nome em Boa Vista (RR), em 200 bairros e conjuntos do mapa (13 pontos de fora de Roraima descartados, como os da Boa Vista da Paraíba). Por categoria: assistência social 17; saúde 78; farmácias 57; creches e pré-escolas 50; escolas 181; ensino superior 45; cursos e escolas livres 4; segurança e justiça 41; órgãos públicos 84; terceiro setor 4; cultura, esporte e lazer 103; templos 63; bancos 20. O município é grande: o que está longe de qualquer bairro aparece como zona rural e comunidades.
 
 ## Resumo de assistência social no mapa
 17 lugares de assistência social no mapa de Boa Vista (RR), em 14 bairros. Bairros com mais: Treze de Setembro (3); Vila Militar Lobo D'Almada (2); 31 de março (1); Conjunto AECO (1); Conjunto Mecejana (1); Jardim Floresta (1); Loteamento Bom Futuro 1 - Etapa A (1); Loteamento Novo Planalto (1).
@@ -45,7 +45,7 @@ revisao: pendente
 4 lugares de terceiro setor no mapa de Boa Vista (RR), em 3 bairros. Bairros com mais: Centro (2); Conjunto Boa Vista I (1); Senador Hélio Campos (1).
 
 ## Resumo de cultura, esporte e lazer no mapa
-95 lugares de cultura, esporte e lazer no mapa de Boa Vista (RR), em 56 bairros. Bairros com mais: Centro (8); Vila Militar Lobo D'Almada (6); Bairro dos Estados (4); Cinturão Verde (3); Conjunto AECO (3); Conjunto dos Desembargadores e Conselheiros (3); Loteamento Novo Planalto (3); Sílvio Botelho (3).
+103 lugares de cultura, esporte e lazer no mapa de Boa Vista (RR), em 59 bairros. Bairros com mais: Centro (10); Vila Militar Lobo D'Almada (7); Bairro dos Estados (4); Cinturão Verde (3); Conjunto AECO (3); Conjunto dos Desembargadores e Conselheiros (3); Loteamento Novo Planalto (3); Paraviana (3).
 
 ## Resumo de templos no mapa
 63 lugares de templos no mapa de Boa Vista (RR), em 38 bairros. Bairros com mais: Centro (6); Equatorial (4); Alvorada (3); Liberdade (3); Loteamento Novo Planalto (3); Nova Canaã (3); Asa Branca (2); Cambará (2).
@@ -117,7 +117,7 @@ O que tem no bairro Centenário (6 lugares no mapa): creches e pré-escolas 4; e
 O que tem no bairro CENTENÁRIO (1 lugares no mapa): templos 1.
 
 ## Resumo do bairro Centro
-O que tem no bairro Centro (79 lugares no mapa): saúde 9; farmácias 4; escolas 13; segurança e justiça 4; órgãos públicos 27; terceiro setor 2; cultura, esporte e lazer 8; templos 6; bancos 6.
+O que tem no bairro Centro (81 lugares no mapa): saúde 9; farmácias 4; escolas 13; segurança e justiça 4; órgãos públicos 27; terceiro setor 2; cultura, esporte e lazer 10; templos 6; bancos 6.
 
 ## Resumo do bairro Cidade Satélite
 O que tem no bairro Cidade Satélite (10 lugares no mapa): creches e pré-escolas 6; escolas 3; cultura, esporte e lazer 1.
@@ -237,7 +237,7 @@ O que tem no bairro Liberdade (13 lugares no mapa): saúde 2; farmácias 2; crec
 O que tem no bairro Loteamento Bom Futuro 1 - Etapa A (4 lugares no mapa): assistência social 1; saúde 1; cultura, esporte e lazer 1; templos 1.
 
 ## Resumo do bairro Loteamento Bom Futuro 1 - Etapa B
-O que tem no bairro Loteamento Bom Futuro 1 - Etapa B (1 lugares no mapa): órgãos públicos 1.
+O que tem no bairro Loteamento Bom Futuro 1 - Etapa B (2 lugares no mapa): órgãos públicos 1; cultura, esporte e lazer 1.
 
 ## Resumo do bairro Loteamento Bom Futuro 2
 O que tem no bairro Loteamento Bom Futuro 2 (1 lugares no mapa): cultura, esporte e lazer 1.
@@ -289,6 +289,9 @@ O que tem no bairro Loteamento Nova Canaã (1 lugares no mapa): templos 1.
 
 ## Resumo do bairro Loteamento Novo Planalto
 O que tem no bairro Loteamento Novo Planalto (57 lugares no mapa): assistência social 1; saúde 10; farmácias 2; escolas 6; ensino superior 14; cursos e escolas livres 1; órgãos públicos 13; cultura, esporte e lazer 3; templos 3; bancos 4.
+
+## Resumo do bairro Loteamento Park Caçari 4
+O que tem no bairro Loteamento Park Caçari 4 (1 lugares no mapa): cultura, esporte e lazer 1.
 
 ## Resumo do bairro Loteamento Park Paraviana 2
 O que tem no bairro Loteamento Park Paraviana 2 (1 lugares no mapa): órgãos públicos 1.
@@ -347,6 +350,9 @@ O que tem no bairro Mecejana (7 lugares no mapa): assistência social 1; saúde 
 ## Resumo do bairro Monte Cristo
 O que tem no bairro Monte Cristo (12 lugares no mapa): escolas 9; ensino superior 2; cultura, esporte e lazer 1.
 
+## Resumo do bairro Monte das Oliveiras
+O que tem no bairro Monte das Oliveiras (1 lugares no mapa): cultura, esporte e lazer 1.
+
 ## Resumo do bairro Murupu
 O que tem no bairro Murupu (1 lugares no mapa): escolas 1.
 
@@ -369,7 +375,7 @@ O que tem no bairro PA Nova Amazônia (1 lugares no mapa): escolas 1.
 O que tem no bairro PA Nova Amazônia Murupu (1 lugares no mapa): escolas 1.
 
 ## Resumo do bairro Paraviana
-O que tem no bairro Paraviana (4 lugares no mapa): creches e pré-escolas 2; escolas 1; cultura, esporte e lazer 1.
+O que tem no bairro Paraviana (6 lugares no mapa): creches e pré-escolas 2; escolas 1; cultura, esporte e lazer 3.
 
 ## Resumo do bairro Pedra Pintada
 O que tem no bairro Pedra Pintada (3 lugares no mapa): assistência social 1; escolas 1; cultura, esporte e lazer 1.
@@ -453,7 +459,7 @@ O que tem no bairro Vila dos Suboficiais e Sargentos da Aeronáutica (1 lugares 
 O que tem no bairro Vila Militar do Exército (7 lugares no mapa): assistência social 1; saúde 1; segurança e justiça 2; cultura, esporte e lazer 1; templos 2.
 
 ## Resumo do bairro Vila Militar Lobo D'Almada
-O que tem no bairro Vila Militar Lobo D'Almada (17 lugares no mapa): assistência social 2; saúde 1; segurança e justiça 2; órgãos públicos 6; cultura, esporte e lazer 6.
+O que tem no bairro Vila Militar Lobo D'Almada (18 lugares no mapa): assistência social 2; saúde 1; segurança e justiça 2; órgãos públicos 6; cultura, esporte e lazer 7.
 
 ## Resumo do bairro Vila Passarão
 O que tem no bairro Vila Passarão (1 lugares no mapa): escolas 1.
@@ -1795,9 +1801,11 @@ O que tem no bairro Zona rural e comunidades (24 lugares no mapa): assistência 
 - Praça do Caranã (dos Cabos e Soldados)
 
 ## Cultura, esporte e lazer, bairro Centro
-8 lugares no mapa (cultura, esporte e lazer: parques, praças, ginásios, bibliotecas e feiras; bairro Centro):
+10 lugares no mapa (cultura, esporte e lazer: parques, praças, ginásios, bibliotecas e feiras; bairro Centro):
 - Biblioteca Pública (Avenida Amazonas)
 - Orla Taumanan
+- Plataforma Meiremê
+- Plataforma Weikepá
 - Praça Barreto Leite (Avenida Bento Brasil)
 - Praça Capitão Clóvis
 - Praça Celina Liberato
@@ -1905,6 +1913,10 @@ O que tem no bairro Zona rural e comunidades (24 lugares no mapa): assistência 
 1 lugar no mapa (cultura, esporte e lazer: parques, praças, ginásios, bibliotecas e feiras; bairro Loteamento Bom Futuro 1 - Etapa A):
 - Parque Aquático do Caranã
 
+## Cultura, esporte e lazer, bairro Loteamento Bom Futuro 1 - Etapa B
+1 lugar no mapa (cultura, esporte e lazer: parques, praças, ginásios, bibliotecas e feiras; bairro Loteamento Bom Futuro 1 - Etapa B):
+- Avião Xavante
+
 ## Cultura, esporte e lazer, bairro Loteamento Bom Futuro 2
 1 lugar no mapa (cultura, esporte e lazer: parques, praças, ginásios, bibliotecas e feiras; bairro Loteamento Bom Futuro 2):
 - Praça Adail Duarte Maduro
@@ -1939,6 +1951,10 @@ O que tem no bairro Zona rural e comunidades (24 lugares no mapa): assistência 
 - CDS - Academia
 - Praça da Pirâmide
 
+## Cultura, esporte e lazer, bairro Loteamento Park Caçari 4
+1 lugar no mapa (cultura, esporte e lazer: parques, praças, ginásios, bibliotecas e feiras; bairro Loteamento Park Caçari 4):
+- Praia do Caçari
+
 ## Cultura, esporte e lazer, bairro Loteamento Parque dos Rios 1
 1 lugar no mapa (cultura, esporte e lazer: parques, praças, ginásios, bibliotecas e feiras; bairro Loteamento Parque dos Rios 1):
 - Parque Linear do Mirandinha (Jorge Manoel da Silva)
@@ -1965,6 +1981,10 @@ O que tem no bairro Zona rural e comunidades (24 lugares no mapa): assistência 
 1 lugar no mapa (cultura, esporte e lazer: parques, praças, ginásios, bibliotecas e feiras; bairro Monte Cristo):
 - Parque de Exposições Daendaenzinho
 
+## Cultura, esporte e lazer, bairro Monte das Oliveiras
+1 lugar no mapa (cultura, esporte e lazer: parques, praças, ginásios, bibliotecas e feiras; bairro Monte das Oliveiras):
+- Praia do Cauamé
+
 ## Cultura, esporte e lazer, bairro Nova Cidade
 1 lugar no mapa (cultura, esporte e lazer: parques, praças, ginásios, bibliotecas e feiras; bairro Nova Cidade):
 - Praça da Primeira Infância (Clotilde Thereza Duarte de Oliveira)
@@ -1975,7 +1995,9 @@ O que tem no bairro Zona rural e comunidades (24 lugares no mapa): assistência 
 - Vila Olímpica Roberto Marinho
 
 ## Cultura, esporte e lazer, bairro Paraviana
-1 lugar no mapa (cultura, esporte e lazer: parques, praças, ginásios, bibliotecas e feiras; bairro Paraviana):
+3 lugares no mapa (cultura, esporte e lazer: parques, praças, ginásios, bibliotecas e feiras; bairro Paraviana):
+- Bosque dos Papagaios (Rua Moisés de Souza Cruz)
+- Campo de areia - futebol (Rua Moisés de Souza Cruz)
 - Parque Ecológico Bosque dos Papagaios
 
 ## Cultura, esporte e lazer, bairro Pedra Pintada
@@ -2016,13 +2038,14 @@ O que tem no bairro Zona rural e comunidades (24 lugares no mapa): assistência 
 - Praça do Mecejana
 
 ## Cultura, esporte e lazer, bairro Vila Militar Lobo D'Almada
-6 lugares no mapa (cultura, esporte e lazer: parques, praças, ginásios, bibliotecas e feiras; bairro Vila Militar Lobo D'Almada):
+7 lugares no mapa (cultura, esporte e lazer: parques, praças, ginásios, bibliotecas e feiras; bairro Vila Militar Lobo D'Almada):
 - Kartódromo de Boa Vista - Gilberto de Araújo Sobrinho
 - Parque Anauá
 - Praça e Complexo Desportivo Ayrton Senna
 - Praça e Complexo Desportivo Ayrton Senna
 - Praça Lobo D'Almada
 - Totozão
+- Trator / 6º BEC
 
 ## Cultura, esporte e lazer, bairro Zona rural e comunidades
 2 lugares no mapa (cultura, esporte e lazer: parques, praças, ginásios, bibliotecas e feiras; bairro Zona rural e comunidades):
