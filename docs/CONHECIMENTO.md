@@ -57,3 +57,10 @@ npm run build                # gera dist/
 ```
 
 Cuidados: só documentos públicos e oficiais, **nada com dado de pessoa**; PDF escaneado precisa de OCR antes; o que não está no PDF não entra na base. Documentos muito grandes que o Worker não precisa levam `worker: nao` (o pacote do Worker precisa caber no limite do plano gratuito da Cloudflare).
+
+
+## Mapa de Boa Vista (OpenStreetMap)
+
+`node scripts/importar-mapa.mjs overpass-lugares.json` gera `knowledge/documentos/mapa-boa-vista-osm.md` (escolas, saúde, assistência social, segurança, órgãos públicos, templos etc., por bairro, com resumo e contagem). A consulta Overpass para colar em overpass-turbo.eu está no cabeçalho do script; exporte como JSON bruto. Depois rode `npm run build:conhecimento`.
+
+Por que OpenStreetMap e não Google Maps: o Google não permite copiar o mapa em massa e a página dele não entrega a lista de lugares sem JavaScript e chave de API. O OSM é aberto (ODbL) e o documento cita a fonte. É colaborativo e incompleto, por isso sai `revisao: pendente` e `worker: nao` (só nos pacotes offline); endereço e telefone de serviço oficial continuam vindo do diretório do Argo.
