@@ -505,6 +505,18 @@
     "caracteres": 46738
   },
   {
+    "doc": "mapa-boa-vista-osm",
+    "titulo": "Mapa de Boa Vista: lugares e serviços por bairro (OpenStreetMap)",
+    "norma": "Lista de lugares e serviços de Boa Vista (RR) tirada do OpenStreetMap em 2026-11-14 (© colaboradores do OpenStreetMap, licença ODbL). Não é norma nem cadastro oficial: o mapa é colaborativo, incompleto e pode estar desatualizado. O bairro de cada lugar é o do mapa ou, na falta, o de centro mais próximo até 5 km (aproximação); mais longe que isso vai para zona rural e comunidades. Endereço e telefone de serviço oficial vêm do diretório do Argo.",
+    "ano": 2026,
+    "tipo": "referencia",
+    "pacote": "psicologia",
+    "worker": "nao",
+    "revisao": "pendente",
+    "trechos": 502,
+    "caracteres": 88640
+  },
+  {
     "doc": "nob-rh-suas-anotada-2011",
     "titulo": "NOB-RH/SUAS Anotada e Comentada",
     "norma": "MDS/SNAS, NOB-RH/SUAS: Anotada e Comentada, Brasília, dezembro de 2011 (inclui a Resolução CNAS nº 269, de 13 de dezembro de 2006, que aprova a NOB-RH/SUAS)",
