@@ -10,6 +10,8 @@ Copiloto de IA compartilhado pelos apps (Argo SUAS, Anona, Toth, Umbrella, Grafi
 
 **Mais dinâmico e com raciocínio melhor (v0.11.0):** o Paulus agora entende pedidos *sobre a própria resposta*: **continuar** ("continue", "tem mais?") retoma de onde parou sem repetir; **contestação** ("tem certeza?", "mas eu li que...") reanalisa contra as fontes, corrige se errou e mantém se a norma sustenta, sem ceder por educação; **por quê?** ("de onde tirou isso?", "qual a fonte?") explica o caminho e separa o que é norma do que é leitura. **Mensagem com várias perguntas** recebe uma busca de norma para cada parte e a IA responde todas, na ordem. O passo de raciocínio passou a rodar também em decisão curta ("Posso registrar isso como visita?") e na contestação. Tudo isso é regra, sem gastar IA para classificar.
 
+**Geografia no aparelho (v0.16.0):** "coordenadas do CAPS II", "UBS perto do CRAS Cauamé", "distância entre A e B", "em que bairro fica X", conversão de coordenadas (decimal, graus, link) e endereço no padrão, tudo sem IA e sem rede, só com o diretório do app e o mapa de lugares (OpenStreetMap). Não chuta latitude, CEP nem quilômetro; as rotas ganharam lugares do mapa, bairros, link em partes e GPX/KML. Veja [INTEGRACAO](docs/INTEGRACAO.md#geografia-coordenadas-endereços-perto-de-e-mapa-v0160).
+
 **Faz conta (v0.9.0):** a IA não faz aritmética de cabeça: ela escreve a conta e um programa executa, exato. Pergunta que é só uma conta ("quanto é 15% de 1200?", "1518 - 218 - 164 - 58") é resolvida no próprio aparelho, sem rede e sem gastar cota; problema em palavras ("família de 4 pessoas, renda R$ 3.200, está dentro da linha?") passa por um passo em que a IA só escreve as contas, o programa calcula e a IA explica o resultado. Todo número da conta precisa vir da pergunta ou das fontes lidas; o que não vier é marcado como suposição. Veja [ARQUITETURA](docs/ARQUITETURA.md#cálculo-v090-sharedcalculomjs).
 
 **Raciocina antes de responder (v0.9.1):** em pergunta de análise ("posso/devo", elegibilidade, caso pensado junto), a IA monta primeiro um esqueleto (fato, regra da fonte, exceção mais provável, o que falta, caminho) e só então responde, conferindo contra as fontes e dizendo o grau de segurança. Veja [ARQUITETURA](docs/ARQUITETURA.md#raciocínio-v091-workerraciocinarmjs).
@@ -60,6 +62,7 @@ app (navegador)                            Worker (Cloudflare)             Worke
 | `worker/` | o Worker: `handler.mjs` (lógica), `prompt.mjs`, `apps.mjs` (um bloco por app) |
 | `knowledge/` | base de normas: `documentos/*.md` → `conhecimento.json` |
 | `habilidades/` | roteiros de trabalho (relatório, ofício, visita, PAF...) que o Paulus carrega quando o pedido combina; veja [docs/HABILIDADES.md](docs/HABILIDADES.md) |
+| `shared/geo.mjs` | coordenadas, endereço, "perto de", distância, bairro, links, GPX e KML (v0.16.0) |
 | `scripts/` | `build.mjs` (gera `dist/`), `build-knowledge.mjs` (base e catálogo), `build-habilidades.mjs` (habilidades), `ingerir.mjs` (lote de PDFs), `importar-documento.mjs` (referências técnicas) e `importar-norma.mjs` (leis, por artigo) |
 | `tests/` | testes (`npm test`), sem dependências |
 | `docs/` | arquitetura, segurança, integração, conhecimento e deploy |
