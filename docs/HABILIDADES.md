@@ -43,3 +43,7 @@ PAIF em trinta e cinco partes (visão geral e seguranças; acolhida, estudo soci
 ## Espanhol do trabalho (v0.18.0)
 
 Roteiros `habilidades/espanhol-*.md` (14): visão geral, acolhida, falsos amigos, espanhol da Venezuela, escrever para a família, telefone e agendamento, documentos e CadÚnico, saúde (UBS e CAPS), violência e proteção, benefícios, intérprete e registro, gramática básica, números/datas/horas e treino por situação. A pergunta em espanhol entra na escolha de roteiros já com os termos em português (`espParaBusca`), então "¿cómo explico el Bolsa Familia?" chama o roteiro de benefícios. O vocabulário e as frases ficam em `shared/espanhol-dados.mjs`; o guia de apoio é `knowledge/documentos/espanhol-guia-apoio.md`.
+
+## Inglês do trabalho (v0.19.0)
+
+Roteiros `habilidades/ingles-*.md` (18): visão geral, acolhida, falsos amigos, inglês e crioulo da Guiana, escrever para a família, telefone e agendamento, documentos e CadÚnico, saúde e encaminhamento, violência e proteção, explicar benefícios, intérprete e registro, gramática básica, números/datas/horas, treino por situação, leitura de artigos de psicologia, vocabulário de psicologia, e-mail profissional e pronúncia. Material de apoio na base: `knowledge/documentos/ingles-guia-apoio.md`. Gatilhos sempre trazem a palavra "inglês" para não disputar com os roteiros de espanhol.
