@@ -178,3 +178,16 @@ Mesmo princípio do cálculo e da rota: o que precisa ser exato e pode ter dado 
 - `shared/pii.mjs`: padrões de nome, tratamento, cédula/passaporte, telefone, nascimento e endereço em espanhol.
 - `worker/handler.mjs` e `worker/prompt.mjs`: a busca de normas e a escolha de roteiros recebem os termos em português; o prompt ganha o bloco `IDIOMA`; o aviso de dado pessoal sai em espanhol.
 - `client/paulus.mjs`: respostas locais de vocabulário e frases antes da IA.
+
+## Inglês (v0.19.0)
+
+Mesmo molde do espanhol; o espanhol não mudou.
+
+- `shared/ingles-dados.mjs`: glossário PT↔EN, falsos amigos, frases por situação e inglês/crioulo da Guiana (só vocabulário, sem dado de pessoa). O nome oficial do serviço fica em português.
+- `shared/ingles.mjs`: detecção de idioma (`ingDetectarIdioma`), termos em português para a busca (`ingParaBusca`), bloco de instrução para a IA (`ingInstrucaoParaIA`) e respostas locais (`ingRespostaLocal`). Todos os nomes têm prefixo `ing`/`ING_` porque o navegador recebe os módulos num arquivo só (sem conflito de nomes).
+- `shared/idioma.mjs`: ponto único que o Worker e o cliente usam (`idiomaDoPedido`, `paraBusca`, `instrucaoDeIdioma`, `avisoPessoalNoIdioma`, `respostaLocalDeIdioma`). Resposta: `pt`, `es` ou `en`; mensagem curta e neutra ("ok") herda o idioma da conversa.
+- `shared/crise.mjs`: `detectarCrise` cobre português, espanhol e inglês; os padrões em inglês valem mesmo quando o detector de idioma não tem certeza. Em texto em inglês, o detector do português só vale para emergência de saúde (cartão traduzido). Pergunta técnica e expressões ("die laughing", "hit me with a ball") não disparam.
+- `shared/pii.mjs`: nome, tratamento (Mr/Mrs), "I am + nome", passport/ID, phone, nascimento e endereço em inglês.
+- `shared/pedido.mjs`: cumprimentos em inglês são saudação.
+- `worker/handler.mjs`, `worker/prompt.mjs` e `client/paulus.mjs`: passam a usar `shared/idioma.mjs`. A resposta local do cliente vem com `tipo: 'ingles'` (e `'espanhol'` no espanhol).
+- Testes: `tests/ingles.test.mjs`.
