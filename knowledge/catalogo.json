@@ -11,6 +11,16 @@
     "caracteres": 49842
   },
   {
+    "doc": "analise-dados-guia-apoio",
+    "titulo": "Análise de dados no serviço: guia de apoio (não é norma)",
+    "norma": "Síntese própria de apoio ao trabalho com dados no CRAS e na rede do SUAS: da pergunta ao relatório, com planilha, SQL, R e Python. Não reproduz nenhum texto. Definições oficiais de indicadores, sistemas e prazos vêm das fontes. Prática sugerida não é norma.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 18,
+    "caracteres": 3891
+  },
+  {
     "doc": "boa-vista-diagnostico-socioterritorial-2026",
     "titulo": "Boa Vista, diagnóstico socioterritorial por setor censitário (Cadastro Único, IVCAD, Bolsa Família, BPC e Censo 2022)",
     "norma": "Relatório \"Diagnóstico Socioterritorial por setor censitário\" (Cadastro Único, IVCAD, Programas e Censo Demográfico 2022), gerado em 13/10/2026; soma de 493 setores censitários de Boa Vista (código IBGE 1400100)",
@@ -452,6 +462,26 @@
     "caracteres": 243636
   },
   {
+    "doc": "espanhol-guia-apoio",
+    "titulo": "Espanhol do trabalho no SUAS: guia de apoio (vocabulário, frases, falsos amigos e atendimento a migrantes)",
+    "norma": "Síntese própria de apoio ao atendimento de pessoas falantes de espanhol, em especial migrantes venezuelanos em Roraima. Não é norma, não é tradução oficial e não substitui intérprete nem tradução juramentada. Nomes de serviços e normas ficam em português. Revise antes de usar em texto para a família.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 12,
+    "caracteres": 4703
+  },
+  {
+    "doc": "estatistica-guia-apoio",
+    "titulo": "Estatística para o trabalho no SUAS: guia de apoio (não é norma)",
+    "norma": "Síntese própria de apoio ao estudo de estatística aplicada ao serviço social e à psicologia, a partir de conceitos de uso corrente em livros-texto abertos (como OpenIntro Statistics e Think Stats, em inglês, ambos de acesso livre). Não reproduz nenhum texto. Prática sugerida não é norma.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 19,
+    "caracteres": 4314
+  },
+  {
     "doc": "guia-bolsa-familia-cadunico-2026",
     "titulo": "Guia rápido Bolsa Família e CadÚnico (orientação, não é norma)",
     "norma": "Material orientativo compilado de MDS/Caixa e das normas citadas (Lei 14.601/2023, Decretos 12.064/2024 e 13.120/2026, Decreto 11.016/2022, Portaria MDS 1.058/2025, IN SENARC/MDS 50/2025, Portarias Interministeriais MDS/MS 38/2026 e MEC/MDS 12/2025); atualizado em 15/10/2026",
@@ -460,6 +490,16 @@
     "revisao": "pendente",
     "trechos": 14,
     "caracteres": 7557
+  },
+  {
+    "doc": "ingles-guia-apoio",
+    "titulo": "Inglês do trabalho no SUAS: guia de apoio (vocabulário, frases, falsos amigos, inglês da Guiana e leitura de textos de psicologia)",
+    "norma": "Síntese própria de apoio ao atendimento de pessoas falantes de inglês, em especial quem vem da fronteira com a Guiana, e à leitura de textos em inglês. Não é norma, não é tradução oficial e não substitui intérprete nem tradução juramentada. Nomes de serviços e normas ficam em português. Revise antes de usar em texto para a família.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 13,
+    "caracteres": 4859
   },
   {
     "doc": "lei-10216-2001-resumo",
