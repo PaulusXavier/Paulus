@@ -123,7 +123,7 @@ const FAMILIAS = {
   paif: 'PAIF', paf: 'PAF (Plano de Acompanhamento Familiar)', cras: 'CRAS como unidade', domicilio: 'Proteção Social Básica no Domicílio',
   psicossocial: 'Psicologia social e SUAS', raps: 'RAPS e saúde mental', portugues: 'Português do trabalho', avaliacao: 'Avaliação psicológica',
   psicodiagnostico: 'Psicodiagnóstico', psicopatologia: 'Psicopatologia', 'dados-r': 'Dados com R', 'dados-python': 'Dados com Python',
-  analise: 'Análise de dados', estatistica: 'Estatística'
+  analise: 'Análise de dados', estatistica: 'Estatística', excel: 'Excel'
 };
 
 function chaveFamilia(id) {
