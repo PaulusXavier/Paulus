@@ -482,6 +482,16 @@
     "caracteres": 4314
   },
   {
+    "doc": "excel-guia-apoio",
+    "titulo": "Excel no trabalho do serviço: guia de apoio (não é norma)",
+    "norma": "Síntese própria de apoio ao uso do Excel no CRAS e na rede do SUAS: da base bem desenhada à tabela dinâmica, Power Query e macros, com cuidados de LGPD. Não reproduz nenhum texto. Nomes de funções em português podem variar entre versões e idiomas do Office; conferir na versão da pessoa. Regras, valores e prazos de programas vêm das normas, não da planilha.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 21,
+    "caracteres": 7218
+  },
+  {
     "doc": "guia-bolsa-familia-cadunico-2026",
     "titulo": "Guia rápido Bolsa Família e CadÚnico (orientação, não é norma)",
     "norma": "Material orientativo compilado de MDS/Caixa e das normas citadas (Lei 14.601/2023, Decretos 12.064/2024 e 13.120/2026, Decreto 11.016/2022, Portaria MDS 1.058/2025, IN SENARC/MDS 50/2025, Portarias Interministeriais MDS/MS 38/2026 e MEC/MDS 12/2025); atualizado em 15/10/2026",
