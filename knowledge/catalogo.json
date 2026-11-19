@@ -735,6 +735,17 @@
     "caracteres": 1816
   },
   {
+    "doc": "psicometria-guia-apoio",
+    "titulo": "Psicometria: guia de apoio ao estudo (não é norma)",
+    "norma": "Síntese própria de apoio ao estudo de psicometria, a partir de conceitos de uso corrente em livros-texto e em diretrizes internacionais (Standards for Educational and Psychological Testing, de AERA, APA e NCME; diretrizes da International Test Commission). Não reproduz nenhum texto. Material didático, sem valor de norma; referências numéricas (como 0,70 ou 0,95) são convenções da prática, não exigências.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 12,
+    "caracteres": 3964
+  },
+  {
     "doc": "psicopatologia-guia-apoio",
     "titulo": "Psicopatologia: guia de apoio conceitual e limites no SUAS",
     "norma": "Síntese de apoio conceitual sobre psicopatologia (modelos, semiologia, grandes grupos de quadros, linguagem e crise), escrita para a prática da psicologia no SUAS. Não substitui classificação oficial (CID) nem tratado. Partes marcadas como \"prática sugerida\" são orientação de trabalho, não norma. Resumo, não é o texto literal.",
