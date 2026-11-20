@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Paulus · Console</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self' https://*.workers.dev; img-src 'self' data:; worker-src 'self'">
+<style>
+:root{--c:#37e6ff;--d:#0a1a26;--t:#cdf6ff;--a:#ffb347}
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:radial-gradient(ellipse at 50% 40%,#0c2a3d,#02070c 70%);color:var(--t);font:15px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow:hidden}
+#orb{position:fixed;inset:0;width:100%;height:100%}
+.hud{position:fixed;border:1px solid #37e6ff55;background:#04141fb0;padding:10px 14px;font-size:12px;letter-spacing:.06em;border-radius:4px;backdrop-filter:blur(3px)}
+.hud b{color:var(--c);font-weight:600}
+#tl{top:calc(12px + env(safe-area-inset-top,0px));left:12px}#tr{top:calc(12px + env(safe-area-inset-top,0px));right:12px;text-align:right}
+#ans{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom,0px));width:min(760px,94vw);max-height:38vh;overflow:auto;border:1px solid #37e6ff66;background:#03121bd9;padding:14px 16px;border-radius:6px;white-space:pre-wrap;word-break:break-word}
+#ans:empty{display:none}#ans small{display:block;color:#7fb7c4;margin-top:8px}
+#bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));width:min(760px,94vw);display:flex;gap:6px}
+#q{flex:1;min-width:0;background:#03121b;border:1px solid #37e6ff88;color:var(--t);padding:12px;border-radius:6px;font:inherit}
+button{background:#06202e;color:var(--c);border:1px solid #37e6ff88;border-radius:6px;padding:0 12px;font:inherit;cursor:pointer}
+button.on{background:var(--c);color:#02121a}button:focus-visible,#q:focus-visible{outline:2px solid var(--a)}
+#drop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#02101acc;color:var(--c);font-size:20px}
+@media(max-width:560px){#tr{display:none}}
+@media(prefers-reduced-motion:reduce){#orb{display:none}}
+</style></head><body>
+<canvas id="orb" aria-hidden="true"></canvas>
+<div class="hud" id="tl"><b>PAULUS</b> · CONSOLE<br><span id="st">INICIANDO</span></div>
+<div class="hud" id="tr"><b id="hr">--:--:--</b><br><span id="md">normas · contas · rotas · PDF · socorro</span></div>
+<div id="ans" role="log" aria-live="polite"></div>
+<div id="drop">Solte o PDF aqui (fica no aparelho)</div>
+<div id="bar">
+<input id="q" placeholder="Pergunte ao Paulus…" autocomplete="off" aria-label="Pergunta">
+<button id="mic" title="Falar">🎤</button><button id="wk" title="Só responder quando eu disser Paulus">Paulus?</button>
+<button id="vz" class="on" title="Resposta falada">🔊</button><button id="pa" title="Parar">■</button><button id="nv" title="Nova conversa">↺</button>
+</div>
+<script src="paulus.v1.js"></script>
+<script>
+(function(){
+var ENDPOINT='https://paulus-ia.paulo-ae18.workers.dev';
+var $=function(i){return document.getElementById(i)};
+var estado='idle',falar=true,wake=false,ouvindo=false,arquivos=[],rec=null,ocupado=false,falando=false;
+function setEstado(e,t){estado=e;$('st').textContent=t||({idle:'EM ESPERA',listen:'OUVINDO',think:'PENSANDO',talk:'FALANDO'})[e]}
+try{Paulus.init({app:'paulus',endpoint:ENDPOINT,conhecimentoUrl:'conhecimento-geral.json'});setEstado('idle')}catch(e){setEstado('idle','MÓDULO NÃO CARREGOU')}
+setInterval(function(){$('hr').textContent=new Date().toLocaleTimeString('pt-BR')},500);
+// ---- orbe
+var cv=$('orb'),g=cv.getContext('2d'),t0=0;
+function rs(){cv.width=innerWidth*devicePixelRatio;cv.height=innerHeight*devicePixelRatio}addEventListener('resize',rs);rs();
+function draw(ts){var W=cv.width,H=cv.height,cx=W/2,cy=H*.42,R=Math.min(W,H)*.2,sp={idle:.25,listen:.8,think:2.2,talk:1.2}[estado],amp={idle:.02,listen:.07,think:.04,talk:.12}[estado];
+t0+=sp*.016;g.clearRect(0,0,W,H);var p=1+amp*Math.sin(ts/(estado==='talk'?90:400))+(estado==='talk'?amp*Math.sin(ts/37):0);
+var gr=g.createRadialGradient(cx,cy,R*.1,cx,cy,R*1.6*p);gr.addColorStop(0,'#37e6ff88');gr.addColorStop(.5,'#37e6ff22');gr.addColorStop(1,'#0000');g.fillStyle=gr;g.beginPath();g.arc(cx,cy,R*1.6*p,0,7);g.fill();
+g.lineWidth=2*devicePixelRatio;for(var i=0;i<4;i++){g.strokeStyle=i%2?'#37e6ff':'#ffb34799';g.globalAlpha=.8-i*.12;g.setLineDash(i%2?[R*.3,R*.1]:[R*.05,R*.12]);g.beginPath();g.arc(cx,cy,R*(.7+i*.2)*p,t0*(i%2?1:-1)*(1+i*.3),t0*(i%2?1:-1)*(1+i*.3)+5.2);g.stroke()}
+g.setLineDash([]);g.globalAlpha=1;g.fillStyle='#bff8ff';g.beginPath();g.arc(cx,cy,R*.22*p,0,7);g.fill();requestAnimationFrame(draw)}
+requestAnimationFrame(draw);
+// ---- voz (saída)
+function limpa(s){return String(s).replace(/[*_#`>|~]/g,' ').replace(/https?:\S+/g,'').replace(/\s+/g,' ').trim()}
+function dizer(txt){if(!falar||!window.speechSynthesis||!txt)return;speechSynthesis.cancel();
+var fr=limpa(txt).match(/[^.!?;\n]+[.!?;]?/g)||[];var vz=speechSynthesis.getVoices().filter(function(v){return /^pt/i.test(v.lang)})[0];falando=true;setEstado('talk');
+fr.forEach(function(f,i){var u=new SpeechSynthesisUtterance(f);u.lang='pt-BR';if(vz)u.voice=vz;u.rate=1.02;if(i===fr.length-1){u.onend=u.onerror=function(){falando=false;setEstado('idle');rearmar()}}speechSynthesis.speak(u)})}
+function parar(){if(window.speechSynthesis)speechSynthesis.cancel();falando=false;if(rec&&ouvindo){try{rec.stop()}catch(e){}}setEstado('idle')}
+// ---- perguntar
+async function enviar(txt){txt=(txt||'').trim();if(!txt&&!arquivos.length||ocupado)return;ocupado=true;$('q').value='';setEstado('think');
+var a=$('ans');a.textContent='';var ia=false;
+try{var r=await Paulus.perguntar(txt||'juntar',{aba:falar?'Console por voz':'Console por texto',arquivos:arquivos.length?arquivos:undefined,onToken:function(p,tudo){a.textContent=tudo;a.scrollTop=1e9}});
+arquivos=[];var out=r.texto||'';if(r.tipo==='crise'&&r.telefones)out+='\n'+r.telefones.map(function(x){return x.numero+' '+x.nome}).join('\n');
+if(r.tipo==='busca'&&r.itens)out+='\n'+r.itens.map(function(x){return '• '+(x.titulo||'')}).join('\n');
+a.textContent=out;
+if(r.tipo==='pdf'&&r.arquivos)r.arquivos.forEach(function(f){var b=document.createElement('button');b.textContent='Baixar '+f.nome;b.style.cssText='display:block;margin-top:8px;padding:8px 12px';b.onclick=function(){Paulus.pdf.baixar(f)};a.appendChild(b)});
+var m=(r.fontes||[]).slice(0,4).map(function(f){return f.norma||f.documento||f.referencia}).filter(Boolean);if(m.length){var s=document.createElement('small');s.textContent='Fontes: '+m.join(' · ');a.appendChild(s)}
+(r.avisos||[]).slice(0,1).forEach(function(v){var s=document.createElement('small');s.textContent=v;a.appendChild(s)});
+ocupado=false;dizer(out)}catch(e){ocupado=false;a.textContent='Não consegui responder agora.';setEstado('idle')}
+if(!falando)setEstado('idle')}
+$('q').addEventListener('keydown',function(e){if(e.key==='Enter')enviar($('q').value)});
+// ---- voz (entrada)
+var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+function iniciarRec(){if(!SR){$('st').textContent='SEM RECONHECIMENTO DE VOZ NESTE NAVEGADOR';return}
+rec=new SR();rec.lang='pt-BR';rec.continuous=wake;rec.interimResults=false;
+rec.onstart=function(){ouvindo=true;$('mic').classList.add('on');setEstado('listen',wake?'AGUARDANDO "PAULUS"':'OUVINDO')};
+rec.onend=function(){ouvindo=false;$('mic').classList.remove('on');if(estado==='listen')setEstado('idle');rearmar()};
+rec.onerror=function(){ouvindo=false};
+rec.onresult=function(ev){if(falando||ocupado)return;var t=ev.results[ev.results.length-1][0].transcript.trim();
+if(wake){var m=/^(?:ei |oi |ok |olá )?paulus[,.!]?\s*(.*)$/i.exec(t);if(!m)return;t=m[1]}
+if(t){$('q').value=t;enviar(t)}};
+try{rec.start()}catch(e){}}
+var querMic=false;function rearmar(){if(querMic&&!ouvindo&&!falando&&!ocupado)setTimeout(function(){if(querMic&&!ouvindo&&!falando&&!ocupado)iniciarRec()},400)}
+$('mic').onclick=function(){querMic=!querMic;if(querMic)iniciarRec();else{if(rec)try{rec.stop()}catch(e){}}};
+$('wk').onclick=function(){wake=!wake;this.classList.toggle('on',wake);if(querMic){try{rec.stop()}catch(e){}}};
+$('vz').onclick=function(){falar=!falar;this.classList.toggle('on',falar);if(!falar)parar()};
+$('pa').onclick=function(){querMic=false;parar()};
+$('nv').onclick=function(){parar();Paulus.limpar();$('ans').textContent='';arquivos=[]};
+// ---- PDF por arrastar
+addEventListener('dragover',function(e){e.preventDefault();$('drop').style.display='flex'});
+addEventListener('dragleave',function(e){if(!e.relatedTarget)$('drop').style.display='none'});
+addEventListener('drop',function(e){e.preventDefault();$('drop').style.display='none';arquivos=Array.prototype.slice.call(e.dataTransfer.files);$('ans').textContent=arquivos.length+' arquivo(s) pronto(s). Diga o que fazer: "juntar", "remover a página 2"…'});
+if(window.speechSynthesis)speechSynthesis.onvoiceschanged=function(){};
+})();
+</script></body></html>
