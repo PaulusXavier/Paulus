@@ -5,123 +5,99 @@
 <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#02070c"><link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Paulus_IA">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self' https://*.workers.dev; img-src 'self' data:">
 <style>
-:root{--c:#37e6ff;--t:#d6f7ff;--a:#ffb347}
-*{box-sizing:border-box}html,body{height:100%;margin:0;background:radial-gradient(ellipse at 50% 10%,#0c2a3d,#02070c 70%);color:var(--t);font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
-#orb{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
-header{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 0;font:11px ui-monospace,Menlo,monospace;letter-spacing:.08em;color:#7fd9e8}
+:root{--c:#37e6ff;--t:#d6f7ff;--a:#ffb347;--mut:#7fb7c4;--bd:#37e6ff44;--bg2:#04151f;--ok:#6ee7a8}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:radial-gradient(ellipse at 50% 0%,#0c2a3d,#02070c 70%);color:var(--t);font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
+#orb{position:fixed;top:0;left:0;width:100%;height:76px;pointer-events:none}
+header{position:fixed;top:0;left:0;right:0;height:calc(52px + env(safe-area-inset-top,0px));display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:calc(8px + env(safe-area-inset-top,0px)) 12px 0;font:11px ui-monospace,Menlo,monospace;letter-spacing:.08em;color:#7fd9e8;z-index:3}
 header b{color:var(--c)}
-#log{position:fixed;left:50%;transform:translateX(-50%);top:25vh;bottom:calc(92px + env(safe-area-inset-bottom,0px));width:min(780px,94vw);overflow:auto;display:flex;flex-direction:column;gap:12px;padding:4px 2px;scroll-behavior:smooth}
-.m{max-width:92%;padding:10px 14px;border-radius:10px;word-break:break-word}
+.hl{display:flex;flex-direction:column;gap:2px;min-width:0}
+#st{color:var(--a)}
+.hr{display:flex;align-items:center;gap:4px}
+.hb{min-height:30px!important;min-width:30px;padding:0 8px!important;font-size:13px!important;border-color:#37e6ff44!important}
+#hr{margin-left:4px;opacity:.8}
+#log{position:fixed;left:50%;transform:translateX(-50%);top:calc(64px + env(safe-area-inset-top,0px));bottom:var(--bar,150px);width:min(820px,96vw);overflow:auto;display:flex;flex-direction:column;gap:12px;padding:6px 2px 10px;overscroll-behavior:contain}
+.m{max-width:94%;padding:10px 14px;border-radius:12px;word-break:break-word;position:relative}
 .u{align-self:flex-end;background:#0f3a4f;border:1px solid #37e6ff55}
-.p{align-self:flex-start;background:#04151fe6;border:1px solid #37e6ff44}
+.p{align-self:flex-start;background:var(--bg2);border:1px solid var(--bd);width:fit-content}
 .m p{margin:0 0 8px}.m p:last-child{margin:0}.m ul,.m ol{margin:4px 0 8px;padding-left:22px}
-.f{font-size:12px;color:#7fb7c4;margin-top:8px}
-.ac{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.ac button,.ch{font-size:12px;padding:4px 10px}
-.hi{align-self:center;text-align:center;color:#9fdce8;max-width:560px}
+.m h3,.m h4{margin:10px 0 4px;color:var(--c);font-size:15px}.m h3{font-size:16px}
+.m code{font:13px ui-monospace,Menlo,monospace;background:#0a2c3c;padding:1px 5px;border-radius:4px}
+.m a{color:var(--a)}
+.cb{position:relative;margin:6px 0 10px}
+.cb pre{margin:0;overflow:auto;background:#020d14;border:1px solid var(--bd);border-radius:8px;padding:10px 12px;font:13px/1.45 ui-monospace,Menlo,monospace;white-space:pre}
+.cb button{position:absolute;top:4px;right:4px;min-height:0;padding:2px 8px;font-size:11px}
+.tw{overflow:auto;margin:6px 0 10px}
+.m table{border-collapse:collapse;font-size:14px}.m th,.m td{border:1px solid var(--bd);padding:4px 8px;text-align:left;vertical-align:top}.m th{background:#0a2c3c}
+.f{font-size:12px;color:var(--mut);margin-top:8px}
+.ac{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.ac button,.ch{font-size:12px;padding:4px 10px;min-height:30px}
+.ue{position:absolute;left:-2px;bottom:-12px;opacity:0;transition:opacity .15s;min-height:0;padding:1px 8px;font-size:11px;transform:translateX(-100%) translateX(2px);bottom:6px}
+.u:hover .ue,.u:focus-within .ue{opacity:1}
+@media(hover:none){.ue{opacity:.8}}
+.hi{align-self:center;text-align:center;color:#9fdce8;max-width:600px;margin-top:3vh}
+.hi h2{margin:0 0 6px;font-size:20px;color:var(--c);font-weight:600}
+.hi p{margin:0 0 10px}
+.hi small{display:block;color:var(--mut);margin-top:10px;font-size:12px}
 .ch{margin:4px}
-#bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));width:min(780px,94vw);display:flex;gap:6px;align-items:flex-end}
-#q{flex:1;min-width:0;resize:none;max-height:140px;background:#03121b;border:1px solid #37e6ff99;color:var(--t);padding:12px;border-radius:10px;font:inherit}
-button{background:#06202e;color:var(--c);border:1px solid #37e6ff88;border-radius:8px;padding:0 12px;min-height:44px;font:inherit;cursor:pointer}
+kbd{font:11px ui-monospace,Menlo,monospace;border:1px solid #37e6ff55;border-radius:4px;padding:0 5px;background:#06202e}
+#dn{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--bar,150px) + 8px);z-index:4;min-height:32px;font-size:12px;padding:0 12px;background:#06202e;box-shadow:0 2px 12px #0008}
+#bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom,0px));width:min(820px,96vw);display:flex;flex-direction:column;gap:6px}
+#tb{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+#tb button{flex:none;min-height:32px;font-size:12px;padding:0 10px;border-radius:16px;white-space:nowrap}
+#fl{display:flex;gap:6px;flex-wrap:wrap}
+#fl:empty{display:none}
+.fc{display:inline-flex;align-items:center;gap:6px;background:#0f3a4f;border:1px solid #37e6ff66;border-radius:14px;padding:2px 4px 2px 10px;font-size:12px;max-width:100%}
+.fc span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46vw}
+.fc button{min-height:22px;min-width:22px;padding:0;border-radius:11px;font-size:12px;line-height:1}
+#pi{font-size:12px;color:var(--a);min-height:0}
+#pi:empty{display:none}
+#row{display:flex;gap:6px;align-items:flex-end;position:relative}
+#q{flex:1;min-width:0;resize:none;max-height:160px;background:#03121b;border:1px solid #37e6ff99;color:var(--t);padding:12px;border-radius:12px;font:inherit}
+button{background:#06202e;color:var(--c);border:1px solid #37e6ff88;border-radius:10px;padding:0 12px;min-height:44px;min-width:44px;font:inherit;cursor:pointer}
+button:hover{border-color:var(--c)}
 .ac button,.ch{min-height:0}button.on{background:var(--c);color:#02121a}
-button:focus-visible,#q:focus-visible{outline:2px solid var(--a)}
-#go{background:var(--c);color:#02121a;font-weight:600}
-#drop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#02101acc;color:var(--c);font-size:20px}
-@media(prefers-reduced-motion:reduce){#orb{display:none}}
+button:focus-visible,#q:focus-visible,a:focus-visible{outline:2px solid var(--a);outline-offset:1px}
+#go{background:var(--c);color:#02121a;font-weight:600;min-width:84px}
+#go.stop{background:#ff6b5e;border-color:#ff6b5e;color:#1a0502}
+#sl{position:absolute;left:0;right:0;bottom:calc(100% + 6px);background:#041a26;border:1px solid #37e6ff88;border-radius:12px;max-height:min(46vh,320px);overflow:auto;box-shadow:0 6px 24px #000a;z-index:5}
+#sl[hidden]{display:none}
+#sl div{padding:8px 12px;cursor:pointer;display:flex;gap:10px;align-items:baseline}
+#sl div b{color:var(--c);font:600 13px ui-monospace,Menlo,monospace;flex:none;min-width:84px}
+#sl div span{color:#9fdce8;font-size:13px}
+#sl div.sel,#sl div:hover{background:#0f3a4f}
+#drop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#02101acc;color:var(--c);font-size:20px;z-index:9}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media(max-width:520px){header{font-size:10px}#hr{display:none}.hi h2{font-size:18px}.m{max-width:98%}#go{min-width:64px;padding:0 8px}}
+@media(prefers-reduced-motion:reduce){#orb{display:none}#log{scroll-behavior:auto}}
 </style></head><body>
 <canvas id="orb" aria-hidden="true"></canvas>
-<header><span><b>PAULUS</b> · CONSOLE · <span id="st">EM ESPERA</span></span><span><button id="ins" hidden style="min-height:0;padding:3px 10px;font-size:11px;margin-right:8px">Instalar</button><span id="hr"></span></span></header>
-<main id="log" role="log" aria-live="polite"></main>
-<div id="drop">Solte o PDF aqui (fica no aparelho)</div>
+<header>
+<div class="hl"><span><b>PAULUS_IA</b> · CONSOLE</span><span id="st" role="status" aria-live="polite">EM ESPERA</span></div>
+<div class="hr">
+<button id="ins" class="hb" hidden>Instalar</button>
+<button id="ex" class="hb" title="Salvar a conversa em arquivo (.md)" aria-label="Salvar a conversa">⤓</button>
+<button id="nv" class="hb" title="Nova conversa (Ctrl+Shift+N)" aria-label="Nova conversa">↺</button>
+<button id="vz" class="hb" title="Ler as respostas em voz alta" aria-label="Voz" aria-pressed="false">🔊</button>
+<span id="hr"></span>
+</div>
+</header>
+<main id="log" role="log" aria-live="polite" aria-label="Conversa"></main>
+<button id="dn" hidden>↓ Ir para o fim</button>
+<div id="drop">Solte o arquivo aqui (PDF e fotos ficam no aparelho)</div>
 <div id="bar">
-<textarea id="q" rows="1" placeholder="Escreva sua pergunta… (Enter envia, Shift+Enter quebra linha)" aria-label="Pergunta"></textarea>
-<button id="mic" title="Ditar por voz" aria-label="Ditar">🎤</button><button id="vz" title="Ler as respostas em voz alta" aria-label="Voz">🔊</button><button id="nv" title="Nova conversa" aria-label="Nova conversa">↺</button><button id="go">Enviar</button>
+<div id="tb" role="toolbar" aria-label="Atalhos de tarefas"></div>
+<div id="fl" aria-label="Arquivos anexados"></div>
+<div id="pi" role="status"></div>
+<div id="row">
+<div id="sl" role="listbox" aria-label="Atalhos" hidden></div>
+<button id="at" title="Anexar PDF ou foto" aria-label="Anexar arquivo">📎</button>
+<button id="mic" title="Ditar por voz" aria-label="Ditar">🎤</button>
+<textarea id="q" rows="1" placeholder="Pergunte ou digite / para atalhos…" aria-label="Pergunta"></textarea>
+<button id="go">Enviar</button>
+<input type="file" id="fi" class="sr" multiple accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" tabindex="-1" aria-hidden="true">
+</div>
 </div>
 <script src="paulus.v1.js"></script>
-<script>
-(function(){
-var ENDPOINT='https://paulus-ia.paulo-ae18.workers.dev';
-var $=function(i){return document.getElementById(i)};
-var estado='idle',falar=false,arquivos=[],ocupado=false,ultimo=null,log=$('log');
-function setEstado(e,t){estado=e;$('st').textContent=t||({idle:'EM ESPERA',listen:'OUVINDO',think:'PENSANDO',talk:'FALANDO'})[e]}
-var ok=true;try{Paulus.init({app:'paulus',endpoint:ENDPOINT,conhecimentoUrl:'conhecimento-geral.json'})}catch(e){ok=false;setEstado('idle','MÓDULO NÃO CARREGOU')}
-setInterval(function(){$('hr').textContent=new Date().toLocaleTimeString('pt-BR')},1000);
-// orbe (pequeno, no topo)
-var cv=$('orb'),g=cv.getContext('2d'),t0=0;
-function rs(){cv.width=innerWidth*devicePixelRatio;cv.height=innerHeight*devicePixelRatio}addEventListener('resize',rs);rs();
-function draw(ts){var W=cv.width,H=cv.height,cx=W/2,cy=H*.13,R=Math.min(W,H)*.075,sp={idle:.25,listen:.8,think:2.4,talk:1.2}[estado],amp={idle:.03,listen:.07,think:.05,talk:.12}[estado];
-t0+=sp*.016;g.clearRect(0,0,W,H);var p=1+amp*Math.sin(ts/(estado==='talk'?90:400));
-var gr=g.createRadialGradient(cx,cy,R*.1,cx,cy,R*2*p);gr.addColorStop(0,'#37e6ff88');gr.addColorStop(1,'#0000');g.fillStyle=gr;g.beginPath();g.arc(cx,cy,R*2*p,0,7);g.fill();
-g.lineWidth=1.5*devicePixelRatio;for(var i=0;i<3;i++){g.strokeStyle=i%2?'#37e6ff':'#ffb347aa';g.setLineDash(i%2?[R*.3,R*.1]:[R*.05,R*.12]);var a=t0*(i%2?1:-1)*(1+i*.3);g.beginPath();g.arc(cx,cy,R*(.8+i*.3)*p,a,a+5.2);g.stroke()}
-g.setLineDash([]);g.fillStyle='#bff8ff';g.beginPath();g.arc(cx,cy,R*.3*p,0,7);g.fill();requestAnimationFrame(draw)}
-requestAnimationFrame(draw);
-// texto -> DOM seguro (sem innerHTML)
-function inline(el,s){s.split(/\*\*(.+?)\*\*/).forEach(function(x,i){if(!x)return;if(i%2){var b=document.createElement('strong');b.textContent=x;el.appendChild(b)}else el.appendChild(document.createTextNode(x))})}
-function render(el,txt){el.textContent='';String(txt).replace(/\r/g,'').split(/\n{2,}/).forEach(function(bl){var ls=bl.split('\n').filter(Boolean);if(!ls.length)return;
-var li=ls.every(function(l){return /^\s*(?:[-•*]|\d+[.)])\s+/.test(l)});
-if(li){var l=document.createElement(/^\s*\d/.test(ls[0])?'ol':'ul');ls.forEach(function(x){var i=document.createElement('li');inline(i,x.replace(/^\s*(?:[-•*]|\d+[.)])\s+/,''));l.appendChild(i)});el.appendChild(l)}
-else{var p=document.createElement('p');ls.forEach(function(x,i){if(i)p.appendChild(document.createElement('br'));inline(p,x.replace(/^#+\s*/,''))});el.appendChild(p)}})}
-function rola(){log.scrollTop=log.scrollHeight}
-function bolha(cl,txt){var d=document.createElement('div');d.className='m '+cl;if(txt!=null)render(d,txt);log.appendChild(d);rola();return d}
-function chips(lista,onde){lista.forEach(function(s){var b=document.createElement('button');b.className='ch';b.textContent=s;b.onclick=function(){enviar(s)};onde.appendChild(b)})}
-function inicio(){log.textContent='';var h=document.createElement('div');h.className='hi';h.textContent='Console do Paulus no ar. Escreva sua pergunta sobre o SUAS, normas, contas, rotas ou PDF. Não escreva nome, documento ou endereço de família.';log.appendChild(h);
-var s=[];try{s=Paulus.sugestoesPessoais(3)}catch(e){}chips(s,h)}
-// voz (saída)
-function dizer(t){if(!falar||!window.speechSynthesis||!t)return;speechSynthesis.cancel();var fr=String(t).replace(/[*_#`>|~]/g,' ').replace(/https?:\S+/g,'').replace(/\s+/g,' ').match(/[^.!?;]+[.!?;]?/g)||[];
-var v=speechSynthesis.getVoices().filter(function(x){return /^pt/i.test(x.lang)})[0];setEstado('talk');
-fr.forEach(function(f,i){var u=new SpeechSynthesisUtterance(f);u.lang='pt-BR';if(v)u.voice=v;if(i===fr.length-1)u.onend=u.onerror=function(){setEstado('idle')};speechSynthesis.speak(u)})}
-// ações sob a resposta
-function acoes(d,r){var w=document.createElement('div');w.className='ac';
-function bt(t,f){var b=document.createElement('button');b.textContent=t;b.onclick=function(){f(b)};w.appendChild(b)}
-bt('Copiar',function(b){try{navigator.clipboard.writeText(d.firstChild?d.dataset.t:'');Paulus.avaliar(r,'copiou')}catch(e){}b.textContent='Copiado'});
-bt('Mais curto',function(){Paulus.avaliar(r,'mais_curto');enviar('mais curto')});
-bt('Continuar',function(){enviar('continue')});
-bt('👍',function(b){Paulus.avaliar(r,'bom');b.textContent='✓'});bt('👎',function(b){Paulus.avaliar(r,'ruim');b.textContent='✓'});
-d.appendChild(w)}
-// perguntar
-async function enviar(txt){txt=(txt||'').trim();if((!txt&&!arquivos.length)||ocupado||!ok)return;ocupado=true;
-var h=log.querySelector('.hi');if(h)h.remove();log.querySelectorAll('.ac').forEach(function(x){x.remove()});
-if(txt)bolha('u',txt);$('q').value='';$('q').style.height='';setEstado('think');var d=bolha('p','…');
-try{var r=await Paulus.perguntar(txt||'juntar',{aba:falar?'Console por voz':'Console por texto',arquivos:arquivos.length?arquivos:undefined,onToken:function(p,tudo){render(d,tudo);rola()}});
-arquivos=[];var out=r.texto||'';
-if(r.tipo==='crise'&&r.telefones)out+='\n\n'+r.telefones.map(function(x){return '- '+x.numero+' '+x.nome}).join('\n');
-if(r.tipo==='busca'&&r.itens)out+='\n\n'+r.itens.map(function(x){return '- '+(x.titulo||'')}).join('\n');
-if(!out)out='Não encontrei resposta para isso. Tente reformular.';
-render(d,out);d.dataset.t=out;
-if(r.tipo==='pdf'&&r.arquivos)r.arquivos.forEach(function(f){var b=document.createElement('button');b.textContent='Baixar '+f.nome;b.style.margin='6px 6px 0 0';b.onclick=function(){Paulus.pdf.baixar(f)};d.appendChild(b)});
-var m=(r.fontes||[]).slice(0,4).map(function(f){return f.norma||f.documento||f.referencia}).filter(Boolean);
-if(m.length){var s=document.createElement('div');s.className='f';s.textContent='Fontes: '+m.join(' · ');d.appendChild(s)}
-(r.avisos||[]).slice(0,1).forEach(function(v){var s=document.createElement('div');s.className='f';s.textContent=v;d.appendChild(s)});
-if(r.tipo==='ia'||r.tipo==='norma')acoes(d,r);
-var sg=(r.sugestoes||[]).slice(0,3).map(function(x){return typeof x==='string'?x:(x&&(x.texto||x.rotulo))}).filter(Boolean);
-if(sg.length){var c=document.createElement('div');c.className='ac';chips(sg,c);d.appendChild(c)}
-ultimo=r;dizer(out)}catch(e){render(d,'Não consegui responder agora. Confira a internet e tente de novo.')}
-ocupado=false;if(estado==='think')setEstado('idle');rola();$('q').focus()}
-var q=$('q');q.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();enviar(q.value)}});
-q.addEventListener('input',function(){q.style.height='auto';q.style.height=Math.min(q.scrollHeight,140)+'px'});
-$('go').onclick=function(){enviar(q.value)};
-// ditado
-var SR=window.SpeechRecognition||window.webkitSpeechRecognition,rec=null;
-$('mic').onclick=function(){if(!SR){$('st').textContent='SEM DITADO NESTE NAVEGADOR';return}
-if(rec){try{rec.stop()}catch(e){}return}
-rec=new SR();rec.lang='pt-BR';rec.interimResults=true;
-rec.onstart=function(){$('mic').classList.add('on');setEstado('listen')};
-rec.onresult=function(ev){var t='';for(var i=0;i<ev.results.length;i++)t+=ev.results[i][0].transcript;q.value=t;q.dispatchEvent(new Event('input'))};
-rec.onend=function(){rec=null;$('mic').classList.remove('on');setEstado('idle');q.focus()};rec.onerror=function(){};
-try{rec.start()}catch(e){rec=null}};
-$('vz').onclick=function(){falar=!falar;this.classList.toggle('on',falar);if(!falar&&window.speechSynthesis){speechSynthesis.cancel();setEstado('idle')}};
-$('nv').onclick=function(){if(window.speechSynthesis)speechSynthesis.cancel();Paulus.limpar();arquivos=[];ultimo=null;inicio();setEstado('idle')};
-// PDF por arrastar
-addEventListener('dragover',function(e){e.preventDefault();$('drop').style.display='flex'});
-addEventListener('dragleave',function(e){if(!e.relatedTarget)$('drop').style.display='none'});
-addEventListener('drop',function(e){e.preventDefault();$('drop').style.display='none';arquivos=Array.prototype.slice.call(e.dataTransfer.files);bolha('p',arquivos.length+' arquivo(s) pronto(s). Escreva o que fazer, por exemplo: "juntar" ou "remover a página 2".')});
-// instalar como app
-var ev0=null;
-window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();ev0=e;$('ins').hidden=false});
-$('ins').onclick=function(){if(!ev0)return;ev0.prompt();ev0.userChoice.then(function(){ev0=null;$('ins').hidden=true})};
-window.addEventListener('appinstalled',function(){$('ins').hidden=true});
-if(/iphone|ipad/i.test(navigator.userAgent)&&!navigator.standalone){var ios=document.createElement('div');ios.className='f';ios.style.textAlign='center';ios.textContent='Para instalar no iPhone/iPad: toque em Compartilhar e em "Adicionar à Tela de Início".';log.parentNode.insertBefore(ios,log);ios.style.cssText+=';position:fixed;top:56px;left:0;right:0;z-index:2'}
-if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});
-inicio();q.focus();
-})();
-</script></body></html>
+<script src="console.js"></script>
+</body></html>
