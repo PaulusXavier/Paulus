@@ -2,6 +2,7 @@
 <html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Paulus · Console</title>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#02070c"><link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Paulus">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self' https://*.workers.dev; img-src 'self' data:">
 <style>
 :root{--c:#37e6ff;--t:#d6f7ff;--a:#ffb347}
@@ -29,7 +30,7 @@ button:focus-visible,#q:focus-visible{outline:2px solid var(--a)}
 @media(prefers-reduced-motion:reduce){#orb{display:none}}
 </style></head><body>
 <canvas id="orb" aria-hidden="true"></canvas>
-<header><span><b>PAULUS</b> · CONSOLE · <span id="st">EM ESPERA</span></span><span id="hr"></span></header>
+<header><span><b>PAULUS</b> · CONSOLE · <span id="st">EM ESPERA</span></span><span><button id="ins" hidden style="min-height:0;padding:3px 10px;font-size:11px;margin-right:8px">Instalar</button><span id="hr"></span></span></header>
 <main id="log" role="log" aria-live="polite"></main>
 <div id="drop">Solte o PDF aqui (fica no aparelho)</div>
 <div id="bar">
@@ -114,6 +115,13 @@ $('nv').onclick=function(){if(window.speechSynthesis)speechSynthesis.cancel();Pa
 addEventListener('dragover',function(e){e.preventDefault();$('drop').style.display='flex'});
 addEventListener('dragleave',function(e){if(!e.relatedTarget)$('drop').style.display='none'});
 addEventListener('drop',function(e){e.preventDefault();$('drop').style.display='none';arquivos=Array.prototype.slice.call(e.dataTransfer.files);bolha('p',arquivos.length+' arquivo(s) pronto(s). Escreva o que fazer, por exemplo: "juntar" ou "remover a página 2".')});
+// instalar como app
+var ev0=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();ev0=e;$('ins').hidden=false});
+$('ins').onclick=function(){if(!ev0)return;ev0.prompt();ev0.userChoice.then(function(){ev0=null;$('ins').hidden=true})};
+window.addEventListener('appinstalled',function(){$('ins').hidden=true});
+if(/iphone|ipad/i.test(navigator.userAgent)&&!navigator.standalone){var ios=document.createElement('div');ios.className='f';ios.style.textAlign='center';ios.textContent='Para instalar no iPhone/iPad: toque em Compartilhar e em "Adicionar à Tela de Início".';log.parentNode.insertBefore(ios,log);ios.style.cssText+=';position:fixed;top:56px;left:0;right:0;z-index:2'}
+if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});
 inicio();q.focus();
 })();
 </script></body></html>
