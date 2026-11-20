@@ -56,7 +56,12 @@ export function construir() {
   // Console do Paulus (tela Jarvis, fora dos apps): dist/console.html
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'console.html'));
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'index.html')); // a raiz do site (…/Paulus/) abre o console
-  for (const f of ['manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png']) copyFileSync(join(RAIZ, 'console', f), join(saida, f)); // instalável (PWA)
+  // instalável (PWA): procura em console/ e, se não achar, na raiz do repositório
+  for (const f of ['manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png']) {
+    const origem = [join(RAIZ, 'console', f), join(RAIZ, f)].find(existsSync);
+    if (!origem) throw new Error('Falta ' + f + ' (em console/ ou na raiz do repositório).');
+    copyFileSync(origem, join(saida, f));
+  }
   // um arquivo por pacote (ex.: conhecimento-psicologia.json), só quando há mais de um grupo; o que não tem pacote vai em "geral"
   const todos = JSON.parse(readFileSync(base, 'utf8'));
   const grupos = {};
