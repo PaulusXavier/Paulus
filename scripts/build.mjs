@@ -53,6 +53,8 @@ export function construir() {
   if (existsSync(lugares)) copyFileSync(lugares, join(saida, 'lugares-boa-vista.json'));
   // pdf-lib (MIT), carregado pelo navegador só no primeiro pedido de PDF; fica ao lado do paulus.v1.js
   copyFileSync(join(RAIZ, 'vendor', 'pdf-lib.min.js'), join(saida, 'pdf-lib.min.js'));
+  // Console do Paulus (tela Jarvis, fora dos apps): dist/console.html
+  copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'console.html'));
   // um arquivo por pacote (ex.: conhecimento-psicologia.json), só quando há mais de um grupo; o que não tem pacote vai em "geral"
   const todos = JSON.parse(readFileSync(base, 'utf8'));
   const grupos = {};
