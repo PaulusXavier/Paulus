@@ -1,0 +1,26 @@
+{
+  "fonte": "Dados do Argo SUAS (assets/municipios-rr.json): população do Censo 2022 (IBGE); área oficial onde o Argo informa; % indígena onde o Argo informa. Contornos: IBGE, via geodata-br (CC0).",
+  "estado": {
+    "nome": "Roraima", "capital": "Boa Vista", "municipios": 15,
+    "pop": 636707, "popEstimada2025": 738772, "areaKm2": 223505.058, "densidade": 2.85,
+    "indigenas": 97320, "indigenasPct": 15.29,
+    "fronteiras": "Venezuela (Pacaraima, BR-174) e Guiana (Bonfim, BR-401)"
+  },
+  "municipios": [
+    { "id": "alto-alegre", "nome": "Alto Alegre", "pop": 21096, "indPct": 60.3 },
+    { "id": "amajari", "nome": "Amajari", "pop": 13927, "indPct": 69.5 },
+    { "id": "boa-vista", "nome": "Boa Vista", "pop": 413486, "indPct": 4.94, "indPessoas": 20410, "areaKm2": 5687.037, "capital": true },
+    { "id": "bonfim", "nome": "Bonfim", "pop": 13923, "nota": "Fica na fronteira com a Guiana e é ligado a Boa Vista pela BR-401." },
+    { "id": "canta", "nome": "Cantá", "pop": 18682, "areaKm2": 7664.83 },
+    { "id": "caracarai", "nome": "Caracaraí", "pop": 20957, "areaKm2": 47379.9, "densidade": 0.5 },
+    { "id": "caroebe", "nome": "Caroebe", "pop": 10656 },
+    { "id": "iracema", "nome": "Iracema", "pop": 10023, "areaKm2": 14011.7, "nota": "Fica a cerca de 93 km de Boa Vista (SESAU-RR)." },
+    { "id": "mucajai", "nome": "Mucajaí", "pop": 18095 },
+    { "id": "normandia", "nome": "Normandia", "pop": 13986, "indPct": 89, "indPessoas": 12144, "indAprox": true },
+    { "id": "pacaraima", "nome": "Pacaraima", "pop": 19305, "indPct": 59.2, "nota": "Fica na fronteira com a Venezuela e é a principal porta de entrada terrestre de migrantes e refugiados venezuelanos no Brasil." },
+    { "id": "rorainopolis", "nome": "Rorainópolis", "pop": 32647, "areaKm2": 33579.74, "densidade": 0.9 },
+    { "id": "sao-joao-da-baliza", "nome": "São João da Baliza", "pop": 8858 },
+    { "id": "sao-luiz", "nome": "São Luiz", "pop": 7315 },
+    { "id": "uiramuta", "nome": "Uiramutã", "pop": 13751, "indPct": 96.6, "indPessoas": 13283 }
+  ]
+}
