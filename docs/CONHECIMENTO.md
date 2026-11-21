@@ -64,3 +64,8 @@ Cuidados: só documentos públicos e oficiais, **nada com dado de pessoa**; PDF 
 `node scripts/importar-mapa.mjs overpass-lugares.json` gera `knowledge/documentos/mapa-boa-vista-osm.md` (escolas, saúde, assistência social, segurança, órgãos públicos, templos etc., por bairro, com resumo e contagem). A consulta Overpass para colar em overpass-turbo.eu está no cabeçalho do script; exporte como JSON bruto. Depois rode `npm run build:conhecimento`.
 
 Por que OpenStreetMap e não Google Maps: o Google não permite copiar o mapa em massa e a página dele não entrega a lista de lugares sem JavaScript e chave de API. O OSM é aberto (ODbL) e o documento cita a fonte. É colaborativo e incompleto, por isso sai `revisao: pendente` e `worker: nao` (só nos pacotes offline); endereço e telefone de serviço oficial continuam vindo do diretório do Argo.
+
+
+## Endereços do diretório do Argo
+
+`node scripts/importar-enderecos-argo.mjs ../Projeto-Argo-SUAS` (ou `npm run importar:enderecos-argo -- ../Projeto-Argo-SUAS`) lê `js/data.js` e `UNITS_CRAS_CREAS` do Argo e gera `knowledge/documentos/argo-enderecos-diretorio.md`: uma ficha por unidade (endereço, telefone, horário, serviços), uma lista por grupo e os CRAS/CREAS com os bairros que atendem. Sai `tipo: apoio` e `revisao: pendente`; o que o diretório não informa ("N/A") fica como "não informado" e endereço só com bairro ou rodovia recebe um aviso. Sempre que o diretório do Argo mudar, rode de novo e depois `npm run build:conhecimento`.
