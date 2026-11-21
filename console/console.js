@@ -11,10 +11,36 @@
   var ENDPOINT = (meta && meta.content || '').replace(/\/+$/, '');
   var reduzido = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // Posição do aparelho para rotas ("saindo daqui", "como chegar ao X"). O Paulus nunca pede o GPS por conta própria:
+  // quem pede é este console, só quando a pergunta fala da posição de quem pergunta, e o navegador ainda pergunta se pode.
+  // A posição fica só na memória desta aba (2 min), não vai ao Worker nem à IA e não aparece na tela.
+  var posicao = null, ultimoPedido = '';
+  var QUER_POSICAO = /\b(daqui|aqui|onde (eu )?(estou|me encontro)|meu local|de mim|perto de mim|(minha|da minha|de minha) (posicao|localizacao)|localizacao atual|como (chegar|ir)|(rota|trajeto|caminho) (ate|para|pra))\b/;
+  function semAcento(t) { return String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+  function posicaoDoAparelho() {
+    if (!QUER_POSICAO.test(semAcento(ultimoPedido))) return Promise.resolve(null);
+    if (posicao && Date.now() - posicao.t < 120000) return Promise.resolve({ lat: posicao.lat, lng: posicao.lng });
+    var kp = $('kp');
+    var sai = function (txt, cls) { if (kp) { kp.textContent = txt; kp.className = cls || ''; } };
+    if (!navigator.geolocation || !window.isSecureContext) { sai('INDISPONÍVEL', 'er'); return Promise.resolve(null); }
+    sai('OBTENDO…', 'av');
+    return new Promise(function (resolve) {
+      navigator.geolocation.getCurrentPosition(function (p) {
+        posicao = { lat: p.coords.latitude, lng: p.coords.longitude, t: Date.now() };
+        sai('OBTIDA' + (p.coords.accuracy ? ' ±' + Math.round(p.coords.accuracy) + ' m' : ''), 'ok');
+        resolve({ lat: posicao.lat, lng: posicao.lng });
+      }, function (e) {
+        sai(e && e.code === 1 ? 'NEGADA' : 'SEM SINAL', 'er'); resolve(null);
+      }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+    });
+  }
+
   P.init({
     app: 'paulus',
     endpoint: ENDPOINT || undefined,
-    conhecimentoUrl: 'conhecimento.json'
+    conhecimentoUrl: 'conhecimento.json',
+    aparelho: posicaoDoAparelho,
+    lugaresUrl: 'lugares-boa-vista.json'
   });
 
   var log = $('log'), q = $('q'), go = $('go'), fl = $('fl'), pi = $('pi'), sl = $('sl'), tb = $('tb'), dn = $('dn');
@@ -238,6 +264,7 @@
     { c: '/salvar', d: 'Salvar conversa em .md', f: function () { exportar(); } },
     { c: '/ajuda', d: 'O que o Paulus sabe fazer', t: 'o que você sabe fazer?' },
     { c: '/pdf', d: 'Editar PDF (anexe o arquivo)', t: 'juntar os PDFs anexados' },
+    { c: '/daqui', d: 'Rota a partir da minha posição', t: 'traçar rota saindo daqui: ' },
     { c: '/rota', d: 'Traçar rota entre unidades', t: 'traçar rota saindo do CRAS: ' },
     { c: '/conta', d: 'Fazer uma conta', t: 'quanto é ' },
     { c: '/corrigir', d: 'Corrigir ortografia', t: 'corrija a ortografia e a gramática: ' },
@@ -279,7 +306,7 @@
   function aviso(t) { pi.textContent = t; setTimeout(function () { if (pi.textContent === t) pi.textContent = ''; ajustarBarra(); }, 3500); ajustarBarra(); }
 
   // barra de tarefas rápidas
-  [['PAIF × PAEFI', 'qual a diferença entre PAIF e PAEFI?'], ['Conta', '/conta'], ['Rota', '/rota'], ['PDF', '/pdf'], ['Corrigir', '/corrigir'], ['Espanhol', '/espanhol']].forEach(function (x) {
+  [['PAIF × PAEFI', 'qual a diferença entre PAIF e PAEFI?'], ['Conta', '/conta'], ['Rota daqui', '/daqui'], ['Rota', '/rota'], ['PDF', '/pdf'], ['Corrigir', '/corrigir'], ['Espanhol', '/espanhol']].forEach(function (x) {
     tb.appendChild(btn(x[0], function () {
       if (x[1].charAt(0) === '/') { q.value = x[1]; var a = ATALHOS.filter(function (z) { return z.c === x[1]; })[0]; if (a) rodarAtalho(a); }
       else enviar(x[1]);
@@ -411,6 +438,7 @@
     msgUsuario(texto, nomes);
     var x = msgPaulus(); pensando(x); x.t0 = performance.now(); if (nucleo) nucleo.impulso(); bip(520, 880, 0.12, 0.045);
     try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) { /* sem vibração */ }
+    ultimoPedido = texto;
     var id = ++envioAtual; atual = x; mudarBotao(true);
     var vivo = function () { return id === envioAtual; };   // falso depois de Parar ou de um envio mais novo
     P.perguntar(texto, {
@@ -517,7 +545,7 @@
   // ------------------------------------------------------------ cabeçalho
   function nova() {
     if (window.speechSynthesis) speechSynthesis.cancel();
-    P.limpar(); transcricao = []; anexos = []; nResp = 0; legenda(''); renderAnexos(); log.textContent = ''; boasVindas(); estadoUI('idle'); q.focus();
+    P.limpar(); posicao = null; var kp0 = $('kp'); if (kp0) { kp0.textContent = 'NÃO USADA'; kp0.className = ''; } transcricao = []; anexos = []; nResp = 0; legenda(''); renderAnexos(); log.textContent = ''; boasVindas(); estadoUI('idle'); q.focus();
   }
   function exportar() {
     if (!transcricao.length) { aviso('Nada para salvar ainda.'); return; }
