@@ -12,4 +12,5 @@ texto: sim
 - LESSONS: targetId (id que exista em BODIES), zoom, title numerado, body, formula. Cada lição ensina uma ideia só, em ordem do simples ao complexo.
 - QUIZ_QUESTIONS: q, options (4 alternativas), answer (posição começando em 0), explanation. Alternativas erradas precisam ser plausíveis, nunca absurdas, e a explicação diz por que as outras não servem.
 - Antes de entregar, confira: ids sem repetição, targetId e parentId existentes, answer entre 0 e 3, somas fechando, unidades iguais em todos os corpos.
+- O código assume ids fixos: sun (centro), earth (telemetria e comparação), mars e earth nas lições, pluto (órbita inclinada) e halley (cometa, fora das listas). Outro tema precisa trocar esses trechos do código, não só os dados.
 - Escrevo os dados, mas não os valido por programa: quem cola testa abrindo o arquivo e conferindo se algum painel ficou vazio.
