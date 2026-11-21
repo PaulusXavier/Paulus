@@ -37,7 +37,7 @@ const servidor = http.createServer(async (q, r) => {
 }).listen(PORTA);
 const navegador = await chromium.launch(); const resultados = [];
 async function teste(nome, fn, op = {}) {
-  const ctx = await navegador.newContext({ viewport: op.viewport || { width: 1280, height: 800 }, acceptDownloads: true });
+  const ctx = await navegador.newContext({ viewport: op.viewport || { width: 1280, height: 800 }, acceptDownloads: true, permissions: op.permissions, geolocation: op.geolocation });
   const pg = await ctx.newPage(), erros = [];
   pg.on('pageerror', (e) => erros.push('JS: ' + e.message));
   pg.on('console', (m) => { const t = m.text(); if (m.type() === 'error' && !/status of [45]\d\d|net::ERR/.test(t)) erros.push('console: ' + t); });
@@ -120,5 +120,23 @@ await teste('celular (390×760): barra não cobre a conversa e nada rola de lado
   const g = await pg.evaluate(() => ({ l: document.getElementById('log').getBoundingClientRect().bottom, b: document.getElementById('bar').getBoundingClientRect().top, sw: document.documentElement.scrollWidth, iw: innerWidth }));
   ok(g.l <= g.b + 1, 'conversa passa por baixo da barra: ' + JSON.stringify(g)); ok(g.sw <= g.iw, 'rolagem horizontal');
 }, { viewport: { width: 390, height: 760 } });
+// Rota a partir da posição do aparelho: o mapa de lugares de teste vai para dist/ só durante este teste.
+const lugaresTeste = path.join(dist, 'lugares-boa-vista.json'); const tinha = fs.existsSync(lugaresTeste);
+if (!tinha) fs.writeFileSync(lugaresTeste, JSON.stringify({ fonte: 'teste', gerado: '2026-11-21', cats: ['saude', 'assistencia'], bairros: [['Centro', 2.8235, -60.6758]], lugares: [['CAPS Teste Um', 0, 0, 2.8300, -60.6800, '', ''], ['CRAS Teste Dois', 1, 0, 2.8500, -60.7000, '', '']] }));
+await teste('rota "saindo daqui" usa a posição do aparelho: sai com km e a posição não aparece na tela', async (pg) => {
+  await abrir(pg); await enviar(pg, 'traçar rota saindo daqui: CAPS Teste Um e CRAS Teste Dois'); await fim(pg);
+  const t = await ultima(pg).innerText(); ok(/Sua posição/.test(t) && /km/.test(t), 'sem rota a partir da posição: ' + t.slice(0, 200));
+  ok(!/2\.8235|-60\.6758/.test(await pg.innerText('body')), 'coordenada apareceu na tela');
+  ok(/OBTIDA/.test(await pg.innerText('#kp')), 'painel de posição: ' + await pg.innerText('#kp'));
+}, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758, accuracy: 20 } });
+await teste('localização negada: rota ainda sai (link por nome) e o painel mostra NEGADA', async (pg) => {
+  await abrir(pg); await enviar(pg, 'traçar rota saindo daqui: CAPS Teste Um e CRAS Teste Dois'); await fim(pg);
+  ok(/permita a localização/.test(await ultima(pg).innerText()), 'sem orientação: ' + await ultima(pg).innerText());
+  ok(/NEGADA/.test(await pg.innerText('#kp')), 'painel: ' + await pg.innerText('#kp'));
+});
+await teste('pergunta que não fala da posição não pede localização', async (pg) => {
+  await abrir(pg); await enviar(pg, 'quanto é 2+2'); await fim(pg); ok(/NÃO USADA/.test(await pg.innerText('#kp')), 'pediu GPS à toa');
+}, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758 } });
+if (!tinha) fs.unlinkSync(lugaresTeste);
 await navegador.close(); servidor.close();
 const n = resultados.filter(Boolean).length; console.log('\n' + n + '/' + resultados.length + ' passaram'); process.exit(n === resultados.length ? 0 : 1);
