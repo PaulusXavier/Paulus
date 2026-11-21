@@ -439,7 +439,7 @@
     var f = criarFundo($('lgbg'), function () { var r = $('lgo').getBoundingClientRect(), b = $('lgbg').getBoundingClientRect(); return { x: r.left - b.left + r.width / 2, y: r.top - b.top + r.height / 2 }; });
     orbe = { estado: function (e) { o.estado(e); f.estado(e); }, parar: function () { o.parar(); f.parar(); pararHud(); } };
     if (FB) {
-      $('lgu').previousElementSibling.textContent = 'E-MAIL';
+      var rot = document.querySelector('label[for="lgu"]'); if (rot) rot.textContent = 'E-MAIL';
       $('lgu').placeholder = 'seu e-mail'; $('lgu').maxLength = 120; $('lgu').type = 'email'; $('lgu').setAttribute('autocomplete', 'email'); $('lgu').setAttribute('inputmode', 'email');
       var lr = document.querySelector('.lr'); if (lr) lr.textContent = 'LOGIN FIREBASE · A SENHA NUNCA FICA NO APARELHO';
     }
