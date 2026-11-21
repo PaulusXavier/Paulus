@@ -1,0 +1,66 @@
+# MODELO para colocar nos REPOSITÓRIOS DOS APPS (Argo, Anona, Umbrela, Verbus...), não neste.
+# Copie para  .github/workflows/sincronizar-paulus.yml  do app e ajuste só o bloco "env".
+#
+# O que faz: todo dia (e quando você mandar), olha https://.../versao.json do Paulus; se o Paulus ou a base mudaram,
+# baixa os arquivos novos para dentro do app e faz um commit sozinho. Com o Pages do app ligado ao Actions,
+# o app publica a versão nova logo em seguida. Sem mudança, não faz nada (nenhum commit vazio).
+name: Sincronizar Paulus
+on:
+  schedule:
+    - cron: '43 8 * * *'   # todo dia, 08:43 UTC
+  workflow_dispatch:
+  repository_dispatch:
+    types: [paulus-atualizado]
+permissions:
+  contents: write
+env:
+  PAULUS_URL: https://paulusxavier.github.io/Paulus     # sem barra no fim
+  # um por linha:  arquivo_no_paulus -> caminho_no_app
+  ARQUIVOS: |
+    paulus.v1.js -> js/paulus.v1.js
+    conhecimento-geral.json -> assets/conhecimento.json
+    pdf-lib.min.js -> js/pdf-lib.min.js
+  REGISTRO: js/paulus.versao.json                        # guarda a versão já copiada
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Ver se há versão nova
+        id: ver
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 "$PAULUS_URL/versao.json" -o /tmp/versao.json
+          novo=$(node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/versao.json','utf8')).build)")
+          atual=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(process.env.REGISTRO,'utf8')).build)}catch(e){console.log('nenhuma')}")
+          echo "Paulus no ar: $novo | neste app: $atual"
+          if [ "$novo" != "$atual" ]; then echo "mudou=sim" >> "$GITHUB_OUTPUT"; fi
+      - name: Baixar os arquivos novos
+        if: steps.ver.outputs.mudou == 'sim'
+        run: |
+          set -euo pipefail
+          while IFS= read -r linha; do
+            [ -z "${linha// }" ] && continue
+            de="${linha%% -> *}"; para="${linha##* -> }"
+            de="$(echo "$de" | xargs)"; para="$(echo "$para" | xargs)"
+            mkdir -p "$(dirname "$para")"
+            tmp="$(dirname "$para")/.novo-$(basename "$para")"   # mantém a extensão, que o node --check exige
+            curl -fsSL --retry 3 "$PAULUS_URL/$de" -o "$tmp"
+            # recusa arquivo vazio ou página de erro no lugar do script/JSON
+            [ -s "$tmp" ] || { echo "arquivo vazio: $de"; exit 1; }
+            case "$para" in
+              *.json) node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))" "$tmp" ;;
+              *.js)   node --check "$tmp" ;;
+            esac
+            mv "$tmp" "$para"
+          done <<< "$ARQUIVOS"
+          mkdir -p "$(dirname "$REGISTRO")"
+          cp /tmp/versao.json "$REGISTRO"
+      - name: Commitar
+        if: steps.ver.outputs.mudou == 'sim'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "Atualiza o Paulus e a base de normas (build $(node -e "console.log(require('./$REGISTRO').build)"))"
+          git push
