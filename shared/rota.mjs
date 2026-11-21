@@ -170,7 +170,7 @@ export function lerPedidoDeRota(texto) {
 
   // saída
   let origem = '', origemAparelho = false;
-  if (rotaCortar(est, /\b(?:(?:saindo|partindo|comecando|a partir)\s+(?:de\s+)?)?(?:daqui|de onde (?:eu )?estou|da minha (?:posicao|localizacao)(?: atual)?|de minha localizacao)\b/)) origemAparelho = true;
+  if (rotaCortar(est, /\b(?:(?:saindo|partindo|comecando|a partir)\s+(?:de\s+)?)?(?:daqui|de onde (?:eu )?(?:estou|me encontro)|(?:do|de) (?:meu )?(?:local|lugar|ponto) (?:onde|em que) (?:eu )?(?:estou|me encontro)|da posicao em que (?:eu )?estou|do meu local|da minha (?:posicao|localizacao)(?: atual)?|de minha (?:posicao|localizacao)|da localizacao atual)\b/)) origemAparelho = true;
   if (!origemAparelho) {
     g = rotaCortar(est, new RegExp('\\b(?:saindo|partindo|comecando|iniciando|a partir)\\s+(?:(?:do|da|de|dos|das|no|na|em)\\s+)?' + ROTA_NOME + ROTA_PARADA_FIM));
     if (g) origem = rotaLimparNome(g[0]);
@@ -490,7 +490,7 @@ export function respostaDeRota(texto, opcoes) {
   const res = resolverParadas(ped.paradas, pontos, extras);
   // Fora do pedido explícito, só responde quem reconhece ao menos uma unidade do diretório e tem duas paradas ("rota de fuga" vai para a IA).
   const achadas = res.filter(function (r) { return r.ponto; }).length;
-  if (!ped.explicito && !(achadas >= 1 && res.length + (ped.origemAparelho ? 1 : 0) >= 2)) return null;
+  if (!ped.explicito && !(achadas >= 1 && res.length + (ped.origemAparelho || aparelho ? 1 : 0) >= 2)) return null;
 
   const duvida = res.filter(function (r) { return r.ambiguos; });
   if (duvida.length) {
@@ -505,7 +505,9 @@ export function respostaDeRota(texto, opcoes) {
     if (aparelho) paradas.unshift(aparelho);
     else semOrigem = true;
   }
-  const inicioFixo = ped.inicioFixo || (ped.origemAparelho && !!aparelho);
+  let inicioFixo = ped.inicioFixo || (ped.origemAparelho && !!aparelho);
+  // "como chegar ao X" / "rota até X": com a posição do aparelho, ela é a saída e dá para estimar km e tempo
+  if (aparelho && !ped.origemAparelho && paradas.length === 1 && !semCoord.length) { paradas.unshift(aparelho); inicioFixo = true; }
 
   // Alguma parada sem coordenada: só o link por nome, na ordem escrita, e digo isso.
   if (semCoord.length || !paradas.length) {
@@ -519,7 +521,7 @@ export function respostaDeRota(texto, opcoes) {
   // "como chegar ao X" sem saída: só o destino, o mapa parte da posição de quem pergunta
   if (paradas.length === 1) {
     const p = paradas[0];
-    return rotaResposta('Abro o trajeto até ' + p.nome + ' a partir da sua posição atual. Não sei onde você está, então não estimo km nem tempo; o app de mapas mostra.', {
+    return rotaResposta('Abro o trajeto até ' + p.nome + ' a partir da sua posição atual. Não sei onde você está (se o navegador pedir, permita a localização), então não estimo km nem tempo; o app de mapas mostra.', {
       links: geoLinksDeRota([p], { modo: modo, cidade: cidade, semOrigem: true }), paradas: [p.nome]
     });
   }
@@ -530,6 +532,6 @@ export function respostaDeRota(texto, opcoes) {
   if (aprox.length) corpo += '\nParada por bairro ou rua (' + aprox.join('; ') + ') conta pelo centro dele, então km e tempo são aproximação.';
   if (r.ordem.some(function (p) { return p.fonte === 'mapa'; })) corpo += '\nLugar vindo do mapa colaborativo (OpenStreetMap), que pode estar desatualizado: confira no app de mapas.';
   if (r.links.length > 1) corpo += '\nO link do mapa aceita poucas paradas: a rota saiu em ' + r.links.length + ' partes, cada uma começa onde a anterior terminou.';
-  if (semOrigem) corpo = 'Saída: a sua posição atual (o app de mapas usa o GPS). Os km abaixo contam só entre as paradas.\n' + corpo;
+  if (semOrigem) corpo = 'Saída: a sua posição atual (o app de mapas usa o GPS). Não recebi a sua posição, então os km abaixo contam só entre as paradas. Para eu calcular a partir de você, permita a localização do navegador e peça de novo.\n' + corpo;
   return rotaResposta(corpo, { links: r.links, svg: svgDaRota(r), geojson: r.geojson, gpx: r.gpx, kml: r.kml, paradas: r.ordem.map(function (p) { return p.nome; }), km: Number(r.km.toFixed(2)), minutos: Math.round(r.minutos + r.minutosParadas), estimativa: true });
 }
