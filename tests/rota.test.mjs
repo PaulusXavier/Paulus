@@ -191,3 +191,9 @@ test('rota: a posição do aparelho não aparece em número no texto da resposta
   const r = R('traçar rota saindo daqui: CAPS II e CRAS Cauamé', { aparelho: AQUI });
   assert.doesNotMatch(r.texto, /2\.8235|-60\.6758|2,8235|60,6758/);
 });
+
+test('rota: a resposta traz modo e volta (o console usa para escolher o perfil de rua do mapa)', () => {
+  const r = R('traçar rota saindo daqui: CAPS II e CRAS Cauamé, de bicicleta, voltando', { aparelho: AQUI });
+  assert.equal(r.modo, 'bicicleta'); assert.equal(r.volta, true);
+  assert.equal(r.geojson.features.filter((f) => f.geometry.type === 'Point').length, 3);
+});
