@@ -1,5 +1,6 @@
 // Gera os arquivos que vão para o ar:
 //   dist/paulus.v1.js       módulo do navegador (shared/*.mjs + client/*.mjs em um arquivo só, sem import/export)
+//   dist/versao.json        versão, commit e impressão digital (sha256) de cada arquivo: os apps e o console comparam com ela para saber se há novidade
 //   dist/pdf-lib.min.js     editor de PDF (vendor/), carregado sob demanda
 //   dist/conhecimento.json  base de normas completa (cópia de knowledge/conhecimento.json; pesada)
 //   dist/conhecimento-<pacote>.json  um arquivo por pacote (geral = leis e decretos, leve; psicologia = referências do CFP)
@@ -7,6 +8,7 @@
 // Uso: npm run build   (antes, rode npm run build:conhecimento se mudou algo em knowledge/documentos)
 
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -41,6 +43,29 @@ export function juntar() {
   return CABECALHO + corpo + RODAPE;
 }
 
+// Impressão digital dos arquivos que os apps baixam. Muda só quando o conteúdo muda; é o que permite atualizar sozinho (versao.json)
+// e fazer o service worker do console trocar de cache a cada publicação.
+const ARQUIVOS_VERSIONADOS = ['paulus.v1.js', 'conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'lugares-boa-vista.json', 'login.js', 'console.js', 'index.html'];
+export function gerarVersao(saida, extra) {
+  const arquivos = {};
+  for (const n of ARQUIVOS_VERSIONADOS) {
+    const c = join(saida, n);
+    if (existsSync(c)) arquivos[n] = { sha256: createHash('sha256').update(readFileSync(c)).digest('hex').slice(0, 16), bytes: statSync(c).size };
+  }
+  const pacote = JSON.parse(readFileSync(join(RAIZ, 'package.json'), 'utf8'));
+  const geral = createHash('sha256').update(Object.keys(arquivos).sort().map(function (n) { return n + arquivos[n].sha256; }).join('|')).digest('hex').slice(0, 12);
+  const info = Object.assign({ versao: pacote.version, build: geral, commit: String(process.env.GITHUB_SHA || '').slice(0, 7) || null, arquivos: arquivos }, extra || {});
+  writeFileSync(join(saida, 'versao.json'), JSON.stringify(info, null, 1));
+  // service worker do console: o nome do cache leva a impressão digital, então cada publicação nova troca o cache e o aparelho atualiza sozinho
+  const sw = join(saida, 'sw.js');
+  if (existsSync(sw)) {
+    const t = readFileSync(sw, 'utf8');
+    if (!/var V = '[^']*';/.test(t)) throw new Error('sw.js sem a linha "var V = \'...\';" (nome do cache).');
+    writeFileSync(sw, t.replace(/var V = '[^']*';/, "var V = 'paulus-console-" + geral + "';"));
+  }
+  return info;
+}
+
 export function construir() {
   const saida = join(RAIZ, 'dist');
   mkdirSync(saida, { recursive: true });
@@ -71,6 +96,7 @@ export function construir() {
   if (Object.keys(grupos).length > 1) {
     for (const nome of Object.keys(grupos)) writeFileSync(join(saida, 'conhecimento-' + nome + '.json'), JSON.stringify(grupos[nome]));
   }
+  gerarVersao(saida);
   return saida;
 }
 
