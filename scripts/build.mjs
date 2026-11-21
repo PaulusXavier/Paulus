@@ -7,7 +7,7 @@
 //
 // Uso: npm run build   (antes, rode npm run build:conhecimento se mudou algo em knowledge/documentos)
 
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -15,7 +15,7 @@ import { dirname, join } from 'node:path';
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Ordem importa: quem é usado vem antes de quem usa.
-const MODULOS = ['shared/espanhol-dados.mjs', 'shared/espanhol.mjs', 'shared/ingles-dados.mjs', 'shared/ingles.mjs', 'shared/idioma.mjs', 'shared/pii.mjs', 'shared/crise.mjs', 'shared/busca.mjs', 'shared/pedido.mjs', 'shared/conversa.mjs', 'shared/verificacao.mjs', 'shared/calculo.mjs', 'shared/geo.mjs', 'shared/rota.mjs', 'shared/revisao-texto.mjs', 'shared/pdf.mjs', 'shared/visitas.mjs', 'shared/suicidio.mjs', 'shared/sugestoes.mjs', 'client/skins.mjs', 'client/memoria.mjs', 'client/paulus.mjs'];
+const MODULOS = ['shared/espanhol-dados.mjs', 'shared/espanhol.mjs', 'shared/ingles-dados.mjs', 'shared/ingles.mjs', 'shared/idioma.mjs', 'shared/pii.mjs', 'shared/crise.mjs', 'shared/busca.mjs', 'shared/pedido.mjs', 'shared/conversa.mjs', 'shared/verificacao.mjs', 'shared/calculo.mjs', 'shared/geo.mjs', 'shared/rota.mjs', 'shared/modelos.mjs', 'shared/revisao-texto.mjs', 'shared/pdf.mjs', 'shared/visitas.mjs', 'shared/suicidio.mjs', 'shared/sugestoes.mjs', 'client/skins.mjs', 'client/memoria.mjs', 'client/paulus.mjs'];
 
 const CABECALHO = '/*! Paulus v1 — gerado por scripts/build.mjs. Não edite: altere shared/ e client/. */\n(function (root) {\n\'use strict\';\n';
 const RODAPE = '})(typeof self !== \'undefined\' ? self : this);\n';
@@ -78,6 +78,12 @@ export function construir() {
   if (existsSync(lugares)) copyFileSync(lugares, join(saida, 'lugares-boa-vista.json'));
   // pdf-lib (MIT), carregado pelo navegador só no primeiro pedido de PDF; fica ao lado do paulus.v1.js
   copyFileSync(join(RAIZ, 'vendor', 'pdf-lib.min.js'), join(saida, 'pdf-lib.min.js'));
+  // modelos 3D didáticos (modelos/*.html): ficam em dist/modelos/ e o navegador só os baixa quando a pessoa pede
+  const pastaModelos = join(RAIZ, 'modelos');
+  if (existsSync(pastaModelos)) {
+    mkdirSync(join(saida, 'modelos'), { recursive: true });
+    for (const f of readdirSync(pastaModelos)) if (/\.html$/i.test(f)) copyFileSync(join(pastaModelos, f), join(saida, 'modelos', f));
+  }
   // Console do Paulus (tela Jarvis, fora dos apps): dist/console.html
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'console.html'));
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'index.html')); // a raiz do site (…/Paulus/) abre o console
