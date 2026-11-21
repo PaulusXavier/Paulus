@@ -54,11 +54,11 @@ const SINAIS_SUICIDIO = [
   '(?:usar|usarei|vou usar) (?:a arma|ela|isso|o veneno) em mim|(?:arma|revolver|pistola|veneno|chumbinho)[^.?!]{0,30}\\b(?:usar|usarei|vou usar|uso)\\b[^.?!]{0,10}\\bem mim',
   '(?:carta|bilhete) de despedida|me despedindo de todos|deixei (?:um )?bilhete',
   // autolesão relatada sem a palavra "automutilação"
-  '(?:se|me) cortou(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\\b)|me cortei(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\\b)|se cortaram|(?:se|me) machuc(?:a|ando|ou|ava) de proposito|(?:se|me) fer(?:e|indo|iu|i) de proposito|(?:se|me) queim(?:a|ando|ou|ei) de proposito'
+  'cort(?:ou|ei|aram|ando) (?:os |as |meus |minhas |seus |suas )?(?:pulsos?|punhos?|veias?|pescoco)|(?:se|me) cortou(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\\b)|me cortei(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\\b)|se cortaram|(?:se|me) machuc(?:a|ando|ou|ava) de proposito|(?:se|me) fer(?:e|indo|iu|i) de proposito|(?:se|me) queim(?:a|ando|ou|ei) de proposito'
 ].join('|');
 
 // Sinais de overdose e intoxicação além de "overdose" e "engoliu remédio".
-const SINAIS_CLINICA = /\b(?:(?:tomou|tomei|tomaram|ingeriu|engoliu|bebeu) (?:varios|muitos|muitas|uma cartela|a cartela|todos os|todo o|um monte de)(?: \w+)? ?(?:comprimidos?|remedios?|medicamentos?|pilulas?|cartelas?)|(?:tomou|bebeu|ingeriu) (?:veneno|chumbinho|soda caustica))\b/;
+const SINAIS_CLINICA = /\b(?:(?:tomou|tomei|tomaram|ingeriu|engoliu|bebeu) (?:varios|muitos|muitas|muito|uma cartela|a cartela|todos os|todo o|um monte de)(?: \w+)? ?(?:comprimidos?|remedios?|medicamentos?|pilulas?|cartelas?)|(?:tomou|bebeu|ingeriu) (?:veneno|chumbinho|soda caustica))\b/;
 
 // Frases que, em qualquer pergunta, indicam alguém em risco (e não dúvida técnica).
 const FRASE_DE_RISCO_BASE = /\b(me matar|se matar|quer(?:o|endo|er|ia)? morrer|nao quer(?:o|er)? mais viver|tirar (?:a |minha |sua |propria )*vida|acabar com (?:a |minha |sua )*vida|acabar com tudo|pensando em morrer|se cortando|me cortando|se cortar|me cortar)\b/;
@@ -96,7 +96,9 @@ function perguntaGeral(t, ignorarAmeaca) {
 // Alguém ameaça MATAR a pessoa que escreve ou outra pessoa. Antes ia para o cartão de suicídio (\"vai me matar\" casava com \"me matar\").
 const OBJETO_PESSOA = '(?:o|a|os|as|meu|minha|meus|minhas|seu|sua|seus|suas|ela|ele|elas|eles|alguem|todos|todas|esposa|marido|mulher|filh\\w+|crianc\\w+|menin\\w+|net[oa]s?|mae|pai)';
 const NAO_E_PESSOA = '(?!(?:a |o )?(?:fome|sede|saudade|aula|tempo|curiosidade|vontade|barata|mosquito|rato|ratos|formiga|insetos?|servico|trabalho|charada|duvida|duvidas|pendencia|pendencias|demanda|demandas|fila|filas|vaga|vagas|processo|processos|ligacao|ligacoes|ansiedade|dor|prazo|prazos|relatorio|relatorios|tarefa|tarefas|planilha|planilhas|atraso|atrasos|lista|listas|pauta|pautas|agenda|ata|oficio|oficios|backlog|problema|problemas)\\b)';
-const AMEACA_MATAR_ME = /\b(?:vai|vao|quer|querem|prometeu|jurou|ameaca|ameacou|ameacando|ameacam|tentou|tentaram|tenta) (?:de |em )?me (?:matar|esfaquear|espancar|estrangular)\b/;
+const ARMA = '(?:uma |um |a |o )?(?:faca|facao|arma|revolver|pistola|espingarda|garrucha|foice|machado|tercado|pedaco de pau)';
+// "me ameaçou com faca", "apontou uma arma pra ela": ameaça com arma é risco de vida mesmo sem a palavra "matar".
+const AMEACA_MATAR_ME = new RegExp('\\b(?:vai|vao|quer|querem|prometeu|jurou|ameaca|ameacou|ameacando|ameacam|tentou|tentaram|tenta) (?:de |em )?me (?:matar|esfaquear|espancar|estrangular)\\b|\\b(?:me|nos|a minha|o meu|minha|meu|a|o) ?(?:\\w+ )?ameac(?:a|ou|ando|am|aram) (?:me |nos |ela |ele |a |o )?(?:com|de) ' + ARMA + '\\b|\\b(?:apontou|apontando|puxou|sacou|empunhou|empunhando) ' + ARMA + ' (?:pra|para|contra|na direcao d[eao]|em direcao a) (?:mim|nos|ela|ele|elas|eles|(?:minha |meu |a |o |sua |seu )?crianca|(?:minha |meu |a |o |sua |seu )?(?:menin[oa]|bebe|filh\\w+|mae|pai|marido|esposa|mulher))\\b');
 const AMEACA_TERCEIRO = new RegExp('\\b(?:(?:ameac(?:a|ou|ando|am|aram)|prometeu|jurou|disse que (?:vai|vao|quer)|(?:vai|vao|quer|querem|ia|queria)) (?:de )?matar ' + NAO_E_PESSOA + OBJETO_PESSOA + '\\b|ameac(?:a|ou|ando|am|aram)s? (?:de )?morte|ameac(?:a|as) de morte|medo de (?:ser )?(?:morta|morto|assassinad[oa]|agredid[oa]|espancad[oa])|medo (?:pela|por) (?:minha|a minha) vida|temo pela minha vida)');
 // Quem diz que VAI machucar alguém (raiva, esgotamento de cuidador): outra conduta, outro texto.
 const INTENCAO_AGREDIR = new RegExp('\\b(?:(?:vou|quero|vontade de|estou com vontade de|tenho vontade de|ia|penso em|pensando em) (?:matar|machucar|espancar|esfaquear) ' + NAO_E_PESSOA + '(?:o|a|os|as|n[oa]s?|meu|minha|meus|minhas|alguem|ela|ele|elas|eles|crianc\\w+|filh\\w+|menin\\w+|marido|esposa|mulher|bebe)\\b|(?:vou|quero|vontade de|estou com vontade de|tenho vontade de|ia|penso em|pensando em) (?:bater|surrar) (?:n[oa]s?|em) ?(?:meu|minha|meus|minhas|o|a|os|as)? ?(?:filh\\w+|crianc\\w+|bebe|menin\\w+|marido|esposa|mulher|alguem|ela|ele)\\b|(?:estou|to|ando) (?:perdendo|sem) (?:o )?controle (?:com|d[eao]s?) (?:meu|minha|meus|minhas|a|o|os|as)? ?(?:filh\\w+|crianc\\w+|bebe|menin\\w+|marido|esposa)|nao (?:consigo|aguento) me controlar (?:com|d[eao]s?) (?:meu|minha|meus|minhas|a|o|os|as)? ?(?:filh\\w+|crianc\\w+|bebe|menin\\w+)|(?:bati|espanquei|machuquei|agredi) (?:n[oa]s?|em|o|a|os|as) ?(?:meu|minha|meus|minhas)? ?(?:filh\\w+|crianc\\w+|bebe|menin\\w+|esposa|marido|mulher))');
@@ -263,7 +265,8 @@ function criseCorrigirGrafia(t) {
 function detectarCrisePt(texto, jaCorrigido) {
   // "Pronto Socorro" é um serviço de saúde, não um pedido de socorro ("qual o endereço do pronto-socorro?")
   // Dígito entre letras vira a letra parecida ("su1c1dio" -> "suicidio"), para a grafia disfarçada não passar. Dígito solto fica como está.
-  const t = semAcento(texto).replace(/([a-z])([013457])(?=[a-z])/g, function (_, l, d) { return l + ({ '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't' })[d]; }).replace(/pronto[ -]+socorro/g, 'pronto atendimento');
+  const t = semAcento(texto).replace(/([a-z])([013457])(?=[a-z])/g, function (_, l, d) { return l + ({ '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't' })[d]; }).replace(/pronto[ -]+socorro/g, 'pronto atendimento').replace(/\bmorr(?:er|endo|i|eu|o|emos|eram|erei) de (?:rir|risada|vergonha|fome|sede|sono|calor|frio|saudades?|medo|curiosidade|raiva|inveja|ciumes?|tedio|cansaco|preguica|pena|amores?)\b/g, ' ');
+  // "morrer de rir", "morrendo de vergonha", "morro de saudade": expressão, não desejo de morrer (como já era no espanhol e no inglês)
   for (const p of PADROES) {
     if (!p.re.test(t) && !(p.extra && p.extra.test(t))) continue;
     if (p.geral && perguntaGeral(t, p.texto === 'AMEACA')) continue;
