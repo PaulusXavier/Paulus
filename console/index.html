@@ -3,6 +3,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Paulus · Console</title>
 <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#02070c"><link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Paulus_IA">
+<!-- Endereço do Worker (https://paulus-ia.SEU-USUARIO.workers.dev). Com ele preenchido, o console só abre depois do login. -->
+<meta name="paulus-endpoint" content="">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self' https://*.workers.dev; img-src 'self' data:">
 <style>
 :root{--c:#37e6ff;--t:#d6f7ff;--a:#ffb347;--mut:#7fb7c4;--bd:#37e6ff44;--bg2:#04151f;--ok:#6ee7a8}
@@ -70,12 +72,75 @@ button:focus-visible,#q:focus-visible,a:focus-visible{outline:2px solid var(--a)
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media(max-width:520px){header{font-size:10px}#hr{display:none}.hi h2{font-size:18px}.m{max-width:98%}#go{min-width:64px;padding:0 8px}}
 @media(prefers-reduced-motion:reduce){#orb{display:none}#log{scroll-behavior:auto}}
-</style></head><body>
+
+/* ---------- tela de login ---------- */
+body.lock>header,body.lock>main,body.lock>#bar,body.lock>#dn,body.lock>#orb{visibility:hidden}
+#lg{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));overflow:auto;background:radial-gradient(ellipse at 50% 18%,#0e3347 0%,#04121b 52%,#02070c 100%);transition:opacity .5s ease,transform .5s ease}
+#lg[hidden]{display:none}
+#lg.sai{opacity:0;transform:scale(1.04);pointer-events:none}
+#lg::before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,#37e6ff08 0 1px,transparent 1px 4px),linear-gradient(#37e6ff0a 1px,transparent 1px) 0 0/56px 56px,linear-gradient(90deg,#37e6ff0a 1px,transparent 1px) 0 0/56px 56px;-webkit-mask-image:radial-gradient(ellipse at 50% 40%,#000 25%,transparent 75%);mask-image:radial-gradient(ellipse at 50% 40%,#000 25%,transparent 75%)}
+#lc{position:relative;width:min(400px,100%);margin:auto;display:flex;flex-direction:column;align-items:center;gap:6px}
+#lgo{width:min(280px,64vw);height:min(280px,64vw);display:block}
+.lt{font:600 13px ui-monospace,Menlo,monospace;letter-spacing:.42em;color:var(--c);margin:-4px 0 0 .42em;text-shadow:0 0 14px #37e6ff99}
+.ls{font:11px ui-monospace,Menlo,monospace;letter-spacing:.18em;color:var(--mut);margin-bottom:12px}
+#lgform{width:100%;position:relative;background:linear-gradient(#06202ecc,#041620d9);border:1px solid var(--bd);border-radius:16px;padding:22px 20px 18px;display:flex;flex-direction:column;gap:14px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-shadow:0 0 0 1px #02070c,0 18px 60px #000a,inset 0 0 40px #37e6ff0d}
+#lgform::before,#lgform::after{content:"";position:absolute;width:18px;height:18px;border:2px solid var(--c);pointer-events:none;filter:drop-shadow(0 0 4px var(--c))}
+#lgform::before{top:-1px;left:-1px;border-right:0;border-bottom:0;border-top-left-radius:16px}
+#lgform::after{bottom:-1px;right:-1px;border-left:0;border-top:0;border-bottom-right-radius:16px}
+.lf{display:flex;flex-direction:column;gap:5px}
+.lf label{font:11px ui-monospace,Menlo,monospace;letter-spacing:.16em;color:#7fd9e8}
+.lb{display:flex;align-items:center;background:#03121b;border:1px solid #37e6ff77;border-radius:10px;transition:border-color .15s,box-shadow .15s}
+.lb:focus-within{border-color:var(--c);box-shadow:0 0 0 3px #37e6ff26,0 0 18px #37e6ff33}
+.lb.err{border-color:#ff6b5e;box-shadow:0 0 0 3px #ff6b5e22}
+.lb input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--t);padding:13px 12px;font:inherit;font-size:16px}
+.lb input:disabled{opacity:.55}
+.lb input::placeholder{color:#4d8796}
+#lgv{min-height:36px;min-width:0;margin-right:5px;padding:0 10px;font:600 10px ui-monospace,Menlo,monospace;letter-spacing:.12em;border-radius:7px;border-color:#37e6ff44}
+#lgc{font:11px ui-monospace,Menlo,monospace;color:var(--a);letter-spacing:.06em}
+.ll{display:flex;align-items:center;gap:9px;font-size:14px;color:#9fdce8;cursor:pointer;user-select:none;min-height:28px}
+.ll input{appearance:none;-webkit-appearance:none;width:18px;height:18px;margin:0;border:1px solid #37e6ff99;border-radius:5px;background:#03121b;display:grid;place-content:center;cursor:pointer;flex:none}
+.ll input::after{content:"";width:9px;height:9px;border-radius:2px;background:var(--c);transform:scale(0);transition:transform .12s}
+.ll input:checked::after{transform:scale(1)}
+.ll input:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+#lgb{width:100%;min-height:48px;background:var(--c);color:#02121a;font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:14px;border-color:var(--c);position:relative;overflow:hidden;transition:filter .15s,box-shadow .15s}
+#lgb:hover:not(:disabled){filter:brightness(1.1);box-shadow:0 0 22px #37e6ff77}
+#lgb:disabled{background:#0a2c3c;border-color:#37e6ff44;color:#7fb7c4;cursor:not-allowed}
+#lgb.busy::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,#fff6,transparent);animation:var(--varre,lv 1s linear infinite)}
+@keyframes lv{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+.lst{min-height:20px;text-align:center;font:11px/1.5 ui-monospace,Menlo,monospace;letter-spacing:.1em;color:var(--mut)}
+.lst.erro{color:#ff8a80}.lst.aviso{color:var(--a)}.lst.ok{color:var(--ok)}
+.lr{margin-top:14px;font:10px ui-monospace,Menlo,monospace;letter-spacing:.14em;color:#4d8796;text-align:center}
+#lc.tremer{animation:lt .45s cubic-bezier(.36,.07,.19,.97)}
+@keyframes lt{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-7px)}40%,60%{transform:translateX(7px)}}
+@media(max-height:620px){#lgo{width:150px;height:150px}.ls{margin-bottom:6px}#lgform{padding:16px}}
+@media(prefers-reduced-motion:reduce){#lc.tremer{animation:none}#lg{transition:none}#lgb.busy::after{animation:none}}
+</style></head><body class="lock">
 <canvas id="orb" aria-hidden="true"></canvas>
+<section id="lg" aria-labelledby="lgt">
+<div id="lc">
+<canvas id="lgo" aria-hidden="true"></canvas>
+<h1 id="lgt" class="lt">PAULUS_IA</h1>
+<div class="ls">ACESSO RESTRITO · SUAS</div>
+<form id="lgform" autocomplete="on" novalidate>
+<div class="lf"><label for="lgu">USUÁRIO</label>
+<div class="lb" id="lgub"><input id="lgu" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="40" placeholder="seu usuário" disabled></div></div>
+<div class="lf"><label for="lgp">SENHA</label>
+<div class="lb" id="lgpb"><input id="lgp" name="password" type="password" autocomplete="current-password" maxlength="200" placeholder="sua senha" disabled>
+<button type="button" id="lgv" aria-pressed="false" aria-label="Mostrar senha">VER</button></div>
+<div id="lgc" hidden>⇪ CAPS LOCK LIGADO</div></div>
+<label class="ll"><input type="checkbox" id="lgl"> Manter conectado neste aparelho</label>
+<button type="submit" id="lgb" disabled>Autenticar</button>
+<div id="lgs" class="lst" role="status" aria-live="polite">CONECTANDO…</div>
+</form>
+<div class="lr">SESSÃO ASSINADA · A SENHA NUNCA FICA NO APARELHO</div>
+</div>
+</section>
+
 <header>
 <div class="hl"><span><b>PAULUS_IA</b> · CONSOLE</span><span id="st" role="status" aria-live="polite">EM ESPERA</span></div>
 <div class="hr">
 <button id="ins" class="hb" hidden>Instalar</button>
+<button id="sair" class="hb" hidden title="Sair" aria-label="Sair da conta">⏻</button>
 <button id="ex" class="hb" title="Salvar a conversa em arquivo (.md)" aria-label="Salvar a conversa">⤓</button>
 <button id="nv" class="hb" title="Nova conversa (Ctrl+Shift+N)" aria-label="Nova conversa">↺</button>
 <button id="vz" class="hb" title="Ler as respostas em voz alta" aria-label="Voz" aria-pressed="false">🔊</button>
@@ -99,5 +164,5 @@ button:focus-visible,#q:focus-visible,a:focus-visible{outline:2px solid var(--a)
 </div>
 </div>
 <script src="paulus.v1.js"></script>
-<script src="console.js"></script>
+<script src="login.js"></script>
 </body></html>
