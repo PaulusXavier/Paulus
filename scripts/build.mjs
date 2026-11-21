@@ -56,6 +56,8 @@ export function construir() {
   // Console do Paulus (tela Jarvis, fora dos apps): dist/console.html
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'console.html'));
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'index.html')); // a raiz do site (…/Paulus/) abre o console
+  // tela de login (carrega o console.js só depois de entrar) e o próprio console.js, se existir
+  for (const f of ['login.js', 'console.js']) { const o = join(RAIZ, 'console', f); if (existsSync(o)) copyFileSync(o, join(saida, f)); }
   // instalável (PWA): procura em console/ e, se não achar, na raiz do repositório
   for (const f of ['manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png']) {
     const origem = [join(RAIZ, 'console', f), join(RAIZ, f)].find(existsSync);
