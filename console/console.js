@@ -40,6 +40,19 @@
   // Estado do núcleo: idle | busy | listen | speak | erro. Muda a cor do ponto de status, o núcleo animado e o painel lateral.
   var TEXTO_ESTADO = { idle: 'EM ESPERA', busy: 'PENSANDO…', listen: 'OUVINDO…', speak: 'FALANDO…', erro: 'FALHA' };
   var nucleo = null, estadoAtual = 'idle';
+  // Sons discretos de interface (WebAudio, sem arquivo). Desligados por padrão; /som liga e desliga.
+  var somLigado = false, ctxSom = null;
+  var bip = function (f1, f2, dur, vol) {
+    if (!somLigado) return;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+      ctxSom = ctxSom || new AC(); if (ctxSom.state === 'suspended') ctxSom.resume();
+      var t0 = ctxSom.currentTime, o = ctxSom.createOscillator(), g = ctxSom.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(f1, t0); o.frequency.exponentialRampToValueAtTime(f2, t0 + dur);
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol || 0.05, t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g); g.connect(ctxSom.destination); o.start(t0); o.stop(t0 + dur + 0.03);
+    } catch (e) { /* sem áudio: segue */ }
+  };
   function status(t) { if (st) st.textContent = t; var kn = $('kn'); if (kn) kn.textContent = t.replace('…', ''); }
   function estadoUI(e) {
     estadoAtual = e; document.body.setAttribute('data-estado', e);
@@ -194,6 +207,7 @@
     { c: '/conta', d: 'Fazer uma conta', t: 'quanto é ' },
     { c: '/corrigir', d: 'Corrigir ortografia', t: 'corrija a ortografia e a gramática: ' },
     { c: '/espanhol', d: 'Vocabulário em espanhol', t: 'como se diz em espanhol: ' },
+    { c: '/som', d: 'Ligar ou desligar os sons da interface', f: function () { alternarSom(); } },
     { c: '/memoria', d: 'Ver o que o Paulus aprendeu', f: function () { memoria(); } },
     { c: '/esquecer', d: 'Apagar a memória do aparelho', f: function () { if (confirm('Apagar tudo que o Paulus aprendeu neste aparelho?')) { try { P.memoria.esquecer(); } catch (e) { /* segue */ } aviso('Memória apagada.'); } } }
   ];
@@ -221,6 +235,11 @@
     var r = ''; try { r = P.memoria.resumo(); } catch (e) { /* segue */ }
     var corpo = typeof r === 'string' ? r : JSON.stringify(r, null, 2);
     var x = msgPaulus(); pintar(x.corpo, corpo ? '**O que o Paulus aprendeu neste aparelho**\n\n' + corpo : 'Ainda não aprendi nada neste aparelho.');
+  }
+  function alternarSom() {
+    somLigado = !somLigado; gravarLS('paulus.som', somLigado ? '1' : '0');
+    var ks = $('ksom'); if (ks) { ks.textContent = somLigado ? 'LIGADO' : 'DESLIGADO'; ks.className = somLigado ? 'ok' : ''; }
+    bip(660, 990, 0.12, 0.05); aviso(somLigado ? 'Sons ligados.' : 'Sons desligados.');
   }
   function aviso(t) { pi.textContent = t; setTimeout(function () { if (pi.textContent === t) pi.textContent = ''; ajustarBarra(); }, 3500); ajustarBarra(); }
 
@@ -330,7 +349,7 @@
     var arqs = anexos.slice(), nomes = arqs.map(function (a) { return a.name; });
     anexos = []; renderAnexos(); q.value = ''; autoAltura(); sl.hidden = true;
     msgUsuario(texto, nomes);
-    var x = msgPaulus(); pensando(x); x.t0 = performance.now(); if (nucleo) nucleo.impulso();
+    var x = msgPaulus(); pensando(x); x.t0 = performance.now(); if (nucleo) nucleo.impulso(); bip(520, 880, 0.12, 0.045);
     try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) { /* sem vibração */ }
     var id = ++envioAtual; atual = x; mudarBotao(true);
     var vivo = function () { return id === envioAtual; };   // falso depois de Parar ou de um envio mais novo
@@ -342,6 +361,8 @@
       x.corpo.classList.remove('dig'); x.corpo.textContent = ''; desenhar(x, r);
       transcricao.push({ papel: 'Paulus', texto: r.texto || '' });
       registrar(r, performance.now() - x.t0);
+      var ot = x.m.querySelector('.mh .o'); if (ot) ot.textContent = hora2() + ' · ' + tempoTxt(performance.now() - x.t0);
+      if (r.tipo === 'erro') bip(320, 140, 0.26, 0.05); else { bip(880, 1320, 0.14, 0.04); setTimeout(function () { bip(1320, 1760, 0.1, 0.025); }, 110); }
       if (vozLigada) falar(r.texto || '');
       rolar(true);
       if (r.tipo === 'erro') { estadoUI('erro'); setTimeout(function () { if (estadoAtual === 'erro') estadoUI('idle'); }, 1400); }
@@ -415,6 +436,7 @@
     if (!window.speechSynthesis) return;
     speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(String(t).replace(/[*_`#>|]/g, '').slice(0, 1500)); u.lang = 'pt-BR';
+    u.onboundary = function () { if (nucleo) nucleo.impulso(); };
     u.onstart = function () { if (!ocupado && !gravando) estadoUI('speak'); };
     u.onend = u.onerror = function () { if (estadoAtual === 'speak') estadoUI(ocupado ? 'busy' : 'idle'); if (modoVoz && !ocupado) setTimeout(function () { if (modoVoz && !ocupado && !gravando) ouvir(); }, 450); };
     speechSynthesis.speak(u);
@@ -456,13 +478,16 @@
 
   // ------------------------------------------------------------ entrada
   function autoAltura() { q.style.height = 'auto'; q.style.height = Math.min(q.scrollHeight, 160) + 'px'; ajustarBarra(); }
-  q.addEventListener('input', function () { autoAltura(); selSl = 0; abrirSl(); });
+  q.addEventListener('input', function () { autoAltura(); selSl = 0; abrirSl(); if (nucleo) nucleo.impulso(); });
   q.addEventListener('keydown', function (e) {
     if (!sl.hidden) {
       if (e.key === 'ArrowDown') { e.preventDefault(); selSl = (selSl + 1) % listaSl.length; abrirSl(); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); selSl = (selSl - 1 + listaSl.length) % listaSl.length; abrirSl(); return; }
       if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); rodarAtalho(listaSl[selSl]); return; }
       if (e.key === 'Escape') { sl.hidden = true; return; }
+    }
+    if (e.key === 'ArrowUp' && !q.value && sl.hidden) {
+      for (var i = transcricao.length - 1; i >= 0; i--) if (transcricao[i].papel === 'Você') { e.preventDefault(); q.value = transcricao[i].texto; autoAltura(); break; }
     }
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!ocupado) enviar(); }
   });
@@ -517,6 +542,7 @@
   }
   function sistemas() {
     var on = navigator.onLine !== false;
+    document.body.classList.toggle('off', !on);
     pr('kr', on ? 'ONLINE' : 'OFFLINE', on ? 'ok' : 'er');
     pr('ki', !ENDPOINT ? 'SÓ LOCAL' : on ? 'ONLINE' : 'OFFLINE', !ENDPOINT ? 'av' : on ? 'ok' : 'er');
   }
@@ -529,7 +555,7 @@
   // ------------------------------------------------------------ núcleo (reator em arco no cabeçalho)
   // Estados: idle (respira), busy (âmbar, gira rápido, varredura), listen (verde, barras), speak (barras de voz), erro (vermelho, treme).
   function criarNucleo(cv) {
-    var ctx = cv.getContext('2d'), W = 0, H = 0, est = 'idle', estT = 0, amp = 0.05, imp = 0, img = new Image(), imgOk = false, i;
+    var ctx = cv.getContext('2d'), W = 0, H = 0, est = 'idle', estT = 0, amp = 0.05, imp = 0, px = 0, py = 0, ax = 0, ay = 0, img = new Image(), imgOk = false, i;
     var COR = { idle: [55, 230, 255], busy: [255, 179, 71], listen: [110, 231, 168], speak: [143, 244, 255], erro: [255, 107, 94] };
     var AMP = { idle: 0.05, busy: 0.3, listen: 0.62, speak: 0.8, erro: 0.1 }, VEL = { idle: 1, busy: 3.4, listen: 1.7, speak: 2, erro: 0.4 };
     var cur = COR.idle.slice();
@@ -547,7 +573,7 @@
       amp += ((AMP[est] || 0.05) - amp) * 0.1; imp *= 0.94;
       var tr = est === 'erro' ? Math.sin((now - estT) / 28) * Math.max(0, 1 - (now - estT) / 600) * R * 0.05 : 0;
       cx += tr;
-      var pulso = 0.5 + 0.5 * Math.sin(t * (est === 'busy' ? 8 : 2)), Ri = R * 0.5 * (1 + 0.02 * pulso + imp * 0.06);
+      var pulso = 0.5 + 0.5 * Math.sin(t * (est === 'busy' ? 8 : 2)), Ri = R * 0.5 * (1 + 0.02 * pulso + imp * 0.06); px += (ax - px) * 0.08; py += (ay - py) * 0.08;
       ctx.clearRect(0, 0, W, H);
       var g = ctx.createRadialGradient(cx, cy, Ri * 0.5, cx, cy, R * 1.02);
       g.addColorStop(0, 'rgba(' + rgb(0.42 + 0.2 * pulso + imp * 0.3) + ')'); g.addColorStop(0.55, 'rgba(' + rgb(0.1) + ')'); g.addColorStop(1, 'rgba(' + rgb(0) + ')');
@@ -575,7 +601,7 @@
       // rosto (ícone do app) dentro do vidro
       ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, Ri, 0, 6.2832); ctx.clip();
       if (imgOk) {
-        var ts = Ri * 2.04; ctx.drawImage(img, cx - ts / 2, cy - ts / 2, ts, ts);
+        var ts = Ri * 2.04; ctx.drawImage(img, cx - ts / 2 + px * Ri * 0.08, cy - ts / 2 + py * Ri * 0.07, ts, ts);
         if (est !== 'idle') { ctx.fillStyle = 'rgba(' + rgb(est === 'erro' ? 0.28 : 0.12) + ')'; ctx.fillRect(cx - Ri, cy - Ri, Ri * 2, Ri * 2); }
         var per = est === 'busy' ? 1.1 : 3.6, ph = ((t / per) % 1.3) - 0.15, sy = cy - Ri + ph * Ri * 2;
         ctx.globalCompositeOperation = 'lighter';
@@ -590,12 +616,13 @@
     tam(); window.addEventListener('resize', function () { tam(); if (reduzido) quadro(performance.now()); });
     if (typeof ResizeObserver !== 'undefined') { try { new ResizeObserver(function () { tam(); if (reduzido) quadro(performance.now()); }).observe(cv); } catch (e) { /* segue */ } }
     if (reduzido) quadro(performance.now()); else requestAnimationFrame(laco);
-    return { estado: function (e) { est = e; estT = performance.now(); if (reduzido) quadro(estT); }, impulso: function () { imp = 1; } };
+    return { estado: function (e) { est = e; estT = performance.now(); if (reduzido) quadro(estT); }, impulso: function () { imp = 1; }, olhar: function (x, y) { ax = Math.max(-1, Math.min(1, x)); ay = Math.max(-1, Math.min(1, y)); } };
   }
   var cvCore = $('core');
   if (cvCore && cvCore.getContext) {
     nucleo = criarNucleo(cvCore);
-    cvCore.addEventListener('pointerdown', function () { nucleo.impulso(); q.focus(); });
+    cvCore.addEventListener('pointerdown', function () { nucleo.impulso(); bip(660, 990, 0.1, 0.04); q.focus(); });
+    window.addEventListener('pointermove', function (e) { var r = cvCore.getBoundingClientRect(); nucleo.olhar((e.clientX - (r.left + r.width / 2)) / (window.innerWidth * 0.5), (e.clientY - (r.top + r.height / 2)) / (window.innerHeight * 0.5)); }, { passive: true });
   }
 
   // ------------------------------------------------------------ fundo (grade, partículas e varredura; discreto)
@@ -649,6 +676,7 @@
     setTimeout(function () { el.hidden = true; el.textContent = ''; }, 2050);
   }
   if (window.innerWidth < 430) q.placeholder = 'Pergunte…';
+  if (lerLS('paulus.som') === '1') { somLigado = true; var ks0 = $('ksom'); if (ks0) { ks0.textContent = 'LIGADO'; ks0.className = 'ok'; } }
   boasVindas(); ajustarBarra(); estadoUI('idle'); q.focus();
   iniciarBoot();
 })();
