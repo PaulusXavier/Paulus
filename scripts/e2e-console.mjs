@@ -137,6 +137,33 @@ await teste('localização negada: rota ainda sai (link por nome) e o painel mos
 await teste('pergunta que não fala da posição não pede localização', async (pg) => {
   await abrir(pg); await enviar(pg, 'quanto é 2+2'); await fim(pg); ok(/NÃO USADA/.test(await pg.innerText('#kp')), 'pediu GPS à toa');
 }, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758 } });
+// Mapa da rota (Leaflet): tiles e servidor de rotas simulados, sem rede externa.
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4//8/AwAI/AL+XJ/PEgAAAABJRU5ErkJggg==', 'base64');
+async function simularMapa(pg, estado) {
+  await pg.route('https://tile.openstreetmap.org/**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
+  await pg.route('https://routing.openstreetmap.de/**', (r) => { estado.url = r.request().url(); return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 'Ok', routes: [{ distance: 8123, duration: 960, geometry: { type: 'LineString', coordinates: [[-60.6758, 2.8235], [-60.68, 2.83], [-60.70, 2.85]] } }] }) }); });
+}
+await teste('rota com posição mostra o MAPA: marcadores numerados, linha, atribuição OSM e botão Pelas ruas', async (pg) => {
+  const est = {}; await simularMapa(pg, est); pg.on('dialog', (d) => d.accept());
+  await abrir(pg); await enviar(pg, 'traçar rota saindo daqui: CAPS Teste Um e CRAS Teste Dois'); await fim(pg);
+  await pg.waitForSelector('#log .mapa .leaflet-tile-loaded', { timeout: 8000 });
+  ok(await pg.locator('#log .mapa .pin').count() === 3, 'marcadores: ' + await pg.locator('#log .mapa .pin').count());
+  ok(await pg.locator('#log .mapa path.leaflet-interactive').count() >= 1, 'sem linha da rota');
+  ok(/OpenStreetMap/.test(await pg.innerText('#log .mapa .leaflet-control-attribution')), 'sem atribuição');
+  ok(await pg.evaluate(() => !!document.querySelector('.mapa .leaflet-tooltip-pane') && !window.__xss), 'painel de dicas');
+  await pg.click('#log button:has-text("Pelas ruas")'); await pg.waitForFunction(() => /Pelas ruas: 8,1 km · 16 min/.test(document.querySelector('.mleg').innerText), null, { timeout: 6000 });
+  ok(/routed-car\/route\/v1\/driving\/-60\.6758/.test(est.url || ''), 'url do servidor de rotas: ' + est.url);
+}, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758, accuracy: 20 } });
+await teste('"mostrar o mapa de Boa Vista" abre o mapa no aparelho, sem chamar a IA; Onde estou põe o marcador EU', async (pg) => {
+  perguntasIA.length = 0; await simularMapa(pg, {});
+  await abrir(pg); await enviar(pg, 'mostrar o mapa de Boa Vista'); await pg.waitForSelector('#log .mapa .leaflet-tile-loaded', { timeout: 8000 });
+  ok(perguntasIA.length === 0, 'chamou a IA'); await pg.click('#log button:has-text("Onde estou")'); await pg.waitForSelector('#log .mapa .pin.eu', { timeout: 6000 });
+}, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758, accuracy: 20 } });
+await teste('mapa sem internet (tiles falham): a rota continua desenhada e o aviso aparece', async (pg) => {
+  await pg.route('https://tile.openstreetmap.org/**', (r) => r.abort());
+  await abrir(pg); await enviar(pg, 'traçar rota saindo daqui: CAPS Teste Um e CRAS Teste Dois'); await fim(pg);
+  await pg.waitForSelector('#log .mapa .pin', { timeout: 8000 }); await pg.waitForFunction(() => /INDISPONÍVEL/.test(document.querySelector('.mleg').innerText), null, { timeout: 8000 });
+}, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758 } });
 if (!tinha) fs.unlinkSync(lugaresTeste);
 await navegador.close(); servidor.close();
 const n = resultados.filter(Boolean).length; console.log('\n' + n + '/' + resultados.length + ' passaram'); process.exit(n === resultados.length ? 0 : 1);
