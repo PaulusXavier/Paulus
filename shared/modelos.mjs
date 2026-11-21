@@ -1,7 +1,7 @@
-// Modelos 3D didáticos (v0.20.0): o Paulus tem modelos-base prontos (arquivos .html em modelos/) e, quando a pessoa pede
+// Modelos 3D didáticos (v0.20.0; mapa 3D de Roraima em v0.21.0): o Paulus tem modelos-base prontos (arquivos .html em modelos/) e, quando a pessoa pede
 // "me manda o modelo 3D do sistema solar", o programa reconhece o pedido NO APARELHO, sem IA e sem rede, e devolve o arquivo
 // para baixar. O código do modelo nunca passa pela IA (são milhares de linhas; um modelo gratuito não as reproduz com fidelidade).
-// Tema novo: o Paulus entrega a base, explica o que trocar e manda montar o arquivo completo no Claude, no chat.
+// Tema novo: o Paulus entrega a base (o Sistema Solar, ou o mapa de Roraima quando o pedido é de mapa), explica o que trocar e manda montar o arquivo completo no Claude, no chat.
 //
 //   lerPedidoDeModelo(texto)    -> { modelo, tema, novoTema } ou null
 //   respostaDeModelo(texto)     -> { texto, modelo, novoTema, avisos } ou null
@@ -30,6 +30,23 @@ export const MODELOS_3D = [
     ],
     // assuntos que o modelo cobre (já normalizados: sem acento, minúsculos)
     assuntos: ['sistema solar', 'planeta', 'planetas', 'sol', 'astronomia', 'orbita', 'orbitas', 'luas', 'cometa']
+  },
+  {
+    id: 'mapa-roraima',
+    nome: 'Roraima 3D · Edição Didática',
+    versao: 'v1',
+    arquivo: 'mapa-roraima-3d-didatico-v1.html',
+    resumo: 'Mapa 3D de Roraima com os 15 municípios em relevo: a altura e a cor mostram população, área, densidade ou percentual indígena, com ficha de cada município, ranking, lições guiadas e desafio.',
+    recursos: [
+      'mapa 3D com arraste, giro e zoom (mouse, toque e teclado)',
+      'altura e cor por população, área, densidade ou % indígena',
+      'ficha de cada município (população, área, densidade, notas)',
+      'ranking ordenável pelo mesmo critério',
+      'lições guiadas (capital, território, densidade, povos indígenas, fronteiras)',
+      'desafio com perguntas e jogo de achar o município no mapa',
+      'modo plano, nomes ligados ou desligados e bússola'
+    ],
+    assuntos: ['roraima', 'mapa', 'municipios', 'estado de roraima']
   }
 ];
 
@@ -38,40 +55,63 @@ export const MODELO_PASTA_PADRAO = 'modelos/';
 const RE_3D = /\b(3 ?d|tridimensional|tres dimensoes)\b/;
 const RE_MODELO = /\b(modelo|modelos|maquete|maquetes|simulador|simuladores|simulacao|simulacoes)\b/;
 const RE_SISTEMA_SOLAR = /\bsistema solar\b/;
+const RE_MAPA = /\b(mapa|mapas|roraima|municipio|municipios)\b/;
+const RE_MAQUETE = /\b(maquete|maquetes|relevo)\b/;
 const RE_ARQUIVO = /\b(arquivo|html|app|aplicativo|pagina|base)\b/;
 // perguntas de ajuda sobre o modelo (dados, lições, roteiro, adaptação, revisão...) vão para a IA com as habilidades
-const RE_AJUDA = /\b(dados|campos|licao|licoes|quiz|roteiro|adapt\w*|troc\w*|revis\w*|checklist|qualidade|erro|erros|corrig\w*|melhor\w*|como|explic\w*|ensin\w*|aprend\w*|sabe|sabia|consegue|pode)\b/;
+const RE_AJUDA = /\b(dados|campos|licao|licoes|quiz|roteiro|adapt\w*|troc\w*|revis\w*|checklist|qualidade|erro|erros|corrig\w*|melhor\w*|como|explic\w*|expliq\w*|ensin\w*|aprend\w*|sabe|sabia|consegue|pode)\b/;
 const RE_ENVIO = /\b(mand\w*|envi\w*|baix\w*|quero|queria|preciso|gere|gera|gerar|faca|fazer|faz|crie|criar|cria|monte|montar|me da|me de|abra|abrir|mostr\w*|tem)\b/;
 
 function achaTema(norm) {
   // tema depois de "modelo 3d ..." (ex.: "modelo 3d do corpo humano" -> "corpo humano")
-  const m = /\b(?:3 ?d|tridimensional|modelo|modelos|maquete|maquetes|simulador|simuladores|simulacao|simulacoes|didatico|didaticos|interativo|interativos)\s+(?:(?:3 ?d|didatico|didaticos|interativo|interativos)\s+)*(?:de|do|da|dos|das|sobre)\s+(.+)$/.exec(norm);
+  const m = /\b(?:3 ?d|tridimensional|mapa|mapas|modelo|modelos|maquete|maquetes|simulador|simuladores|simulacao|simulacoes|didatico|didaticos|interativo|interativos)\s+(?:(?:3 ?d|didatico|didaticos|interativo|interativos)\s+)*(?:de|do|da|dos|das|sobre)\s+(.+)$/.exec(norm);
   if (!m) return '';
   let t = m[1].split(/\b(?:igual|como|que|com|usando|baseado|parecido|no estilo|nos moldes|para mim|pra mim|pelo|pela)\b/)[0];
-  t = t.replace(/^(?:o|a|os|as|um|uma|uns|umas)\s+/, '').replace(/\s+(?:por favor|pf|pfv|obrigado|obrigada)$/, '').trim();
+  t = t.replace(/\s+em\s+(?:3 ?d|tres dimensoes)\b.*$/, '').replace(/^(?:o|a|os|as|um|uma|uns|umas)\s+/, '').replace(/\s+(?:por favor|pf|pfv|obrigado|obrigada)$/, '').trim();
   return t.slice(0, 60);
 }
+
+const MODELO_SOLAR = () => MODELOS_3D.find((m) => m.id === 'sistema-solar');
+const MODELO_MAPA = () => MODELOS_3D.find((m) => m.id === 'mapa-roraima');
+
+// "mapa 3d de roraima" -> 'roraima'; "modelo 3d do mapa de roraima" -> 'roraima'; "mapa 3d" -> ''
+function temaDoMapa(norm, tema) {
+  let t = String(tema || '').replace(/^(?:o\s+)?(?:mapa|mapas|maquete|maquetes)\s+(?:(?:3 ?d|didatico|didaticos|interativo|interativos)\s+)*(?:de|do|da|dos|das)\s+/, '');
+  if (/^(?:mapa|mapas|maquete|maquetes|municipio|municipios)$/.test(t)) t = '';
+  return t;
+}
+function ehMapaDeRoraima(tema) { return !tema || /\broraima\b/.test(tema); }
 
 function ehSistemaSolar(norm, tema) {
   if (RE_SISTEMA_SOLAR.test(norm)) return true;
   if (!tema) return true; // "me manda um modelo 3D" sem tema: a base é o Sistema Solar
   const palavras = tema.split(' ');
-  return MODELOS_3D[0].assuntos.some(function (a) { return palavras.indexOf(a) >= 0 || tema === a; });
+  return MODELO_SOLAR().assuntos.some(function (a) { return palavras.indexOf(a) >= 0 || tema === a; });
 }
 
 export function lerPedidoDeModelo(texto) {
   const norm = normalizar(texto);
   if (!norm || norm.length > 400) return null;
-  if (RE_AJUDA.test(norm)) return null;
+  // "faça um mapa 3d de roraima COMO o do sistema solar" compara; "COMO adaptar o modelo" pede ajuda. Só a comparação de quem pede algo escapa de RE_AJUDA.
+  const semComparacao = RE_ENVIO.test(norm) ? norm.replace(/\bcomo (?=(?:o|a|os|as|no|na|nos|nas|tem|em|esse|essa|este|esta|aquele|aquela)\b)/g, '') : norm;
+  if (RE_AJUDA.test(semComparacao)) return null;
   const tem3d = RE_3D.test(norm), temModelo = RE_MODELO.test(norm), solar = RE_SISTEMA_SOLAR.test(norm);
   const temVerbo = RE_ENVIO.test(norm), curto = norm.split(' ').length <= 8;
+  // "faça um mapa 3d de roraima como o do sistema solar" é mapa; "mapa do sistema solar 3d" continua sendo o Sistema Solar
+  const ehMapa = (tem3d || RE_MAQUETE.test(norm)) && !/\b(mental|mentais|conceitual|conceituais)\b/.test(norm)
+    && (/\b(roraima|municipio|municipios)\b/.test(norm) || (RE_MAPA.test(norm) && !solar));
   let pedido = false;
-  if (tem3d && temModelo) pedido = temVerbo || curto;                                   // "modelo 3D do corpo humano" também vale como pedido
+  if (ehMapa) pedido = temVerbo || curto;                                               // "mapa 3D de Roraima", "me manda o mapa em 3d"
+  else if (tem3d && temModelo) pedido = temVerbo || curto;                                   // "modelo 3D do corpo humano" também vale como pedido
   else if (solar && (temModelo || tem3d || RE_ARQUIVO.test(norm))) pedido = temVerbo;    // "me manda o arquivo do sistema solar"
   else if (tem3d && /\b(planeta|planetas)\b/.test(norm)) pedido = temVerbo;
   if (!pedido) return null;
   const tema = achaTema(norm);
-  const base = MODELOS_3D[0];
+  if (ehMapa) {
+    const t = temaDoMapa(norm, tema);
+    return { modelo: MODELO_MAPA(), tema: t, novoTema: ehMapaDeRoraima(t) ? '' : temaComAcento(texto, norm, t) };
+  }
+  const base = MODELO_SOLAR();
   return { modelo: base, tema: tema, novoTema: ehSistemaSolar(norm, tema) ? '' : temaComAcento(texto, norm, tema) };
 }
 
@@ -96,14 +136,31 @@ export function urlDoModelo(modelo, pasta) {
 export function respostaDeModelo(texto) {
   const p = lerPedidoDeModelo(texto);
   if (!p) return null;
-  const m = p.modelo;
+  const m = p.modelo, mapa = m.id === 'mapa-roraima';
   const base = 'Tenho um modelo-base pronto: ' + m.nome + ' (' + m.versao + '). ' + m.resumo + '\n\n'
     + 'É um arquivo único (.html): abre no navegador do celular ou do computador, sem internet e sem instalar nada. '
     + 'Ele traz: ' + m.recursos.join('; ') + '.';
   if (!p.novoTema) {
+    if (mapa) {
+      return {
+        texto: base + '\n\nUse o botão para baixar. Os números (população do Censo 2022, área e percentual indígena) vêm do arquivo do Argo; a densidade é calculada no próprio mapa. Para trocar ou acrescentar dados, peça "dados do modelo 3D" que eu explico os campos e escrevo o que você quiser.',
+        modelo: m, novoTema: '', avisos: ['O arquivo é entregue pronto, direto do Paulus, sem passar pela IA. A altura é exagerada para comparar e não representa relevo. Município sem dado aparece em cinza (não quer dizer zero). Confira os números na fonte oficial antes de citar.']
+      };
+    }
     return {
       texto: base + '\n\nUse o botão para baixar. Para trocar o conteúdo (lições, quiz, corpos), peça "dados do modelo 3D" que eu explico os campos e escrevo o que você quiser.',
       modelo: m, novoTema: '', avisos: ['O arquivo é entregue pronto, direto do Paulus, sem passar pela IA. Alguns nomes na base usam a grafia de Portugal (Vénus, Neptuno).']
+    };
+  }
+  if (mapa) {
+    return {
+      texto: 'O modelo-base de mapa que eu tenho é o de Roraima (' + m.nome + ', ' + m.versao + '), e é por ele que começo qualquer mapa novo.\n\n'
+        + 'Para "' + p.novoTema + '" eu não monto o arquivo inteiro sozinho: são milhares de linhas, e a IA que roda aqui não as reproduz com fidelidade. O que eu faço:\n'
+        + '1) Baixe a base pelo botão.\n'
+        + '2) O motor de desenho (relevo por município, giro, zoom, ficha, ranking, lições e desafio) serve para outro estado ou região. O que muda são os contornos (GeoJSON do IBGE) e a tabela de dados. Eu escrevo os dados: peça "dados do modelo 3D de ' + p.novoTema + '". O ajuste do código e a geração do arquivo se fazem no Claude, no chat, anexando a base e pedindo "faça no estilo deste".\n'
+        + '3) Se o tema não é um mapa (corpo humano, átomo), peça "roteiro de modelo 3D de ' + p.novoTema + '" (objetivo de aprendizagem, partes, lições e quiz).\n\n'
+        + 'Quem revisa o conteúdo é o professor ou o profissional que vai usar.',
+      modelo: m, novoTema: p.novoTema, avisos: ['A base é entregue pronta, no aparelho, sem passar pela IA. Mapa de outra área exige novos contornos e novos dados.']
     };
   }
   return {
