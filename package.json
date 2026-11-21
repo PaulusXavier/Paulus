@@ -11,6 +11,7 @@
     "build:habilidades": "node scripts/build-habilidades.mjs",
     "build": "node scripts/build-knowledge.mjs && node scripts/build-habilidades.mjs && node scripts/build.mjs",
     "ingerir": "node scripts/ingerir.mjs",
+    "importar:enderecos-argo": "node scripts/importar-enderecos-argo.mjs",
     "inspecionar": "node scripts/inspecionar.mjs",
     "conferir": "node scripts/conferir.mjs",
     "deploy:worker": "wrangler deploy"
