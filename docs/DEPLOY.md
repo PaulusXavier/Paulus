@@ -75,6 +75,41 @@ Sem configuração, o Worker segue aberto como antes. Para exigir login:
 
 Sessão de 12 h (30 dias com "Manter conectado"); 5 erros seguidos na mesma conta+IP bloqueiam por 30 s, dobrando a cada erro (até 15 min). Além do bloqueio por conta+IP, há um teto de 20 tentativas de login por minuto por IP (qualquer usuário), para quem troca de usuário a cada tentativa. Os dois contadores ficam na memória do Worker (valem por instância). O código está em `worker/auth.mjs` (PBKDF2-SHA256 com 100.000 voltas, o máximo que o Workers aceita; sessão assinada com HMAC-SHA256, nada é gravado) e os testes em `tests/auth.test.mjs`. Remover a conta de `USUARIOS` derruba a sessão dela na hora. O `console.js` só é carregado depois de entrar.
 
+## Login pelo Firebase (vários apps, uma conta só)
+
+Use isto quando vários apps compartilham o Paulus: cada pessoa tem uma conta no **Firebase Authentication** e o mesmo login vale em todos os apps (desde que usem o **mesmo projeto Firebase**). O Worker confere o token do Google, sem guardar senha nenhuma.
+
+**1. No Firebase (console.firebase.google.com)**
+1. Crie um projeto (ou use o que os apps já usam). Anote o **ID do projeto** (Configurações do projeto → Geral).
+2. **Authentication → Sign-in method → E-mail/senha → Ativar.**
+3. **Authentication → Users → Add user**: crie cada conta (e-mail e senha). Quem entra é quem você criou aqui.
+4. **Authentication → Settings → User actions**: desmarque **Enable create (sign-up)**. Sem isso, qualquer pessoa que souber a chave web do app poderia criar uma conta própria.
+5. Em Configurações do projeto → Geral, copie a **Chave de API da Web** (ela é pública por desenho; não é segredo).
+
+**2. No Worker** (`wrangler.toml`, seção `[vars]`)
+```toml
+FIREBASE_PROJECT_ID = "meu-projeto-123"
+# opcional, recomendado: só estes e-mails (verificados) entram
+# FIREBASE_EMAILS = "paulo@exemplo.org,ana@exemplo.org"
+# FIREBASE_DOMINIOS = "prefeitura.exemplo.gov.br"
+```
+Faça o commit; o deploy reconstrói o Worker. A partir daí o Worker responde `401` a quem não mandar um token válido. O login por senha (`AUTH_SEGREDO` e `USUARIOS`) continua funcionando junto, se estiver configurado.
+
+**3. No Console** (`console/index.html`): preencha `<meta name="paulus-firebase-key" content="SUA_CHAVE_WEB">`. A tela de login passa a pedir **e-mail e senha** do Firebase. A sessão se renova sozinha (o ID token dura 1 h; "Manter conectado" guarda o token de renovação neste aparelho).
+
+**4. Nos outros apps**: eles entram pelo SDK do Firebase deles e passam o token ao Paulus:
+```js
+// depois de entrar com o Firebase Auth (signInWithEmailAndPassword...)
+Paulus.init({ app: 'argo', endpoint: 'https://paulus-ia.SEU-USUARIO.workers.dev',
+  token: () => auth.currentUser ? auth.currentUser.getIdToken() : '' });   // o SDK renova o token sozinho
+```
+`token` aceita texto, função ou função assíncrona. Se a resposta for `401`, o app deve mandar a pessoa entrar de novo (`aoNegar`).
+
+**Cuidados**
+- Os apps precisam estar no mesmo projeto Firebase do `FIREBASE_PROJECT_ID`; token de outro projeto é recusado.
+- Remover a conta no Firebase não derruba na hora um token já emitido: ele vale até vencer (até 1 h). Para cortar acesso na hora, tire o e-mail de `FIREBASE_EMAILS` e publique de novo.
+- O Worker busca as chaves públicas do Google (googleapis.com) e as guarda por 1 h; se o Google não responder e não houver cópia, ninguém entra até voltar.
+
 ## Atualização automática
 
 **Neste repositório** (`.github/workflows/pages.yml`): a cada push na `main` (e toda segunda de manhã) o GitHub roda os testes, gera o `dist/` e publica o site. Se os segredos da Cloudflare existirem, publica também o Worker, que reconstrói sozinho a base e as habilidades (`wrangler.toml → [build]`). Se um teste falhar, nada é publicado.
