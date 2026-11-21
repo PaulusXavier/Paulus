@@ -18,7 +18,7 @@ binding = "AI"
 ALLOWED_ORIGINS = "https://paulusxavier.github.io"
 # Login pelo Firebase (opcional; vale para o console e para todos os apps que usam o mesmo projeto Firebase).
 # Com FIREBASE_PROJECT_ID o Worker só responde a quem mandar um ID token do Firebase (Authorization: Bearer ...). Veja docs/DEPLOY.md.
-# FIREBASE_PROJECT_ID = "meu-projeto-123"
+FIREBASE_PROJECT_ID = "paulusia-de285"
 # Quem pode entrar (opcional; sem as listas, qualquer conta do projeto entra, então DESLIGUE o cadastro livre no Firebase):
 # FIREBASE_EMAILS = "paulo@exemplo.org,ana@exemplo.org"
 # FIREBASE_DOMINIOS = "prefeitura.exemplo.gov.br"
