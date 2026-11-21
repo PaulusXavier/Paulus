@@ -376,6 +376,7 @@
       var pm = pontosDoMapa(r);
       if (pm.pontos.length) mapaRota(x, { pontos: pm.pontos, linha: pm.linha, modo: r.modo || '', svg: r.svg });
       else esquemaSvg(x, r.svg);
+      if (r.destino && r.destino.nome) x.m.appendChild(cartaoDestino(r));
       var ac2 = h('div', { class: 'ac' });
       (r.links || []).forEach(function (l, i) {
         var url = typeof l === 'string' ? l : l.url, rot = typeof l === 'string' ? 'Abrir no mapa ' + (i + 1) : (l.rotulo || 'Abrir no mapa');
@@ -416,6 +417,28 @@
   // ------------------------------------------------------------ mapa (Leaflet + OpenStreetMap, carregado só quando há mapa)
   // Fundo: tiles do OpenStreetMap (a área vista é pedida ao servidor de tiles). A linha é reta (estimativa); "Pelas ruas" é opcional.
   var BV = [2.8235, -60.6758], ASK_RUAS = false;
+  // Cartão de destino estilo HUD: "quero ir a X". Tudo montado com createElement (sem innerHTML); o link só abre se for https.
+  function cartaoDestino(r) {
+    var d = r.destino, NS = 'http://www.w3.org/2000/svg';
+    var modos = { carro: 'CARRO', moto: 'MOTO', bicicleta: 'BICICLETA', pe: 'A PÉ' };
+    var url = ''; (r.links || []).forEach(function (l) { var u = typeof l === 'string' ? l : l.url; if (!url && u && /^https:\/\//.test(u)) url = u; });
+    var svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 220 54'); svg.setAttribute('class', 'dsvg'); svg.setAttribute('aria-hidden', 'true');
+    var mk = function (tag, at) { var e = document.createElementNS(NS, tag); Object.keys(at).forEach(function (k) { e.setAttribute(k, at[k]); }); svg.appendChild(e); return e; };
+    mk('path', { d: 'M12 40 C 60 40, 70 12, 110 22 S 170 40, 198 18', class: 'dlinha' });
+    mk('circle', { cx: 12, cy: 40, r: 4, class: 'dorig' });
+    mk('circle', { cx: 198, cy: 18, r: 9, class: 'dret' }); mk('circle', { cx: 198, cy: 18, r: 3, class: 'dalvo' });
+    mk('path', { d: 'M198 5v6M198 25v6M185 18h6M205 18h6', class: 'dret2' });
+    var card = h('div', { class: 'destino' }, [
+      h('div', { class: 'dtag', text: 'DESTINO' + (d.noDiretorio ? ' · NO DIRETÓRIO' : ' · PELO TEXTO') }),
+      h('div', { class: 'dnome', text: d.nome }),
+      d.endereco ? h('div', { class: 'dend', text: d.endereco }) : null,
+      svg,
+      h('div', { class: 'dchips' }, [h('span', { text: 'MODO ' + (modos[r.modo] || 'CARRO') }), h('span', { text: 'SAÍDA · SUA POSIÇÃO' }), h('span', { text: 'MAPA · PASSO A PASSO' })])
+    ]);
+    if (url) card.appendChild(h('a', { class: 'dgo', href: url, target: '_blank', rel: 'noopener noreferrer', text: '▶ INICIAR NAVEGAÇÃO' }));
+    return card;
+  }
+
   function esquemaSvg(x, svg) {
     if (!svg) return;
     var img = h('img', { alt: 'Desenho da rota', src: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) });
@@ -769,7 +792,7 @@
   // ------------------------------------------------------------ núcleo (reator em arco no cabeçalho)
   // Estados: idle (respira), busy (âmbar, gira rápido, varredura), listen (verde, barras), speak (barras de voz), erro (vermelho, treme).
   function criarNucleo(cv) {
-    var ctx = cv.getContext('2d'), W = 0, H = 0, est = 'idle', estT = 0, amp = 0.05, imp = 0, px = 0, py = 0, ax = 0, ay = 0, img = new Image(), imgOk = false, i;
+    var ctx = cv.getContext('2d'), W = 0, H = 0, est = 'idle', estT = 0, amp = 0.05, imp = 0, px = 0, py = 0, ax = 0, ay = 0, img = new Image(), imgOk = false, i, hov = 0, hovAlvo = 0, giro = 0, giroVel = 0, ondas = [], arrasta = false, ultX = 0;
     var COR = { idle: [55, 230, 255], busy: [255, 179, 71], listen: [110, 231, 168], speak: [143, 244, 255], erro: [255, 107, 94] };
     var AMP = { idle: 0.05, busy: 0.3, listen: 0.62, speak: 0.8, erro: 0.1 }, VEL = { idle: 1, busy: 3.4, listen: 1.7, speak: 2, erro: 0.4 };
     var cur = COR.idle.slice();
@@ -787,7 +810,7 @@
       amp += ((AMP[est] || 0.05) - amp) * 0.1; imp *= 0.94;
       var tr = est === 'erro' ? Math.sin((now - estT) / 28) * Math.max(0, 1 - (now - estT) / 600) * R * 0.05 : 0;
       cx += tr;
-      var pulso = 0.5 + 0.5 * Math.sin(t * (est === 'busy' ? 8 : 2)), Ri = R * 0.5 * (1 + 0.02 * pulso + imp * 0.06); px += (ax - px) * 0.08; py += (ay - py) * 0.08;
+      var pulso = 0.5 + 0.5 * Math.sin(t * (est === 'busy' ? 8 : 2)), Ri = R * 0.5 * (1 + 0.02 * pulso + imp * 0.06 + hov * 0.07); px += (ax - px) * 0.12; py += (ay - py) * 0.12; hov += (hovAlvo - hov) * 0.12; giro += giroVel; giroVel *= 0.96;
       ctx.clearRect(0, 0, W, H);
       var g = ctx.createRadialGradient(cx, cy, Ri * 0.5, cx, cy, R * 1.02);
       g.addColorStop(0, 'rgba(' + rgb(0.42 + 0.2 * pulso + imp * 0.3) + ')'); g.addColorStop(0.55, 'rgba(' + rgb(0.1) + ')'); g.addColorStop(1, 'rgba(' + rgb(0) + ')');
@@ -801,16 +824,16 @@
       // régua de marcas
       var N = 60, a, r1 = R * 0.9, longa;
       for (i = 0; i < N; i++) {
-        a = i / N * 6.2832 + t * 0.14 * vel; longa = i % 5 === 0;
+        a = i / N * 6.2832 + t * 0.14 * vel + giro * 0.6; longa = i % 5 === 0;
         ctx.beginPath(); ctx.lineWidth = longa ? 1.5 : 0.9; ctx.strokeStyle = 'rgba(' + rgb(longa ? 0.8 : 0.32) + ')';
         ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); ctx.lineTo(cx + Math.cos(a) * (r1 + R * (longa ? 0.1 : 0.05)), cy + Math.sin(a) * (r1 + R * (longa ? 0.1 : 0.05))); ctx.stroke();
       }
       var lw = Math.max(1.4, R * 0.045);
-      for (i = 0; i < 3; i++) arco(cx, cy, R * 0.8, -t * 0.8 * vel + i * 2.0944, 1.2, lw, 0.85);
+      for (i = 0; i < 3; i++) arco(cx, cy, R * 0.8, -t * 0.8 * vel - giro + i * 2.0944, 1.2, lw, 0.85 + hov * 0.15);
       arco(cx, cy, R * 0.7, t * 0.5 * vel, 6.2832, 1, 0.4, [R * 0.12, R * 0.07]);
       if (est === 'busy') { for (i = 0; i < 6; i++) arco(cx, cy, R * 0.7, t * 4.2 - i * 0.09, 0.09, lw * 1.2, 0.9 - i * 0.14, null, 'round'); }
       // anéis finos em sentidos opostos e um satélite com rastro (o "reator" do filme)
-      for (i = 0; i < 2; i++) arco(cx, cy, R * 0.95, t * 0.35 * vel + i * 3.1416, 0.75, Math.max(1, lw * 0.5), 0.5);
+      for (i = 0; i < 2; i++) arco(cx, cy, R * 0.95, t * 0.35 * vel + giro * 1.4 + i * 3.1416, 0.75, Math.max(1, lw * 0.5), 0.5 + hov * 0.3);
       arco(cx, cy, R * 0.62, -t * 0.9 * vel, 6.2832, 0.8, 0.3, [2, R * 0.05]);
       for (i = 0; i < 6; i++) arco(cx, cy, R * 0.86, t * 1.3 * vel - i * 0.1, 0.1, lw * 0.9, 0.95 - i * 0.15, null, 'round');
       // barras radiais (voz): amplitude do estado
@@ -822,10 +845,19 @@
         ctx.moveTo(cx + Math.cos(a) * b0, cy + Math.sin(a) * b0); ctx.lineTo(cx + Math.cos(a) * (b0 + len), cy + Math.sin(a) * (b0 + len)); ctx.stroke();
       }
       ctx.lineCap = 'butt';
+      // ondas de choque (toque/clique): anéis que se expandem e somem
+      for (i = ondas.length - 1; i >= 0; i--) {
+        var ag = (now - ondas[i]) / 900;
+        if (ag >= 1) { ondas.splice(i, 1); continue; }
+        ctx.beginPath(); ctx.arc(cx, cy, Ri + (R * 1.25 - Ri) * ag, 0, 6.2832); ctx.lineWidth = Math.max(1, 3 * (1 - ag)); ctx.strokeStyle = 'rgba(' + rgb(0.8 * (1 - ag)) + ')'; ctx.stroke();
+      }
       // rosto (ícone do app) dentro do vidro
       ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, Ri, 0, 6.2832); ctx.clip();
       if (imgOk) {
-        var ts = Ri * 2.04; ctx.drawImage(img, cx - ts / 2 + px * Ri * 0.08, cy - ts / 2 + py * Ri * 0.07, ts, ts);
+        var ts = Ri * 2.04 * (1 + hov * 0.07 + (est === 'speak' ? amp * 0.03 * Math.sin(t * 9) : 0) + 0.008 * Math.sin(t * 1.6));
+        // o rosto acompanha o ponteiro: desloca, inclina um pouco (skew) e aproxima no hover
+        ctx.save(); ctx.translate(cx + px * Ri * 0.2, cy + py * Ri * 0.17); ctx.transform(1, py * 0.05, px * 0.05, 1, 0, 0);
+        ctx.drawImage(img, -ts / 2, -ts / 2, ts, ts); ctx.restore();
         if (est !== 'idle') { ctx.fillStyle = 'rgba(' + rgb(est === 'erro' ? 0.28 : 0.12) + ')'; ctx.fillRect(cx - Ri, cy - Ri, Ri * 2, Ri * 2); }
         var per = est === 'busy' ? 1.1 : 3.6, ph = ((t / per) % 1.3) - 0.15, sy = cy - Ri + ph * Ri * 2;
         ctx.globalCompositeOperation = 'lighter';
@@ -840,12 +872,29 @@
     tam(); window.addEventListener('resize', function () { tam(); if (reduzido) quadro(performance.now()); });
     if (typeof ResizeObserver !== 'undefined') { try { new ResizeObserver(function () { tam(); if (reduzido) quadro(performance.now()); }).observe(cv); } catch (e) { /* segue */ } }
     if (reduzido) quadro(performance.now()); else requestAnimationFrame(laco);
-    return { estado: function (e) { est = e; estT = performance.now(); if (reduzido) quadro(estT); }, impulso: function () { imp = 1; }, olhar: function (x, y) { ax = Math.max(-1, Math.min(1, x)); ay = Math.max(-1, Math.min(1, y)); } };
+    return { estado: function (e) { est = e; estT = performance.now(); if (reduzido) quadro(estT); }, impulso: function () { imp = 1; ondas.push(performance.now()); }, hover: function (v) { hovAlvo = v ? 1 : 0; }, girar: function (dv) { giroVel = Math.max(-0.5, Math.min(0.5, giroVel + dv)); }, olhar: function (x, y) { ax = Math.max(-1, Math.min(1, x)); ay = Math.max(-1, Math.min(1, y)); } };
   }
   var cvCore = $('core');
   if (cvCore && cvCore.getContext) {
     nucleo = criarNucleo(cvCore);
-    cvCore.addEventListener('pointerdown', function () { nucleo.impulso(); bip(660, 990, 0.1, 0.04); q.focus(); });
+    var FALAS = ['Pois não.', 'Estou aqui.', 'Diga o destino ou a pergunta.', 'Todos os sistemas operacionais.', 'Quer traçar uma rota?', 'Pode falar.', 'Ouvindo.'], ifala = 0, tfala = 0, bolha = null, arrastando = false, ultX = 0;
+    function falar(txt) {
+      if (!bolha) { bolha = document.createElement('div'); bolha.id = 'fala'; bolha.setAttribute('role', 'status'); document.body.appendChild(bolha); }
+      var r = cvCore.getBoundingClientRect();
+      bolha.textContent = txt; bolha.style.left = Math.round(r.left + r.width / 2) + 'px'; bolha.style.top = Math.round(r.bottom + 6) + 'px'; bolha.classList.add('on');
+      clearTimeout(tfala); tfala = setTimeout(function () { bolha.classList.remove('on'); }, 2400);
+    }
+    cvCore.setAttribute('role', 'button'); cvCore.setAttribute('tabindex', '0'); cvCore.setAttribute('aria-label', 'Paulus: toque para cumprimentar');
+    function tocar() { nucleo.impulso(); bip(660, 990, 0.1, 0.04); falar(FALAS[ifala++ % FALAS.length]); }
+    cvCore.addEventListener('pointerenter', function () { nucleo.hover(true); });
+    cvCore.addEventListener('pointerleave', function () { nucleo.hover(false); arrastando = false; });
+    cvCore.addEventListener('focus', function () { nucleo.hover(true); }); cvCore.addEventListener('blur', function () { nucleo.hover(false); });
+    cvCore.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tocar(); } });
+    cvCore.addEventListener('pointerdown', function (e) { arrastando = true; ultX = e.clientX; try { cvCore.setPointerCapture(e.pointerId); } catch (x) { /* segue */ } tocar(); });
+    cvCore.addEventListener('pointerup', function () { arrastando = false; });
+    // arrastar de lado gira os anéis (com inércia)
+    cvCore.addEventListener('pointermove', function (e) { if (arrastando) { nucleo.girar((e.clientX - ultX) * 0.004); ultX = e.clientX; } });
+    cvCore.addEventListener('dblclick', function () { nucleo.girar(0.45); nucleo.impulso(); falar('Varredura completa.'); });
     window.addEventListener('pointermove', function (e) { var r = cvCore.getBoundingClientRect(); nucleo.olhar((e.clientX - (r.left + r.width / 2)) / (window.innerWidth * 0.5), (e.clientY - (r.top + r.height / 2)) / (window.innerHeight * 0.5)); }, { passive: true });
   }
 
