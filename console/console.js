@@ -53,6 +53,32 @@
       o.connect(g); g.connect(ctxSom.destination); o.start(t0); o.stop(t0 + dur + 0.03);
     } catch (e) { /* sem áudio: segue */ }
   };
+  // Texto que "se decifra" (efeito de HUD): letras embaralhadas que se resolvem da esquerda para a direita.
+  var GLIFOS = '\u2588\u2593\u2592\u2591#0123456789/<>+';
+  function decod(el, final, ms) {
+    if (!el) return;
+    el.textContent = final;
+    if (reduzido) return;
+    var n = final.length, t0 = 0, dur = ms || 520;
+    function f(now) {
+      if (!el.isConnected) return;
+      if (!t0) t0 = now;
+      var p = Math.min(1, (now - t0) / dur), k = Math.floor(p * n), s = '', i, c;
+      for (i = 0; i < n; i++) { c = final.charAt(i); s += (i < k || /[\s.,:·\-–—]/.test(c)) ? c : GLIFOS.charAt(Math.floor(Math.random() * GLIFOS.length)); }
+      el.textContent = p < 1 ? s : final;
+      if (p < 1) requestAnimationFrame(f);
+    }
+    requestAnimationFrame(f);
+  }
+  // Legenda grande do que está sendo dito (ditado e modo voz).
+  var cap = $('cap');
+  function legenda(t, parcial) {
+    if (!cap) return;
+    cap.textContent = '';
+    if (!t) return;
+    cap.appendChild(document.createTextNode(t));
+    if (parcial) cap.appendChild(h('span', { class: 'cur' }));
+  }
   function status(t) { if (st) st.textContent = t; var kn = $('kn'); if (kn) kn.textContent = t.replace('…', ''); }
   function estadoUI(e) {
     estadoAtual = e; document.body.setAttribute('data-estado', e);
@@ -143,8 +169,10 @@
   function limparBoasVindas() { var o = log.querySelector('.hi'); if (o) o.remove(); document.body.classList.remove('vazio'); }
   var KIND = { ia: 'IA', norma: 'NORMA', busca: 'BUSCA', acao: 'AÇÃO', acao_desconhecida: 'AÇÃO', calculo: 'CÁLCULO', rota: 'ROTA', geo: 'GEO', pdf: 'PDF', modelo: 'MODELO 3D', revisao: 'REVISÃO', espanhol: 'IDIOMA', ingles: 'IDIOMA', crise: 'SOCORRO', bloqueio: 'PRIVACIDADE', erro: 'ERRO', sem_resposta: 'SEM RESPOSTA', pens: 'PROCESSANDO' };
   var LOCAL = { norma: 1, busca: 1, acao: 1, acao_desconhecida: 1, calculo: 1, rota: 1, geo: 1, pdf: 1, modelo: 1, revisao: 1, espanhol: 1, ingles: 1, crise: 1, bloqueio: 1, sem_resposta: 1 };
-  function cabeca(quem, kind) {
+  var nResp = 0, vozPendente = false;
+  function cabeca(quem, kind, id) {
     var c = h('div', { class: 'mh' }, [h('span', { class: 'q', text: quem })]);
+    if (id) c.appendChild(h('span', { class: 'id', text: id }));
     if (kind) c.appendChild(h('span', { class: 'k', text: kind }));
     c.appendChild(h('span', { class: 'o', text: hora2() }));
     return c;
@@ -152,7 +180,9 @@
   function msgUsuario(texto, nomes) {
     limparBoasVindas();
     var corpo = h('div', { class: 'mc', text: texto });
-    var m = h('div', { class: 'm u' }, [cabeca('VOCÊ'), corpo]);
+    var daVoz = vozPendente; vozPendente = false;
+    var m = h('div', { class: 'm u' }, [cabeca('VOCÊ', daVoz ? 'COMANDO DE VOZ' : 'COMANDO'), corpo]);
+    if (daVoz) m.setAttribute('data-voz', '1');
     if (nomes && nomes.length) m.appendChild(h('div', { class: 'f', text: '📎 ' + nomes.join(', ') }));
     m.appendChild(h('button', { type: 'button', class: 'ue', text: 'Editar', title: 'Editar e reenviar', on: { click: function () { q.value = texto; autoAltura(); q.focus(); } } }));
     log.appendChild(m); transcricao.push({ papel: 'Você', texto: texto }); tele.msgs++; telemetria(); rolar(true); return m;
@@ -160,7 +190,8 @@
   function msgPaulus() {
     limparBoasVindas();
     var corpo = h('div', { class: 'mc' });
-    var m = h('div', { class: 'm p', 'data-k': 'pens' }, [cabeca('PAULUS', KIND.pens), corpo]);
+    nResp++;
+    var m = h('div', { class: 'm p', 'data-k': 'pens' }, [cabeca('PAULUS', KIND.pens, '#' + ('00' + nResp).slice(-3)), corpo, h('i', { class: 'sw', 'aria-hidden': 'true' })]);
     log.appendChild(m); rolar(true); return { m: m, corpo: corpo };
   }
   // indicador de "pensando": barras + varredura; a segunda fase aparece se a resposta demora
@@ -183,10 +214,12 @@
     var sug = (P.sugestoesPessoais ? P.sugestoesPessoais(3) : []).concat(sk.sugestoes || []);
     var vistos = {}; sug = sug.filter(function (s) { if (!s || vistos[s]) return false; vistos[s] = 1; return true; }).slice(0, 4);
     var nome = nomeDoUsuario();
-    var titulo = h('h2', {}, [saudacao() + (nome ? ', ' : '.'), nome ? h('b', { text: nome + '.' }) : null]);
+    var gSp = h('span'), nSp = nome ? h('b') : null;
+    var titulo = h('h2', {}, [gSp, nSp]);
+    var eySp = h('div', { class: 'ey' }), dtSp = h('div', { class: 'dt' });
     var hi = h('div', { class: 'hi' }, [
-      h('div', { class: 'ey', text: 'SISTEMAS OPERACIONAIS' }),
-      h('div', { class: 'dt', text: dataHud() }),
+      eySp,
+      dtSp,
       titulo,
       h('p', { text: sk.saudacao || 'Console do Paulus no ar. Pergunte por texto ou voz.' })
     ]);
@@ -195,6 +228,8 @@
     hi.appendChild(grade);
     hi.appendChild(h('small', { text: 'Não digite nome nem documento de pessoas atendidas. Digite / para atalhos. Anexe PDF para editar no aparelho.' }));
     log.appendChild(hi); document.body.classList.add('vazio');
+    decod(eySp, 'TODOS OS SISTEMAS OPERACIONAIS', 700); decod(dtSp, dataHud(), 600);
+    decod(gSp, saudacao() + (nome ? ', ' : '.'), 520); if (nSp) decod(nSp, nome + '.', 700);
   }
 
   // ------------------------------------------------------------ atalhos
@@ -286,7 +321,8 @@
     fimPensando(x);
     if (!x.streamed && !reduzido) { x.corpo.classList.add('rev'); setTimeout(function () { x.corpo.classList.remove('rev'); }, 700); }
     x.m.setAttribute('data-k', r.tipo || 'ia');
-    var kk = x.m.querySelector('.mh .k'); if (kk) kk.textContent = (KIND[r.tipo] || 'IA') + (LOCAL[r.tipo] && r.tipo !== 'busca' && r.tipo !== 'acao' ? ' · NO APARELHO' : '');
+    var kk = x.m.querySelector('.mh .k'); if (kk) decod(kk, (KIND[r.tipo] || 'IA') + (LOCAL[r.tipo] && r.tipo !== 'busca' && r.tipo !== 'acao' ? ' · NO APARELHO' : ''), 420);
+    legenda('');
     if (r.tipo === 'crise') x.m.classList.add('alerta');
     if (r.tipo === 'ia' || r.tipo === 'norma' || r.tipo === 'revisao' || r.tipo === 'espanhol' || r.tipo === 'ingles') pintar(corpo, r.texto);
     else corpo.textContent = r.texto || '';
@@ -350,12 +386,28 @@
     go.textContent = enviando ? 'Parar' : 'Enviar'; go.classList.toggle('stop', enviando);
     ocupado = enviando; estadoUI(enviando ? 'busy' : (gravando ? 'listen' : 'idle'));
   }
+  // Respostas que não vieram em fluxo (norma, revisão, idioma, memória) também "são digitadas", em ~1 s.
+  var TIPA = { ia: 1, norma: 1, revisao: 1, espanhol: 1, ingles: 1 };
+  function digitar(x, texto, vivo) {
+    return new Promise(function (resolve) {
+      var i = 0, passo = Math.max(4, Math.ceil(texto.length / 50));
+      x.corpo.classList.add('dig');
+      (function f() {
+        if (!vivo() || !x.m.isConnected) { resolve(); return; }
+        i = Math.min(texto.length, i + passo);
+        pintar(x.corpo, texto.slice(0, i)); rolar();
+        if (i >= texto.length) { resolve(); return; }
+        setTimeout(f, 22);
+      })();
+    });
+  }
   function enviar(texto) {
     texto = String(texto == null ? q.value : texto).trim();
     if (ocupado || (!texto && !anexos.length)) return;
     if (!texto) texto = 'o que posso fazer com este arquivo?';
     var arqs = anexos.slice(), nomes = arqs.map(function (a) { return a.name; });
     anexos = []; renderAnexos(); q.value = ''; autoAltura(); sl.hidden = true;
+    if (vozPendente) legenda(texto, false); else legenda('');
     msgUsuario(texto, nomes);
     var x = msgPaulus(); pensando(x); x.t0 = performance.now(); if (nucleo) nucleo.impulso(); bip(520, 880, 0.12, 0.045);
     try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) { /* sem vibração */ }
@@ -363,17 +415,22 @@
     var vivo = function () { return id === envioAtual; };   // falso depois de Parar ou de um envio mais novo
     P.perguntar(texto, {
       arquivos: arqs,
-      onToken: function (_p, tudo) { if (!vivo()) return; fimPensando(x); x.streamed = true; x.corpo.classList.add('dig'); pintar(x.corpo, tudo); rolar(); }
+      onToken: function (_p, tudo) { if (!vivo()) return; fimPensando(x); legenda(''); x.streamed = true; x.corpo.classList.add('dig'); pintar(x.corpo, tudo); rolar(); }
     }).then(function (r) {
       if (!vivo()) return;
-      x.corpo.classList.remove('dig'); x.corpo.textContent = ''; desenhar(x, r);
-      transcricao.push({ papel: 'Paulus', texto: r.texto || '' });
-      registrar(r, performance.now() - x.t0);
-      var ot = x.m.querySelector('.mh .o'); if (ot) ot.textContent = hora2() + ' · ' + tempoTxt(performance.now() - x.t0);
-      if (r.tipo === 'erro') bip(320, 140, 0.26, 0.05); else { bip(880, 1320, 0.14, 0.04); setTimeout(function () { bip(1320, 1760, 0.1, 0.025); }, 110); }
-      if (vozLigada) falar(r.texto || '');
-      rolar(true);
-      if (r.tipo === 'erro') { estadoUI('erro'); setTimeout(function () { if (estadoAtual === 'erro') estadoUI('idle'); }, 1400); }
+      var ms = performance.now() - x.t0, tipar = !x.streamed && !reduzido && TIPA[r.tipo] && String(r.texto || '').length > 60;
+      if (tipar) { fimPensando(x); legenda(''); x.streamed = true; }
+      return (tipar ? digitar(x, String(r.texto), vivo) : Promise.resolve()).then(function () {
+        if (!vivo()) return;
+        x.corpo.classList.remove('dig'); x.corpo.textContent = ''; desenhar(x, r);
+        transcricao.push({ papel: 'Paulus', texto: r.texto || '' });
+        registrar(r, ms);
+        var ot = x.m.querySelector('.mh .o'); if (ot) ot.textContent = hora2() + ' · ' + tempoTxt(ms);
+        if (r.tipo === 'erro') bip(320, 140, 0.26, 0.05); else { bip(880, 1320, 0.14, 0.04); setTimeout(function () { bip(1320, 1760, 0.1, 0.025); }, 110); }
+        if (vozLigada) falar(r.texto || '');
+        rolar(true);
+        if (r.tipo === 'erro') { estadoUI('erro'); setTimeout(function () { if (estadoAtual === 'erro') estadoUI('idle'); }, 1400); }
+      });
     }).catch(function () {
       if (vivo()) { fimPensando(x); x.corpo.classList.remove('dig'); x.m.setAttribute('data-k', 'erro'); var k2 = x.m.querySelector('.mh .k'); if (k2) k2.textContent = KIND.erro; x.corpo.textContent = 'Algo deu errado. Tente de novo.'; estadoUI('erro'); setTimeout(function () { if (estadoAtual === 'erro') estadoUI('idle'); }, 1400); }
     }).then(function () { if (vivo()) { atual = null; if (estadoAtual !== 'erro') mudarBotao(false); else { go.textContent = 'Enviar'; go.classList.remove('stop'); ocupado = false; } } });
@@ -381,7 +438,7 @@
   function parar() {
     envioAtual++;                                   // a chamada em andamento passa a ser ignorada
     if (atual) { fimPensando(atual); atual.m.remove(); atual = null; }
-    mudarBotao(false); aviso('Interrompido.');
+    legenda(''); mudarBotao(false); aviso('Interrompido.');
   }
 
   // ------------------------------------------------------------ anexos
@@ -411,11 +468,11 @@
     if (!Rec || gravando || ocupado) return;
     rec = new Rec(); rec.lang = 'pt-BR'; rec.interimResults = true; rec.continuous = false;
     var base = q.value ? q.value + ' ' : '', negado = false;
-    rec.onresult = function (e) { var tx = ''; for (var i = 0; i < e.results.length; i++) tx += e.results[i][0].transcript; q.value = base + tx; autoAltura(); };
+    rec.onresult = function (e) { var tx = ''; for (var i = 0; i < e.results.length; i++) tx += e.results[i][0].transcript; q.value = base + tx; autoAltura(); legenda(q.value, true); if (nucleo) nucleo.impulso(); };
     rec.onend = function () {
-      gravando = false; mic.classList.remove('on'); if (!ocupado) estadoUI('idle');
+      gravando = false; mic.classList.remove('on'); if (!ocupado) estadoUI('idle'); if (!modoVoz) legenda('');
       if (!modoVoz || negado) { if (negado && modoVoz) alternarModoVoz(false); return; }
-      if (q.value.trim()) enviar(); else setTimeout(function () { if (modoVoz && !ocupado && !gravando) ouvir(); }, 700);   // não ouviu nada: escuta de novo
+      if (q.value.trim()) { vozPendente = true; enviar(); } else { legenda(''); setTimeout(function () { if (modoVoz && !ocupado && !gravando) ouvir(); }, 700); }   // não ouviu nada: escuta de novo
     };
     rec.onerror = function (e) {
       if (e && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) { negado = true; aviso('Não consegui ouvir. Confira a permissão do microfone.'); }
@@ -460,7 +517,7 @@
   // ------------------------------------------------------------ cabeçalho
   function nova() {
     if (window.speechSynthesis) speechSynthesis.cancel();
-    P.limpar(); transcricao = []; anexos = []; renderAnexos(); log.textContent = ''; boasVindas(); estadoUI('idle'); q.focus();
+    P.limpar(); transcricao = []; anexos = []; nResp = 0; legenda(''); renderAnexos(); log.textContent = ''; boasVindas(); estadoUI('idle'); q.focus();
   }
   function exportar() {
     if (!transcricao.length) { aviso('Nada para salvar ainda.'); return; }
@@ -538,7 +595,15 @@
     dados.forEach(function (d) { sp.appendChild(h('i', { class: d.local ? 'l' : '', style: 'height:' + Math.max(3, Math.round(d.ms / max * 40)) + 'px', title: tempoTxt(d.ms) })); });
     pr('tmax', dados.length ? 'MÁX ' + tempoTxt(max) : '--');
   }
+  function ultimaResp(r, ms) {
+    var viaIA = r.tipo === 'ia' && !r.deMemoria, fs = (r.fontes || []).filter(function (f) { return f && (f.documento || f.norma); });
+    pr('ut', KIND[r.tipo] || 'IA', r.tipo === 'erro' || r.tipo === 'crise' ? 'er' : ''); pr('uo', r.tipo === 'erro' ? '--' : viaIA ? 'IA REMOTA' : 'NO APARELHO', r.tipo === 'erro' ? '' : viaIA ? 'av' : 'ok');
+    pr('um', tempoTxt(ms)); pr('uf', fs.length); pr('uc', String((r.texto || '').length) + ' car.');
+    var ul = $('fts'); if (!ul) return; ul.textContent = '';
+    fs.slice(0, 4).forEach(function (f) { ul.appendChild(h('li', { text: [f.documento || f.norma, f.referencia].filter(Boolean).join(' · '), title: [f.documento, f.norma, f.ano, f.referencia].filter(Boolean).join(' · ') })); });
+  }
   function registrar(r, ms) {
+    ultimaResp(r, ms);
     tele.msgs++;
     if (r.tipo !== 'erro') {
       var viaIA = r.tipo === 'ia' && !r.deMemoria;
@@ -586,6 +651,12 @@
       var g = ctx.createRadialGradient(cx, cy, Ri * 0.5, cx, cy, R * 1.02);
       g.addColorStop(0, 'rgba(' + rgb(0.42 + 0.2 * pulso + imp * 0.3) + ')'); g.addColorStop(0.55, 'rgba(' + rgb(0.1) + ')'); g.addColorStop(1, 'rgba(' + rgb(0) + ')');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      // varredura de radar (pensando/ouvindo): cone que gira atrás dos anéis
+      if (ctx.createConicGradient && (est === 'busy' || est === 'listen')) {
+        var cg = ctx.createConicGradient(t * (est === 'busy' ? 5 : 2.4), cx, cy);
+        cg.addColorStop(0, 'rgba(' + rgb(0) + ')'); cg.addColorStop(0.8, 'rgba(' + rgb(0) + ')'); cg.addColorStop(1, 'rgba(' + rgb(est === 'busy' ? 0.42 : 0.3) + ')');
+        ctx.beginPath(); ctx.arc(cx, cy, R * 0.88, 0, 6.2832); ctx.fillStyle = cg; ctx.fill();
+      }
       // régua de marcas
       var N = 60, a, r1 = R * 0.9, longa;
       for (i = 0; i < N; i++) {
@@ -597,6 +668,10 @@
       for (i = 0; i < 3; i++) arco(cx, cy, R * 0.8, -t * 0.8 * vel + i * 2.0944, 1.2, lw, 0.85);
       arco(cx, cy, R * 0.7, t * 0.5 * vel, 6.2832, 1, 0.4, [R * 0.12, R * 0.07]);
       if (est === 'busy') { for (i = 0; i < 6; i++) arco(cx, cy, R * 0.7, t * 4.2 - i * 0.09, 0.09, lw * 1.2, 0.9 - i * 0.14, null, 'round'); }
+      // anéis finos em sentidos opostos e um satélite com rastro (o "reator" do filme)
+      for (i = 0; i < 2; i++) arco(cx, cy, R * 0.95, t * 0.35 * vel + i * 3.1416, 0.75, Math.max(1, lw * 0.5), 0.5);
+      arco(cx, cy, R * 0.62, -t * 0.9 * vel, 6.2832, 0.8, 0.3, [2, R * 0.05]);
+      for (i = 0; i < 6; i++) arco(cx, cy, R * 0.86, t * 1.3 * vel - i * 0.1, 0.1, lw * 0.9, 0.95 - i * 0.15, null, 'round');
       // barras radiais (voz): amplitude do estado
       var NB = 40, barras = est === 'idle' ? 0.35 : 1;
       for (i = 0; i < NB; i++) {
@@ -648,6 +723,16 @@
       for (i = 0; i < W; i += 56) { ctx.moveTo(i + 0.5, 0); ctx.lineTo(i + 0.5, H); }
       for (j = 0; j < H; j += 56) { ctx.moveTo(0, j + 0.5); ctx.lineTo(W, j + 0.5); }
       ctx.stroke();
+      // anéis grandes e régua giratória ao centro da tela (mapa de HUD, bem discreto)
+      var S = Math.min(W, H), bx = W / 2, by = H * 0.5, rot = t * 0.02 * vel, k, ang, tl;
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(' + c + ',0.06)';
+      ctx.beginPath(); ctx.arc(bx, by, S * 0.34, 0, 6.2832); ctx.stroke();
+      ctx.setLineDash([3, 9]); ctx.beginPath(); ctx.arc(bx, by, S * 0.46, rot * 6, rot * 6 + 6.2832); ctx.stroke(); ctx.setLineDash([]);
+      for (k = 0; k < 120; k++) {
+        ang = k / 120 * 6.2832 - rot * 2; tl = k % 10 === 0 ? 11 : 4;
+        ctx.beginPath(); ctx.strokeStyle = 'rgba(' + c + ',' + (k % 10 === 0 ? 0.16 : 0.07) + ')';
+        ctx.moveTo(bx + Math.cos(ang) * S * 0.58, by + Math.sin(ang) * S * 0.58); ctx.lineTo(bx + Math.cos(ang) * (S * 0.58 + tl), by + Math.sin(ang) * (S * 0.58 + tl)); ctx.stroke();
+      }
       for (i = 0; i < parts.length; i++) {
         var p = parts[i];
         if (!reduzido) { p.x += p.vx * vel; p.y += p.vy * vel; if (p.x < -10) p.x = W + 10; else if (p.x > W + 10) p.x = -10; if (p.y < -10) p.y = H + 10; else if (p.y > H + 10) p.y = -10; }
