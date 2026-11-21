@@ -138,3 +138,11 @@ test('comparação: a IA recebe trechos dos DOIS lados (BPC e Bolsa Família)', 
   assert.ok(docs.some(function (d) { return /bolsa|14601|12064/.test(d); }), 'Bolsa Família');
   assert.ok(docs.some(function (d) { return /loas|6214/.test(d); }), 'BPC');
 });
+
+test('calculo: texto montado para travar (muitos "(" ou "-") responde em milissegundos', async () => {
+  const { extrairContas } = await import('../shared/calculo.mjs');
+  for (const s of ['('.repeat(1200), '-'.repeat(1200), '('.repeat(1190) + '1', '1' + '-'.repeat(1190), '1-'.repeat(600), '(95) '.repeat(240)]) {
+    const t = Date.now(); extrairContas(s);
+    assert.ok(Date.now() - t < 300, 'demorou ' + (Date.now() - t) + ' ms');
+  }
+});
