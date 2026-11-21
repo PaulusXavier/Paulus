@@ -20,7 +20,7 @@
   var log = $('log'), q = $('q'), go = $('go'), fl = $('fl'), pi = $('pi'), sl = $('sl'), tb = $('tb'), dn = $('dn');
   var anexos = [];            // File[]
   var transcricao = [];       // [{papel, texto}] para exportar
-  var ocupado = false, descartar = false, vozLigada = false;
+  var ocupado = false, vozLigada = false, envioAtual = 0, atual = null;
   var lerLS = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
   var gravarLS = function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* segue */ } };
 
@@ -287,23 +287,26 @@
     anexos = []; renderAnexos(); q.value = ''; autoAltura(); sl.hidden = true;
     msgUsuario(texto, nomes);
     var x = msgPaulus(); x.corpo.textContent = '…';
-    descartar = false; mudarBotao(true);
-    var recebeu = false;
+    var id = ++envioAtual; atual = x; mudarBotao(true);
+    var vivo = function () { return id === envioAtual; };   // falso depois de Parar ou de um envio mais novo
     P.perguntar(texto, {
       arquivos: arqs,
-      onToken: function (_p, tudo) { if (descartar) return; recebeu = true; pintar(x.corpo, tudo); rolar(); }
+      onToken: function (_p, tudo) { if (!vivo()) return; pintar(x.corpo, tudo); rolar(); }
     }).then(function (r) {
-      if (descartar) { x.m.remove(); return; }
-      if (r.tipo === 'ia' && recebeu) { x.corpo.textContent = ''; }
+      if (!vivo()) return;
       x.corpo.textContent = ''; desenhar(x, r);
       transcricao.push({ papel: 'Paulus', texto: r.texto || '' });
       if (vozLigada) falar(r.texto || '');
       rolar(true);
     }).catch(function () {
-      if (!descartar) { x.corpo.textContent = 'Algo deu errado. Tente de novo.'; }
-    }).then(function () { mudarBotao(false); });
+      if (vivo()) x.corpo.textContent = 'Algo deu errado. Tente de novo.';
+    }).then(function () { if (vivo()) { atual = null; mudarBotao(false); } });
   }
-  function parar() { descartar = true; mudarBotao(false); aviso('Interrompido.'); }
+  function parar() {
+    envioAtual++;                                   // a chamada em andamento passa a ser ignorada
+    if (atual) { atual.m.remove(); atual = null; }
+    mudarBotao(false); aviso('Interrompido.');
+  }
 
   // ------------------------------------------------------------ anexos
   function renderAnexos() {
