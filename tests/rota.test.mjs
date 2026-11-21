@@ -162,3 +162,32 @@ test('rota: pergunta de conceito vai para o fluxo normal, não vira rota', async
   const r = await Paulus.perguntar('o que é rota de visita?');
   assert.notEqual(r.tipo, 'rota');
 });
+
+// ---- saída pela posição do aparelho (console com GPS)
+const AQUI = { lat: 2.8235, lng: -60.6758 };
+
+test('rota: "a partir do local onde estou" e "da minha posição atual" saem da posição do aparelho', () => {
+  for (const t of ['rota a partir do local onde estou: CAPS II e CRAS Cauamé', 'traçar rota partindo da minha posição atual: CAPS II e CRAS Cauamé', 'traçar rota de onde me encontro: CAPS II e CRAS Cauamé']) {
+    assert.equal(lerPedidoDeRota(t).origemAparelho, true, t);
+    const r = R(t, { aparelho: AQUI });
+    assert.match(r.texto, /1\. Sua posição \(saída\)/, t); assert.ok(r.km > 0 && r.estimativa, t);
+  }
+});
+
+test('rota: "como chegar ao X" e "rota até X" com a posição conhecida estimam km e tempo a partir dela', () => {
+  for (const t of ['como chegar ao CRAS Cauamé', 'rota até o CAPS II de moto']) {
+    const r = R(t, { aparelho: AQUI });
+    assert.ok(r && r.estimativa && r.km > 0, t); assert.equal(r.paradas[0], 'Sua posição');
+  }
+});
+
+test('rota: sem a posição, "como chegar" continua abrindo só o link, e diz como liberar a localização', () => {
+  const r = R('como chegar ao CRAS Cauamé', { aparelho: null });
+  assert.equal(r.km, 0); assert.equal(r.links.length, 1); assert.match(r.texto, /permita a localização/);
+  assert.equal(R('rota até o CAPS II de moto', { aparelho: null }), null, 'sem posição, "rota até X" sozinho segue para a IA');
+});
+
+test('rota: a posição do aparelho não aparece em número no texto da resposta', () => {
+  const r = R('traçar rota saindo daqui: CAPS II e CRAS Cauamé', { aparelho: AQUI });
+  assert.doesNotMatch(r.texto, /2\.8235|-60\.6758|2,8235|60,6758/);
+});
