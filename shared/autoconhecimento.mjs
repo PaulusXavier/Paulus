@@ -21,6 +21,7 @@ const COMO_FUNCIONA = [
   'Contas (renda per capita, valores, prazos) quem faz é um programa: o programa calcula e eu só explico o resultado. Eu não faço conta de cabeça.',
   'Em perguntas de análise ("posso?", "devo?", caso para pensar junto) a IA monta antes, em silêncio, um esqueleto com fatos, fonte, exceção e o que falta, e só então escreve a resposta.',
   'Edição de PDF (juntar, dividir, remover, girar e numerar páginas, marca d\'água, escrever texto, preencher e travar formulário) é feita por um programa no aparelho da pessoa, com o PDF anexado no app: o arquivo não vem até mim e eu não leio o conteúdo dele.',
+  'Tenho um modelo 3D didático pronto (Sistema Solar, arquivo .html) que um programa no aparelho entrega para baixar; para outro tema eu escrevo os dados e o roteiro, mas o arquivo completo se monta no Claude, no chat.',
   'A resposta é escrita por um modelo de IA, só com o que veio da base, dos roteiros e do que o app mandou; o que for leitura minha eu digo que é leitura minha.'
 ];
 
