@@ -18,7 +18,9 @@
   var QUER_POSICAO = /\b(daqui|aqui|onde (eu )?(estou|me encontro)|meu local|de mim|perto de mim|(minha|da minha|de minha) (posicao|localizacao)|localizacao atual|como (chegar|ir)|(rota|trajeto|caminho) (ate|para|pra))\b/;
   function semAcento(t) { return String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
   function posicaoDoAparelho() {
-    if (!QUER_POSICAO.test(semAcento(ultimoPedido))) return Promise.resolve(null);
+    return QUER_POSICAO.test(semAcento(ultimoPedido)) ? obterPosicao() : Promise.resolve(null);
+  }
+  function obterPosicao() {
     if (posicao && Date.now() - posicao.t < 120000) return Promise.resolve({ lat: posicao.lat, lng: posicao.lng });
     var kp = $('kp');
     var sai = function (txt, cls) { if (kp) { kp.textContent = txt; kp.className = cls || ''; } };
@@ -264,6 +266,7 @@
     { c: '/salvar', d: 'Salvar conversa em .md', f: function () { exportar(); } },
     { c: '/ajuda', d: 'O que o Paulus sabe fazer', t: 'o que você sabe fazer?' },
     { c: '/pdf', d: 'Editar PDF (anexe o arquivo)', t: 'juntar os PDFs anexados' },
+    { c: '/mapa', d: 'Mapa de Boa Vista', t: 'mostrar o mapa de Boa Vista' },
     { c: '/daqui', d: 'Rota a partir da minha posição', t: 'traçar rota saindo daqui: ' },
     { c: '/rota', d: 'Traçar rota entre unidades', t: 'traçar rota saindo do CRAS: ' },
     { c: '/conta', d: 'Fazer uma conta', t: 'quanto é ' },
@@ -306,7 +309,7 @@
   function aviso(t) { pi.textContent = t; setTimeout(function () { if (pi.textContent === t) pi.textContent = ''; ajustarBarra(); }, 3500); ajustarBarra(); }
 
   // barra de tarefas rápidas
-  [['PAIF × PAEFI', 'qual a diferença entre PAIF e PAEFI?'], ['Conta', '/conta'], ['Rota daqui', '/daqui'], ['Rota', '/rota'], ['PDF', '/pdf'], ['Corrigir', '/corrigir'], ['Espanhol', '/espanhol']].forEach(function (x) {
+  [['PAIF × PAEFI', 'qual a diferença entre PAIF e PAEFI?'], ['Conta', '/conta'], ['Mapa', 'mostrar o mapa de Boa Vista'], ['Rota daqui', '/daqui'], ['Rota', '/rota'], ['PDF', '/pdf'], ['Corrigir', '/corrigir'], ['Espanhol', '/espanhol']].forEach(function (x) {
     tb.appendChild(btn(x[0], function () {
       if (x[1].charAt(0) === '/') { q.value = x[1]; var a = ATALHOS.filter(function (z) { return z.c === x[1]; })[0]; if (a) rodarAtalho(a); }
       else enviar(x[1]);
@@ -370,7 +373,9 @@
       var lc = h('ul'); r.itens.forEach(function (c) { lc.appendChild(h('li', { text: c.texto || (c.expressao + ' = ' + c.valor) })); }); corpo.appendChild(lc);
     }
     if (r.tipo === 'rota') {
-      if (r.svg) { var img = h('img', { alt: 'Desenho da rota', src: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(r.svg) }); img.style.cssText = 'max-width:100%;background:#fff;border-radius:8px;margin-top:6px'; x.m.appendChild(img); }
+      var pm = pontosDoMapa(r);
+      if (pm.pontos.length) mapaRota(x, { pontos: pm.pontos, linha: pm.linha, modo: r.modo || '', svg: r.svg });
+      else esquemaSvg(x, r.svg);
       var ac2 = h('div', { class: 'ac' });
       (r.links || []).forEach(function (l, i) {
         var url = typeof l === 'string' ? l : l.url, rot = typeof l === 'string' ? 'Abrir no mapa ' + (i + 1) : (l.rotulo || 'Abrir no mapa');
@@ -408,6 +413,113 @@
     if (r.tipo !== 'bloqueio' && r.tipo !== 'erro') acoes(x, r);
   }
 
+  // ------------------------------------------------------------ mapa (Leaflet + OpenStreetMap, carregado só quando há mapa)
+  // Fundo: tiles do OpenStreetMap (a área vista é pedida ao servidor de tiles). A linha é reta (estimativa); "Pelas ruas" é opcional.
+  var BV = [2.8235, -60.6758], ASK_RUAS = false;
+  function esquemaSvg(x, svg) {
+    if (!svg) return;
+    var img = h('img', { alt: 'Desenho da rota', src: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) });
+    img.style.cssText = 'max-width:100%;background:#fff;border-radius:8px;margin-top:6px'; x.m.appendChild(img);
+  }
+  function pontosDoMapa(r) {
+    var fs = (r.geojson && r.geojson.features) || [], pontos = [], linha = [];
+    fs.forEach(function (f) {
+      if (!f || !f.geometry) return;
+      var c = f.geometry.coordinates;
+      if (f.geometry.type === 'Point' && c && isFinite(c[0]) && isFinite(c[1])) pontos.push({ nome: String((f.properties && f.properties.nome) || ''), lat: c[1], lng: c[0] });
+      else if (f.geometry.type === 'LineString' && c) c.forEach(function (p) { if (isFinite(p[0]) && isFinite(p[1])) linha.push([p[1], p[0]]); });
+    });
+    if (!linha.length) linha = pontos.map(function (p) { return [p.lat, p.lng]; });
+    return { pontos: pontos, linha: linha };
+  }
+  var leafletPronto = null;
+  function carregarLeaflet() {
+    if (window.L && window.L.map) return Promise.resolve(window.L);
+    if (!leafletPronto) leafletPronto = new Promise(function (ok, no) {
+      var sc = document.createElement('script'); sc.src = 'leaflet.js';
+      sc.onload = function () { if (window.L && window.L.map) ok(window.L); else { leafletPronto = null; no(new Error('leaflet')); } };
+      sc.onerror = function () { leafletPronto = null; no(new Error('leaflet')); };
+      document.head.appendChild(sc);
+    });
+    return leafletPronto;
+  }
+  function kmTxt(m) { return (m / 1000).toFixed(1).replace('.', ',') + ' km'; }
+  function mapaRota(x, o) {
+    var area = h('div', { class: 'mapa', role: 'region', 'aria-label': 'Mapa' }), leg = h('div', { class: 'mleg', role: 'status' });
+    var ac = h('div', { class: 'ac' });
+    x.m.appendChild(area); x.m.appendChild(leg); x.m.appendChild(ac);
+    leg.textContent = 'CARREGANDO MAPA…';
+    carregarLeaflet().then(function (L) {
+      if (!area.isConnected) return;
+      var temLinha = o.linha.length > 1, linhaL = null, euL = null;
+      var map = L.map(area, { scrollWheelZoom: false, zoomSnap: 0.5, attributionControl: true }).setView(BV, 13);
+      var tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>' });
+      var semFundo = false;
+      tiles.on('tileerror', function () { if (!semFundo) { semFundo = true; leg.textContent = 'MAPA DE FUNDO INDISPONÍVEL (SEM INTERNET): MOSTRANDO SÓ AS PARADAS.'; } });
+      tiles.addTo(map);
+      if (temLinha) linhaL = L.polyline(o.linha, { color: '#37e6ff', weight: 3, opacity: 0.9, dashArray: '6 8' }).addTo(map);
+      o.pontos.forEach(function (p, i) {
+        var ic = L.divIcon({ className: '', html: h('div', { class: 'pin' + (i === 0 ? ' s' : ''), text: String(i + 1) }), iconSize: [26, 26], iconAnchor: [13, 13] });
+        L.marker([p.lat, p.lng], { icon: ic, keyboard: false }).addTo(map).bindTooltip(h('span', { text: p.nome + (i === 0 ? ' (saída)' : '') }), { direction: 'top', offset: [0, -12] });
+      });
+      function ajustar() {
+        if (o.linha.length > 1) map.fitBounds(L.latLngBounds(o.linha).pad(0.2), { maxZoom: 16 });
+        else if (o.pontos.length === 1) map.setView([o.pontos[0].lat, o.pontos[0].lng], 15);
+        else map.setView(BV, 13);
+      }
+      ajustar();
+      if (typeof ResizeObserver !== 'undefined') { try { new ResizeObserver(function () { map.invalidateSize(); }).observe(area); } catch (e) { /* segue */ } }
+      leg.textContent = '';
+      if (temLinha) leg.appendChild(document.createTextNode('Linha reta entre as paradas (estimativa). '));
+      else leg.appendChild(document.createTextNode('Boa Vista (RR). '));
+      var nota = h('span', { text: '' }); leg.appendChild(nota);
+      if (temLinha) ac.appendChild(btn('Ajustar', ajustar, 'Enquadrar a rota inteira'));
+      if (temLinha) ac.appendChild(btn('Pelas ruas', function (e) { pelasRuas(e.target); }, 'Traçar pelas ruas (usa um servidor externo do OpenStreetMap)'));
+      ac.appendChild(btn('Onde estou', function () {
+        aviso('Obtendo sua posição…');
+        obterPosicao().then(function (p) {
+          if (!p) { aviso('Não consegui a sua posição. Permita a localização no navegador.'); return; }
+          if (euL) map.removeLayer(euL);
+          euL = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html: h('div', { class: 'pin eu', text: 'EU' }), iconSize: [26, 26], iconAnchor: [13, 13] }), keyboard: false }).addTo(map);
+          map.setView([p.lat, p.lng], Math.max(map.getZoom(), 15));
+        });
+      }, 'Mostrar a minha posição no mapa'));
+      function pelasRuas(b) {
+        if (!ASK_RUAS) {
+          if (!confirm('Para traçar pelas ruas, as coordenadas das paradas (inclusive a sua posição, se for a saída) serão enviadas ao servidor de rotas do OpenStreetMap (routing.openstreetmap.de). Continuar?')) return;
+          ASK_RUAS = true;
+        }
+        var perfil = o.modo === 'bicicleta' ? 'routed-bike' : o.modo === 'pe' ? 'routed-foot' : 'routed-car';
+        if (o.linha.length > 25) { aviso('Rota longa demais para traçar pelas ruas.'); return; }
+        var coords = o.linha.map(function (c) { return c[1].toFixed(5) + ',' + c[0].toFixed(5); }).join(';');
+        b.disabled = true; nota.textContent = 'Traçando pelas ruas…';
+        fetch('https://routing.openstreetmap.de/' + perfil + '/route/v1/driving/' + coords + '?overview=full&geometries=geojson', { credentials: 'omit' })
+          .then(function (rs) { return rs.ok ? rs.json() : Promise.reject(new Error('http')); })
+          .then(function (j) {
+            var rt = j && j.code === 'Ok' && j.routes && j.routes[0];
+            if (!rt || !rt.geometry || !rt.geometry.coordinates || !rt.geometry.coordinates.length) throw new Error('vazio');
+            linhaL.setLatLngs(rt.geometry.coordinates.map(function (c) { return [c[1], c[0]]; })); linhaL.setStyle({ dashArray: null, weight: 4 });
+            map.fitBounds(linhaL.getBounds().pad(0.15), { maxZoom: 17 });
+            leg.textContent = ''; leg.appendChild(h('span', {}, ['Pelas ruas: ', h('b', { text: kmTxt(rt.distance) + ' · ' + Math.max(1, Math.round(rt.duration / 60)) + ' min' }), ' (rotas do OpenStreetMap, sem trânsito).']));
+          })
+          .catch(function () { b.disabled = false; nota.textContent = 'Não consegui traçar pelas ruas agora; mantive a linha reta.'; });
+      }
+    }).catch(function () {
+      if (area.isConnected) { area.remove(); leg.remove(); ac.remove(); esquemaSvg(x, o.svg); }
+    });
+  }
+  function mostrarMapaBV() {
+    var x = msgPaulus(); fimPensando(x);
+    x.m.setAttribute('data-k', 'geo'); var kk = x.m.querySelector('.mh .k'); if (kk) decod(kk, 'MAPA · NO APARELHO', 420);
+    x.corpo.textContent = 'Mapa de Boa Vista (RR). Toque em “Onde estou” para ver a sua posição. Para uma rota, peça: traçar rota saindo daqui: CAPS II e CRAS Cauamé.';
+    mapaRota(x, { pontos: [], linha: [], modo: '' });
+    transcricao.push({ papel: 'Paulus', texto: '[mapa de Boa Vista]' }); rolar(true);
+  }
+  function pedidoDeMapa(t) {
+    var a = semAcento(t);
+    return /\bmapa\b/.test(a) && /boa vista/.test(a) && !/(rota|trajeto|como chegar|distancia|perto|coordenad|bairro|\bkm\b|endereco)/.test(a);
+  }
+
   // ------------------------------------------------------------ envio
   function mudarBotao(enviando) {
     go.textContent = enviando ? 'Parar' : 'Enviar'; go.classList.toggle('stop', enviando);
@@ -436,6 +548,7 @@
     anexos = []; renderAnexos(); q.value = ''; autoAltura(); sl.hidden = true;
     if (vozPendente) legenda(texto, false); else legenda('');
     msgUsuario(texto, nomes);
+    if (!arqs.length && pedidoDeMapa(texto)) { vozPendente = false; mostrarMapaBV(); return; }
     var x = msgPaulus(); pensando(x); x.t0 = performance.now(); if (nucleo) nucleo.impulso(); bip(520, 880, 0.12, 0.045);
     try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) { /* sem vibração */ }
     ultimoPedido = texto;
