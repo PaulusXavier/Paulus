@@ -21,6 +21,16 @@
     "caracteres": 3891
   },
   {
+    "doc": "argo-enderecos-diretorio",
+    "titulo": "Diretório de endereços do Argo SUAS",
+    "norma": "Diretório de equipamentos e serviços do app Argo SUAS (js/data.js e UNITS_CRAS_CREAS), copiado em 2026-11-21. Não é norma nem cadastro oficial: é o diretório mantido pela equipe do Argo, e endereço, telefone e horário mudam. Confirme com a unidade antes de encaminhar uma pessoa.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 515,
+    "caracteres": 208185
+  },
+  {
     "doc": "boa-vista-diagnostico-socioterritorial-2026",
     "titulo": "Boa Vista, diagnóstico socioterritorial por setor censitário (Cadastro Único, IVCAD, Bolsa Família, BPC e Censo 2022)",
     "norma": "Relatório \"Diagnóstico Socioterritorial por setor censitário\" (Cadastro Único, IVCAD, Programas e Censo Demográfico 2022), gerado em 13/10/2026; soma de 493 setores censitários de Boa Vista (código IBGE 1400100)",
