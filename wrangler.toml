@@ -16,6 +16,13 @@ binding = "AI"
 # Endereços dos apps que podem usar o Paulus, separados por vírgula, SEM barra no fim.
 # É só o "site" (esquema + domínio), sem o caminho: https://paulusxavier.github.io
 ALLOWED_ORIGINS = "https://paulusxavier.github.io"
+# Login pelo Firebase (opcional; vale para o console e para todos os apps que usam o mesmo projeto Firebase).
+# Com FIREBASE_PROJECT_ID o Worker só responde a quem mandar um ID token do Firebase (Authorization: Bearer ...). Veja docs/DEPLOY.md.
+# FIREBASE_PROJECT_ID = "meu-projeto-123"
+# Quem pode entrar (opcional; sem as listas, qualquer conta do projeto entra, então DESLIGUE o cadastro livre no Firebase):
+# FIREBASE_EMAILS = "paulo@exemplo.org,ana@exemplo.org"
+# FIREBASE_DOMINIOS = "prefeitura.exemplo.gov.br"
+
 # Modelos (opcionais; os padrões já são estes):
 # O Paulus usa o modelo grande, que raciocina e segue bem as regras. Ele gasta mais da cota gratuita diária da
 # Cloudflare; quando a cota acaba (ou o modelo falha), o Worker passa sozinho para o modelo pequeno.
