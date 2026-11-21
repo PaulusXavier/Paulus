@@ -15,6 +15,7 @@
 // Endereço de residência de família não entra (o programa recusa): rota é entre unidades, bairros e serviços.
 // Sem lookbehind e sem BigInt de propósito (Safari/iOS antigos quebram o arquivo inteiro). Nomes com prefixo "rota" por causa do arquivo único do navegador.
 
+import { DIRETORIO_BOA_VISTA } from './diretorio-boa-vista.mjs';
 import { GEO_FATOR_RUA, GEO_VELOCIDADE, geoPontos, geoAcharEmFontes, geoFontes, geoLerCoordenadas, geoLinksDeRota, geoParaGpx, geoParaKml } from './geo.mjs';
 
 const ROTA_FATOR_RUA = GEO_FATOR_RUA;
@@ -87,10 +88,15 @@ function rotaSoAssunto(nome, explicito) {
 const ROTA_CONCEITO = /^(?:o que (?:e|sao|significa)|qual (?:e )?a diferenca|para que serve|por que|porque|quem faz|como funciona)\b/;
 // Pedido inequívoco (verbo de traçar, "como chegar", "melhor ordem"). "Rota de ..." sozinho é fraco: pode ser assunto ("rota de fuga").
 const ROTA_EXPLICITO = /\b(?:tracar|trace|tracando|calcule|calcular|monte|montar|planeje|planejar|faca|fazer|me de|quero|preciso|gere|gerar)\b[^.?!]{0,30}\b(?:rota|rotas|trajeto|percurso|itinerario|ordem)\b|\bcomo (?:chegar|ir)\b|\b(?:melhor|menor|mais curta|mais rapida) (?:ordem|rota|caminho|trajeto|percurso)\b/;
-const ROTA_GATILHO = /\b(?:rotas?|trajeto|percurso|itinerario|tracar|trace|melhor ordem|menor caminho|como chegar|como ir)\b/;
-const ROTA_ENDERECO = /\b(?:rua|r|av|avenida|travessa|tv|alameda|beco|quadra|qd|lote|estrada|vicinal)\.?\s+[^,;]{0,40}?\b\d+/i;
+// "Quero ir à UFRR", "preciso ir ao CAPS", "vou à UBS X": destino único, a rota parte de quem pergunta. Só responde se o lugar for do diretório.
+const ROTA_QUERO_IR = /\b(?:(?:quero|queria|preciso|gostaria de|desejo|tenho que|tenho de|vou|iria|ia) ir|me leva|me levar|vamos ir)\s+(?:(?:a|ao|aos|as|na|no|nas|nos|em|ate|para|pra)\s+)?/;
+const ROTA_GATILHO = /\b(?:rotas?|trajeto|percurso|itinerario|tracar|trace|melhor ordem|menor caminho|como chegar|como ir)\b|\b(?:quero|queria|preciso|gostaria de|desejo|tenho que|tenho de|vou|iria|ia) ir\b|\b(?:me leva|me levar|vamos ir)\b/;
+// "quero ir embora / dormir / ali" não é lugar.
+const ROTA_NAO_LUGAR = /^(?:embora|dormir|la|ali|ai|aqui|viajar|casa|pra casa|trabalhar|sair|comer|passear|descansar)$/;
+const ROTA_ENDERECO = /\b(?:rua|r|av|avenida|travessa|tv|alameda|beco|quadra|qd|lote|estrada|vicinal)\.?\s+[^;]{0,40}?\b\d+/i;
 
 const ROTA_INTROS = [
+  ROTA_QUERO_IR,
   /\bcomo (?:chegar|ir)(?: (?:a|ao|aos|as|na|no|nas|nos|em|ate|para|pra))?\b/,
   /\b(?:visitar|visitando|passar por|passando por|ir (?:a|ao|aos|as|na|no|nas|nos|em|para|pra))\b/,
   /\b(?:rotas?|trajeto|percurso|itinerario)(?: (?:de|do|da|dos|das|para|pra|ate|entre|em|ao|a|na|no))?\b/,
@@ -143,7 +149,8 @@ export function lerPedidoDeRota(texto) {
   if (!ROTA_GATILHO.test(est.n)) return null;
   const explicito = ROTA_EXPLICITO.test(est.n);
   if (!explicito && ROTA_CONCEITO.test(est.n.trim())) return null;
-  const comoChegar = /\bcomo (?:chegar|ir)\b/.test(est.n);
+  const irPara = ROTA_QUERO_IR.test(est.n);
+  const comoChegar = /\bcomo (?:chegar|ir)\b/.test(est.n) || irPara;
 
   // modo de deslocamento e tempo em cada parada
   let modo = '';
@@ -200,7 +207,11 @@ export function lerPedidoDeRota(texto) {
       const m = re.exec(est.n);
       if (m && m.index + m[0].length > inicio) inicio = m.index + m[0].length;
     });
-    if (inicio >= 0) lista = rotaDividir({ t: est.t.slice(inicio), n: est.n.slice(inicio) }, explicito);
+    // "quero ir à Rua X, 123, Centro": o endereço inteiro é UMA parada (a vírgula não separa paradas)
+    if (inicio >= 0 && irPara && ROTA_ENDERECO.test(est.n.slice(inicio))) {
+      const fim = est.n.slice(inicio).search(/\s(?:de moto|de carro|de bike|de bicicleta|a pe|andando|caminhando|de onibus)\b/);
+      lista = { itens: [rotaLimparNome(fim >= 0 ? est.t.slice(inicio, inicio + fim) : est.t.slice(inicio))], sequencia: false };
+    } else if (inicio >= 0) lista = rotaDividir({ t: est.t.slice(inicio), n: est.n.slice(inicio) }, explicito);
     if (!lista.itens.length) {
       // "A -> B -> C rota": a palavra vem depois da lista. Vale a frase inteira, se tiver ao menos duas paradas
       const limpo = { t: est.t, n: est.n };
@@ -226,7 +237,7 @@ export function lerPedidoDeRota(texto) {
     else otimizar = 'sim';
   }
   return {
-    explicito: explicito, comoChegar: comoChegar, paradas: itens, inicioFixo: inicioFixo, fimFixo: fimFixo,
+    explicito: explicito, comoChegar: comoChegar, irPara: irPara, paradas: itens, inicioFixo: inicioFixo, fimFixo: fimFixo,
     origemAparelho: origemAparelho, volta: volta, otimizar: otimizar, modo: modo, minutosPorParada: minutosPorParada, sequencia: lista.sequencia
   };
 }
@@ -465,14 +476,14 @@ export function respostaDeRota(texto, opcoes) {
   const o = opcoes || {};
   const ped = lerPedidoDeRota(texto);
   if (!ped) return null;
-  const pontos = pontosDeRota(o.pontos);
+  let pontos = pontosDeRota(o.pontos);
+  if (!pontos.length) pontos = pontosDeRota(DIRETORIO_BOA_VISTA);
   const aparelho = o.aparelho && rotaNumero(o.aparelho.lat) === rotaNumero(o.aparelho.lat) && isFinite(rotaNumero(o.aparelho.lat)) && isFinite(rotaNumero(o.aparelho.lng))
     ? { nome: 'Sua posição', lat: rotaNumero(o.aparelho.lat), lng: rotaNumero(o.aparelho.lng) } : null;
 
-  // endereço de residência: não trato (a regra do Paulus é proteger as famílias, e a conversa pode ser guardada pelo app)
-  if (ped.paradas.some(function (p) { return ROTA_ENDERECO.test(p); })) {
-    return rotaResposta('Não traço rota até endereço de residência: para proteger as famílias, só trabalho com unidades, serviços e bairros. Diga o nome da unidade ou do bairro. Para a casa de uma família, use o app de mapas direto, no aparelho.', { bloqueio: true });
-  }
+  // Qualquer endereço de Boa Vista vale como parada: o link do mapa sai pelo texto do endereço (nada é consultado nem enviado a servidor).
+  // O cliente não guarda no histórico o pedido que traz endereço (privacidade das famílias).
+  const temEndereco = ped.paradas.some(function (p) { return ROTA_ENDERECO.test(p); });
   // coordenada solta pode ser a porta de uma casa: mesma regra do endereço de residência
   if (geoLerCoordenadas(String(texto))) {
     return rotaResposta('Não traço rota até coordenada solta: ela pode ser a casa de uma família. Diga o nome da unidade, do lugar ou do bairro. Para um ponto exato, abra o app de mapas direto, no aparelho.', { bloqueio: true });
@@ -490,7 +501,7 @@ export function respostaDeRota(texto, opcoes) {
   const res = resolverParadas(ped.paradas, pontos, extras);
   // Fora do pedido explícito, só responde quem reconhece ao menos uma unidade do diretório e tem duas paradas ("rota de fuga" vai para a IA).
   const achadas = res.filter(function (r) { return r.ponto; }).length;
-  if (!ped.explicito && !(achadas >= 1 && res.length + (ped.origemAparelho || aparelho ? 1 : 0) >= 2)) return null;
+  if (!ped.explicito && !temEndereco && !(ped.irPara && res.length === 1 && !res[0].ambiguos && !ROTA_NAO_LUGAR.test(rotaNorm(res[0].texto))) && !(achadas >= 1 && (ped.irPara || res.length + (ped.origemAparelho || aparelho ? 1 : 0) >= 2))) return null;
 
   const duvida = res.filter(function (r) { return r.ambiguos; });
   if (duvida.length) {
@@ -509,21 +520,23 @@ export function respostaDeRota(texto, opcoes) {
   // "como chegar ao X" / "rota até X": com a posição do aparelho, ela é a saída e dá para estimar km e tempo
   if (aparelho && !ped.origemAparelho && paradas.length === 1 && !semCoord.length) { paradas.unshift(aparelho); inicioFixo = true; }
 
+  // "quero ir a X" / "como chegar ao X" sem saída: só o destino. O mapa parte da posição de quem pergunta, e o link vai pelas coordenadas (se houver) ou pelo endereço.
+  if (paradas.length === 1) {
+    const p = paradas[0];
+    const ondeFica = p.endereco ? ' (' + p.endereco + ')' : '';
+    const nota = !res[0].ponto ? ' Não achei esse lugar no diretório, então o mapa vai procurar pelo texto "' + p.nome + '"' + (cidade ? ' em ' + cidade : '') + '; confira se achou o lugar certo.' : '';
+    return rotaResposta('Rota até ' + p.nome + ondeFica + ', ' + ROTA_NOME_MODO[modo] + '. Abra o link: o app de mapas parte da sua posição atual e mostra o mapa, o trajeto, o tempo e o passo a passo. Não sei onde você está (se o navegador pedir, permita a localização), então não estimo km nem tempo aqui; para eu calcular, diga de onde sai (unidade ou bairro).' + nota, {
+      links: geoLinksDeRota([p], { modo: modo, cidade: cidade, semOrigem: true, rotulo: 'Abrir mapa e rota até ' + p.nome }), paradas: [p.nome], semHistorico: temEndereco, modo: modo
+    });
+  }
+
   // Alguma parada sem coordenada: só o link por nome, na ordem escrita, e digo isso.
   if (semCoord.length || !paradas.length) {
     const naoAchadas = res.filter(function (r) { return !r.ponto; }).map(function (r) { return r.texto; });
     const lks = geoLinksDeRota(paradas, { modo: modo, cidade: cidade, volta: ped.volta, semOrigem: semOrigem, rotulo: 'Abrir no app de mapas (por nome)' });
     const msg = (!temFonte ? 'Este app não me passou o diretório de unidades com coordenadas. ' : naoAchadas.length ? 'Não encontrei no diretório deste app: ' + naoAchadas.join('; ') + '. ' : 'Faltam as coordenadas de: ' + semCoord.map(function (r) { return r.texto; }).join('; ') + '. ') +
       'Sem as coordenadas não calculo km, tempo nem a melhor ordem. Deixei o link do mapa pelos nomes, na ordem que você escreveu' + (cidade ? ' (busca em ' + cidade + ')' : '') + '; confira se o mapa achou o lugar certo.';
-    return rotaResposta(msg, { links: lks, paradas: paradas.map(function (p) { return p.nome; }), semCoordenadas: semCoord.map(function (r) { return r.texto; }), aproximada: true });
-  }
-
-  // "como chegar ao X" sem saída: só o destino, o mapa parte da posição de quem pergunta
-  if (paradas.length === 1) {
-    const p = paradas[0];
-    return rotaResposta('Abro o trajeto até ' + p.nome + ' a partir da sua posição atual. Não sei onde você está (se o navegador pedir, permita a localização), então não estimo km nem tempo; o app de mapas mostra.', {
-      links: geoLinksDeRota([p], { modo: modo, cidade: cidade, semOrigem: true }), paradas: [p.nome]
-    });
+    return rotaResposta(msg, { links: lks, paradas: paradas.map(function (p) { return p.nome; }), semCoordenadas: semCoord.map(function (r) { return r.texto; }), aproximada: true, semHistorico: temEndereco });
   }
 
   const r = planejarRota(paradas, { otimizar: ped.otimizar === 'sim', volta: ped.volta, inicioFixo: inicioFixo, fimFixo: ped.fimFixo, modo: modo, minutosPorParada: ped.minutosPorParada, cidade: cidade, semOrigemNoLink: semOrigem });
@@ -533,5 +546,5 @@ export function respostaDeRota(texto, opcoes) {
   if (r.ordem.some(function (p) { return p.fonte === 'mapa'; })) corpo += '\nLugar vindo do mapa colaborativo (OpenStreetMap), que pode estar desatualizado: confira no app de mapas.';
   if (r.links.length > 1) corpo += '\nO link do mapa aceita poucas paradas: a rota saiu em ' + r.links.length + ' partes, cada uma começa onde a anterior terminou.';
   if (semOrigem) corpo = 'Saída: a sua posição atual (o app de mapas usa o GPS). Não recebi a sua posição, então os km abaixo contam só entre as paradas. Para eu calcular a partir de você, permita a localização do navegador e peça de novo.\n' + corpo;
-  return rotaResposta(corpo, { links: r.links, svg: svgDaRota(r), geojson: r.geojson, gpx: r.gpx, kml: r.kml, paradas: r.ordem.map(function (p) { return p.nome; }), km: Number(r.km.toFixed(2)), minutos: Math.round(r.minutos + r.minutosParadas), estimativa: true, modo: r.modo, volta: !!r.volta });
+  return rotaResposta(corpo, { links: r.links, svg: svgDaRota(r), geojson: r.geojson, gpx: r.gpx, kml: r.kml, paradas: r.ordem.map(function (p) { return p.nome; }), km: Number(r.km.toFixed(2)), minutos: Math.round(r.minutos + r.minutosParadas), estimativa: true, modo: r.modo, volta: !!r.volta, semHistorico: temEndereco });
 }
