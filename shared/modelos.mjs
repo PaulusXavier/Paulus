@@ -110,7 +110,7 @@ export function respostaDeModelo(texto) {
     texto: 'O modelo-base que eu tenho é o do Sistema Solar (' + m.nome + ', ' + m.versao + '), e é por ele que começo qualquer modelo novo.\n\n'
       + 'Para "' + p.novoTema + '" eu não monto o arquivo inteiro sozinho: são milhares de linhas, e a IA que roda aqui não as reproduz com fidelidade. O que eu faço:\n'
       + '1) Baixe a base pelo botão.\n'
-      + '2) Se o tema tem partes que giram em torno de um centro (átomo, luas de Júpiter, galáxia), o motor serve e eu escrevo só os dados: peça "dados do modelo 3D de ' + p.novoTema + '".\n'
+      + '2) Se o tema tem partes que giram em torno de um centro (átomo, luas de Júpiter, galáxia), o desenho de órbitas serve, mas o código tem partes presas ao Sistema Solar. Eu escrevo os dados: peça "dados do modelo 3D de ' + p.novoTema + '". O ajuste do código se faz no Claude.\n'
       + '3) Se o tema não tem órbita, peça "roteiro de modelo 3D de ' + p.novoTema + '" (objetivo de aprendizagem, partes, lições e quiz). O arquivo completo você monta no Claude, no chat, anexando a base e pedindo "faça no estilo deste".\n\n'
       + 'Quem revisa o conteúdo é o professor ou o profissional que vai usar.',
     modelo: m, novoTema: p.novoTema, avisos: ['A base é entregue pronta, no aparelho, sem passar pela IA. Tema novo exige adaptar o motor ou os dados.']
