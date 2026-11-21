@@ -114,7 +114,7 @@ function init(opcoes) {
   if (Array.isArray(o.conhecimento)) {
     definirBase(o.conhecimento);
   } else if (o.conhecimentoUrl && typeof fetch === 'function') {
-    estado.pronto = fetch(o.conhecimentoUrl, { credentials: 'omit' })
+    estado.pronto = fetch(o.conhecimentoUrl, { credentials: 'omit', cache: 'no-cache' }) // revalida a cada abertura: base nova chega sozinha, e sem mudança o servidor responde 304 (não baixa de novo)
       .then(function (r) { return r.ok ? r.json() : []; })
       .then(definirBase)
       .catch(function () { definirBase([]); });
