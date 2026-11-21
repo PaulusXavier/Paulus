@@ -73,4 +73,4 @@ Sem configuração, o Worker segue aberto como antes. Para exigir login:
 3. Em `console/index.html`, preencha `<meta name="paulus-endpoint" content="https://paulus-ia.SEU-USUARIO.workers.dev">`.
 4. `npx wrangler deploy` e `npm run build`.
 
-Sessão de 12 h (30 dias com "Manter conectado"); 5 erros seguidos na mesma conta+IP bloqueiam por 30 s, dobrando a cada erro (até 15 min). Remover a conta de `USUARIOS` derruba a sessão dela na hora. O `console.js` só é carregado depois de entrar.
+Sessão de 12 h (30 dias com "Manter conectado"); 5 erros seguidos na mesma conta+IP bloqueiam por 30 s, dobrando a cada erro (até 15 min). Além do bloqueio por conta+IP, há um teto de 20 tentativas de login por minuto por IP (qualquer usuário), para quem troca de usuário a cada tentativa. Os dois contadores ficam na memória do Worker (valem por instância). O código está em `worker/auth.mjs` (PBKDF2-SHA256 com 100.000 voltas, o máximo que o Workers aceita; sessão assinada com HMAC-SHA256, nada é gravado) e os testes em `tests/auth.test.mjs`. Remover a conta de `USUARIOS` derruba a sessão dela na hora. O `console.js` só é carregado depois de entrar.
