@@ -14,8 +14,8 @@ Não é pedido de modelo (segue o fluxo normal): "modelo de ofício", "modelo di
 ## Por que a IA não escreve o arquivo
 O arquivo-base tem cerca de 3.700 linhas. O modelo de IA gratuito do Worker tem limite de resposta e não reproduz esse volume sem erro. Por isso: base pronta no aparelho; a IA escreve **dados e roteiro** (curtos); o arquivo completo de um tema sem órbita é montado no Claude, no chat, com a base anexada.
 
-## O que muda no arquivo-base para outro tema parecido
-Cinco listas no começo do script: `THEMES`, `BODIES`, `LESSONS`, `QUIZ_QUESTIONS`, `MOONS` (campos em `habilidades/modelo-3d-didatico-dados.md`). O motor de desenho (projeção, órbitas, rastros, painel, laboratório) fica. Ainda são específicos do Sistema Solar: o cometa Halley, os cinturões, a zona habitável, a inclinação de Plutão e a telemetria em UA; um tema novo precisa decidir o que fazer com cada um.
+## O que muda no arquivo-base para outro tema
+O conteúdo está em cinco listas no começo do script: `THEMES`, `BODIES`, `LESSONS`, `QUIZ_QUESTIONS`, `MOONS` (campos em `habilidades/modelo-3d-didatico-dados.md`). **Trocar só as listas não basta:** o código assume ids fixos (`sun` como centro, `earth` na telemetria e na comparação de tamanhos, `earth` e `mars` nas lições, `pluto` com órbita inclinada) e traz o cometa Halley, os cinturões, a zona habitável e a telemetria em UA. O motor de desenho (projeção, órbitas, rastros, painel, laboratório) é reaproveitável, mas esses trechos precisam de ajuste no código. Por isso o Paulus escreve dados e roteiro, e o ajuste do código se faz no Claude.
 
 ## Como acrescentar um modelo novo ao catálogo
 1. Coloque o `.html` em `modelos/` (nome em minúsculas, números e hífen).
