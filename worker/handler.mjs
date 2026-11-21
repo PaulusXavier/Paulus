@@ -30,6 +30,7 @@
 // o tipo escolhe quantos trechos buscar, o tamanho da resposta e a temperatura.
 // O Worker não grava nada: nem pergunta, nem resposta, nem IP (o IP só fica na memória, por um minuto).
 
+import { firebaseLigado, verificarFirebase } from './firebase.mjs';
 import { loginLigado, entrar, criarSessao, verificarSessao, tokenDoPedido, criarFreio, normalizarUsuario, MAX_SENHA, MAX_USUARIO } from './auth.mjs';
 import { temDadoPessoal, temIdentificacaoPessoal, limparMarcacao } from '../shared/pii.mjs';
 import { normalizar, criarIndice, buscarPergunta, fonteDe, K_PADRAO } from '../shared/busca.mjs';
@@ -283,13 +284,23 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     // Login (worker/auth.mjs). Só existe com AUTH_SEGREDO e USUARIOS configurados; sem eles o Worker segue aberto, como antes.
     const rota = new URL(request.url).pathname.replace(/\/+$/, '');
     const ipDoPedido = request.headers.get('CF-Connecting-IP') || 'desconhecido';
-    const exigeLogin = loginLigado(env);
+    const senhaLigada = loginLigado(env);
+    const fbLigado = firebaseLigado(env);
+    const exigeLogin = senhaLigada || fbLigado;
+    // Sessão do login por senha (worker/auth.mjs) ou ID token do Firebase (worker/firebase.mjs): vale qualquer um dos dois que estiver ligado.
+    const sessaoDoPedido = async function () {
+      const tk = tokenDoPedido(request);
+      if (senhaLigada) { const v = await verificarSessao(env, tk); if (v) return v; }
+      if (fbLigado) { const v = await verificarFirebase(env, tk); if (v) return v; }
+      return null;
+    };
     if (rota === '/login' || rota === '/sessao') {
       if (!exigeLogin) return json({ login: false, erro: 'Login não está ativado neste Worker.' }, rota === '/login' ? 404 : 200);
       if (rota === '/sessao') {
-        const v = await verificarSessao(env, tokenDoPedido(request));
-        return v ? json({ ok: true, usuario: v.usuario, expira: v.expira }) : json({ erro: 'Sessão inválida ou vencida.' }, 401);
+        const v = await sessaoDoPedido();
+        return v ? json({ ok: true, usuario: v.usuario, expira: v.expira }) : json({ erro: 'Sessão inválida ou vencida.', metodo: fbLigado && !senhaLigada ? 'firebase' : 'senha' }, 401);
       }
+      if (!senhaLigada) return json({ erro: 'Este Worker usa o login do Firebase.', metodo: 'firebase' }, 404);
       if (Number(request.headers.get('Content-Length')) > 2000) return json({ erro: 'Pedido grande demais.' }, 413);
       // Teto por IP em qualquer usuário: o freio abaixo é por IP + usuário, e trocar de usuário a cada tentativa o contornaria
       // (cada tentativa também gasta uma derivação PBKDF2). Vale só por instância do Worker, como o limite de perguntas.
@@ -313,7 +324,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       const sessao = await criarSessao(env, conta, { lembrar: dados.lembrar === true });
       return json({ ok: true, token: sessao.token, usuario: sessao.usuario, expira: sessao.expira });
     }
-    if (exigeLogin && !(await verificarSessao(env, tokenDoPedido(request)))) return json({ erro: 'Entre para usar o Paulus.' }, 401);
+    if (exigeLogin && !(await sessaoDoPedido())) return json({ erro: 'Entre para usar o Paulus.' }, 401);
     if (!env.AI || typeof env.AI.run !== 'function') return json({ erro: 'Workers AI não está ligado a este Worker.' }, 500);
 
     if (Number(request.headers.get('Content-Length')) > MAX_CORPO) return json({ erro: 'Pedido grande demais.' }, 413);
