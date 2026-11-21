@@ -230,6 +230,7 @@ body.vazio .hl{margin-left:2px}
 .hi .dt{font:500 11px var(--mono);letter-spacing:.2em;color:var(--mut)}
 .mc.rev{animation:rev .6s ease-out both}
 @keyframes rev{from{clip-path:inset(0 0 100% 0);filter:brightness(2)}to{clip-path:inset(0 0 0 0);filter:none}}
+body.off .sline::after{content:"· SEM REDE";color:var(--red);margin-left:2px}
 body.modo-voz #core{filter:drop-shadow(0 0 18px #6ee7a8aa)}
 @media(min-width:1180px){body.vazio #core{width:200px;height:200px;top:calc(var(--sat) + 6px)}body.vazio .hi{margin-top:92px}}
 @media(prefers-reduced-motion:reduce){body.vazio #core{transition:none}}
@@ -357,6 +358,7 @@ body.lock>*:not(#lg){visibility:hidden}
 <div><dt>IA REMOTA</dt><dd id="ki">--</dd></div>
 <div><dt>REDE</dt><dd id="kr">--</dd></div>
 <div><dt>VOZ</dt><dd id="kv">DESLIGADA</dd></div>
+<div><dt>SOM</dt><dd id="ksom">DESLIGADO</dd></div>
 <div><dt>MEMÓRIA</dt><dd id="km">NO APARELHO</dd></div>
 <div><dt>VERSÃO</dt><dd id="kb">--</dd></div>
 </dl></section>
