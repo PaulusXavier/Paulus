@@ -141,8 +141,8 @@
 
   // ------------------------------------------------------------ mensagens
   function limparBoasVindas() { var o = log.querySelector('.hi'); if (o) o.remove(); document.body.classList.remove('vazio'); }
-  var KIND = { ia: 'IA', norma: 'NORMA', busca: 'BUSCA', acao: 'AÇÃO', acao_desconhecida: 'AÇÃO', calculo: 'CÁLCULO', rota: 'ROTA', geo: 'GEO', pdf: 'PDF', revisao: 'REVISÃO', espanhol: 'IDIOMA', ingles: 'IDIOMA', crise: 'SOCORRO', bloqueio: 'PRIVACIDADE', erro: 'ERRO', sem_resposta: 'SEM RESPOSTA', pens: 'PROCESSANDO' };
-  var LOCAL = { norma: 1, busca: 1, acao: 1, acao_desconhecida: 1, calculo: 1, rota: 1, geo: 1, pdf: 1, revisao: 1, espanhol: 1, ingles: 1, crise: 1, bloqueio: 1, sem_resposta: 1 };
+  var KIND = { ia: 'IA', norma: 'NORMA', busca: 'BUSCA', acao: 'AÇÃO', acao_desconhecida: 'AÇÃO', calculo: 'CÁLCULO', rota: 'ROTA', geo: 'GEO', pdf: 'PDF', modelo: 'MODELO 3D', revisao: 'REVISÃO', espanhol: 'IDIOMA', ingles: 'IDIOMA', crise: 'SOCORRO', bloqueio: 'PRIVACIDADE', erro: 'ERRO', sem_resposta: 'SEM RESPOSTA', pens: 'PROCESSANDO' };
+  var LOCAL = { norma: 1, busca: 1, acao: 1, acao_desconhecida: 1, calculo: 1, rota: 1, geo: 1, pdf: 1, modelo: 1, revisao: 1, espanhol: 1, ingles: 1, crise: 1, bloqueio: 1, sem_resposta: 1 };
   function cabeca(quem, kind) {
     var c = h('div', { class: 'mh' }, [h('span', { class: 'q', text: quem })]);
     if (kind) c.appendChild(h('span', { class: 'k', text: kind }));
@@ -316,6 +316,14 @@
       if (r.gpx) ac2.appendChild(btn('GPX', function () { baixarTexto('rota.gpx', r.gpx, 'application/gpx+xml'); }));
       if (r.kml) ac2.appendChild(btn('KML', function () { baixarTexto('rota.kml', r.kml, 'application/vnd.google-earth.kml+xml'); }));
       if (ac2.childNodes.length) x.m.appendChild(ac2);
+    }
+    if (r.tipo === 'modelo') {
+      var am = h('div', { class: 'ac' });
+      (r.arquivos || []).forEach(function (a) {
+        am.appendChild(btn('⤓ Baixar ' + (a.rotulo || a.nome), function () { P.modelos.baixar(r.modelo).then(function (ok) { aviso(ok ? 'Modelo baixado.' : 'Abri o modelo em outra aba.'); }); }));
+        if (a.url && !/^[a-z]+:/i.test(a.url)) am.appendChild(h('a', { href: a.url, target: '_blank', rel: 'noopener noreferrer', text: 'Abrir agora' }));
+      });
+      if (am.childNodes.length) x.m.appendChild(am);
     }
     if (r.tipo === 'pdf') {
       var ap = h('div', { class: 'ac' });
