@@ -45,7 +45,7 @@ export function juntar() {
 
 // Impressão digital dos arquivos que os apps baixam. Muda só quando o conteúdo muda; é o que permite atualizar sozinho (versao.json)
 // e fazer o service worker do console trocar de cache a cada publicação.
-const ARQUIVOS_VERSIONADOS = ['paulus.v1.js', 'conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'lugares-boa-vista.json', 'login.js', 'console.js', 'index.html'];
+const ARQUIVOS_VERSIONADOS = ['paulus.v1.js', 'conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'leaflet.js', 'lugares-boa-vista.json', 'login.js', 'console.js', 'index.html'];
 export function gerarVersao(saida, extra) {
   const arquivos = {};
   for (const n of ARQUIVOS_VERSIONADOS) {
@@ -78,6 +78,8 @@ export function construir() {
   if (existsSync(lugares)) copyFileSync(lugares, join(saida, 'lugares-boa-vista.json'));
   // pdf-lib (MIT), carregado pelo navegador só no primeiro pedido de PDF; fica ao lado do paulus.v1.js
   copyFileSync(join(RAIZ, 'vendor', 'pdf-lib.min.js'), join(saida, 'pdf-lib.min.js'));
+  // Leaflet (BSD-2): mapa das rotas no console, baixado só quando uma resposta traz mapa
+  copyFileSync(join(RAIZ, 'vendor', 'leaflet.js'), join(saida, 'leaflet.js'));
   // modelos 3D didáticos (modelos/*.html): ficam em dist/modelos/ e o navegador só os baixa quando a pessoa pede
   const pastaModelos = join(RAIZ, 'modelos');
   if (existsSync(pastaModelos)) {
