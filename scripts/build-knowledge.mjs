@@ -1,152 +1,115 @@
-// Lê knowledge/documentos/*.md e gera knowledge/conhecimento.json (a base de normas do Paulus).
+// Gera os arquivos que vão para o ar:
+//   dist/paulus.v1.js       módulo do navegador (shared/*.mjs + client/*.mjs em um arquivo só, sem import/export)
+//   dist/versao.json        versão, commit e impressão digital (sha256) de cada arquivo: os apps e o console comparam com ela para saber se há novidade
+//   dist/pdf-lib.min.js     editor de PDF (vendor/), carregado sob demanda
+//   dist/conhecimento.json  base de normas completa (cópia de knowledge/conhecimento.json; pesada)
+//   dist/conhecimento-<pacote>.json  um arquivo por pacote (geral = leis e decretos, leve; psicologia = referências do CFP)
 //
-// Formato de cada .md:
-//   ---
-//   doc: nob-suas-2012                  (identificador curto, sem espaços)
-//   titulo: NOB/SUAS 2012               (nome para mostrar)
-//   norma: Resolução CNAS nº 33, ...    (a norma, por extenso)
-//   ano: 2012
-//   tipo: norma                         (opcional: norma | referencia | apoio; padrão norma)
-//   pacote: psicologia                  (opcional: agrupa documentos; gera conhecimento-<pacote>.json no build)
-//   url: https://...                    (opcional: endereço do documento oficial)
-//   worker: nao                         (opcional: o documento fica só nos pacotes offline e fora do Worker, para poupar o limite de tamanho)
-//   revisao: pendente                   (opcional: pendente | conferido; os importadores escrevem pendente)
-//   ---
-//   ## art. 17, XV                       (a referência que será citada)
-//   Texto do trecho, copiado da norma.   (um ou mais parágrafos; viram um texto só)
-//
-// Comentários <!-- ... --> são ignorados. Gera também knowledge/indice.json (índice de busca) e knowledge/catalogo.json.
-// conhecimento.json, worker-base.json e indice.json NÃO vão para o Git (são gerados); só catalogo.json é versionado. Uso: npm run build:conhecimento
+// Uso: npm run build   (antes, rode npm run build:conhecimento se mudou algo em knowledge/documentos)
 
-import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { criarIndice, serializarIndice } from '../shared/busca.mjs';
-import { compactarBase } from '../shared/base-compacta.mjs';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
-const PASTA = join(RAIZ, 'knowledge', 'documentos');
-const SAIDA = join(RAIZ, 'knowledge', 'conhecimento.json');
-const SAIDA_WORKER = join(RAIZ, 'knowledge', 'worker-base.json');
-const SAIDA_INDICE = join(RAIZ, 'knowledge', 'indice.json');
-const SAIDA_CATALOGO = join(RAIZ, 'knowledge', 'catalogo.json');
-const ID = /^[a-z0-9][a-z0-9-]*$/;
-const TIPOS = ['norma', 'referencia', 'apoio'];
-const REVISOES = ['pendente', 'conferido'];
 
-// Devolve { meta, trechos }. "tipo" e "pacote" só entram nos trechos quando não são o padrão (norma / sem pacote),
-// para a base de leis continuar do mesmo tamanho de sempre.
-export function lerDocumentoCompleto(markdown, nomeArquivo) {
-  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(markdown.replace(/^\uFEFF/, ''));
-  if (!m) throw new Error(nomeArquivo + ': falta o bloco "---" no começo (doc, titulo, norma, ano).');
-  const meta = {};
-  for (const linha of m[1].split(/\r?\n/)) {
-    const i = linha.indexOf(':');
-    if (i > 0) meta[linha.slice(0, i).trim()] = linha.slice(i + 1).trim();
-  }
-  for (const campo of ['doc', 'titulo', 'norma', 'ano']) {
-    if (!meta[campo]) throw new Error(nomeArquivo + ': falta "' + campo + '" no começo do arquivo.');
-  }
-  if (!ID.test(meta.doc)) throw new Error(nomeArquivo + ': "doc" só pode ter letras minúsculas, números e hífen.');
-  const ano = Number(meta.ano);
-  if (!Number.isInteger(ano)) throw new Error(nomeArquivo + ': "ano" precisa ser um número.');
-  if (meta.tipo && !TIPOS.includes(meta.tipo)) throw new Error(nomeArquivo + ': "tipo" deve ser norma, referencia ou apoio.');
-  if (meta.pacote && !ID.test(meta.pacote)) throw new Error(nomeArquivo + ': "pacote" só pode ter letras minúsculas, números e hífen.');
-  if (meta.revisao && !REVISOES.includes(meta.revisao)) throw new Error(nomeArquivo + ': "revisao" deve ser pendente ou conferido.');
-  if (meta.worker && !['sim', 'nao'].includes(meta.worker)) throw new Error(nomeArquivo + ': "worker" deve ser sim ou nao.');
-  if (meta.url && !/^https?:\/\//.test(meta.url)) throw new Error(nomeArquivo + ': "url" deve começar com http:// ou https:// (ou apague a linha).');
-  meta.tipo = meta.tipo || 'norma';
+// Ordem importa: quem é usado vem antes de quem usa.
+const MODULOS = ['shared/espanhol-dados.mjs', 'shared/espanhol.mjs', 'shared/ingles-dados.mjs', 'shared/ingles.mjs', 'shared/idioma.mjs', 'shared/pii.mjs', 'shared/crise.mjs', 'shared/busca.mjs', 'shared/pedido.mjs', 'shared/conversa.mjs', 'shared/verificacao.mjs', 'shared/calculo.mjs', 'shared/geo.mjs', 'shared/rota.mjs', 'shared/revisao-texto.mjs', 'shared/pdf.mjs', 'shared/visitas.mjs', 'shared/suicidio.mjs', 'shared/sugestoes.mjs', 'client/skins.mjs', 'client/memoria.mjs', 'client/paulus.mjs'];
 
-  const corpo = m[2].replace(/<!--[\s\S]*?-->/g, '');
-  const trechos = [];
-  for (const bloco of corpo.split(/^##[ \t]+/m).slice(1)) {
-    const quebra = bloco.indexOf('\n');
-    const referencia = (quebra === -1 ? bloco : bloco.slice(0, quebra)).trim();
-    const texto = (quebra === -1 ? '' : bloco.slice(quebra + 1)).split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean).join(' ');
-    if (!referencia) throw new Error(nomeArquivo + ': há um "##" sem referência.');
-    if (!texto) throw new Error(nomeArquivo + ': o trecho "' + referencia + '" está sem texto.');
-    const t = {
-      id: meta.doc + '#' + (trechos.length + 1),
-      doc: meta.doc,
-      titulo: meta.titulo,
-      norma: meta.norma,
-      ano: ano,
-      referencia: referencia,
-      texto: texto
-    };
-    if (meta.tipo !== 'norma') t.tipo = meta.tipo;
-    if (meta.pacote) t.pacote = meta.pacote;
-    trechos.push(t);
-  }
-  if (!trechos.length) throw new Error(nomeArquivo + ': nenhum trecho ("## referência") encontrado.');
-  return { meta: meta, trechos: trechos };
+const CABECALHO = '/*! Paulus v1 — gerado por scripts/build.mjs. Não edite: altere shared/ e client/. */\n(function (root) {\n\'use strict\';\n';
+const RODAPE = '})(typeof self !== \'undefined\' ? self : this);\n';
+const EXPORTA_NA_PAGINA = 'root.Paulus = Paulus;\nif (typeof module === \'object\' && module.exports) module.exports = Paulus;';
+
+function tirarModulo(codigo) {
+  return codigo
+    // imports (sempre em UMA linha) viram linha em branco
+    .replace(/^import\s[^\n]*;[ \t]*$/gm, '')
+    // export default Paulus  ->  publica no navegador
+    .replace(/^export default Paulus;[ \t]*$/m, EXPORTA_NA_PAGINA)
+    // export function / const / class  ->  sem o "export"
+    .replace(/^export\s+(?=(?:async\s+)?(?:function|const|let|class)\b)/gm, '');
 }
 
-export function lerDocumento(markdown, nomeArquivo) {
-  return lerDocumentoCompleto(markdown, nomeArquivo).trechos;
-}
-
-function lerPasta(pasta) {
-  const arquivos = readdirSync(pasta).filter(function (f) { return f.endsWith('.md') && !f.startsWith('_'); }).sort();
-  const docs = new Set();
-  return arquivos.map(function (f) {
-    const d = lerDocumentoCompleto(readFileSync(join(pasta, f), 'utf8'), f);
-    if (docs.has(d.meta.doc)) throw new Error(f + ': o identificador "' + d.meta.doc + '" já foi usado em outro arquivo.');
-    docs.add(d.meta.doc);
-    return d;
+export function juntar() {
+  const blocos = MODULOS.map(function (caminho) {
+    const codigo = readFileSync(join(RAIZ, caminho), 'utf8').replace(/\s+$/, '') + '\n';
+    return '// ---- ' + caminho + ' ----\n' + tirarModulo(codigo);
   });
-}
-
-export function montarBase(pasta) {
-  const todos = [];
-  for (const d of lerPasta(pasta || PASTA)) todos.push.apply(todos, d.trechos);
-  return todos;
-}
-
-// Base do Worker: igual à completa, menos os documentos marcados com "worker: nao" (ficam só nos pacotes offline).
-export function montarBaseWorker(pasta) {
-  const todos = [];
-  for (const d of lerPasta(pasta || PASTA)) if (d.meta.worker !== 'nao') todos.push.apply(todos, d.trechos);
-  return todos;
-}
-
-// Lista do que está carregado (um item por documento).
-export function montarCatalogo(pasta) {
-  return lerPasta(pasta || PASTA).map(function (d) {
-    const c = { doc: d.meta.doc, titulo: d.meta.titulo, norma: d.meta.norma, ano: Number(d.meta.ano), tipo: d.meta.tipo };
-    if (d.meta.pacote) c.pacote = d.meta.pacote;
-    if (d.meta.url) c.url = d.meta.url;
-    if (d.meta.worker === 'nao') c.worker = 'nao';
-    if (d.meta.revisao) c.revisao = d.meta.revisao;
-    c.trechos = d.trechos.length;
-    c.caracteres = d.trechos.reduce(function (n, t) { return n + t.texto.length; }, 0);
-    return c;
-  });
-}
-
-// Coisas que não impedem o build, mas que alguém precisa olhar.
-export function avisosDaBase(pasta) {
-  const avisos = [];
-  for (const d of lerPasta(pasta || PASTA)) {
-    if (d.meta.revisao === 'pendente') avisos.push(d.meta.doc + ': aguardando conferência (troque "revisao: pendente" por "conferido" depois de comparar com o original; veja npm run conferir).');
-    const vistas = new Set(), repetidas = new Set();
-    for (const t of d.trechos) { if (vistas.has(t.referencia)) repetidas.add(t.referencia); vistas.add(t.referencia); }
-    if (repetidas.size) avisos.push(d.meta.doc + ': referência repetida (' + Array.from(repetidas).slice(0, 3).join('; ') + '): duas fontes iguais não se distinguem na resposta.');
+  const corpo = blocos.join('\n');
+  if (/^\s*(import|export)\b/m.test(corpo)) {
+    throw new Error('Sobrou import/export no arquivo do navegador. Use imports em UMA linha e "export function/const".');
   }
-  return avisos;
+  return CABECALHO + corpo + RODAPE;
+}
+
+// Impressão digital dos arquivos que os apps baixam. Muda só quando o conteúdo muda; é o que permite atualizar sozinho (versao.json)
+// e fazer o service worker do console trocar de cache a cada publicação.
+const ARQUIVOS_VERSIONADOS = ['paulus.v1.js', 'conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'lugares-boa-vista.json', 'login.js', 'console.js', 'index.html'];
+export function gerarVersao(saida, extra) {
+  const arquivos = {};
+  for (const n of ARQUIVOS_VERSIONADOS) {
+    const c = join(saida, n);
+    if (existsSync(c)) arquivos[n] = { sha256: createHash('sha256').update(readFileSync(c)).digest('hex').slice(0, 16), bytes: statSync(c).size };
+  }
+  const pacote = JSON.parse(readFileSync(join(RAIZ, 'package.json'), 'utf8'));
+  const geral = createHash('sha256').update(Object.keys(arquivos).sort().map(function (n) { return n + arquivos[n].sha256; }).join('|')).digest('hex').slice(0, 12);
+  const info = Object.assign({ versao: pacote.version, build: geral, commit: String(process.env.GITHUB_SHA || '').slice(0, 7) || null, arquivos: arquivos }, extra || {});
+  writeFileSync(join(saida, 'versao.json'), JSON.stringify(info, null, 1));
+  // service worker do console: o nome do cache leva a impressão digital, então cada publicação nova troca o cache e o aparelho atualiza sozinho
+  const sw = join(saida, 'sw.js');
+  if (existsSync(sw)) {
+    const t = readFileSync(sw, 'utf8');
+    if (!/var V = '[^']*';/.test(t)) throw new Error('sw.js sem a linha "var V = \'...\';" (nome do cache).');
+    writeFileSync(sw, t.replace(/var V = '[^']*';/, "var V = 'paulus-console-" + geral + "';"));
+  }
+  return info;
+}
+
+export function construir() {
+  const saida = join(RAIZ, 'dist');
+  mkdirSync(saida, { recursive: true });
+  writeFileSync(join(saida, 'paulus.v1.js'), juntar());
+  const base = join(RAIZ, 'knowledge', 'conhecimento.json');
+  if (!existsSync(base)) throw new Error('Falta knowledge/conhecimento.json. Rode: npm run build:conhecimento');
+  copyFileSync(base, join(saida, 'conhecimento.json'));
+  // mapa de lugares (OpenStreetMap), se foi gerado por scripts/importar-mapa.mjs: o app o passa ao Paulus com { lugaresUrl }
+  const lugares = join(RAIZ, 'knowledge', 'geo', 'lugares-boa-vista.json');
+  if (existsSync(lugares)) copyFileSync(lugares, join(saida, 'lugares-boa-vista.json'));
+  // pdf-lib (MIT), carregado pelo navegador só no primeiro pedido de PDF; fica ao lado do paulus.v1.js
+  copyFileSync(join(RAIZ, 'vendor', 'pdf-lib.min.js'), join(saida, 'pdf-lib.min.js'));
+  // Console do Paulus (tela Jarvis, fora dos apps): dist/console.html
+  copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'console.html'));
+  copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'index.html')); // a raiz do site (…/Paulus/) abre o console
+  // tela de login (carrega o console.js só depois de entrar) e o próprio console.js, se existir
+  for (const f of ['login.js', 'console.js']) { const o = join(RAIZ, 'console', f); if (existsSync(o)) copyFileSync(o, join(saida, f)); }
+  // instalável (PWA): procura em console/ e, se não achar, na raiz do repositório
+  for (const f of ['manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png']) {
+    const origem = [join(RAIZ, 'console', f), join(RAIZ, f)].find(existsSync);
+    if (!origem) throw new Error('Falta ' + f + ' (em console/ ou na raiz do repositório).');
+    copyFileSync(origem, join(saida, f));
+  }
+  // um arquivo por pacote (ex.: conhecimento-psicologia.json), só quando há mais de um grupo; o que não tem pacote vai em "geral"
+  const todos = JSON.parse(readFileSync(base, 'utf8'));
+  const grupos = {};
+  for (const t of todos) (grupos[t.pacote || 'geral'] = grupos[t.pacote || 'geral'] || []).push(t);
+  if (Object.keys(grupos).length > 1) {
+    for (const nome of Object.keys(grupos)) writeFileSync(join(saida, 'conhecimento-' + nome + '.json'), JSON.stringify(grupos[nome]));
+  }
+  gerarVersao(saida);
+  return saida;
+}
+
+// Mostra quanto cada arquivo de conhecimento pesa, para ninguém mandar a base inteira a um app que só precisa do pacote leve.
+export function relatorioDeTamanho(saida) {
+  return ['conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json']
+    .filter(function (n) { return existsSync(join(saida, n)); })
+    .map(function (n) { return '  ' + n + ': ' + (statSync(join(saida, n)).size / 1048576).toFixed(2) + ' MB'; })
+    .join('\n');
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const base = montarBase();
-  // JSON compacto (sem recuo) e FORA do Git (veja .gitignore): é gerado a partir de knowledge/documentos/*.md.
-  writeFileSync(SAIDA, JSON.stringify(base));
-  // Índice de busca já calculado: o Worker o carrega pronto em vez de montá-lo na partida (leva ~0,6 s com a base toda).
-  // O Worker não leva os documentos marcados com "worker: nao": a base e o índice dele são só do resto.
-  const baseWorker = montarBaseWorker();
-  writeFileSync(SAIDA_INDICE, JSON.stringify(serializarIndice(criarIndice(baseWorker))));
-  // Base enxuta só para o Worker (veja shared/base-compacta.mjs): é o que cabe no limite de 3 MB do plano gratuito.
-  writeFileSync(SAIDA_WORKER, JSON.stringify(compactarBase(baseWorker)));
-  writeFileSync(SAIDA_CATALOGO, JSON.stringify(montarCatalogo(), null, 2) + '\n');
-  console.log(base.length + ' trecho(s) em ' + new Set(base.map(function (x) { return x.doc; })).size + ' documento(s) → knowledge/conhecimento.json, indice.json e catalogo.json (Worker: ' + baseWorker.length + ' trechos)');
-  avisosDaBase().forEach(function (a) { console.log('ATENÇÃO: ' + a); });
+  const pasta = construir();
+  console.log('Pronto: ' + pasta + '/paulus.v1.js e conhecimento*.json\n' + relatorioDeTamanho(pasta));
+  console.log('Apps que só precisam do básico (ex.: Argo) devem usar conhecimento-geral.json, não o conhecimento.json inteiro.');
 }
