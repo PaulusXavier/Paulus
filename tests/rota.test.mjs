@@ -82,15 +82,24 @@ test('rota: unidade fora do diretório gera só o link por nome e avisa que não
 
 test('rota: sem diretório no app, ainda monta o link por nome e explica', () => {
   const r = respostaDeRota('como chegar ao CRAS Cauamé saindo do CAPS II', {});
-  assert.match(r.texto, /não me passou o diretório/);
-  assert.match(r.links[0].url, /destination=CRAS/);
+  // sem diretório do app, vale o diretório embutido de Boa Vista (CAPS II sem coordenada: link por nome/endereço)
+  assert.match(r.texto, /coordenadas/);
+  assert.match(r.links[0].url, /destination=CRAS|destination=\d/);
 });
 
-test('rota: endereço de residência de família é recusado e não aparece no link', () => {
+test('rota: qualquer endereço de Boa Vista vira link pelo texto e não vai para o histórico', () => {
   const r = R('rota até Rua das Flores 123');
-  assert.equal(r.bloqueio, true);
-  assert.deepEqual(r.links, []);
-  assert.doesNotMatch(JSON.stringify(r), /Flores/);
+  assert.equal(r.semHistorico, true);
+  assert.match(r.links[0].url, /Rua%20das%20Flores%20123/);
+  const q = respostaDeRota('Quero ir à Rua Bento Brasil, 835, Centro', { cidade: 'Boa Vista, RR' });
+  assert.equal(q.paradas.length, 1); assert.match(q.links[0].url, /Bento%20Brasil%2C%20835/);
+});
+
+test('rota: "quero ir a ufrr" traça o destino pelo diretório embutido; "quero ir embora" não é rota', () => {
+  const r = respostaDeRota('quero ir a ufrr', { cidade: 'Boa Vista, RR' });
+  assert.match(r.texto, /UFRR/); assert.match(r.links[0].url, /Ene%20Garcez/);
+  assert.equal(respostaDeRota('quero ir embora', {}), null);
+  assert.equal(respostaDeRota('rota de fuga em caso de incêndio', {}), null);
 });
 
 test('rota: "saindo daqui" usa a posição do aparelho quando o app passa, e o GPS do mapa quando não', () => {
