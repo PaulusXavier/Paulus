@@ -7,6 +7,7 @@
 //   4. "buscar ..."              -> busca registrada pelo app, executada AQUI; o resultado NÃO vai para a IA
 //      (passos 3 e 4 são pulados com { semAcoes: true }, para apps que já tratam isso antes)
 //   4c. pedido de geografia     -> coordenadas, "perto de", distância entre dois lugares, bairro, endereço no padrão (shared/geo.mjs), sem IA.
+//   4a. pedido de modelo 3D      -> entrega o modelo-base (shared/modelos.mjs), sem IA
 //   4b. pedido de rota          -> ordem, km e tempo calculados no aparelho (shared/rota.mjs), sem IA
 //   0b. pedido de edição de PDF  -> editado no aparelho com pdf-lib (shared/pdf.mjs); o arquivo NUNCA sai do aparelho. Roda logo após o socorro,
 //      antes do filtro de dado pessoal, porque preencher uma ficha exige nome e o texto não vai a servidor nenhum.
@@ -26,6 +27,7 @@ import { classificarPedido, ehRefinamento, pedidoSobreResposta, consultaDoPedido
 import { citacoesSemFonte } from '../shared/verificacao.mjs';
 import { respostaDeConta } from '../shared/calculo.mjs';
 import { respostaDeRota, lerPedidoDeRota } from '../shared/rota.mjs';
+import { respostaDeModelo, lerPedidoDeModelo, urlDoModelo, MODELOS_3D } from '../shared/modelos.mjs';
 import { respostaDeGeo, geoTipoDePedido, geoLerCoordenadas, geoFormatarCoordenadas, geoNormalizarEndereco, geoMontarEndereco, geoPerto, geoFontes, geoLinksDeRota, geoParaGpx, geoParaKml, geoDistanciaKm } from '../shared/geo.mjs';
 import { revisarTexto, respostaDeRevisao } from '../shared/revisao-texto.mjs';
 import { respostaDePdf, lerPedidoDePdf, editarPdf, listaPaginasPdf, resolverPaginasPdf } from '../shared/pdf.mjs';
@@ -45,6 +47,7 @@ const PADRAO = {
   app: '',
   endpoint: '',            // endereço do Worker; vazio = IA desligada
   maxPergunta: 1200,
+  modelosUrl: '',          // pasta dos modelos 3D didáticos (padrão: modelos/, ao lado da página); o arquivo só é baixado quando a pessoa clica
   pdfLibUrl: '',           // onde está o pdf-lib.min.js (padrão: na mesma pasta do paulus.v1.js); carregado só no primeiro pedido de PDF
   cidade: '',              // 'Boa Vista, RR': acrescentada ao nome nos links de rota feitos só com texto
   maxHistorico: 10,        // últimas mensagens (5 trocas) que vão inteiras à IA; as perguntas mais antigas vão num resumo curto (shared/conversa.mjs)
@@ -592,6 +595,37 @@ async function tratarRota(t, o) {
   return { tipo: 'rota', texto: rota.texto, links: rota.links, svg: rota.svg, geojson: rota.geojson, gpx: rota.gpx || '', kml: rota.kml || '', paradas: rota.paradas, km: rota.km, minutos: rota.minutos, bloqueio: !!rota.bloqueio, fontes: [], avisos: avisos, pergunta: t, docs: [] };
 }
 
+// ------------------------------------------------------------------ modelos 3D didáticos
+
+// Pedido de modelo 3D ("me manda o modelo 3D do sistema solar"): o programa reconhece no aparelho e devolve o arquivo-base para baixar. Sem IA e sem rede para decidir.
+function tratarModelo(t, o) {
+  const m = respostaDeModelo(t);
+  if (!m) return null;
+  if (!Array.isArray(o.historico)) {
+    estado.historico.push({ papel: 'usuario', texto: t }, { papel: 'paulus', texto: m.texto });
+    estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
+  }
+  return { tipo: 'modelo', texto: m.texto, modelo: m.modelo, novoTema: m.novoTema, arquivos: [{ nome: m.modelo.arquivo, rotulo: m.modelo.nome, url: urlDoModelo(m.modelo, cfg.modelosUrl) }], fontes: [], avisos: m.avisos, pergunta: t, docs: [] };
+}
+
+// Baixa o arquivo do modelo. Se o navegador não deixar baixar por script, abre o arquivo numa aba nova.
+function modeloBaixar(modelo) {
+  const url = urlDoModelo(modelo, cfg.modelosUrl);
+  const abrir = function () { try { window.open(url, '_blank', 'noopener'); } catch (e) { /* segue */ } };
+  if (typeof fetch !== 'function' || typeof document === 'undefined') { abrir(); return Promise.resolve(false); }
+  return fetch(url, { credentials: 'omit' }).then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.blob();
+  }).then(function (blob) {
+    const u = URL.createObjectURL(new Blob([blob], { type: 'text/html;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = u; a.download = modelo.arquivo; a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(u); }, 4000);
+    return true;
+  }).catch(function () { abrir(); return false; });
+}
+
 // ------------------------------------------------------------------ geografia
 
 // Baixa o mapa de lugares uma vez, só quando a pergunta é de geografia ou rota. Falha de rede = segue sem o mapa (só o diretório do app).
@@ -685,6 +719,12 @@ async function perguntar(texto, opcoes) {
     if (m) return tratarBusca(m[2]);
   }
 
+  // Pedido de modelo 3D didático ("me manda o modelo 3D do sistema solar"): entrega o modelo-base no aparelho, sem IA.
+  if (!o.semModelos) {
+    const mod = tratarModelo(t, o);
+    if (mod) return mod;
+  }
+
   // Pedido de rota ("traçar rota saindo do CRAS X: A, B e C, voltando ao CRAS X"): o programa ordena e mede no aparelho; endereço de residência é recusado.
   if (!o.semRota) {
     const rota = await tratarRota(t, o);
@@ -776,10 +816,12 @@ async function consultarNormas(texto, opcoes) {
 }
 
 const Paulus = { init, perguntar, rota: { ler: lerPedidoDeRota, responder: respostaDeRota },
+  // Modelos 3D didáticos (v0.20.0): ler(texto) -> pedido ou null; responder(texto) -> resultado ou null; catalogo; url(modelo); baixar(modelo)
+  modelos: { ler: lerPedidoDeModelo, responder: respostaDeModelo, catalogo: MODELOS_3D, url: function (m) { return urlDoModelo(m, cfg.modelosUrl); }, baixar: modeloBaixar },
   // Geografia no aparelho (v0.16.0): responder(texto, { pontos, lugares, bairros, ruas, aparelho }) -> resultado ou null; coordenadas/formatar/endereco/perto/distancia/gpx/kml para o app usar direto.
   geo: { responder: respostaDeGeo, tipo: geoTipoDePedido, coordenadas: geoLerCoordenadas, formatar: geoFormatarCoordenadas, endereco: geoNormalizarEndereco, montarEndereco: geoMontarEndereco, perto: function (centro, opcoes, o) { return geoPerto(centro, geoFontes(opcoes || {}), o); }, distanciaKm: geoDistanciaKm, links: geoLinksDeRota, gpx: geoParaGpx, kml: geoParaKml },
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
-  pdf: { ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.19.0',
+  pdf: { ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.20.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
