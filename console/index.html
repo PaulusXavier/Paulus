@@ -217,8 +217,22 @@ header,#log,#bar,.rail{transition:opacity .6s ease}
 @media(min-width:1180px){#log{width:min(780px,calc(100vw - 640px))}#bar{width:min(780px,calc(100vw - 640px))}.sg{grid-template-columns:1fr 1fr}}
 @media(min-width:700px){.sg{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){.brand{font-size:12px;letter-spacing:.26em}.brand small{display:none}#hr{display:none}.m{max-width:99%}#go{min-width:76px;padding:0 8px}.hb{width:34px;height:34px;min-width:34px}.hr{gap:4px}}
-@media(max-width:380px){#sair,#ins{display:none}}
+@media(max-width:430px){.hb{width:32px;height:32px;min-width:32px}.hr{gap:3px}header{padding-left:8px;padding-right:8px}.hl{margin-left:66px}}
+@media(max-width:380px){#ins{display:none}.hl{margin-left:64px}.brand{letter-spacing:.2em}}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}#bgc{display:none}}
+
+
+/* núcleo grande nas boas-vindas (volta ao cabeçalho na primeira mensagem) */
+#core{transition:left .7s cubic-bezier(.2,.7,.2,1),top .7s cubic-bezier(.2,.7,.2,1),width .7s cubic-bezier(.2,.7,.2,1),height .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+body.vazio #core{left:50%;transform:translateX(-50%);width:min(190px,48vw);height:min(190px,48vw);top:calc(var(--sat) + 72px)}
+body.vazio .hi{margin-top:min(200px,50vw)}
+body.vazio .hl{margin-left:2px}
+.hi .dt{font:500 11px var(--mono);letter-spacing:.2em;color:var(--mut)}
+.mc.rev{animation:rev .6s ease-out both}
+@keyframes rev{from{clip-path:inset(0 0 100% 0);filter:brightness(2)}to{clip-path:inset(0 0 0 0);filter:none}}
+body.modo-voz #core{filter:drop-shadow(0 0 18px #6ee7a8aa)}
+@media(min-width:1180px){body.vazio #core{width:200px;height:200px;top:calc(var(--sat) + 6px)}body.vazio .hi{margin-top:92px}}
+@media(prefers-reduced-motion:reduce){body.vazio #core{transition:none}}
 
 /* ---------- tela de login ---------- */
 body.lock>*:not(#lg){visibility:hidden}
@@ -331,6 +345,7 @@ body.lock>*:not(#lg){visibility:hidden}
 <button id="sair" class="hb" hidden title="Sair" aria-label="Sair da conta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
 <button id="ex" class="hb" title="Salvar a conversa em arquivo (.md)" aria-label="Salvar a conversa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg></button>
 <button id="nv" class="hb" title="Nova conversa (Ctrl+Shift+N)" aria-label="Nova conversa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4"/></svg></button>
+<button id="jv" class="hb" title="Modo voz: conversa falada contínua" aria-label="Modo voz" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></svg></button>
 <button id="vz" class="hb" title="Ler as respostas em voz alta" aria-label="Voz" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
 <span id="hr"></span>
 </div>
