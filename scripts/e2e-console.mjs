@@ -21,7 +21,8 @@ function ia() {
 const manipulador = criarManipulador({ base, apps: APPS });
 const env = { ALLOWED_ORIGINS: ORIGEM, AUTH_SEGREDO: 'x'.repeat(64), USUARIOS: JSON.stringify({ paulo: hash }), AI: ia() };
 const TIPOS = { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.webmanifest': 'application/json', '.json': 'application/json' };
-const html = fs.readFileSync(path.join(RAIZ, 'console/index.html'), 'utf8').replace('<meta name="paulus-endpoint" content="">', '<meta name="paulus-endpoint" content="' + ORIGEM + '">');
+// O index.html publicado já traz o endereço do Worker real e a chave do Firebase: o teste troca o endereço pelo servidor de teste e tira o Firebase.
+const html = fs.readFileSync(path.join(RAIZ, 'console/index.html'), 'utf8').replace(/(<meta name="paulus-endpoint" content=")[^"]*(")/, '$1' + ORIGEM + '$2').replace(/(<meta name="paulus-firebase-key" content=")[^"]*(")/, '$1$2').replace(/connect-src 'self'/, "connect-src 'self' " + ORIGEM);
 const servidor = http.createServer(async (q, r) => {
   if (q.method === 'POST' || q.method === 'OPTIONS') {
     const partes = []; for await (const c of q) partes.push(c);
