@@ -8,6 +8,11 @@
   var KEY = 'paulus.sessao', USER = 'paulus.usuario', AVISO = 'paulus.aviso', BLOQ = 'paulus.bloqueio';
   var meta = document.querySelector('meta[name="paulus-endpoint"]');
   var EP = String((meta && meta.content) || window.PAULUS_ENDPOINT || '').replace(/\/+$/, '');
+  // Login pelo Firebase (opcional): com <meta name="paulus-firebase-key" content="WEB_API_KEY"> o console entra com e-mail e senha
+  // do Firebase Authentication (API REST, sem biblioteca) e manda o ID token ao Worker. A chave web do Firebase é pública por desenho.
+  var metaFb = document.querySelector('meta[name="paulus-firebase-key"]');
+  var FBKEY = String((metaFb && metaFb.content) || window.PAULUS_FIREBASE_KEY || '').trim();
+  var FB = !!FBKEY;
   var $ = function (id) { return document.getElementById(id); };
   var sessao = null, bloqueioAte = 0, tick = 0, ocupado = false, orbe = null, consoleCarregado = false;
   var reduzido = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -22,7 +27,7 @@
     if (!cru) return null;
     try {
       var s = JSON.parse(cru);
-      if (s && typeof s.token === 'string' && s.expira > Date.now()) return s;
+      if (s && typeof s.token === 'string' && (s.expira > Date.now() || (FB && s.refresh))) return s;
     } catch (e) { /* lixo */ }
     apagar(sessionStorage, KEY); apagar(localStorage, KEY);
     return null;
@@ -41,6 +46,45 @@
     return fetch(EP + caminho, { method: 'POST', headers: h, body: JSON.stringify(corpo || {}), credentials: 'omit', referrerPolicy: 'no-referrer', signal: ctrl ? ctrl.signal : undefined })
       .then(function (r) { clearTimeout(timer); return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, j: j || {} }; }); })
       .catch(function () { clearTimeout(timer); return { status: 0, j: {} }; });
+  }
+
+  // ---------------------------------------------------------------- Firebase (REST)
+  function fbPost(url, corpo, formulario) {
+    var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 15000) : 0;
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': formulario ? 'application/x-www-form-urlencoded' : 'application/json' }, body: formulario ? corpo : JSON.stringify(corpo), credentials: 'omit', referrerPolicy: 'no-referrer', signal: ctrl ? ctrl.signal : undefined })
+      .then(function (r) { clearTimeout(timer); return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, j: j || {} }; }); })
+      .catch(function () { clearTimeout(timer); return { status: 0, j: {} }; });
+  }
+  function dadosDoFirebase(j, anterior) {
+    var idToken = j.idToken || j.id_token, refresh = j.refreshToken || j.refresh_token;
+    if (!idToken) return null;
+    return { token: idToken, refresh: refresh || (anterior && anterior.refresh) || '', usuario: j.email || (anterior && anterior.usuario) || 'usuário', expira: Date.now() + (Number(j.expiresIn || j.expires_in) || 3600) * 1000 };
+  }
+  var renovando = null;
+  // Troca o refresh token por um ID token novo (vale 1 h). Falha de rede mantém a sessão; recusa do Firebase a encerra.
+  function renovar() {
+    if (!sessao || !sessao.refresh) return Promise.resolve(false);
+    if (renovando) return renovando;
+    var antiga = sessao;
+    renovando = fbPost('https://securetoken.googleapis.com/v1/token?key=' + encodeURIComponent(FBKEY), 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(antiga.refresh), true).then(function (r) {
+      renovando = null;
+      if (r.status === 200) {
+        var n = dadosDoFirebase(r.j, antiga);
+        if (n) { n.usuario = antiga.usuario; sessao = n; guardar(n, !!ler(localStorage, KEY) || !!lembrarFb); return true; }
+      }
+      if (r.status === 400 || r.status === 401) { sair('Sua sessão foi encerrada. Entre de novo.'); }
+      return false;
+    });
+    return renovando;
+  }
+  var lembrarFb = false;
+  function mensagemFirebase(j) {
+    var c = String(j && j.error && j.error.message || '');
+    if (/TOO_MANY_ATTEMPTS/.test(c)) return { espera: 60 };
+    if (/USER_DISABLED/.test(c)) return { texto: 'Esta conta está desativada.' };
+    if (/INVALID_EMAIL|MISSING_EMAIL/.test(c)) return { texto: 'Informe um e-mail válido.' };
+    return { texto: 'E-mail ou senha incorretos.' };
   }
 
   // ---------------------------------------------------------------- estado de interação compartilhado pelo ícone e pelo fundo
@@ -287,15 +331,25 @@
     ev.preventDefault();
     if (ocupado || bloqueioAte > Date.now()) return;
     var u = $('lgu').value.trim(), s = $('lgp').value;
-    if (!u || !s) { marcaErro(true); msg('Informe usuário e senha.', 'erro'); (u ? $('lgp') : $('lgu')).focus(); return; }
+    if (!u || !s) { marcaErro(true); msg(FB ? 'Informe e-mail e senha.' : 'Informe usuário e senha.', 'erro'); (u ? $('lgp') : $('lgu')).focus(); return; }
     marcaErro(false); ocupado = true; campos(false); $('lgb').classList.add('busy'); $('lgb').textContent = 'Verificando';
     if (orbe) orbe.estado('busy'); msg('VERIFICANDO CREDENCIAIS…');
     var lembrar = $('lgl').checked;
-    post('/login', { usuario: u, senha: s, lembrar: lembrar }).then(function (r) {
+    lembrarFb = lembrar;
+    var chamada = FB
+      ? fbPost('https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=' + encodeURIComponent(FBKEY), { email: u, password: s, returnSecureToken: true }).then(function (r) {
+          if (r.status === 200) { var d = dadosDoFirebase(r.j); if (d) { d.usuario = r.j.email || u; return { status: 200, j: { ok: true, token: d.token, usuario: d.usuario, expira: d.expira, refresh: d.refresh } }; } }
+          if (r.status === 0) return r;
+          var m = mensagemFirebase(r.j);
+          return m.espera ? { status: 429, j: { espera: m.espera } } : { status: 401, j: { erro: m.texto } };
+        })
+      : post('/login', { usuario: u, senha: s, lembrar: lembrar });
+    chamada.then(function (r) {
       ocupado = false; $('lgb').classList.remove('busy'); $('lgb').textContent = 'Autenticar';
       if (r.status === 200 && r.j.ok && r.j.token) {
         $('lgp').value = '';
         sessao = { token: r.j.token, usuario: r.j.usuario, expira: r.j.expira };
+        if (r.j.refresh) sessao.refresh = r.j.refresh;
         guardar(sessao, lembrar); gravar(localStorage, USER, u); apagar(localStorage, BLOQ);
         if (orbe) orbe.estado('ok'); msg('ACESSO CONCEDIDO · ' + String(r.j.usuario).toUpperCase(), 'ok');
         setTimeout(function () { abrir(true); }, reduzido ? 200 : 950);
@@ -327,7 +381,9 @@
       if (!o.endpoint && EP) o.endpoint = EP;
       if (sessao) {
         var antes = o.aoNegar;
-        o.token = function () { return sessao ? sessao.token : ''; };
+        o.token = FB
+          ? function () { if (!sessao) return ''; return (sessao.refresh && sessao.expira - Date.now() < 120000 ? renovar() : Promise.resolve()).then(function () { return sessao ? sessao.token : ''; }); }
+          : function () { return sessao ? sessao.token : ''; };
         o.aoNegar = function (f) { sair('Sua sessão venceu. Entre de novo.'); if (typeof antes === 'function') antes(f); };
       }
       return ini.call(window.Paulus, o);
@@ -343,15 +399,19 @@
       var b = $('sair'); b.hidden = false; b.title = 'Sair (' + sessao.usuario + ')';
       b.addEventListener('click', function () { sair(''); });
       var resta = sessao.expira - Date.now();
-      setTimeout(function () { sair('Sua sessão expirou. Entre de novo.'); }, Math.max(1000, Math.min(resta, 2147000000)));
+      // Firebase: o ID token dura 1 h, mas o refresh token o renova sozinho; só vence a sessão de senha.
+      if (!FB) setTimeout(function () { sair('Sua sessão expirou. Entre de novo.'); }, Math.max(1000, Math.min(resta, 2147000000)));
+      else setInterval(function () { if (sessao && sessao.expira - Date.now() < 300000) renovar(); }, 60000);
       var ultimaConferencia = 0;
       document.addEventListener('visibilitychange', function () {
         if (document.hidden || !sessao) return;
-        if (sessao.expira <= Date.now()) { sair('Sua sessão expirou. Entre de novo.'); return; }
+        if (!FB && sessao.expira <= Date.now()) { sair('Sua sessão expirou. Entre de novo.'); return; }
         // ao voltar para a aba: confere no Worker (conta removida ou segredo trocado derrubam a sessão)
         if (Date.now() - ultimaConferencia < 30000) return;
         ultimaConferencia = Date.now();
-        post('/sessao', {}, sessao.token).then(function (r) { if (r.status === 401) sair('Sua sessão foi encerrada. Entre de novo.'); });
+        (FB && sessao.refresh && sessao.expira - Date.now() < 120000 ? renovar() : Promise.resolve()).then(function () {
+          if (sessao) post('/sessao', {}, sessao.token).then(function (r) { if (r.status === 401) sair('Sua sessão foi encerrada. Entre de novo.'); });
+        });
       });
       // saiu em outra aba: sai aqui também
       window.addEventListener('storage', function (e) { if (e.key === KEY && !e.newValue && sessao) sair('Você saiu em outra aba.'); });
@@ -378,6 +438,11 @@
     var o = criarOrbe($('lgo')), pararHud = ligarHud();
     var f = criarFundo($('lgbg'), function () { var r = $('lgo').getBoundingClientRect(), b = $('lgbg').getBoundingClientRect(); return { x: r.left - b.left + r.width / 2, y: r.top - b.top + r.height / 2 }; });
     orbe = { estado: function (e) { o.estado(e); f.estado(e); }, parar: function () { o.parar(); f.parar(); pararHud(); } };
+    if (FB) {
+      $('lgu').previousElementSibling.textContent = 'E-MAIL';
+      $('lgu').placeholder = 'seu e-mail'; $('lgu').maxLength = 120; $('lgu').type = 'email'; $('lgu').setAttribute('autocomplete', 'email'); $('lgu').setAttribute('inputmode', 'email');
+      var lr = document.querySelector('.lr'); if (lr) lr.textContent = 'LOGIN FIREBASE · A SENHA NUNCA FICA NO APARELHO';
+    }
     $('lgform').addEventListener('submit', enviar);
     $('lgv').addEventListener('click', function () {
       var p = $('lgp'), ver = p.type === 'password';
@@ -418,9 +483,15 @@
     if (!EP) { if (window.console) console.warn('Paulus: defina <meta name="paulus-endpoint"> no index.html para ligar o login.'); abrir(false); return; }
     var guardada = lerSessao();
     msg(guardada ? 'VALIDANDO SESSÃO…' : 'CONECTANDO…');
-    post('/sessao', {}, guardada && guardada.token).then(function (r) {
+    // Firebase: ID token vencido (dura 1 h) mas com refresh token: renova antes de perguntar ao Worker
+    var preparo = Promise.resolve();
+    if (FB && guardada && guardada.refresh && guardada.expira - Date.now() < 120000) {
+      sessao = guardada;
+      preparo = renovar().then(function () { guardada = sessao && sessao.token ? sessao : guardada; });
+    }
+    preparo.then(function () { return post('/sessao', {}, guardada && guardada.token); }).then(function (r) {
       if (r.status === 200 && r.j.login === false) { abrir(false); return; }              // Worker sem login: console aberto
-      if (r.status === 200 && r.j.ok && guardada) { sessao = { token: guardada.token, usuario: r.j.usuario || guardada.usuario, expira: r.j.expira || guardada.expira }; abrir(true); return; }
+      if (r.status === 200 && r.j.ok && guardada) { sessao = { token: guardada.token, usuario: r.j.usuario || guardada.usuario, expira: r.j.expira || guardada.expira, refresh: guardada.refresh }; abrir(true); return; }
       if (r.status === 0 && guardada) { sessao = guardada; abrir(true); return; }          // sem rede: segue com a sessão guardada
       if (r.status === 0) { mostrarFormulario('SEM CONEXÃO COM O PAULUS. Você ainda pode tentar entrar.', 'aviso'); return; }
       if (guardada) { apagar(sessionStorage, KEY); apagar(localStorage, KEY); aviso = aviso || 'Sua sessão venceu. Entre de novo.'; }
