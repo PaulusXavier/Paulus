@@ -30,6 +30,7 @@
 // o tipo escolhe quantos trechos buscar, o tamanho da resposta e a temperatura.
 // O Worker não grava nada: nem pergunta, nem resposta, nem IP (o IP só fica na memória, por um minuto).
 
+import { loginLigado, entrar, criarSessao, verificarSessao, tokenDoPedido, criarFreio, normalizarUsuario, MAX_SENHA, MAX_USUARIO } from './auth.mjs';
 import { temDadoPessoal, temIdentificacaoPessoal, limparMarcacao } from '../shared/pii.mjs';
 import { normalizar, criarIndice, buscarPergunta, fonteDe, K_PADRAO } from '../shared/busca.mjs';
 import { numerosCitaveis } from '../shared/verificacao.mjs';
@@ -231,6 +232,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
   const titulosPorDoc = new Map();
   for (const c of base) if (c && c.doc && !titulosPorDoc.has(c.doc)) titulosPorDoc.set(c.doc, c.titulo || c.doc);
   const recentes = new Map(); // limite simples por IP (vale por instância do Worker)
+  const freio = criarFreio();   // bloqueio crescente de tentativas de login (por IP + usuário)
 
   function estourouLimite(ip) {
     const agora = Date.now();
@@ -251,7 +253,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     const cors = {
       'Access-Control-Allow-Origin': origem,
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Accept',
+      'Access-Control-Allow-Headers': 'Content-Type, Accept, Authorization',
       'Access-Control-Max-Age': '86400',
       'Vary': 'Origin'
     };
@@ -264,6 +266,37 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     if (request.method !== 'POST') return json({ erro: 'Use POST.' }, 405);
+
+    // Login (worker/auth.mjs). Só existe com AUTH_SEGREDO e USUARIOS configurados; sem eles o Worker segue aberto, como antes.
+    const rota = new URL(request.url).pathname.replace(/\/+$/, '');
+    const ipDoPedido = request.headers.get('CF-Connecting-IP') || 'desconhecido';
+    const exigeLogin = loginLigado(env);
+    if (rota === '/login' || rota === '/sessao') {
+      if (!exigeLogin) return json({ login: false, erro: 'Login não está ativado neste Worker.' }, rota === '/login' ? 404 : 200);
+      if (rota === '/sessao') {
+        const v = await verificarSessao(env, tokenDoPedido(request));
+        return v ? json({ ok: true, usuario: v.usuario, expira: v.expira }) : json({ erro: 'Sessão inválida ou vencida.' }, 401);
+      }
+      const bruto = await request.text();
+      if (bruto.length > 2000) return json({ erro: 'Pedido grande demais.' }, 413);
+      let dados;
+      try { dados = JSON.parse(bruto); } catch (e) { dados = null; }
+      if (!dados || typeof dados.usuario !== 'string' || typeof dados.senha !== 'string' || !dados.usuario.trim() || !dados.senha) return json({ erro: 'Informe usuário e senha.' }, 400);
+      if (dados.senha.length > MAX_SENHA || dados.usuario.length > MAX_USUARIO) return json({ erro: 'Informe usuário e senha.' }, 400);
+      const nome = normalizarUsuario(dados.usuario);
+      const espera = Math.ceil(freio.espera(ipDoPedido, nome) / 1000);
+      if (espera > 0) return json({ erro: 'Muitas tentativas. Aguarde para tentar de novo.', espera: espera }, 429);
+      const conta = await entrar(env, dados.usuario, dados.senha);
+      if (!conta) {
+        freio.errou(ipDoPedido, nome);
+        const depois = Math.ceil(freio.espera(ipDoPedido, nome) / 1000);
+        return depois > 0 ? json({ erro: 'Usuário ou senha incorretos. Acesso bloqueado por alguns instantes.', espera: depois }, 401) : json({ erro: 'Usuário ou senha incorretos.' }, 401);
+      }
+      freio.acertou(ipDoPedido, nome);
+      const sessao = await criarSessao(env, conta, { lembrar: dados.lembrar === true });
+      return json({ ok: true, token: sessao.token, usuario: sessao.usuario, expira: sessao.expira });
+    }
+    if (exigeLogin && !(await verificarSessao(env, tokenDoPedido(request)))) return json({ erro: 'Entre para usar o Paulus.' }, 401);
     if (!env.AI || typeof env.AI.run !== 'function') return json({ erro: 'Workers AI não está ligado a este Worker.' }, 500);
 
     if (Number(request.headers.get('Content-Length')) > MAX_CORPO) return json({ erro: 'Pedido grande demais.' }, 413);
