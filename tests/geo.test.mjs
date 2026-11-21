@@ -100,5 +100,5 @@ test('geo: Paulus.perguntar responde no aparelho, baixa o mapa sob demanda e nã
   assert.equal(e.tipoGeo, 'endereco'); assert.match(e.texto, /Rua Das Flores|Rua das Flores/);
   const rota = await P.perguntar('melhor ordem para visitar CRAS Cauamé, UBS Centro e CAPS II');
   assert.equal(rota.tipo, 'rota'); assert.ok(rota.gpx.includes('<gpx'));
-  assert.equal(P.versao, '0.19.0');
+  assert.equal(P.versao, '0.20.0');
 });
