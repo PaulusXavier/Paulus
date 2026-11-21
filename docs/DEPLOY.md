@@ -74,3 +74,15 @@ Sem configuração, o Worker segue aberto como antes. Para exigir login:
 4. `npx wrangler deploy` e `npm run build`.
 
 Sessão de 12 h (30 dias com "Manter conectado"); 5 erros seguidos na mesma conta+IP bloqueiam por 30 s, dobrando a cada erro (até 15 min). Além do bloqueio por conta+IP, há um teto de 20 tentativas de login por minuto por IP (qualquer usuário), para quem troca de usuário a cada tentativa. Os dois contadores ficam na memória do Worker (valem por instância). O código está em `worker/auth.mjs` (PBKDF2-SHA256 com 100.000 voltas, o máximo que o Workers aceita; sessão assinada com HMAC-SHA256, nada é gravado) e os testes em `tests/auth.test.mjs`. Remover a conta de `USUARIOS` derruba a sessão dela na hora. O `console.js` só é carregado depois de entrar.
+
+## Atualização automática
+
+**Neste repositório** (`.github/workflows/pages.yml`): a cada push na `main` (e toda segunda de manhã) o GitHub roda os testes, gera o `dist/` e publica o site. Se os segredos da Cloudflare existirem, publica também o Worker, que reconstrói sozinho a base e as habilidades (`wrangler.toml → [build]`). Se um teste falhar, nada é publicado.
+
+Para ligar o Worker: no Cloudflare, **My Profile → API Tokens → Create Token** com o modelo *Edit Cloudflare Workers*; depois, no GitHub, **Settings → Secrets and variables → Actions** e crie `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` (o ID aparece na página inicial da conta). Os segredos do login (`AUTH_SEGREDO`, `USUARIOS`) ficam na Cloudflare e não são tocados pelo deploy.
+
+**O que chega sozinho aos apps**
+- `dist/versao.json` traz a versão e a impressão digital de cada arquivo; só muda quando o conteúdo muda.
+- Apps que carregam do GitHub Pages: o `Paulus.init({ conhecimentoUrl })` revalida a base a cada abertura (se nada mudou, o servidor responde 304 e nada é baixado de novo), e o `paulus.v1.js` vem do site já atualizado.
+- Console instalado (PWA): o `sw.js` publicado leva a impressão digital no nome do cache, então cada publicação troca o cache e o aparelho atualiza na abertura seguinte.
+- Apps com cópia local (Argo, por exemplo): copie `.github/app-workflows/sincronizar-paulus.yml` para `.github/workflows/` do repositório do app e ajuste o bloco `env` (endereço do Paulus e caminhos dos arquivos). Todo dia o app compara com o `versao.json` e, se houver novidade, baixa os arquivos, confere (JSON válido, script sem erro de sintaxe) e faz o commit sozinho. Sem novidade, não faz nada.
