@@ -1,0 +1,39 @@
+{
+ "versao": "0.19.0",
+ "build": "858bb694cc8b",
+ "commit": "d57a800",
+ "arquivos": {
+  "paulus.v1.js": {
+   "sha256": "ecc0519abba85c8a",
+   "bytes": 497481
+  },
+  "conhecimento.json": {
+   "sha256": "967d5c9c35425ad4",
+   "bytes": 12006148
+  },
+  "conhecimento-geral.json": {
+   "sha256": "88c2ad0eda70a261",
+   "bytes": 4200217
+  },
+  "conhecimento-psicologia.json": {
+   "sha256": "c57bdd304b702efc",
+   "bytes": 7805932
+  },
+  "pdf-lib.min.js": {
+   "sha256": "0f9a5cad07941f08",
+   "bytes": 525099
+  },
+  "login.js": {
+   "sha256": "92b2829f6e3b59c1",
+   "bytes": 34860
+  },
+  "console.js": {
+   "sha256": "bdf453c1546c3de8",
+   "bytes": 25785
+  },
+  "index.html": {
+   "sha256": "adad832c7f992523",
+   "bytes": 18874
+  }
+ }
+}
