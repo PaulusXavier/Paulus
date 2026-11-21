@@ -533,5 +533,5 @@ export function respostaDeRota(texto, opcoes) {
   if (r.ordem.some(function (p) { return p.fonte === 'mapa'; })) corpo += '\nLugar vindo do mapa colaborativo (OpenStreetMap), que pode estar desatualizado: confira no app de mapas.';
   if (r.links.length > 1) corpo += '\nO link do mapa aceita poucas paradas: a rota saiu em ' + r.links.length + ' partes, cada uma começa onde a anterior terminou.';
   if (semOrigem) corpo = 'Saída: a sua posição atual (o app de mapas usa o GPS). Não recebi a sua posição, então os km abaixo contam só entre as paradas. Para eu calcular a partir de você, permita a localização do navegador e peça de novo.\n' + corpo;
-  return rotaResposta(corpo, { links: r.links, svg: svgDaRota(r), geojson: r.geojson, gpx: r.gpx, kml: r.kml, paradas: r.ordem.map(function (p) { return p.nome; }), km: Number(r.km.toFixed(2)), minutos: Math.round(r.minutos + r.minutosParadas), estimativa: true });
+  return rotaResposta(corpo, { links: r.links, svg: svgDaRota(r), geojson: r.geojson, gpx: r.gpx, kml: r.kml, paradas: r.ordem.map(function (p) { return p.nome; }), km: Number(r.km.toFixed(2)), minutos: Math.round(r.minutos + r.minutosParadas), estimativa: true, modo: r.modo, volta: !!r.volta });
 }
