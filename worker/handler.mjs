@@ -56,6 +56,7 @@ const MAX_PERGUNTA = 1200;
 const MAX_CORPO = 64000;
 // Cada pergunta usa até 2 chamadas (interpretar + responder), por isso o limite é o dobro do antigo.
 const LIMITE_POR_MINUTO = 16;
+const LIMITE_LOGIN_POR_MINUTO = 20;   // tentativas de /login por IP (qualquer usuário)
 const AVISO_PESSOAL = 'Para proteger as famílias, não consigo analisar mensagens com nome, documento, telefone ou endereço residencial. Reescreva a pergunta sem identificar ninguém.';
 
 // Texto dos trechos de norma, só para conferir de onde vieram os números das contas.
@@ -245,6 +246,18 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     return lista.length > LIMITE_POR_MINUTO;
   }
 
+  const tentativasLogin = new Map();
+  function estourouLimiteLogin(ip) {
+    const agora = Date.now();
+    const lista = (tentativasLogin.get(ip) || []).filter(function (t) { return agora - t < 60000; });
+    lista.push(agora);
+    tentativasLogin.set(ip, lista);
+    if (tentativasLogin.size > 500) {
+      for (const [k, v] of tentativasLogin) if (!v.some(function (t) { return agora - t < 60000; })) tentativasLogin.delete(k);
+    }
+    return lista.length > LIMITE_LOGIN_POR_MINUTO;
+  }
+
   async function tratar(request, env) {
     const origem = request.headers.get('Origin') || '';
     const permitidas = origensPermitidas(env);
@@ -277,6 +290,10 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
         const v = await verificarSessao(env, tokenDoPedido(request));
         return v ? json({ ok: true, usuario: v.usuario, expira: v.expira }) : json({ erro: 'Sessão inválida ou vencida.' }, 401);
       }
+      if (Number(request.headers.get('Content-Length')) > 2000) return json({ erro: 'Pedido grande demais.' }, 413);
+      // Teto por IP em qualquer usuário: o freio abaixo é por IP + usuário, e trocar de usuário a cada tentativa o contornaria
+      // (cada tentativa também gasta uma derivação PBKDF2). Vale só por instância do Worker, como o limite de perguntas.
+      if (estourouLimiteLogin(ipDoPedido)) return json({ erro: 'Muitas tentativas. Aguarde para tentar de novo.', espera: 60 }, 429);
       const bruto = await request.text();
       if (bruto.length > 2000) return json({ erro: 'Pedido grande demais.' }, 413);
       let dados;
@@ -303,8 +320,9 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     const texto = await request.text();
     if (texto.length > MAX_CORPO) return json({ erro: 'Pedido grande demais.' }, 413);
     let corpo;
-    try { corpo = JSON.parse(texto); } catch (e) { return json({ erro: 'JSON inválido.' }, 400); }
-    if (!corpo || typeof corpo !== 'object') return json({ erro: 'JSON inválido.' }, 400);
+    // Chaves que redefinem a conversão para texto (ex.: {"toString":1}) fazem String()/join() estourarem em qualquer campo: saem na leitura.
+    try { corpo = JSON.parse(texto, function (k, v) { return (k === 'toString' || k === 'valueOf' || k === 'toJSON') ? undefined : v; }); } catch (e) { return json({ erro: 'JSON inválido.' }, 400); }
+    if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) return json({ erro: 'JSON inválido.' }, 400);
 
     corpo.historico = historicoSaneado(corpo.historico);
     corpo.fichas = itensPublicos(corpo.fichas);
