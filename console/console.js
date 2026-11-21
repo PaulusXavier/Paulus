@@ -127,7 +127,7 @@
   function pintar(el, texto) { el.textContent = ''; el.appendChild(markdown(texto)); }
 
   // ------------------------------------------------------------ mensagens
-  function limparBoasVindas() { var o = log.querySelector('.hi'); if (o) o.remove(); }
+  function limparBoasVindas() { var o = log.querySelector('.hi'); if (o) o.remove(); document.body.classList.remove('vazio'); }
   var KIND = { ia: 'IA', norma: 'NORMA', busca: 'BUSCA', acao: 'AÇÃO', acao_desconhecida: 'AÇÃO', calculo: 'CÁLCULO', rota: 'ROTA', geo: 'GEO', pdf: 'PDF', revisao: 'REVISÃO', espanhol: 'IDIOMA', ingles: 'IDIOMA', crise: 'SOCORRO', bloqueio: 'PRIVACIDADE', erro: 'ERRO', sem_resposta: 'SEM RESPOSTA', pens: 'PROCESSANDO' };
   var LOCAL = { norma: 1, busca: 1, acao: 1, acao_desconhecida: 1, calculo: 1, rota: 1, geo: 1, pdf: 1, revisao: 1, espanhol: 1, ingles: 1, crise: 1, bloqueio: 1, sem_resposta: 1 };
   function cabeca(quem, kind) {
@@ -159,6 +159,7 @@
     x.fase2 = setTimeout(function () { if (rot.isConnected) rot.textContent = 'COMPONDO A RESPOSTA'; }, 4200);
   }
   function fimPensando(x) { clearTimeout(x.fase); clearTimeout(x.fase2); }
+  function dataHud() { var d = new Date(); return (d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/[.,]/g, '').toUpperCase() + ' · ' + hora2() + ' · BOA VISTA'); }
   function saudacao() { var hr = new Date().getHours(); return hr < 5 ? 'Boa madrugada' : hr < 12 ? 'Bom dia' : hr < 18 ? 'Boa tarde' : 'Boa noite'; }
   function nomeDoUsuario() {
     var u = lerLS('paulus.usuario') || ''; u = String(u).split('@')[0];
@@ -172,6 +173,7 @@
     var titulo = h('h2', {}, [saudacao() + (nome ? ', ' : '.'), nome ? h('b', { text: nome + '.' }) : null]);
     var hi = h('div', { class: 'hi' }, [
       h('div', { class: 'ey', text: 'SISTEMAS OPERACIONAIS' }),
+      h('div', { class: 'dt', text: dataHud() }),
       titulo,
       h('p', { text: sk.saudacao || 'Console do Paulus no ar. Pergunte por texto ou voz.' })
     ]);
@@ -179,7 +181,7 @@
     sug.forEach(function (s, i) { grade.appendChild(h('button', { type: 'button', class: 'ch', on: { click: function () { enviar(s); } } }, [h('i', { text: '0' + (i + 1) }), h('span', { text: s })])); });
     hi.appendChild(grade);
     hi.appendChild(h('small', { text: 'Não digite nome nem documento de pessoas atendidas. Digite / para atalhos. Anexe PDF para editar no aparelho.' }));
-    log.appendChild(hi);
+    log.appendChild(hi); document.body.classList.add('vazio');
   }
 
   // ------------------------------------------------------------ atalhos
@@ -247,12 +249,12 @@
     var ac = h('div', { class: 'ac' });
     ac.appendChild(btn('Copiar', function (e) { copiar(r.texto || '', e.target); try { P.avaliar(r, 'copiou'); } catch (er) { /* segue */ } }));
     if (r.tipo === 'ia' || r.tipo === 'norma') {
-      ac.appendChild(btn('👍', function () { try { P.avaliar(r, 'bom'); } catch (e) { /* segue */ } aviso('Anotado.'); }, 'Resposta boa'));
-      ac.appendChild(btn('👎', function () { try { P.avaliar(r, 'ruim'); } catch (e) { /* segue */ } aviso('Anotado.'); }, 'Resposta ruim'));
+      ac.appendChild(btn('Útil', function () { try { P.avaliar(r, 'bom'); } catch (e) { /* segue */ } aviso('Anotado.'); }, 'Resposta boa'));
+      ac.appendChild(btn('Não útil', function () { try { P.avaliar(r, 'ruim'); } catch (e) { /* segue */ } aviso('Anotado.'); }, 'Resposta ruim'));
       ac.appendChild(btn('Mais curto', function () { try { P.avaliar(r, 'mais_curto'); } catch (e) { /* segue */ } enviar('responda de forma mais curta'); }));
       ac.appendChild(btn('Mais detalhe', function () { try { P.avaliar(r, 'mais_detalhe'); } catch (e) { /* segue */ } enviar('explique com mais detalhe'); }));
     }
-    if (ENDPOINT && window.speechSynthesis) ac.appendChild(btn('🔊', function () { falar(r.texto || ''); }, 'Ouvir'));
+    if (ENDPOINT && window.speechSynthesis) ac.appendChild(btn('Ouvir', function () { falar(r.texto || ''); }, 'Ouvir'));
     x.m.appendChild(ac);
   }
   function baixarTexto(nome, conteudo, tipo) {
@@ -263,6 +265,7 @@
   function desenhar(x, r) {
     var corpo = x.corpo;
     fimPensando(x);
+    if (!x.streamed && !reduzido) { x.corpo.classList.add('rev'); setTimeout(function () { x.corpo.classList.remove('rev'); }, 700); }
     x.m.setAttribute('data-k', r.tipo || 'ia');
     var kk = x.m.querySelector('.mh .k'); if (kk) kk.textContent = (KIND[r.tipo] || 'IA') + (LOCAL[r.tipo] && r.tipo !== 'busca' && r.tipo !== 'acao' ? ' · NO APARELHO' : '');
     if (r.tipo === 'crise') x.m.classList.add('alerta');
@@ -327,12 +330,13 @@
     var arqs = anexos.slice(), nomes = arqs.map(function (a) { return a.name; });
     anexos = []; renderAnexos(); q.value = ''; autoAltura(); sl.hidden = true;
     msgUsuario(texto, nomes);
-    var x = msgPaulus(); pensando(x); x.t0 = performance.now();
+    var x = msgPaulus(); pensando(x); x.t0 = performance.now(); if (nucleo) nucleo.impulso();
+    try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) { /* sem vibração */ }
     var id = ++envioAtual; atual = x; mudarBotao(true);
     var vivo = function () { return id === envioAtual; };   // falso depois de Parar ou de um envio mais novo
     P.perguntar(texto, {
       arquivos: arqs,
-      onToken: function (_p, tudo) { if (!vivo()) return; fimPensando(x); x.corpo.classList.add('dig'); pintar(x.corpo, tudo); rolar(); }
+      onToken: function (_p, tudo) { if (!vivo()) return; fimPensando(x); x.streamed = true; x.corpo.classList.add('dig'); pintar(x.corpo, tudo); rolar(); }
     }).then(function (r) {
       if (!vivo()) return;
       x.corpo.classList.remove('dig'); x.corpo.textContent = ''; desenhar(x, r);
@@ -373,22 +377,46 @@
   var Rec = window.SpeechRecognition || window.webkitSpeechRecognition, rec = null, gravando = false;
   var mic = $('mic');
   if (!Rec) { mic.hidden = true; }
-  mic.addEventListener('click', function () {
-    if (!Rec) return;
-    if (gravando && rec) { rec.stop(); return; }
+  var modoVoz = false, jv = $('jv');
+  function ouvir() {
+    if (!Rec || gravando || ocupado) return;
     rec = new Rec(); rec.lang = 'pt-BR'; rec.interimResults = true; rec.continuous = false;
-    var base = q.value ? q.value + ' ' : '';
-    rec.onresult = function (e) { var t = ''; for (var i = 0; i < e.results.length; i++) t += e.results[i][0].transcript; q.value = base + t; autoAltura(); };
-    rec.onend = function () { gravando = false; mic.classList.remove('on'); if (!ocupado) estadoUI('idle'); };
-    rec.onerror = function () { gravando = false; mic.classList.remove('on'); if (!ocupado) estadoUI('idle'); aviso('Não consegui ouvir. Confira a permissão do microfone.'); };
+    var base = q.value ? q.value + ' ' : '', negado = false;
+    rec.onresult = function (e) { var tx = ''; for (var i = 0; i < e.results.length; i++) tx += e.results[i][0].transcript; q.value = base + tx; autoAltura(); };
+    rec.onend = function () {
+      gravando = false; mic.classList.remove('on'); if (!ocupado) estadoUI('idle');
+      if (!modoVoz || negado) { if (negado && modoVoz) alternarModoVoz(false); return; }
+      if (q.value.trim()) enviar(); else setTimeout(function () { if (modoVoz && !ocupado && !gravando) ouvir(); }, 700);   // não ouviu nada: escuta de novo
+    };
+    rec.onerror = function (e) {
+      if (e && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) { negado = true; aviso('Não consegui ouvir. Confira a permissão do microfone.'); }
+      else if (!modoVoz) aviso('Não consegui ouvir. Confira a permissão do microfone.');
+    };
     try { rec.start(); gravando = true; mic.classList.add('on'); estadoUI('listen'); } catch (e) { /* segue */ }
-  });
+  }
+  mic.addEventListener('click', function () { if (!Rec) return; if (gravando && rec) { rec.stop(); return; } ouvir(); });
+  // Modo voz: ouve, envia, fala a resposta e volta a ouvir, sem tocar na tela (conversa estilo Jarvis).
+  function alternarModoVoz(ligar) {
+    modoVoz = typeof ligar === 'boolean' ? ligar : !modoVoz;
+    if (jv) { jv.classList.toggle('on', modoVoz); jv.setAttribute('aria-pressed', String(modoVoz)); }
+    document.body.classList.toggle('modo-voz', modoVoz);
+    if (modoVoz) {
+      if (!vozLigada) vz.click();
+      aviso('Modo voz ligado: fale, eu respondo.'); ouvir();
+    } else {
+      if (gravando && rec) { try { rec.stop(); } catch (e) { /* segue */ } }
+      if (window.speechSynthesis) speechSynthesis.cancel();
+      if (vozLigada) vz.click();
+      aviso('Modo voz desligado.');
+    }
+  }
+  if (jv) { if (!Rec || !window.speechSynthesis) jv.hidden = true; else jv.addEventListener('click', function () { alternarModoVoz(); }); }
   function falar(t) {
     if (!window.speechSynthesis) return;
     speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(String(t).replace(/[*_`#>|]/g, '').slice(0, 1500)); u.lang = 'pt-BR';
     u.onstart = function () { if (!ocupado && !gravando) estadoUI('speak'); };
-    u.onend = u.onerror = function () { if (estadoAtual === 'speak') estadoUI(ocupado ? 'busy' : 'idle'); };
+    u.onend = u.onerror = function () { if (estadoAtual === 'speak') estadoUI(ocupado ? 'busy' : 'idle'); if (modoVoz && !ocupado) setTimeout(function () { if (modoVoz && !ocupado && !gravando) ouvir(); }, 450); };
     speechSynthesis.speak(u);
   }
   var vz = $('vz');
@@ -620,6 +648,7 @@
     setTimeout(function () { el.classList.add('fim'); document.body.classList.remove('boot'); }, 1400);
     setTimeout(function () { el.hidden = true; el.textContent = ''; }, 2050);
   }
+  if (window.innerWidth < 430) q.placeholder = 'Pergunte…';
   boasVindas(); ajustarBarra(); estadoUI('idle'); q.focus();
   iniciarBoot();
 })();
