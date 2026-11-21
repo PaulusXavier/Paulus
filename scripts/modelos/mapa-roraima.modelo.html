@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Roraima 3D · Edição Didática</title>
+<style>
+  :root {
+    --bg: #03060d;
+    --panel: rgba(10, 15, 27, 0.82);
+    --panel-border: rgba(255, 255, 255, 0.15);
+    --text: #f6f8fd;
+    --muted: #9eb0cf;
+    --accent: #7ab8ff;
+    --gold: #ffca6b;
+    --emerald: #6ee7b7;
+    --rose: #fda4af;
+    --radius: 16px;
+    --painel-w: 348px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-user-select: none; user-select: none; }
+  body { background: radial-gradient(ellipse at 40% 35%, #0d1830 0%, #050913 60%, #02040a 100%); }
+  canvas#mapa { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; cursor: grab; touch-action: none; outline: none; }
+  canvas#mapa:active { cursor: grabbing; }
+  .glass { background: var(--panel); backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border: 1px solid var(--panel-border); border-radius: var(--radius); box-shadow: 0 16px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08); }
+  .topbar { position: fixed; top: 12px; left: 12px; right: 12px; display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; pointer-events: none; z-index: 20; }
+  .brand, .controles { pointer-events: auto; padding: 9px 13px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand i { width: 13px; height: 13px; border-radius: 4px; background: linear-gradient(135deg, #6ee7b7, #7ab8ff); box-shadow: 0 0 16px rgba(110,231,183,.7); flex: none; }
+  .brand h1 { font-size: .92rem; font-weight: 700; letter-spacing: .02em; }
+  .brand small { display: block; font-size: .68rem; color: var(--muted); font-weight: 400; }
+  .controles { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; justify-content: flex-end; max-width: calc(100% - 250px); }
+  .controles .rot { font-size: .68rem; color: var(--muted); margin-right: 2px; }
+  button { font: inherit; color: inherit; }
+  button.btn { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.13); border-radius: 10px; padding: 6px 10px; font-size: .73rem; font-weight: 500; cursor: pointer; min-height: 30px; }
+  button.btn:hover { background: rgba(255,255,255,.12); }
+  button.btn:focus-visible, .aba:focus-visible, .linha:focus-visible, .op:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.btn.on { background: rgba(122,184,255,.22); border-color: rgba(122,184,255,.7); color: #e8f2ff; }
+  .painel { position: fixed; top: 76px; right: 12px; bottom: 12px; width: var(--painel-w); z-index: 15; display: flex; flex-direction: column; overflow: hidden; }
+  .abas { display: flex; border-bottom: 1px solid rgba(255,255,255,.1); flex: none; }
+  .aba { flex: 1; padding: 11px 4px; background: none; border: 0; font-size: .75rem; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
+  .aba[aria-selected="true"] { color: #fff; border-bottom-color: var(--accent); }
+  .corpo { flex: 1; overflow-y: auto; padding: 14px 15px 16px; -webkit-user-select: text; user-select: text; }
+  .corpo h2 { font-size: 1.15rem; line-height: 1.2; margin-bottom: 2px; }
+  .corpo h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 14px 0 6px; font-weight: 600; }
+  .sub { font-size: .76rem; color: var(--muted); margin-bottom: 10px; }
+  .selo { display: inline-block; font-size: .64rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; background: rgba(255,202,107,.18); color: var(--gold); border: 1px solid rgba(255,202,107,.45); margin-left: 6px; vertical-align: middle; }
+  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .dado { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 8px 10px; }
+  .dado b { display: block; font-size: 1.02rem; font-weight: 700; }
+  .dado span { font-size: .66rem; color: var(--muted); }
+  .dado.larga { grid-column: 1 / -1; }
+  .barra { height: 8px; border-radius: 99px; background: rgba(255,255,255,.09); overflow: hidden; margin-top: 5px; }
+  .barra > i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #3b8bbd, #6ee7b7); }
+  .nota { font-size: .78rem; line-height: 1.45; color: #dbe6fa; background: rgba(122,184,255,.09); border-left: 3px solid var(--accent); padding: 8px 10px; border-radius: 0 10px 10px 0; margin-top: 10px; }
+  .aviso { font-size: .7rem; line-height: 1.4; color: var(--muted); margin-top: 12px; }
+  p { font-size: .8rem; line-height: 1.5; color: #dbe6fa; margin-bottom: 8px; }
+  .linha { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; width: 100%; text-align: left; background: none; border: 0; border-radius: 10px; padding: 6px 6px; cursor: pointer; }
+  .linha:hover, .linha.sel { background: rgba(255,255,255,.08); }
+  .linha .n { font-size: .7rem; color: var(--muted); text-align: right; }
+  .linha .nome { font-size: .8rem; font-weight: 600; }
+  .linha .val { font-size: .74rem; color: #cfe0ff; font-variant-numeric: tabular-nums; }
+  .linha .barra { grid-column: 2 / 4; margin-top: 0; height: 6px; }
+  .passos { display: flex; gap: 6px; margin: 10px 0; }
+  .passos button { flex: 1; }
+  .ponto { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.2); display: inline-block; margin: 0 2px; }
+  .ponto.on { background: var(--accent); }
+  .op { display: block; width: 100%; text-align: left; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.13); border-radius: 11px; padding: 9px 11px; font-size: .8rem; margin-bottom: 7px; cursor: pointer; }
+  .op:hover:not(:disabled) { background: rgba(255,255,255,.12); }
+  .op.certa { background: rgba(110,231,183,.22); border-color: var(--emerald); }
+  .op.errada { background: rgba(253,164,175,.2); border-color: var(--rose); }
+  .op:disabled { cursor: default; }
+  .placar { font-size: .74rem; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .feedback { font-size: .8rem; line-height: 1.45; margin: 8px 0; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.06); }
+  .modo { display: flex; gap: 6px; margin-bottom: 10px; }
+  .modo .btn { flex: 1; }
+  .legenda { position: fixed; left: 12px; bottom: 12px; z-index: 14; padding: 9px 12px; width: 250px; }
+  .legenda .tit { font-size: .7rem; font-weight: 600; margin-bottom: 5px; }
+  .legenda .gr { height: 9px; border-radius: 99px; background: linear-gradient(90deg, #24476b, #3b8bbd, #6ee7b7, #ffca6b); }
+  .legenda .fx { display: flex; justify-content: space-between; font-size: .66rem; color: var(--muted); margin-top: 3px; }
+  .legenda .sd { font-size: .66rem; color: var(--muted); margin-top: 5px; display: flex; align-items: center; gap: 6px; }
+  .legenda .sd i { width: 10px; height: 10px; border-radius: 3px; background: #4a5160; display: inline-block; }
+  .legenda .dica { font-size: .64rem; color: var(--muted); margin-top: 6px; line-height: 1.35; }
+  #dica { position: fixed; z-index: 30; pointer-events: none; padding: 6px 9px; font-size: .74rem; border-radius: 9px; display: none; white-space: nowrap; }
+  #dica b { display: block; font-size: .8rem; }
+  @media (max-width: 820px) {
+    .painel { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; height: 44vh; }
+    .controles button.btn { padding: 4px 8px; font-size: .68rem; min-height: 28px; }
+    .controles .rot { display: none; }
+    .painel.baixo { height: 46px; }
+    .painel.baixo .corpo { display: none; }
+    .topbar { top: 8px; left: 8px; right: 8px; flex-direction: column; gap: 6px; }
+    .controles { max-width: 100%; justify-content: flex-start; }
+    .legenda { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<canvas id="mapa" tabindex="0" role="img" aria-label="Mapa 3D de Roraima com os 15 municípios. Arraste para girar, use as setas do teclado para girar e + e - para o zoom. A lista de municípios na aba Ranking permite escolher sem o mouse."></canvas>
+
+<div class="topbar">
+  <div class="brand glass"><i></i><div><h1>Roraima 3D · Edição Didática</h1><small>15 municípios · Censo 2022</small></div></div>
+  <div class="controles glass" role="group" aria-label="Controles do mapa">
+    <span class="rot">Altura e cor:</span>
+    <button class="btn on" data-metrica="pop" aria-pressed="true">População</button>
+    <button class="btn" data-metrica="area" aria-pressed="false">Área</button>
+    <button class="btn" data-metrica="dens" aria-pressed="false">Densidade</button>
+    <button class="btn" data-metrica="ind" aria-pressed="false">% indígena</button>
+    <button class="btn on" id="bRotulos" aria-pressed="true">Nomes</button>
+    <button class="btn" id="bGirar" aria-pressed="false">Girar</button>
+    <button class="btn" id="bPlano" aria-pressed="false">Plano</button>
+    <button class="btn" id="bRedef">Redefinir</button>
+  </div>
+</div>
+
+<aside class="painel glass" id="painel" aria-label="Painel de estudo">
+  <div class="abas" role="tablist">
+    <button class="aba" role="tab" id="aba-ficha" data-aba="ficha" aria-selected="true">Ficha</button>
+    <button class="aba" role="tab" id="aba-rank" data-aba="rank" aria-selected="false">Ranking</button>
+    <button class="aba" role="tab" id="aba-licoes" data-aba="licoes" aria-selected="false">Lições</button>
+    <button class="aba" role="tab" id="aba-desafio" data-aba="desafio" aria-selected="false">Desafio</button>
+  </div>
+  <div class="corpo" id="corpo" role="tabpanel" aria-live="polite"></div>
+</aside>
+
+<div class="legenda glass" id="legenda"></div>
+<div class="glass" id="dica"></div>
+
+<script>
+"use strict";
+const DADOS = /*__DADOS__*/null;
+
+// ------------------------------------------------------------------ dados derivados
+const M = DADOS.municipios, ESTADO = DADOS.estado;
+const LON0 = -61.86, LAT0 = 1.84, COSL = Math.cos(LAT0 * Math.PI / 180);
+const nf = (v) => Math.round(v).toLocaleString("pt-BR");
+const nd = (v, c) => v.toLocaleString("pt-BR", { minimumFractionDigits: c == null ? 1 : c, maximumFractionDigits: c == null ? 1 : c });
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const $ = (id) => document.getElementById(id);
+
+M.forEach((m) => {
+  m.area = m.areaKm2 != null ? m.areaKm2 : m.areaCalcKm2;
+  m.areaOficial = m.areaKm2 != null;
+  m.dens = m.pop / m.area;
+  // anel local em graus (x leste, y norte), sentido anti-horário, sem o ponto final repetido
+  let pts = m.anel.map((p) => [(p[0] - LON0) * COSL, p[1] - LAT0]);
+  if (pts.length > 1 && pts[0][0] === pts[pts.length - 1][0] && pts[0][1] === pts[pts.length - 1][1]) pts.pop();
+  let s = 0; for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; s += a[0] * b[1] - b[0] * a[1]; }
+  if (s < 0) pts.reverse();
+  m.pts = pts;
+  m.rx = (m.rotulo[0] - LON0) * COSL; m.ry = m.rotulo[1] - LAT0;
+  m.h = 0.05; m.ht = 0.05;
+});
+const POR_POP = M.slice().sort((a, b) => b.pop - a.pop);
+POR_POP.forEach((m, i) => { m.posPop = i + 1; });
+const TOTAL_POP = M.reduce((s, m) => s + m.pop, 0);
+const porId = (id) => M.find((m) => m.id === id);
+
+const METRICAS = {
+  pop:  { nome: "População", curto: "habitantes", get: (m) => m.pop, fmt: (v) => nf(v) + " hab.", esc: "raiz" },
+  area: { nome: "Área", curto: "km²", get: (m) => m.area, fmt: (v) => nf(v) + " km²", esc: "raiz" },
+  dens: { nome: "Densidade", curto: "hab./km²", get: (m) => m.dens, fmt: (v) => nd(v, v < 10 ? 2 : 1) + " hab./km²", esc: "raiz" },
+  ind:  { nome: "% de população indígena", curto: "% indígena", get: (m) => (m.indPct == null ? null : m.indPct), fmt: (v) => nd(v, 1) + "%", esc: "linear" }
+};
+let metrica = "pop";
+function maxMetrica(k) { let mx = 0; M.forEach((m) => { const v = METRICAS[k].get(m); if (v != null && v > mx) mx = v; }); return mx; }
+function minMetrica(k) { let mn = Infinity; M.forEach((m) => { const v = METRICAS[k].get(m); if (v != null && v < mn) mn = v; }); return mn; }
+function norm(k, v) {
+  if (v == null) return null;
+  const mx = k === "ind" ? 100 : maxMetrica(k);
+  const t = Math.max(0, Math.min(1, v / mx));
+  return METRICAS[k].esc === "raiz" ? Math.sqrt(t) : t;
+}
+
+// ------------------------------------------------------------------ cor
+const PALETA = [[36, 71, 107], [59, 139, 189], [110, 231, 183], [255, 202, 107]];
+const SEM_DADO = [74, 81, 96];
+function corDe(t) {
+  if (t == null) return SEM_DADO;
+  const x = Math.max(0, Math.min(1, t)) * (PALETA.length - 1), i = Math.min(PALETA.length - 2, Math.floor(x)), f = x - i;
+  return [0, 1, 2].map((c) => Math.round(PALETA[i][c] + (PALETA[i + 1][c] - PALETA[i][c]) * f));
+}
+const rgb = (c, k, a) => "rgba(" + Math.min(255, Math.round(c[0] * k)) + "," + Math.min(255, Math.round(c[1] * k)) + "," + Math.min(255, Math.round(c[2] * k)) + "," + (a == null ? 1 : a) + ")";
+
+// ------------------------------------------------------------------ câmera e projeção
+const cv = $("mapa"), ctx = cv.getContext("2d");
+const reduzir = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const CAM0 = { yaw: 0.0, pitch: 0.98, zoom: 1, px: 0, py: 0 };
+const cam = Object.assign({}, CAM0);
+let W = 0, H = 0, DPR = 1, CX = 0, CY = 0, S = 60;
+const DIST = 22, HMAX = 1.05, HMIN = 0.05;
+let plano = false, girar = false, rotulos = true, selecionado = null, sobre = null, sujo = true;
+
+function ajustar() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  const estreito = W <= 820;
+  if (estreito) {
+    const topo = document.querySelector(".topbar").getBoundingClientRect().bottom + 6, fundo = H * 0.56 - 6;
+    const livreH = Math.max(140, fundo - topo);
+    CX = W / 2; CY = topo + livreH / 2; S = Math.min(W / 6.6, livreH / 6.6);
+  } else {
+    const livreW = W - 348 - 24, livreH = H - 80;
+    CX = livreW / 2; CY = 78 + livreH / 2; S = Math.min(livreW / 7.3, livreH / 7.3);
+  }
+  sujo = true;
+}
+function proj(x, y, z) {
+  const c = Math.cos(cam.yaw), s = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+  const x1 = x * c - y * s, y1 = x * s + y * c;
+  const up = y1 * sp + z * cp, perto = -y1 * cp + z * sp;
+  const f = DIST / (DIST - perto), k = S * cam.zoom * f;
+  return [CX + cam.px + x1 * k, CY + cam.py - up * k, perto];
+}
+
+// ------------------------------------------------------------------ alturas
+function definirAlturas(imediato) {
+  M.forEach((m) => {
+    const t = norm(metrica, METRICAS[metrica].get(m));
+    m.ht = plano ? HMIN : HMIN + (HMAX - HMIN) * (t == null ? 0 : t);
+    if (imediato || reduzir) m.h = m.ht;
+  });
+  sujo = true;
+}
+
+// ------------------------------------------------------------------ desenho
+const LUZ = (() => { const x = -0.55, y = 0.6, n = Math.hypot(x, y); return [x / n, y / n]; })();
+let ordem = M.slice(), rotBoxes = [];
+
+function desenhaChao() {
+  ctx.lineWidth = 1; ctx.strokeStyle = "rgba(122,184,255,0.10)";
+  for (let lon = -65; lon <= -58; lon++) {
+    ctx.beginPath(); for (let lat = -2; lat <= 6; lat += 8) { const p = proj((lon - LON0) * COSL, lat - LAT0, 0); lat === -2 ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]); } ctx.stroke();
+  }
+  for (let lat = -2; lat <= 6; lat++) {
+    ctx.beginPath(); for (let lon = -65; lon <= -58; lon += 7) { const p = proj((lon - LON0) * COSL, lat - LAT0, 0); lon === -65 ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]); } ctx.stroke();
+  }
+}
+
+function desenhaMunicipio(m) {
+  const n = m.pts.length, base = corDe(norm(metrica, METRICAS[metrica].get(m)));
+  const foco = m === selecionado, sob = m === sobre;
+  const bot = new Array(n), top = new Array(n);
+  for (let i = 0; i < n; i++) { bot[i] = proj(m.pts[i][0], m.pts[i][1], 0); top[i] = proj(m.pts[i][0], m.pts[i][1], m.h); }
+  m._walls = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n, q = [bot[i], bot[j], top[j], top[i]];
+    let a = 0; for (let k = 0; k < 4; k++) { const p = q[k], r = q[(k + 1) % 4]; a += p[0] * r[1] - r[0] * p[1]; }
+    if (a >= 0) continue;                               // parede de costas para a câmera
+    const dx = m.pts[j][0] - m.pts[i][0], dy = m.pts[j][1] - m.pts[i][1], L = Math.hypot(dx, dy) || 1;
+    const luz = Math.max(0, (dy / L) * LUZ[0] + (-dx / L) * LUZ[1]);   // normal de fora = (dy, -dx)
+    const k = 0.42 + 0.42 * luz + (sob ? 0.12 : 0);
+    ctx.beginPath(); ctx.moveTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); ctx.lineTo(q[3][0], q[3][1]); ctx.closePath();
+    ctx.fillStyle = rgb(base, k); ctx.fill();
+    ctx.strokeStyle = rgb(base, k); ctx.lineWidth = 0.8; ctx.stroke();
+    m._walls.push(q);
+  }
+  ctx.beginPath(); top.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath();
+  ctx.fillStyle = rgb(base, (foco ? 1.18 : sob ? 1.12 : 1.0)); ctx.fill();
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = foco ? "rgba(255,202,107,1)" : "rgba(255,255,255,0.38)"; ctx.lineWidth = foco ? 2.6 : 1; ctx.stroke();
+  m._top = top;
+}
+
+function desenhaRotulos() {
+  rotBoxes = [];
+  if (!rotulos) return;
+  const fonte = Math.max(10, Math.min(15, 11 * Math.sqrt(cam.zoom)));
+  ctx.font = "600 " + fonte + "px Inter, -apple-system, Segoe UI, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const lista = M.slice().sort((a, b) => (b === selecionado) - (a === selecionado) || b.pop - a.pop);
+  lista.forEach((m) => {
+    const p = proj(m.rx, m.ry, m.h + 0.02), w = ctx.measureText(m.nome).width + 8, h = fonte + 6;
+    const box = [p[0] - w / 2, p[1] - h / 2, w, h];
+    if (rotBoxes.some((b) => box[0] < b[0] + b[2] && box[0] + box[2] > b[0] && box[1] < b[1] + b[3] && box[1] + box[3] > b[1])) return;
+    rotBoxes.push(box);
+    ctx.fillStyle = "rgba(3,6,13,0.55)"; ctx.fillRect(box[0], box[1], box[2], box[3]);
+    ctx.fillStyle = m === selecionado ? "#ffca6b" : "#f6f8fd"; ctx.fillText(m.nome, p[0], p[1] + 0.5);
+  });
+}
+
+function desenhaBussola() {
+  const x = 46, y = (W <= 820 ? 112 : 128), c = Math.cos(cam.yaw), s = Math.sin(cam.yaw), sp = Math.sin(cam.pitch);
+  const nx = -s, ny = c * sp;                     // o norte (0,1) rodado e achatado pela inclinação
+  ctx.save(); ctx.translate(x, y);
+  ctx.beginPath(); ctx.arc(0, 0, 20, 0, 7); ctx.fillStyle = "rgba(10,15,27,0.7)"; ctx.fill(); ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.lineWidth = 1; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(nx * 15, -ny * 15); ctx.strokeStyle = "#ffca6b"; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.fillStyle = "#ffca6b"; ctx.font = "700 10px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("N", nx * 25, -ny * 25);
+  ctx.restore();
+}
+
+function desenha() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  desenhaChao();
+  M.forEach((m) => { const p = proj(m.rx, m.ry, 0); m._perto = p[2]; });
+  ordem = M.slice().sort((a, b) => a._perto - b._perto);
+  ordem.forEach(desenhaMunicipio);
+  desenhaRotulos();
+  desenhaBussola();
+}
+
+// ------------------------------------------------------------------ laço de animação (só desenha quando precisa)
+let ultimo = 0;
+function laco(t) {
+  const dt = Math.min(0.05, (t - ultimo) / 1000 || 0.016); ultimo = t;
+  if (girar && !reduzir && !arrastando) { cam.yaw += dt * 0.35; sujo = true; }
+  M.forEach((m) => { const d = m.ht - m.h; if (Math.abs(d) > 0.002) { m.h += d * Math.min(1, dt * 9); sujo = true; } else if (d) { m.h = m.ht; sujo = true; } });
+  if (sujo) { sujo = false; desenha(); }
+  requestAnimationFrame(laco);
+}
+
+// ------------------------------------------------------------------ escolher município (clique e passar o mouse)
+function dentroPoli(px, py, pts) {
+  let c = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
+    if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) c = !c;
+  }
+  return c;
+}
+function achar(px, py) {
+  for (let i = ordem.length - 1; i >= 0; i--) {                    // do mais perto para o mais longe
+    const m = ordem[i];
+    if (m._top && dentroPoli(px, py, m._top)) return m;
+    if (m._walls && m._walls.some((q) => dentroPoli(px, py, q))) return m;
+  }
+  return null;
+}
+
+// ------------------------------------------------------------------ gestos
+const dedos = new Map();
+let arrastando = false, movido = 0, pinca = null;
+cv.addEventListener("pointerdown", (e) => {
+  cv.setPointerCapture(e.pointerId); dedos.set(e.pointerId, { x: e.clientX, y: e.clientY, b: e.button });
+  arrastando = true; movido = 0;
+  if (dedos.size === 2) { const [a, b] = [...dedos.values()]; pinca = { d: Math.hypot(a.x - b.x, a.y - b.y), z: cam.zoom, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 }; }
+  cv.focus({ preventScroll: true });
+});
+cv.addEventListener("pointermove", (e) => {
+  const d = dedos.get(e.pointerId);
+  if (!d) { passar(e); return; }
+  const dx = e.clientX - d.x, dy = e.clientY - d.y;
+  d.x = e.clientX; d.y = e.clientY; movido += Math.abs(dx) + Math.abs(dy);
+  if (dedos.size === 2 && pinca) {
+    const [a, b] = [...dedos.values()], dist = Math.hypot(a.x - b.x, a.y - b.y), cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+    cam.zoom = Math.max(0.6, Math.min(4, pinca.z * dist / pinca.d));
+    cam.px += cx - pinca.cx; cam.py += cy - pinca.cy; pinca.cx = cx; pinca.cy = cy;
+  } else if (dedos.size === 1) {
+    if (d.b === 2 || e.shiftKey) { cam.px += dx; cam.py += dy; }
+    else { cam.yaw -= dx * 0.008; cam.pitch = Math.max(0.2, Math.min(1.5, cam.pitch + dy * 0.006)); }
+  }
+  esconderDica(); sujo = true;
+});
+function soltar(e) {
+  const era = dedos.size === 1 && movido < 7;
+  dedos.delete(e.pointerId); if (dedos.size < 2) pinca = null; if (!dedos.size) arrastando = false;
+  if (era && e.type === "pointerup") clicou(e.clientX, e.clientY);
+}
+cv.addEventListener("pointerup", soltar); cv.addEventListener("pointercancel", soltar);
+cv.addEventListener("contextmenu", (e) => e.preventDefault());
+cv.addEventListener("wheel", (e) => { e.preventDefault(); cam.zoom = Math.max(0.6, Math.min(4, cam.zoom * Math.exp(-e.deltaY * 0.0012))); sujo = true; }, { passive: false });
+cv.addEventListener("keydown", (e) => {
+  const k = e.key; let usei = true;
+  if (k === "ArrowLeft") cam.yaw += 0.1; else if (k === "ArrowRight") cam.yaw -= 0.1;
+  else if (k === "ArrowUp") cam.pitch = Math.min(1.5, cam.pitch + 0.06); else if (k === "ArrowDown") cam.pitch = Math.max(0.2, cam.pitch - 0.06);
+  else if (k === "+" || k === "=") cam.zoom = Math.min(4, cam.zoom * 1.15); else if (k === "-") cam.zoom = Math.max(0.6, cam.zoom / 1.15);
+  else if (k === "0") redefinir(); else usei = false;
+  if (usei) { e.preventDefault(); sujo = true; }
+});
+
+const dica = $("dica");
+function esconderDica() { dica.style.display = "none"; }
+function passar(e) {
+  if (e.pointerType === "touch") return;
+  const m = achar(e.clientX, e.clientY);
+  if (m !== sobre) { sobre = m; sujo = true; cv.style.cursor = m ? "pointer" : "grab"; }
+  if (!m || jogoMapa) { esconderDica(); return; }
+  const v = METRICAS[metrica].get(m);
+  dica.innerHTML = "<b>" + esc(m.nome) + "</b>" + (v == null ? "sem dado de " + esc(METRICAS[metrica].curto) : esc(METRICAS[metrica].nome) + ": " + esc(METRICAS[metrica].fmt(v)));
+  dica.style.display = "block";
+  dica.style.left = Math.min(W - 200, e.clientX + 14) + "px"; dica.style.top = (e.clientY + 14) + "px";
+}
+cv.addEventListener("pointerleave", () => { sobre = null; esconderDica(); sujo = true; });
+
+function clicou(x, y) {
+  const m = achar(x, y);
+  if (jogoMapa) { responderMapa(m); return; }
+  selecionar(m, true);
+}
+
+// ------------------------------------------------------------------ controles
+document.querySelectorAll("[data-metrica]").forEach((b) => b.addEventListener("click", () => mudarMetrica(b.dataset.metrica)));
+function mudarMetrica(k) {
+  metrica = k;
+  document.querySelectorAll("[data-metrica]").forEach((b) => { const on = b.dataset.metrica === k; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); });
+  definirAlturas(); legenda(); if (aba === "rank" || aba === "ficha") renderAba();
+}
+function ligar(id, fn) { const b = $(id); b.addEventListener("click", () => { fn(b); }); return b; }
+ligar("bRotulos", (b) => { rotulos = !rotulos; b.classList.toggle("on", rotulos); b.setAttribute("aria-pressed", rotulos); sujo = true; });
+ligar("bGirar", (b) => { girar = !girar; b.classList.toggle("on", girar); b.setAttribute("aria-pressed", girar); });
+ligar("bPlano", (b) => { plano = !plano; b.classList.toggle("on", plano); b.setAttribute("aria-pressed", plano); definirAlturas(); });
+ligar("bRedef", () => redefinir());
+function redefinir() { Object.assign(cam, CAM0); definirAlturas(); sujo = true; }
+
+function legenda() {
+  const k = METRICAS[metrica], mn = minMetrica(metrica), mx = maxMetrica(metrica), temNulo = M.some((m) => k.get(m) == null);
+  $("legenda").innerHTML = '<div class="tit">' + esc(k.nome) + " (altura e cor)</div><div class=\"gr\"></div>"
+    + '<div class="fx"><span>' + esc(k.fmt(mn)) + "</span><span>" + esc(k.fmt(mx)) + "</span></div>"
+    + (temNulo ? '<div class="sd"><i></i> sem dado no Argo (não é zero)</div>' : "")
+    + '<div class="dica">Altura exagerada para comparar: não é relevo. Arraste para girar; role ou use dois dedos para o zoom; Shift + arrastar move o mapa.</div>';
+}
+
+// ------------------------------------------------------------------ painel
+let aba = "ficha";
+document.querySelectorAll(".aba").forEach((b) => b.addEventListener("click", () => irParaAba(b.dataset.aba)));
+function irParaAba(a) {
+  if (jogoMapa && a !== "desafio") sairJogoMapa();
+  aba = a;
+  document.querySelectorAll(".aba").forEach((b) => b.setAttribute("aria-selected", b.dataset.aba === a));
+  renderAba();
+}
+function renderAba() {
+  const c = $("corpo");
+  if (aba === "ficha") { c.innerHTML = htmlFicha(); const l = $("limpaSel"); if (l) l.addEventListener("click", () => selecionar(null)); }
+  else if (aba === "rank") { c.innerHTML = htmlRank(); c.querySelectorAll("[data-id]").forEach((b) => b.addEventListener("click", () => selecionar(porId(b.dataset.id), true))); }
+  else if (aba === "licoes") htmlLicoes(c);
+  else htmlDesafio(c);
+}
+function selecionar(m, abrirFicha) {
+  selecionado = m; sujo = true;
+  if (abrirFicha && aba !== "ficha") irParaAba("ficha"); else renderAba();
+}
+$("painel").addEventListener("dblclick", (e) => { if (e.target.closest(".abas") && window.innerWidth <= 820) $("painel").classList.toggle("baixo"); });
+
+function dado(rot, val, larga) { return '<div class="dado' + (larga ? " larga" : "") + '"><b>' + val + "</b><span>" + rot + "</span></div>"; }
+function htmlFicha() {
+  const m = selecionado;
+  if (!m) {
+    const bv = porId("boa-vista");
+    return "<h2>" + esc(ESTADO.nome) + "</h2><div class=\"sub\">Capital: " + esc(ESTADO.capital) + " · " + ESTADO.municipios + " municípios</div>"
+      + '<div class="grade">'
+      + dado("População (Censo 2022)", nf(ESTADO.pop)) + dado("Estimativa 2025", nf(ESTADO.popEstimada2025))
+      + dado("Área", nf(ESTADO.areaKm2) + " km²") + dado("Densidade", nd(ESTADO.densidade, 2) + " hab./km²")
+      + dado("Indígenas (Censo 2022)", nf(ESTADO.indigenas) + " (" + nd(ESTADO.indigenasPct, 1) + "%)", true)
+      + dado("Fronteiras", esc(ESTADO.fronteiras), true) + "</div>"
+      + '<div class="nota">Só ' + esc(bv.nome) + " tem " + nd(100 * bv.pop / TOTAL_POP, 1) + "% da população do estado em " + nd(100 * bv.area / ESTADO.areaKm2, 1) + "% do território. Os outros 14 municípios dividem o resto.</div>"
+      + '<h3>Como usar</h3><p>Toque ou clique num município para abrir a ficha. Troque o que a altura e a cor mostram nos botões do alto. Na aba <b>Lições</b> há um roteiro guiado e, em <b>Desafio</b>, perguntas e um jogo de achar no mapa.</p>'
+      + '<div class="aviso">' + esc(DADOS.fonte) + " Os dados do Argo são os do arquivo do app; confira na fonte oficial antes de citar em relatório.</div>";
+  }
+  const k = METRICAS[metrica], v = k.get(m), t = norm(metrica, v);
+  let h = "<h2>" + esc(m.nome) + (m.capital ? '<span class="selo">Capital</span>' : "") + '</h2><div class="sub">' + m.posPop + "º maior em população, de " + M.length + " municípios</div>";
+  h += '<div class="grade">'
+    + dado("População (Censo 2022)", nf(m.pop)) + dado("Parte do estado", nd(100 * m.pop / TOTAL_POP, 1) + "%")
+    + dado(m.areaOficial ? "Área (oficial, Argo)" : "Área (≈ calculada do contorno)", (m.areaOficial ? "" : "≈ ") + nf(m.area) + " km²")
+    + dado("Densidade (população ÷ área)", nd(m.dens, m.dens < 10 ? 2 : 1) + " hab./km²");
+  if (m.indPct != null) h += dado("População indígena" + (m.indAprox ? " (aproximada)" : ""), nd(m.indPct, 1) + "%" + (m.indPessoas != null ? " · " + nf(m.indPessoas) + " pessoas" : ""), true);
+  else h += dado("População indígena", "sem dado no Argo", true);
+  h += "</div>";
+  h += '<h3>' + esc(k.nome) + "</h3>";
+  h += v == null ? "<p>Este município não tem esse dado no arquivo do Argo. Sem dado não quer dizer zero.</p>"
+    : '<div class="dado larga"><b>' + esc(k.fmt(v)) + '</b><span>maior do estado: ' + esc(k.fmt(maxMetrica(metrica))) + '</span><div class="barra"><i style="width:' + Math.max(2, Math.round(100 * t)) + '%"></i></div></div>';
+  if (m.nota) h += '<div class="nota">' + esc(m.nota) + "</div>";
+  h += '<div class="aviso">A densidade é calculada aqui (população ÷ área). Contorno simplificado do IBGE; a área do contorno pode diferir um pouco da oficial.</div>';
+  h += '<div class="passos"><button class="btn" id="limpaSel">Ver o estado</button></div>';
+  return h;
+}
+function htmlRank() {
+  const k = METRICAS[metrica], lista = M.slice().sort((a, b) => { const x = k.get(a), y = k.get(b); return (y == null ? -1 : y) - (x == null ? -1 : x); });
+  const mx = maxMetrica(metrica);
+  let h = "<h2>Ranking</h2><div class=\"sub\">" + esc(k.nome) + " · troque nos botões do alto</div>";
+  lista.forEach((m, i) => {
+    const v = k.get(m), t = norm(metrica, v);
+    h += '<button class="linha' + (m === selecionado ? " sel" : "") + '" data-id="' + m.id + '"><span class="n">' + (v == null ? "–" : i + 1) + '</span><span class="nome">' + esc(m.nome) + '</span><span class="val">' + (v == null ? "sem dado" : esc(k.fmt(v))) + '</span><div class="barra"><i style="width:' + (v == null ? 0 : Math.max(2, Math.round(100 * (v / (metrica === "ind" ? 100 : mx))))) + '%"></i></div></button>';
+  });
+  return h + '<div class="aviso">Barras proporcionais ao valor (a altura no mapa usa raiz quadrada para os pequenos aparecerem).</div>';
+}
+
+// ------------------------------------------------------------------ lições
+const LICOES = [
+  { t: "O estado", m: "pop", s: null, x: () => "Roraima tem " + ESTADO.municipios + " municípios, " + nf(ESTADO.pop) + " habitantes (Censo 2022) e " + nf(ESTADO.areaKm2) + " km². Gire o mapa e note o formato: o estado é alto e estreito, e termina em ponta ao norte, perto das fronteiras." },
+  { t: "Capital que concentra", m: "pop", s: "boa-vista", x: () => { const b = porId("boa-vista"); return "Boa Vista tem " + nd(100 * b.pop / TOTAL_POP, 1) + "% dos habitantes do estado, em " + nd(100 * b.area / ESTADO.areaKm2, 1) + "% do território. É o pico mais alto do mapa: a altura mostra a população."; } },
+  { t: "Grande não é cheio", m: "area", s: "caracarai", x: () => { const c = porId("caracarai"); return "Caracaraí é o maior em área (" + nf(c.area) + " km²) e tem " + nf(c.pop) + " habitantes. Troque entre População e Área: o município grande some na população e domina na área."; } },
+  { t: "Densidade", m: "dens", s: "boa-vista", x: () => { const b = porId("boa-vista"), r = porId("rorainopolis"); return "Densidade é população dividida pela área. Boa Vista tem " + nd(b.dens, 1) + " hab./km²; Rorainópolis, " + nd(r.dens, 2) + ". O estado todo tem " + nd(ESTADO.densidade, 2) + ". Dois municípios de mesmo tamanho podem viver realidades muito diferentes."; } },
+  { t: "Povos indígenas", m: "ind", s: "uiramuta", x: () => { const n = M.filter((m) => m.indPct != null).length; return "No Argo, " + n + " municípios têm o percentual de população indígena. Uiramutã chega a " + nd(porId("uiramuta").indPct, 1) + "% e Normandia a " + nd(porId("normandia").indPct, 0) + "% (aproximado). Os cinza estão sem dado no arquivo, e isso não quer dizer que não haja população indígena."; } },
+  { t: "Fronteiras", m: "pop", s: "pacaraima", x: () => "Roraima faz fronteira com a " + "Venezuela e com a Guiana. " + porId("pacaraima").nota + " " + porId("bonfim").nota } ,
+  { t: "Para o serviço", m: "pop", s: null, x: () => "Olhar o território ajuda a planejar: distância até Boa Vista, municípios de população dispersa e áreas indígenas pedem equipe volante, transporte e articulação com a rede local. Use o mapa como ponto de partida e confirme os números nas fontes oficiais." }
+];
+let licao = 0;
+function htmlLicoes(c) {
+  const L = LICOES[licao];
+  let pontos = ""; LICOES.forEach((_, i) => { pontos += '<span class="ponto' + (i === licao ? " on" : "") + '"></span>'; });
+  c.innerHTML = "<h2>" + (licao + 1) + ". " + esc(L.t) + '</h2><div class="sub">Lição ' + (licao + 1) + " de " + LICOES.length + "</div><p>" + esc(L.x()) + "</p>"
+    + '<div class="passos"><button class="btn" id="lAnt"' + (licao ? "" : " disabled") + '>Anterior</button><button class="btn on" id="lProx">' + (licao < LICOES.length - 1 ? "Próxima" : "Recomeçar") + "</button></div><div style=\"text-align:center\">" + pontos + "</div>";
+  $("lAnt").addEventListener("click", () => { licao--; aplicaLicao(); });
+  $("lProx").addEventListener("click", () => { licao = licao < LICOES.length - 1 ? licao + 1 : 0; aplicaLicao(); });
+}
+function aplicaLicao() {
+  const L = LICOES[licao]; selecionado = L.s ? porId(L.s) : null; if (metrica !== L.m) mudarMetrica(L.m); sujo = true; htmlLicoes($("corpo"));
+}
+
+// ------------------------------------------------------------------ desafio
+function embaralhar(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function perguntasDeMunicipio(titulo, correto, explic) {
+  const outros = embaralhar(M.filter((m) => m !== correto)).slice(0, 3);
+  return { q: titulo, ops: embaralhar([correto].concat(outros)).map((m) => m.nome), certa: correto.nome, e: explic };
+}
+function fazPerguntas() {
+  const maior = (f) => M.reduce((a, b) => (f(b) > f(a) ? b : a)), menor = (f) => M.reduce((a, b) => (f(b) < f(a) ? b : a));
+  const mp = maior((m) => m.pop), np = menor((m) => m.pop), ma = maior((m) => m.area), md = maior((m) => m.dens);
+  const comInd = M.filter((m) => m.indPct != null), mi = comInd.reduce((a, b) => (b.indPct > a.indPct ? b : a));
+  const bv = porId("boa-vista"), pct = Math.round(100 * bv.pop / TOTAL_POP);
+  const numeros = embaralhar([pct, pct - 20, pct + 15, pct - 35]).map(String);
+  const lista = [
+    perguntasDeMunicipio("Qual município tem mais habitantes?", mp, mp.nome + " tem " + nf(mp.pop) + " habitantes (Censo 2022)."),
+    perguntasDeMunicipio("Qual município tem menos habitantes?", np, np.nome + " tem " + nf(np.pop) + " habitantes (Censo 2022)."),
+    perguntasDeMunicipio("Qual município é o maior em área?", ma, ma.nome + " tem " + nf(ma.area) + " km²."),
+    perguntasDeMunicipio("Qual município tem a maior densidade (habitantes por km²)?", md, md.nome + ": " + nd(md.dens, 1) + " hab./km²."),
+    perguntasDeMunicipio("Entre os municípios com dado no Argo, qual tem o maior percentual de população indígena?", mi, mi.nome + ": " + nd(mi.indPct, 1) + "%."),
+    perguntasDeMunicipio("Qual município é a capital do estado?", bv, "A capital é Boa Vista."),
+    perguntasDeMunicipio("Qual município faz fronteira com a Venezuela e é a principal porta de entrada terrestre de migrantes venezuelanos no Brasil?", porId("pacaraima"), "Pacaraima, pela BR-174."),
+    perguntasDeMunicipio("Qual município faz fronteira com a Guiana e se liga a Boa Vista pela BR-401?", porId("bonfim"), "Bonfim, pela BR-401."),
+    { q: "Quantos municípios tem Roraima?", ops: embaralhar(["13", "14", "15", "16"]), certa: String(M.length), e: "Roraima tem " + M.length + " municípios." },
+    { q: "Cerca de quanto da população do estado mora em Boa Vista?", ops: numeros.map((n) => n + "%"), certa: pct + "%", e: "Boa Vista tem " + nf(bv.pop) + " dos " + nf(TOTAL_POP) + " habitantes: cerca de " + pct + "%." }
+  ];
+  return embaralhar(lista).slice(0, 6);
+}
+let quiz = null, jogoMapa = null, modoDesafio = "quiz";
+function htmlDesafio(c) {
+  const modos = '<div class="modo"><button class="btn' + (modoDesafio === "quiz" ? " on" : "") + '" id="mQuiz">Perguntas</button><button class="btn' + (modoDesafio === "mapa" ? " on" : "") + '" id="mMapa">Achar no mapa</button></div>';
+  if (modoDesafio === "mapa" && !jogoMapa) entrarJogoMapa();
+  c.innerHTML = "<h2>Desafio</h2>" + modos + '<div id="areaJogo"></div>';
+  $("mQuiz").addEventListener("click", () => { if (jogoMapa) sairJogoMapa(); modoDesafio = "quiz"; htmlDesafio(c); });
+  $("mMapa").addEventListener("click", () => { modoDesafio = "mapa"; entrarJogoMapa(); htmlDesafio(c); });
+  if (modoDesafio === "quiz") desenhaQuiz(); else desenhaJogoMapa();
+}
+function desenhaQuiz() {
+  const a = $("areaJogo");
+  if (!quiz) { quiz = { p: fazPerguntas(), i: 0, ok: 0, resp: false }; }
+  if (quiz.i >= quiz.p.length) {
+    a.innerHTML = '<div class="feedback"><b>Fim!</b> Você acertou ' + quiz.ok + " de " + quiz.p.length + ".</div><div class=\"passos\"><button class=\"btn on\" id=\"qNovo\">Jogar de novo</button></div>";
+    $("qNovo").addEventListener("click", () => { quiz = null; desenhaQuiz(); }); return;
+  }
+  const p = quiz.p[quiz.i];
+  a.innerHTML = '<div class="placar"><span>Pergunta ' + (quiz.i + 1) + " de " + quiz.p.length + "</span><span>Acertos: " + quiz.ok + "</span></div><p><b>" + esc(p.q) + "</b></p>"
+    + p.ops.map((o, i) => '<button class="op" data-i="' + i + '">' + esc(o) + "</button>").join("") + '<div id="fb"></div>';
+  a.querySelectorAll(".op").forEach((b) => b.addEventListener("click", () => {
+    if (quiz.resp) return; quiz.resp = true;
+    const ok = p.ops[+b.dataset.i] === p.certa; if (ok) quiz.ok++;
+    a.querySelectorAll(".op").forEach((x) => { x.disabled = true; if (p.ops[+x.dataset.i] === p.certa) x.classList.add("certa"); });
+    if (!ok) b.classList.add("errada");
+    $("fb").innerHTML = '<div class="feedback">' + (ok ? "<b>Certo!</b> " : "<b>Não foi dessa vez.</b> ") + esc(p.e) + '</div><div class="passos"><button class="btn on" id="qProx">' + (quiz.i < quiz.p.length - 1 ? "Próxima" : "Ver resultado") + "</button></div>";
+    $("qProx").addEventListener("click", () => { quiz.i++; quiz.resp = false; desenhaQuiz(); });
+  }));
+}
+let rotulosAntes = true;
+function entrarJogoMapa() {
+  if (!jogoMapa) rotulosAntes = rotulos; rotulos = false; $("bRotulos").classList.remove("on"); selecionado = null;
+  jogoMapa = { fila: embaralhar(M), i: 0, ok: 0, tent: 0, msg: "" }; sujo = true; esconderDica();
+}
+function sairJogoMapa() {
+  jogoMapa = null; rotulos = rotulosAntes; $("bRotulos").classList.toggle("on", rotulos); sujo = true;
+}
+function desenhaJogoMapa() {
+  const a = $("areaJogo"), j = jogoMapa; if (!j) return;
+  if (j.i >= j.fila.length) {
+    a.innerHTML = '<div class="feedback"><b>Fim!</b> Você achou ' + j.ok + " de " + j.fila.length + " de primeira.</div><div class=\"passos\"><button class=\"btn on\" id=\"jNovo\">Jogar de novo</button></div>";
+    $("jNovo").addEventListener("click", () => { entrarJogoMapa(); desenhaJogoMapa(); }); return;
+  }
+  a.innerHTML = '<div class="placar"><span>' + (j.i + 1) + " de " + j.fila.length + "</span><span>De primeira: " + j.ok + '</span></div><p>Clique no município:</p><h2 style="margin:4px 0 8px">' + esc(j.fila[j.i].nome) + '</h2><div class="feedback">' + (j.msg ? esc(j.msg) : "Os nomes estão escondidos. Gire e use o formato como pista.") + '</div><div class="passos"><button class="btn" id="jPula">Pular</button></div>';
+  $("jPula").addEventListener("click", () => { j.i++; j.tent = 0; j.msg = "Era " + j.fila[j.i - 1].nome + "."; desenhaJogoMapa(); });
+}
+function responderMapa(m) {
+  const j = jogoMapa; if (!j || j.i >= j.fila.length || !m) return;
+  const alvo = j.fila[j.i];
+  if (m === alvo) { if (!j.tent) j.ok++; j.msg = "Certo: " + alvo.nome + "!"; j.i++; j.tent = 0; selecionado = null; }
+  else { j.tent++; j.msg = "Esse é " + m.nome + ". Tente de novo."; }
+  desenhaJogoMapa(); sujo = true;
+}
+
+// ------------------------------------------------------------------ início
+window.addEventListener("resize", ajustar);
+ajustar(); definirAlturas(true); legenda(); renderAba();
+if (!reduzir) { M.forEach((m) => { m.h = 0.05; }); }
+requestAnimationFrame(laco);
+</script>
+</body>
+</html>
