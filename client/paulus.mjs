@@ -587,7 +587,7 @@ async function tratarRota(t, o) {
   await geoCarregarLugares();
   try { rota = respostaDeRota(t, { pontos: o.pontos || estado.pontos, aparelho: aparelho, cidade: o.cidade || cfg.cidade, lugares: o.lugares || estado.lugares, bairros: o.bairros || estado.bairros, ruas: o.ruas || estado.ruas }); } catch (e) { rota = null; }
   if (!rota) return null;
-  if (!Array.isArray(o.historico)) {
+  if (!Array.isArray(o.historico) && !rota.semHistorico) {
     estado.historico.push({ papel: 'usuario', texto: t }, { papel: 'paulus', texto: rota.texto });
     estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
   }
