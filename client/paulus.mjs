@@ -85,10 +85,11 @@ function definirBase(lista) {
   estado.indice = criarIndice(estado.base);
 }
 
-function cabecalhosDoPedido() {
+// token: texto, função ou função assíncrona (ex.: () => firebase.auth().currentUser.getIdToken()); vale o que ela devolver na hora do pedido.
+async function cabecalhosDoPedido() {
   const h = { 'Content-Type': 'application/json', 'Accept': 'text/event-stream, application/json' };
   let t = cfg.token;
-  try { if (typeof t === 'function') t = t(); } catch (e) { t = ''; }
+  try { if (typeof t === 'function') t = await t(); } catch (e) { t = ''; }
   if (t && typeof t === 'string') h.Authorization = 'Bearer ' + t;
   return h;
 }
@@ -377,7 +378,7 @@ async function pedirIA(texto, opcoes) {
   try {
     const resp = await fetch(cfg.endpoint, {
       method: 'POST',
-      headers: cabecalhosDoPedido(),
+      headers: await cabecalhosDoPedido(),
       body: JSON.stringify(corpo),
       credentials: 'omit',
       referrerPolicy: 'no-referrer',
