@@ -592,7 +592,7 @@ async function tratarRota(t, o) {
     estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
   }
   const avisos = rota.estimativa ? ['Rota estimada no aparelho, sem IA e sem trânsito. Confira no app de mapas.'] : rota.aproximada ? ['Sem coordenadas, o link do mapa segue a ordem que você escreveu.'] : [];
-  return { tipo: 'rota', texto: rota.texto, links: rota.links, svg: rota.svg, geojson: rota.geojson, gpx: rota.gpx || '', kml: rota.kml || '', paradas: rota.paradas, km: rota.km, minutos: rota.minutos, bloqueio: !!rota.bloqueio, fontes: [], avisos: avisos, pergunta: t, docs: [] };
+  return { tipo: 'rota', texto: rota.texto, links: rota.links, svg: rota.svg, geojson: rota.geojson, gpx: rota.gpx || '', kml: rota.kml || '', paradas: rota.paradas, km: rota.km, minutos: rota.minutos, modo: rota.modo || '', volta: !!rota.volta, bloqueio: !!rota.bloqueio, fontes: [], avisos: avisos, pergunta: t, docs: [] };
 }
 
 // ------------------------------------------------------------------ modelos 3D didáticos
