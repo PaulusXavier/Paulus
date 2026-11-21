@@ -53,6 +53,8 @@ const PADRAO = {
   primeiroByteMs: 20000,
   silencioMs: 15000,
   memoria: true,           // aprende com o uso, só no aparelho (veja client/memoria.mjs); false = desligada
+  aoNegar: null,           // chamada quando o Worker responde 401 (sessão vencida ou sem login): o app volta à tela de login
+  token: null,             // sessão do login (texto ou função que devolve o texto); vai no cabeçalho Authorization
   perfil: ''               // id opaco da conta no app (nunca e-mail/nome): memórias separadas por pessoa no mesmo navegador
 };
 
@@ -81,6 +83,14 @@ const estado = {
 function definirBase(lista) {
   estado.base = Array.isArray(lista) ? lista : [];
   estado.indice = criarIndice(estado.base);
+}
+
+function cabecalhosDoPedido() {
+  const h = { 'Content-Type': 'application/json', 'Accept': 'text/event-stream, application/json' };
+  let t = cfg.token;
+  try { if (typeof t === 'function') t = t(); } catch (e) { t = ''; }
+  if (t && typeof t === 'string') h.Authorization = 'Bearer ' + t;
+  return h;
 }
 
 function init(opcoes) {
@@ -367,7 +377,7 @@ async function pedirIA(texto, opcoes) {
   try {
     const resp = await fetch(cfg.endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream, application/json' },
+      headers: cabecalhosDoPedido(),
       body: JSON.stringify(corpo),
       credentials: 'omit',
       referrerPolicy: 'no-referrer',
@@ -380,6 +390,7 @@ async function pedirIA(texto, opcoes) {
       const falha = new Error('IA indisponível (' + resp.status + ').');
       falha.status = resp.status;
       falha.motivo = motivo;
+      if (resp.status === 401 && typeof cfg.aoNegar === 'function') { try { cfg.aoNegar(falha); } catch (e) { /* o app decide */ } }
       throw falha;
     }
     const tipo = String(resp.headers.get('Content-Type') || '');
