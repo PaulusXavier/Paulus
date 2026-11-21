@@ -63,3 +63,14 @@ Para testar o build no computador: `npm run build` e confira a pasta `dist/`.
 - **Argo SUAS:** ele usa cópias locais. Copie `dist/paulus.v1.js` para `js/paulus.v1.js` e `dist/conhecimento-geral.json` (pacote leve, ~0,4 MB; **não** o `conhecimento.json` inteiro, que passa de 8 MB) para `assets/conhecimento.json` (atenção: `assets/`, não `assets/img/`). Se mudou o texto das normas, publique o Worker de novo também.
 - **Outros apps:** carregam do GitHub Pages; veja [INTEGRACAO.md](INTEGRACAO.md).
 - **Cota:** o plano gratuito dá 10.000 "neurons" por dia no Workers AI. Acabando, a IA para até 00:00 UTC (20h em Roraima) e os apps usam a base offline. Não há cobrança por excesso no plano gratuito.
+
+## Login do console (opcional, recomendado)
+
+Sem configuração, o Worker segue aberto como antes. Para exigir login:
+
+1. `node scripts/criar-usuario.mjs --segredo` → copie o texto gerado e rode `npx wrangler secret put AUTH_SEGREDO`.
+2. `node scripts/criar-usuario.mjs paulo` (pede a senha sem mostrar) → rode `npx wrangler secret put USUARIOS` e cole o JSON `{"paulo":"pbkdf2$100000$..."}` (várias contas: junte as linhas).
+3. Em `console/index.html`, preencha `<meta name="paulus-endpoint" content="https://paulus-ia.SEU-USUARIO.workers.dev">`.
+4. `npx wrangler deploy` e `npm run build`.
+
+Sessão de 12 h (30 dias com "Manter conectado"); 5 erros seguidos na mesma conta+IP bloqueiam por 30 s, dobrando a cada erro (até 15 min). Remover a conta de `USUARIOS` derruba a sessão dela na hora. O `console.js` só é carregado depois de entrar.
