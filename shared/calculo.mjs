@@ -441,17 +441,28 @@ function calcTokenValido(t) {
 }
 
 // Acha, nos tokens, as contas completas (a maior janela que fecha, da esquerda para a direita).
+// Limites contra texto montado para travar (ex.: mil "(" ou "-" seguidos): cada janela testada custa uma avaliação inteira, e sem teto o total
+// crescia com o cubo do tamanho (2 s em 1200 caracteres, no Worker estoura o limite de CPU). Conta de verdade cabe com folga nestes números.
+const CALC_MAX_JANELA = 120;   // tokens numa mesma conta
+const CALC_MAX_AVALIACOES = 400; // janelas testadas por mensagem
+
 function calcJanelas(tokens) {
   const achados = [];
-  let i = 0;
-  while (i < tokens.length) {
+  let i = 0, gastas = 0;
+  while (i < tokens.length && gastas < CALC_MAX_AVALIACOES) {
     const t = tokens[i];
     const abre = t.t === 'num' || t.t === 'lp' || t.t === 'id' || (t.t === 'op' && (t.v === '-' || t.v === '+'));
     if (!abre || !calcTokenValido(t)) { i++; continue; }
     let j = i;
     while (j < tokens.length && calcTokenValido(tokens[j])) j++;
+    // trecho sem número, função nem referência (só "(((" ou "---") nunca vira conta, nem em pedaços menores: pula o trecho todo
+    let temValor = false;
+    for (let q = i; q < j && !temValor; q++) temValor = tokens[q].t === 'num' || tokens[q].t === 'id' || tokens[q].t === 'ref';
+    if (!temValor) { i = j; continue; }
+    j = Math.min(j, i + CALC_MAX_JANELA);
     let achou = null;
-    for (let f = j; f > i && !achou; f--) {
+    for (let f = j; f > i && !achou && gastas < CALC_MAX_AVALIACOES; f--) {
+      gastas++;
       const fatia = tokens.slice(i, f);
       if (!fatia.some(function (x) { return x.t === 'ref'; })) {
         try {
