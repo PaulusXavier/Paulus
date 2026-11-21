@@ -37,7 +37,17 @@
     return el;
   }
   function btn(rotulo, fn, titulo) { return h('button', { type: 'button', text: rotulo, title: titulo || rotulo, on: { click: fn } }); }
-  function status(t) { if (st) st.textContent = t; }
+  // Estado do núcleo: idle | busy | listen | speak | erro. Muda a cor do ponto de status, o núcleo animado e o painel lateral.
+  var TEXTO_ESTADO = { idle: 'EM ESPERA', busy: 'PENSANDO…', listen: 'OUVINDO…', speak: 'FALANDO…', erro: 'FALHA' };
+  var nucleo = null, estadoAtual = 'idle';
+  function status(t) { if (st) st.textContent = t; var kn = $('kn'); if (kn) kn.textContent = t.replace('…', ''); }
+  function estadoUI(e) {
+    estadoAtual = e; document.body.setAttribute('data-estado', e);
+    status(TEXTO_ESTADO[e] || TEXTO_ESTADO.idle);
+    var kn = $('kn'); if (kn) kn.className = e === 'idle' ? 'ok' : e === 'erro' ? 'er' : 'av';
+    if (nucleo) nucleo.estado(e);
+  }
+  function hora2() { var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
   function perto() { return log.scrollHeight - log.scrollTop - log.clientHeight < 80; }
   function rolar(forca) { if (forca || perto()) log.scrollTop = log.scrollHeight; }
   function ajustarBarra() { document.documentElement.style.setProperty('--bar', ($('bar').offsetHeight + 24) + 'px'); }
@@ -118,29 +128,56 @@
 
   // ------------------------------------------------------------ mensagens
   function limparBoasVindas() { var o = log.querySelector('.hi'); if (o) o.remove(); }
+  var KIND = { ia: 'IA', norma: 'NORMA', busca: 'BUSCA', acao: 'AÇÃO', acao_desconhecida: 'AÇÃO', calculo: 'CÁLCULO', rota: 'ROTA', geo: 'GEO', pdf: 'PDF', revisao: 'REVISÃO', espanhol: 'IDIOMA', ingles: 'IDIOMA', crise: 'SOCORRO', bloqueio: 'PRIVACIDADE', erro: 'ERRO', sem_resposta: 'SEM RESPOSTA', pens: 'PROCESSANDO' };
+  var LOCAL = { norma: 1, busca: 1, acao: 1, acao_desconhecida: 1, calculo: 1, rota: 1, geo: 1, pdf: 1, revisao: 1, espanhol: 1, ingles: 1, crise: 1, bloqueio: 1, sem_resposta: 1 };
+  function cabeca(quem, kind) {
+    var c = h('div', { class: 'mh' }, [h('span', { class: 'q', text: quem })]);
+    if (kind) c.appendChild(h('span', { class: 'k', text: kind }));
+    c.appendChild(h('span', { class: 'o', text: hora2() }));
+    return c;
+  }
   function msgUsuario(texto, nomes) {
     limparBoasVindas();
-    var corpo = h('div', { text: texto });
-    var m = h('div', { class: 'm u' }, [corpo]);
+    var corpo = h('div', { class: 'mc', text: texto });
+    var m = h('div', { class: 'm u' }, [cabeca('VOCÊ'), corpo]);
     if (nomes && nomes.length) m.appendChild(h('div', { class: 'f', text: '📎 ' + nomes.join(', ') }));
     m.appendChild(h('button', { type: 'button', class: 'ue', text: 'Editar', title: 'Editar e reenviar', on: { click: function () { q.value = texto; autoAltura(); q.focus(); } } }));
-    log.appendChild(m); transcricao.push({ papel: 'Você', texto: texto }); rolar(true); return m;
+    log.appendChild(m); transcricao.push({ papel: 'Você', texto: texto }); tele.msgs++; telemetria(); rolar(true); return m;
   }
   function msgPaulus() {
     limparBoasVindas();
     var corpo = h('div', { class: 'mc' });
-    var m = h('div', { class: 'm p' }, [corpo]);
+    var m = h('div', { class: 'm p', 'data-k': 'pens' }, [cabeca('PAULUS', KIND.pens), corpo]);
     log.appendChild(m); rolar(true); return { m: m, corpo: corpo };
+  }
+  // indicador de "pensando": barras + varredura; a segunda fase aparece se a resposta demora
+  function pensando(x) {
+    var rot = h('span', { text: 'ANALISANDO' });
+    x.corpo.textContent = '';
+    x.corpo.appendChild(h('div', { class: 'pens', role: 'status' }, [h('span', { class: 'bars', 'aria-hidden': 'true' }, [h('i'), h('i'), h('i'), h('i'), h('i')]), rot, h('span', { class: 'sc', 'aria-hidden': 'true' })]));
+    x.fase = setTimeout(function () { if (rot.isConnected) rot.textContent = 'CONSULTANDO A BASE'; }, 1600);
+    x.fase2 = setTimeout(function () { if (rot.isConnected) rot.textContent = 'COMPONDO A RESPOSTA'; }, 4200);
+  }
+  function fimPensando(x) { clearTimeout(x.fase); clearTimeout(x.fase2); }
+  function saudacao() { var hr = new Date().getHours(); return hr < 5 ? 'Boa madrugada' : hr < 12 ? 'Bom dia' : hr < 18 ? 'Boa tarde' : 'Boa noite'; }
+  function nomeDoUsuario() {
+    var u = lerLS('paulus.usuario') || ''; u = String(u).split('@')[0];
+    return /^[a-zA-ZÀ-ú]{2,20}$/.test(u.split(/[._-]/)[0]) && !/\d/.test(u) ? u.split(/[._-]/)[0].charAt(0).toUpperCase() + u.split(/[._-]/)[0].slice(1).toLowerCase() : '';
   }
   function boasVindas() {
     var sk = P.skin('paulus') || {};
     var sug = (P.sugestoesPessoais ? P.sugestoesPessoais(3) : []).concat(sk.sugestoes || []);
     var vistos = {}; sug = sug.filter(function (s) { if (!s || vistos[s]) return false; vistos[s] = 1; return true; }).slice(0, 4);
+    var nome = nomeDoUsuario();
+    var titulo = h('h2', {}, [saudacao() + (nome ? ', ' : '.'), nome ? h('b', { text: nome + '.' }) : null]);
     var hi = h('div', { class: 'hi' }, [
-      h('h2', { text: 'Paulus' }),
+      h('div', { class: 'ey', text: 'SISTEMAS OPERACIONAIS' }),
+      titulo,
       h('p', { text: sk.saudacao || 'Console do Paulus no ar. Pergunte por texto ou voz.' })
     ]);
-    sug.forEach(function (s) { hi.appendChild(h('button', { type: 'button', class: 'ch', text: s, on: { click: function () { enviar(s); } } })); });
+    var grade = h('div', { class: 'sg' });
+    sug.forEach(function (s, i) { grade.appendChild(h('button', { type: 'button', class: 'ch', on: { click: function () { enviar(s); } } }, [h('i', { text: '0' + (i + 1) }), h('span', { text: s })])); });
+    hi.appendChild(grade);
     hi.appendChild(h('small', { text: 'Não digite nome nem documento de pessoas atendidas. Digite / para atalhos. Anexe PDF para editar no aparelho.' }));
     log.appendChild(hi);
   }
@@ -225,6 +262,10 @@
   }
   function desenhar(x, r) {
     var corpo = x.corpo;
+    fimPensando(x);
+    x.m.setAttribute('data-k', r.tipo || 'ia');
+    var kk = x.m.querySelector('.mh .k'); if (kk) kk.textContent = (KIND[r.tipo] || 'IA') + (LOCAL[r.tipo] && r.tipo !== 'busca' && r.tipo !== 'acao' ? ' · NO APARELHO' : '');
+    if (r.tipo === 'crise') x.m.classList.add('alerta');
     if (r.tipo === 'ia' || r.tipo === 'norma' || r.tipo === 'revisao' || r.tipo === 'espanhol' || r.tipo === 'ingles') pintar(corpo, r.texto);
     else corpo.textContent = r.texto || '';
     if (r.tipo === 'crise') {
@@ -277,7 +318,7 @@
   // ------------------------------------------------------------ envio
   function mudarBotao(enviando) {
     go.textContent = enviando ? 'Parar' : 'Enviar'; go.classList.toggle('stop', enviando);
-    status(enviando ? 'PENSANDO…' : 'EM ESPERA'); ocupado = enviando;
+    ocupado = enviando; estadoUI(enviando ? 'busy' : (gravando ? 'listen' : 'idle'));
   }
   function enviar(texto) {
     texto = String(texto == null ? q.value : texto).trim();
@@ -286,25 +327,27 @@
     var arqs = anexos.slice(), nomes = arqs.map(function (a) { return a.name; });
     anexos = []; renderAnexos(); q.value = ''; autoAltura(); sl.hidden = true;
     msgUsuario(texto, nomes);
-    var x = msgPaulus(); x.corpo.textContent = '…';
+    var x = msgPaulus(); pensando(x); x.t0 = performance.now();
     var id = ++envioAtual; atual = x; mudarBotao(true);
     var vivo = function () { return id === envioAtual; };   // falso depois de Parar ou de um envio mais novo
     P.perguntar(texto, {
       arquivos: arqs,
-      onToken: function (_p, tudo) { if (!vivo()) return; pintar(x.corpo, tudo); rolar(); }
+      onToken: function (_p, tudo) { if (!vivo()) return; fimPensando(x); x.corpo.classList.add('dig'); pintar(x.corpo, tudo); rolar(); }
     }).then(function (r) {
       if (!vivo()) return;
-      x.corpo.textContent = ''; desenhar(x, r);
+      x.corpo.classList.remove('dig'); x.corpo.textContent = ''; desenhar(x, r);
       transcricao.push({ papel: 'Paulus', texto: r.texto || '' });
+      registrar(r, performance.now() - x.t0);
       if (vozLigada) falar(r.texto || '');
       rolar(true);
+      if (r.tipo === 'erro') { estadoUI('erro'); setTimeout(function () { if (estadoAtual === 'erro') estadoUI('idle'); }, 1400); }
     }).catch(function () {
-      if (vivo()) x.corpo.textContent = 'Algo deu errado. Tente de novo.';
-    }).then(function () { if (vivo()) { atual = null; mudarBotao(false); } });
+      if (vivo()) { fimPensando(x); x.corpo.classList.remove('dig'); x.m.setAttribute('data-k', 'erro'); var k2 = x.m.querySelector('.mh .k'); if (k2) k2.textContent = KIND.erro; x.corpo.textContent = 'Algo deu errado. Tente de novo.'; estadoUI('erro'); setTimeout(function () { if (estadoAtual === 'erro') estadoUI('idle'); }, 1400); }
+    }).then(function () { if (vivo()) { atual = null; if (estadoAtual !== 'erro') mudarBotao(false); else { go.textContent = 'Enviar'; go.classList.remove('stop'); ocupado = false; } } });
   }
   function parar() {
     envioAtual++;                                   // a chamada em andamento passa a ser ignorada
-    if (atual) { atual.m.remove(); atual = null; }
+    if (atual) { fimPensando(atual); atual.m.remove(); atual = null; }
     mudarBotao(false); aviso('Interrompido.');
   }
 
@@ -336,26 +379,30 @@
     rec = new Rec(); rec.lang = 'pt-BR'; rec.interimResults = true; rec.continuous = false;
     var base = q.value ? q.value + ' ' : '';
     rec.onresult = function (e) { var t = ''; for (var i = 0; i < e.results.length; i++) t += e.results[i][0].transcript; q.value = base + t; autoAltura(); };
-    rec.onend = function () { gravando = false; mic.classList.remove('on'); status('EM ESPERA'); };
-    rec.onerror = function () { gravando = false; mic.classList.remove('on'); aviso('Não consegui ouvir. Confira a permissão do microfone.'); };
-    try { rec.start(); gravando = true; mic.classList.add('on'); status('OUVINDO…'); } catch (e) { /* segue */ }
+    rec.onend = function () { gravando = false; mic.classList.remove('on'); if (!ocupado) estadoUI('idle'); };
+    rec.onerror = function () { gravando = false; mic.classList.remove('on'); if (!ocupado) estadoUI('idle'); aviso('Não consegui ouvir. Confira a permissão do microfone.'); };
+    try { rec.start(); gravando = true; mic.classList.add('on'); estadoUI('listen'); } catch (e) { /* segue */ }
   });
   function falar(t) {
     if (!window.speechSynthesis) return;
     speechSynthesis.cancel();
-    var u = new SpeechSynthesisUtterance(String(t).replace(/[*_`#>|]/g, '').slice(0, 1500)); u.lang = 'pt-BR'; speechSynthesis.speak(u);
+    var u = new SpeechSynthesisUtterance(String(t).replace(/[*_`#>|]/g, '').slice(0, 1500)); u.lang = 'pt-BR';
+    u.onstart = function () { if (!ocupado && !gravando) estadoUI('speak'); };
+    u.onend = u.onerror = function () { if (estadoAtual === 'speak') estadoUI(ocupado ? 'busy' : 'idle'); };
+    speechSynthesis.speak(u);
   }
   var vz = $('vz');
   if (!window.speechSynthesis) vz.hidden = true;
   vz.addEventListener('click', function () {
     vozLigada = !vozLigada; vz.setAttribute('aria-pressed', String(vozLigada)); vz.classList.toggle('on', vozLigada);
     if (!vozLigada && window.speechSynthesis) speechSynthesis.cancel();
+    var kv = $('kv'); if (kv) { kv.textContent = vozLigada ? 'LIGADA' : 'DESLIGADA'; kv.className = vozLigada ? 'ok' : ''; }
   });
 
   // ------------------------------------------------------------ cabeçalho
   function nova() {
     if (window.speechSynthesis) speechSynthesis.cancel();
-    P.limpar(); transcricao = []; anexos = []; renderAnexos(); log.textContent = ''; boasVindas(); status('EM ESPERA'); q.focus();
+    P.limpar(); transcricao = []; anexos = []; renderAnexos(); log.textContent = ''; boasVindas(); estadoUI('idle'); q.focus();
   }
   function exportar() {
     if (!transcricao.length) { aviso('Nada para salvar ainda.'); return; }
@@ -413,26 +460,166 @@
   dn.addEventListener('click', function () { log.scrollTop = log.scrollHeight; dn.hidden = true; });
   window.addEventListener('resize', ajustarBarra);
 
-  // ------------------------------------------------------------ esfera do topo
-  var cv = $('orb');
-  if (cv && cv.getContext && !reduzido) {
-    var cx = cv.getContext('2d'), t0 = 0;
-    var quadro = function (t) {
-      var w = cv.width = cv.clientWidth * (window.devicePixelRatio || 1), hh = cv.height = cv.clientHeight * (window.devicePixelRatio || 1);
-      cx.clearRect(0, 0, w, hh);
-      var amp = ocupado ? 14 : gravando ? 10 : 4;
-      for (var k = 0; k < 3; k++) {
-        cx.beginPath(); cx.strokeStyle = 'rgba(55,230,255,' + (0.5 - k * 0.15) + ')'; cx.lineWidth = 1.5;
-        for (var xx = 0; xx <= w; xx += 6) {
-          var yy = hh * 0.55 + Math.sin(xx / 70 + t / 600 * (1 + k * 0.4)) * amp * Math.sin(xx / w * Math.PI) * (1 - k * 0.25);
-          if (xx) cx.lineTo(xx, yy); else cx.moveTo(xx, yy);
-        }
-        cx.stroke();
+  // ------------------------------------------------------------ telemetria (números reais da sessão, nada inventado)
+  var tele = { msgs: 0, local: 0, ia: 0, lat: [], ini: Date.now(), ultima: '--' };
+  function pr(id, txt, cls) { var e = $(id); if (!e) return; if (e.textContent !== String(txt)) e.textContent = txt; if (cls != null) e.className = cls; }
+  function tempoTxt(ms) { return ms < 1000 ? Math.round(ms) + ' ms' : (ms / 1000).toFixed(1) + ' s'; }
+  function telemetria() {
+    var s = Math.floor((Date.now() - tele.ini) / 1000), z = function (n) { return ('0' + n).slice(-2); };
+    pr('ts', s >= 3600 ? Math.floor(s / 3600) + ':' + z(Math.floor(s / 60) % 60) + ':' + z(s % 60) : z(Math.floor(s / 60)) + ':' + z(s % 60));
+    pr('tm', tele.msgs); pr('tl', tele.local); pr('tia', tele.ia); pr('tu', tele.ultima);
+  }
+  function sparkline() {
+    var sp = $('spk'); if (!sp) return;
+    var dados = tele.lat.slice(-18), max = 1; dados.forEach(function (d) { if (d.ms > max) max = d.ms; });
+    sp.textContent = '';
+    for (var i = 0; i < 18 - dados.length; i++) sp.appendChild(h('i', { style: 'height:3px;opacity:.25' }));
+    dados.forEach(function (d) { sp.appendChild(h('i', { class: d.local ? 'l' : '', style: 'height:' + Math.max(3, Math.round(d.ms / max * 40)) + 'px', title: tempoTxt(d.ms) })); });
+    pr('tmax', dados.length ? 'MÁX ' + tempoTxt(max) : '--');
+  }
+  function registrar(r, ms) {
+    tele.msgs++;
+    if (r.tipo !== 'erro') {
+      var viaIA = r.tipo === 'ia' && !r.deMemoria;
+      if (viaIA) tele.ia++; else tele.local++;
+      tele.lat.push({ ms: ms, local: !viaIA });
+      tele.ultima = (KIND[r.tipo] || 'IA') + ' · ' + tempoTxt(ms);
+    }
+    telemetria(); sparkline();
+  }
+  function sistemas() {
+    var on = navigator.onLine !== false;
+    pr('kr', on ? 'ONLINE' : 'OFFLINE', on ? 'ok' : 'er');
+    pr('ki', !ENDPOINT ? 'SÓ LOCAL' : on ? 'ONLINE' : 'OFFLINE', !ENDPOINT ? 'av' : on ? 'ok' : 'er');
+  }
+  sistemas(); window.addEventListener('online', sistemas); window.addEventListener('offline', sistemas);
+  telemetria(); sparkline(); setInterval(telemetria, 1000);
+  if (location.protocol !== 'file:' && window.fetch) {
+    try { fetch('versao.json', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { if (j && j.versao) pr('kb', 'v' + j.versao + (j.build ? ' · ' + String(j.build).slice(0, 6) : '')); }).catch(function () { pr('kb', 'LOCAL'); }); } catch (e) { pr('kb', 'LOCAL'); }
+  } else pr('kb', 'LOCAL');
+
+  // ------------------------------------------------------------ núcleo (reator em arco no cabeçalho)
+  // Estados: idle (respira), busy (âmbar, gira rápido, varredura), listen (verde, barras), speak (barras de voz), erro (vermelho, treme).
+  function criarNucleo(cv) {
+    var ctx = cv.getContext('2d'), W = 0, H = 0, est = 'idle', estT = 0, amp = 0.05, imp = 0, img = new Image(), imgOk = false, i;
+    var COR = { idle: [55, 230, 255], busy: [255, 179, 71], listen: [110, 231, 168], speak: [143, 244, 255], erro: [255, 107, 94] };
+    var AMP = { idle: 0.05, busy: 0.3, listen: 0.62, speak: 0.8, erro: 0.1 }, VEL = { idle: 1, busy: 3.4, listen: 1.7, speak: 2, erro: 0.4 };
+    var cur = COR.idle.slice();
+    img.onload = function () { imgOk = true; if (reduzido) quadro(performance.now()); };
+    img.src = 'icon-512.png';
+    function tam() { var r = cv.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2); W = r.width; H = r.height; cv.width = Math.round(W * d); cv.height = Math.round(H * d); ctx.setTransform(d, 0, 0, d, 0, 0); }
+    function rgb(a) { return Math.round(cur[0]) + ',' + Math.round(cur[1]) + ',' + Math.round(cur[2]) + ',' + a; }
+    function arco(cx, cy, r, ini, tm, lw, al, dash, cap) {
+      ctx.beginPath(); ctx.setLineDash(dash || []); ctx.lineCap = cap || 'butt'; ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(' + rgb(al) + ')'; ctx.arc(cx, cy, r, ini, ini + tm); ctx.stroke(); ctx.setLineDash([]);
+    }
+    function quadro(now) {
+      if (!W) return;
+      var t = reduzido ? 2 : now / 1000, R = Math.min(W, H) / 2 - 1, cx = W / 2, cy = H / 2, alvo = COR[est] || COR.idle, vel = VEL[est] || 1;
+      for (i = 0; i < 3; i++) cur[i] += (alvo[i] - cur[i]) * 0.12;
+      amp += ((AMP[est] || 0.05) - amp) * 0.1; imp *= 0.94;
+      var tr = est === 'erro' ? Math.sin((now - estT) / 28) * Math.max(0, 1 - (now - estT) / 600) * R * 0.05 : 0;
+      cx += tr;
+      var pulso = 0.5 + 0.5 * Math.sin(t * (est === 'busy' ? 8 : 2)), Ri = R * 0.5 * (1 + 0.02 * pulso + imp * 0.06);
+      ctx.clearRect(0, 0, W, H);
+      var g = ctx.createRadialGradient(cx, cy, Ri * 0.5, cx, cy, R * 1.02);
+      g.addColorStop(0, 'rgba(' + rgb(0.42 + 0.2 * pulso + imp * 0.3) + ')'); g.addColorStop(0.55, 'rgba(' + rgb(0.1) + ')'); g.addColorStop(1, 'rgba(' + rgb(0) + ')');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      // régua de marcas
+      var N = 60, a, r1 = R * 0.9, longa;
+      for (i = 0; i < N; i++) {
+        a = i / N * 6.2832 + t * 0.14 * vel; longa = i % 5 === 0;
+        ctx.beginPath(); ctx.lineWidth = longa ? 1.5 : 0.9; ctx.strokeStyle = 'rgba(' + rgb(longa ? 0.8 : 0.32) + ')';
+        ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); ctx.lineTo(cx + Math.cos(a) * (r1 + R * (longa ? 0.1 : 0.05)), cy + Math.sin(a) * (r1 + R * (longa ? 0.1 : 0.05))); ctx.stroke();
       }
-      requestAnimationFrame(quadro);
-    };
-    requestAnimationFrame(quadro);
+      var lw = Math.max(1.4, R * 0.045);
+      for (i = 0; i < 3; i++) arco(cx, cy, R * 0.8, -t * 0.8 * vel + i * 2.0944, 1.2, lw, 0.85);
+      arco(cx, cy, R * 0.7, t * 0.5 * vel, 6.2832, 1, 0.4, [R * 0.12, R * 0.07]);
+      if (est === 'busy') { for (i = 0; i < 6; i++) arco(cx, cy, R * 0.7, t * 4.2 - i * 0.09, 0.09, lw * 1.2, 0.9 - i * 0.14, null, 'round'); }
+      // barras radiais (voz): amplitude do estado
+      var NB = 40, barras = est === 'idle' ? 0.35 : 1;
+      for (i = 0; i < NB; i++) {
+        a = i / NB * 6.2832 - 1.5708;
+        var ruido = 0.5 + 0.5 * Math.sin(t * (6 + vel) + i * 0.9 + Math.sin(t * 2.3 + i * 0.5) * 2), len = R * (0.025 + amp * 0.2 * ruido * barras), b0 = Ri + R * 0.05;
+        ctx.beginPath(); ctx.lineWidth = Math.max(1.2, R * 0.032); ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(' + rgb(0.35 + 0.5 * ruido) + ')';
+        ctx.moveTo(cx + Math.cos(a) * b0, cy + Math.sin(a) * b0); ctx.lineTo(cx + Math.cos(a) * (b0 + len), cy + Math.sin(a) * (b0 + len)); ctx.stroke();
+      }
+      ctx.lineCap = 'butt';
+      // rosto (ícone do app) dentro do vidro
+      ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, Ri, 0, 6.2832); ctx.clip();
+      if (imgOk) {
+        var ts = Ri * 2.04; ctx.drawImage(img, cx - ts / 2, cy - ts / 2, ts, ts);
+        if (est !== 'idle') { ctx.fillStyle = 'rgba(' + rgb(est === 'erro' ? 0.28 : 0.12) + ')'; ctx.fillRect(cx - Ri, cy - Ri, Ri * 2, Ri * 2); }
+        var per = est === 'busy' ? 1.1 : 3.6, ph = ((t / per) % 1.3) - 0.15, sy = cy - Ri + ph * Ri * 2;
+        ctx.globalCompositeOperation = 'lighter';
+        var gs = ctx.createLinearGradient(0, sy - Ri * 0.5, 0, sy + 1); gs.addColorStop(0, 'rgba(' + rgb(0) + ')'); gs.addColorStop(1, 'rgba(' + rgb(est === 'busy' ? 0.5 : 0.28) + ')');
+        ctx.fillStyle = gs; ctx.fillRect(cx - Ri, sy - Ri * 0.5, Ri * 2, Ri * 0.5 + 1);
+        ctx.globalCompositeOperation = 'source-over';
+      } else { ctx.fillStyle = 'rgba(' + rgb(0.9) + ')'; ctx.beginPath(); ctx.arc(cx, cy, Ri * 0.3 * (1 + 0.15 * pulso), 0, 6.2832); ctx.fill(); }
+      ctx.restore();
+      ctx.beginPath(); ctx.arc(cx, cy, Ri, 0, 6.2832); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(' + rgb(0.85) + ')'; ctx.stroke();
+    }
+    function laco(now) { quadro(now); requestAnimationFrame(laco); }
+    tam(); window.addEventListener('resize', function () { tam(); if (reduzido) quadro(performance.now()); });
+    if (typeof ResizeObserver !== 'undefined') { try { new ResizeObserver(function () { tam(); if (reduzido) quadro(performance.now()); }).observe(cv); } catch (e) { /* segue */ } }
+    if (reduzido) quadro(performance.now()); else requestAnimationFrame(laco);
+    return { estado: function (e) { est = e; estT = performance.now(); if (reduzido) quadro(estT); }, impulso: function () { imp = 1; } };
+  }
+  var cvCore = $('core');
+  if (cvCore && cvCore.getContext) {
+    nucleo = criarNucleo(cvCore);
+    cvCore.addEventListener('pointerdown', function () { nucleo.impulso(); q.focus(); });
   }
 
-  boasVindas(); ajustarBarra(); status('EM ESPERA'); q.focus();
+  // ------------------------------------------------------------ fundo (grade, partículas e varredura; discreto)
+  function criarFundo(cv) {
+    var ctx = cv.getContext('2d'), W = 0, H = 0, parts = [], ult = 0, i, j;
+    function tam() {
+      var d = Math.min(window.devicePixelRatio || 1, 1.5); W = window.innerWidth; H = window.innerHeight; cv.width = Math.round(W * d); cv.height = Math.round(H * d); ctx.setTransform(d, 0, 0, d, 0, 0);
+      var n = Math.max(22, Math.min(64, Math.round(W * H / 26000))); parts = [];
+      for (i = 0; i < n; i++) parts.push({ x: Math.random() * W, y: Math.random() * H, vx: (Math.random() - 0.5) * 0.18, vy: (Math.random() - 0.5) * 0.18, s: 0.6 + Math.random() * 1.1 });
+    }
+    function quadro(now) {
+      var busy = estadoAtual === 'busy', c = busy ? '255,179,71' : '55,230,255', t = now / 1000, vel = busy ? 3 : 1;
+      ctx.clearRect(0, 0, W, H);
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(55,230,255,0.045)'; ctx.beginPath();
+      for (i = 0; i < W; i += 56) { ctx.moveTo(i + 0.5, 0); ctx.lineTo(i + 0.5, H); }
+      for (j = 0; j < H; j += 56) { ctx.moveTo(0, j + 0.5); ctx.lineTo(W, j + 0.5); }
+      ctx.stroke();
+      for (i = 0; i < parts.length; i++) {
+        var p = parts[i];
+        if (!reduzido) { p.x += p.vx * vel; p.y += p.vy * vel; if (p.x < -10) p.x = W + 10; else if (p.x > W + 10) p.x = -10; if (p.y < -10) p.y = H + 10; else if (p.y > H + 10) p.y = -10; }
+        for (j = i + 1; j < parts.length; j++) {
+          var o = parts[j], dx = p.x - o.x, dy = p.y - o.y, d2 = dx * dx + dy * dy;
+          if (d2 < 14000) { ctx.beginPath(); ctx.lineWidth = 0.7; ctx.strokeStyle = 'rgba(' + c + ',' + (0.16 * (1 - d2 / 14000)) + ')'; ctx.moveTo(p.x, p.y); ctx.lineTo(o.x, o.y); ctx.stroke(); }
+        }
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, 6.2832); ctx.fillStyle = 'rgba(' + c + ',0.45)'; ctx.fill();
+      }
+      var sy = ((t * 0.07 * vel) % 1.3 - 0.15) * H, gs = ctx.createLinearGradient(0, sy - 90, 0, sy + 1);
+      gs.addColorStop(0, 'rgba(' + c + ',0)'); gs.addColorStop(1, 'rgba(' + c + ',0.07)'); ctx.fillStyle = gs; ctx.fillRect(0, sy - 90, W, 91);
+      ctx.fillStyle = 'rgba(' + c + ',0.2)'; ctx.fillRect(0, sy, W, 1);
+    }
+    function laco(now) { if (now - ult > 33) { ult = now; quadro(now); } requestAnimationFrame(laco); }
+    tam(); window.addEventListener('resize', tam);
+    if (reduzido) quadro(performance.now()); else requestAnimationFrame(laco);
+  }
+  var cvBg = $('bgc'); if (cvBg && cvBg.getContext && !reduzido) criarFundo(cvBg);
+
+  // ------------------------------------------------------------ boot (uma vez por sessão do navegador)
+  function iniciarBoot() {
+    var el = $('boot'), visto = null;
+    try { visto = sessionStorage.getItem('paulus.boot'); sessionStorage.setItem('paulus.boot', '1'); } catch (e) { /* sem armazenamento: roda de novo */ }
+    if (!el || reduzido || visto) return;
+    var on = navigator.onLine !== false, linhas = [
+      ['NÚCLEO', 'OK'], ['FILTRO DE DADOS PESSOAIS', 'ATIVO'], ['DETECTOR DE SOCORRO', 'ATIVO'], ['IA REMOTA', !ENDPOINT ? 'SÓ LOCAL' : on ? 'ONLINE' : 'OFFLINE']
+    ];
+    el.textContent = '';
+    var bx = h('div', { class: 'bx' }, [h('b', { text: 'PAULUS_IA' })]);
+    linhas.forEach(function (l, i) { var s = h('span', { style: 'animation-delay:' + (0.15 + i * 0.22) + 's' }, [l[0] + ' ', h('i', { text: l[1] })]); bx.appendChild(s); });
+    bx.appendChild(h('div', { class: 'bb', style: '--bt:1.2s' }));
+    el.appendChild(bx); el.hidden = false; document.body.classList.add('boot');
+    setTimeout(function () { el.classList.add('fim'); document.body.classList.remove('boot'); }, 1400);
+    setTimeout(function () { el.hidden = true; el.textContent = ''; }, 2050);
+  }
+  boasVindas(); ajustarBarra(); estadoUI('idle'); q.focus();
+  iniciarBoot();
 })();
