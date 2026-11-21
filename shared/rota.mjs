@@ -526,7 +526,7 @@ export function respostaDeRota(texto, opcoes) {
     const ondeFica = p.endereco ? ' (' + p.endereco + ')' : '';
     const nota = !res[0].ponto ? ' Não achei esse lugar no diretório, então o mapa vai procurar pelo texto "' + p.nome + '"' + (cidade ? ' em ' + cidade : '') + '; confira se achou o lugar certo.' : '';
     return rotaResposta('Rota até ' + p.nome + ondeFica + ', ' + ROTA_NOME_MODO[modo] + '. Abra o link: o app de mapas parte da sua posição atual e mostra o mapa, o trajeto, o tempo e o passo a passo. Não sei onde você está (se o navegador pedir, permita a localização), então não estimo km nem tempo aqui; para eu calcular, diga de onde sai (unidade ou bairro).' + nota, {
-      links: geoLinksDeRota([p], { modo: modo, cidade: cidade, semOrigem: true, rotulo: 'Abrir mapa e rota até ' + p.nome }), paradas: [p.nome], semHistorico: temEndereco, modo: modo
+      links: geoLinksDeRota([p], { modo: modo, cidade: cidade, semOrigem: true, rotulo: 'Abrir mapa e rota até ' + p.nome }), paradas: [p.nome], semHistorico: temEndereco, modo: modo, destino: { nome: p.nome, endereco: p.endereco || '', noDiretorio: !!res[0].ponto }
     });
   }
 
