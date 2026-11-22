@@ -45,7 +45,8 @@ import { escopoDaConversa } from '../shared/escopo.mjs';
 import { ehPerguntaSobreSi, temasDaPergunta, montarAutoconhecimento, fichaComoTexto } from '../shared/autoconhecimento.mjs';
 import { montarMensagens, montarMensagensSaudacao, preferenciasValidas, fichasComoTexto, baseAppComoTexto, panoramaComoTexto } from './prompt.mjs';
 import { montarMensagensInterpretacao, lerInterpretacao } from './interpretar.mjs';
-import { contasConfiaveis, pareceProblemaDeCalculo, temNumeroPorExtenso } from '../shared/calculo.mjs';
+import { pareceProblemaDeCalculo, temNumeroPorExtenso } from '../shared/calculo.mjs';
+import { contasDoPedido } from '../shared/calculo-mais.mjs';
 import { pedeAnalise, montarMensagensRaciocinio, lerRaciocinio, raciocinioComoTexto, buscaDoRaciocinio, completarAchados, conferirRaciocinio, calibrarSeguranca, tipoDeAnalise, disseSemAnalise, montarMensagensReformatar } from './raciocinar.mjs';
 import { tratarVoz } from './voz.mjs';
 import { montarMensagensPlano, lerPlano, executarPlano, calculosDiretos, numerosAbonados, valoresDosCalculos, mesclarValores } from './planejar.mjs';
@@ -437,7 +438,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       // Pergunta de conta: o programa calcula (shared/calculo.mjs), a IA só explica. Falha aqui nunca derruba a resposta.
       if (!tema && !sobreSi && modo !== 'refinamento' && modo !== 'continuar' && modo !== 'porque') {
         textosDaPessoa = [pergunta].concat(anteriores.map(function (h) { return String(h.texto || ''); }));
-        const diretas = contasConfiaveis(pergunta);
+        const diretas = contasDoPedido(pergunta, { hoje: Math.floor((Date.now() - 4 * 3600000) / 86400000) }); // dia de Boa Vista (UTC-4)
         const problema = pareceProblemaDeCalculo(pergunta, hist);
         quantitativo = !!diretas || problema;
         if (diretas && diretas.soConta) {
