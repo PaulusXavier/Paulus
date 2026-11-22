@@ -164,6 +164,23 @@ await teste('mapa sem internet (tiles falham): a rota continua desenhada e o avi
   await abrir(pg); await enviar(pg, 'traçar rota saindo daqui: CAPS Teste Um e CRAS Teste Dois'); await fim(pg);
   await pg.waitForSelector('#log .mapa .pin', { timeout: 8000 }); await pg.waitForFunction(() => /INDISPONÍVEL/.test(document.querySelector('.mleg').innerText), null, { timeout: 8000 });
 }, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758 } });
+await teste('voz do navegador: escolhe sozinha a voz masculina natural, deixa trocar e usa velocidade e tom ao falar', async (pg) => {
+  await pg.addInitScript(() => {
+    const V = [['Microsoft Francisca Online (Natural) - Portuguese (Brazil)', 'pt-BR'], ['Google português do Brasil', 'pt-BR'], ['Microsoft Antonio Online (Natural) - Portuguese (Brazil)', 'pt-BR'], ['Samantha', 'en-US']].map(([name, lang]) => ({ name, lang, voiceURI: name, localService: false, default: false }));
+    window.__ditas = [];
+    const ss = { getVoices: () => V, speak: (u) => { window.__ditas.push({ voz: u.voice && u.voice.name, taxa: u.rate, tom: u.pitch, texto: u.text }); setTimeout(() => u.onend && u.onend(), 5); }, cancel() {}, addEventListener() {}, removeEventListener() {}, speaking: false };
+    Object.defineProperty(window, 'speechSynthesis', { value: ss, configurable: true });
+    window.SpeechSynthesisUtterance = function (t) { this.text = t; };
+  });
+  await abrir(pg); await pg.click('#vc'); await pg.waitForSelector('#vp', { state: 'visible' });
+  const auto = await pg.locator('#vsel option').first().innerText(); ok(/Antonio/.test(auto), 'a automática não escolheu a masculina natural: ' + auto);
+  const opcoes = await pg.locator('#vsel option').allInnerTexts(); ok(!opcoes.some((t) => /Samantha/.test(t)), 'listou voz de outro idioma'); ok(opcoes.length === 4, 'lista errada: ' + opcoes.length);
+  await pg.click('#vp button:has-text("TESTAR")'); let d = await pg.evaluate(() => window.__ditas); ok(d.length === 1 && /Antonio/.test(d[0].voz) && d[0].taxa === 0.95 && d[0].tom === 0.9, 'teste falou errado: ' + JSON.stringify(d));
+  await pg.selectOption('#vsel', { index: 2 }); await pg.evaluate(() => { const r = document.querySelector('#vp input[aria-label="Tom da voz"]'); r.value = '0.7'; r.dispatchEvent(new Event('input', { bubbles: true })); });
+  await pg.click('#vp button:has-text("TESTAR")'); d = await pg.evaluate(() => window.__ditas); ok(!/Antonio/.test(d[1].voz) && d[1].tom === 0.7, 'não usou a escolha: ' + JSON.stringify(d[1]));
+  await pg.reload(); await abrir(pg).catch(() => {}); await pg.click('#vc'); ok((await pg.inputValue('#vp input[aria-label="Tom da voz"]')) === '0.7', 'não guardou a escolha');
+  await pg.keyboard.press('Escape'); ok(await pg.locator('#vp').isHidden(), 'Escape não fechou');
+});
 if (!tinha) fs.unlinkSync(lugaresTeste);
 await navegador.close(); servidor.close();
 const n = resultados.filter(Boolean).length; console.log('\n' + n + '/' + resultados.length + ' passaram'); process.exit(n === resultados.length ? 0 : 1);
