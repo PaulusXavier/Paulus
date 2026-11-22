@@ -568,6 +568,18 @@
       })();
     });
   }
+  // ------------------------------------------------------------ anotações (lista de compras no Firebase; não passa pela IA)
+  var N = window.PaulusNotas, modoNota = false;
+  function notasEnviar(texto) {
+    var cmd = N && N.interpretar(texto, { modoNota: modoNota }); modoNota = false;
+    if (!cmd) return false;
+    var x = msgPaulus(); x.m.setAttribute('data-k', 'notas'); var kk = x.m.querySelector('.mh .k'); if (kk) kk.textContent = 'ANOTAÇÕES';
+    x.corpo.textContent = '…'; estadoUI('busy');
+    N.executar(cmd).then(function (t) { return t; }, function (e) { x.m.setAttribute('data-k', 'erro'); return (e && e.message) || 'Não consegui acessar as anotações.'; }).then(function (t) {
+      estadoUI('idle'); pintar(x.corpo, t); transcricao.push({ papel: 'Paulus', texto: t }); if (vozLigada) falar(t, 'resumo'); rolar(true);
+    });
+    return true;
+  }
   function enviar(texto) {
     texto = String(texto == null ? q.value : texto).trim();
     if (ocupado || (!texto && !anexos.length)) return;
@@ -577,6 +589,7 @@
     if (vozPendente) legenda(texto, false); else legenda('');
     msgUsuario(texto, nomes);
     if (!arqs.length && pedidoDeMapa(texto)) { vozPendente = false; mostrarMapaBV(); return; }
+    if (!arqs.length && notasEnviar(texto)) return;
     var x = msgPaulus(); pensando(x); x.t0 = performance.now(); if (nucleo) nucleo.impulso(); bip(520, 880, 0.12, 0.045);
     try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) { /* sem vibração */ }
     ultimoPedido = texto;
@@ -1101,6 +1114,7 @@
   }
   if (window.innerWidth < 430) q.placeholder = 'Pergunte…';
   if (lerLS('paulus.som') === '1') { somLigado = true; var ks0 = $('ksom'); if (ks0) { ks0.textContent = 'LIGADO'; ks0.className = 'ok'; } }
+  if (N) N.init({ confirmar: function (t) { return confirm(t); }, ditar: function () { modoNota = true; aviso('Fale os itens. Eu anoto.'); ouvir(); } });
   boasVindas(); ajustarBarra(); estadoUI('idle'); q.focus();
   iniciarBoot();
 })();
