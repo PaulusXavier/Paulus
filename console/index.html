@@ -7,7 +7,7 @@
 <meta name="paulus-endpoint" content="https://paulus-ia.paulo-ae18.workers.dev">
 <!-- Login pelo Firebase (opcional): chave web do projeto (Firebase → Configurações do projeto → Geral → Chave de API da Web). Vazio = sem Firebase. -->
 <meta name="paulus-firebase-key" content="AIzaSyAIj8Un7IVal25a-aaJGspcL_C1O6-SZno">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self' https://*.workers.dev https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://routing.openstreetmap.de; img-src 'self' data: https://tile.openstreetmap.org">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self' https://*.workers.dev https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://routing.openstreetmap.de; img-src 'self' data: https://tile.openstreetmap.org; object-src 'none'; base-uri 'none'; form-action 'none'">
 <style>
 /* =====================================================================
    PAULUS_IA · CONSOLE — interface estilo J.A.R.V.I.S.
@@ -271,7 +271,6 @@ body.modo-voz #core{filter:drop-shadow(0 0 18px #6ee7a8aa)}
 
 /* ---------- tela de login ---------- */
 body.lock>*:not(#lg){visibility:hidden}
-/* ---------- tela de login ---------- */
 #lg{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));overflow:auto;background:radial-gradient(ellipse at 50% 18%,#0e3347 0%,#04121b 52%,#02070c 100%);transition:opacity .5s ease,transform .5s ease}
 #lg[hidden]{display:none}
 #lg.sai{opacity:0;transform:scale(1.04);pointer-events:none}
@@ -291,7 +290,7 @@ body.lock>*:not(#lg){visibility:hidden}
 .lb.err{border-color:#ff6b5e;box-shadow:0 0 0 3px #ff6b5e22}
 .lb input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--t);padding:13px 12px;font:inherit;font-size:16px}
 .lb input:disabled{opacity:.55}
-.lb input::placeholder{color:#4d8796}
+.lb input::placeholder{color:#6a9fae}
 #lgv{min-height:36px;min-width:0;margin-right:5px;padding:0 10px;font:600 10px ui-monospace,Menlo,monospace;letter-spacing:.12em;border-radius:7px;border-color:#37e6ff44}
 #lgc{font:11px ui-monospace,Menlo,monospace;color:var(--a);letter-spacing:.06em}
 .ll{display:flex;align-items:center;gap:9px;font-size:14px;color:#9fdce8;cursor:pointer;user-select:none;min-height:28px}
@@ -306,11 +305,19 @@ body.lock>*:not(#lg){visibility:hidden}
 @keyframes lv{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
 .lst{min-height:20px;text-align:center;font:11px/1.5 ui-monospace,Menlo,monospace;letter-spacing:.1em;color:var(--mut)}
 .lst.erro{color:#ff8a80}.lst.aviso{color:var(--a)}.lst.ok{color:var(--ok)}
-.lr{margin-top:14px;font:10px ui-monospace,Menlo,monospace;letter-spacing:.14em;color:#4d8796;text-align:center}
+.lr{margin-top:14px;font:10px/1.6 ui-monospace,Menlo,monospace;letter-spacing:.14em;color:#6fb0c0;text-align:center;max-width:100%;overflow-wrap:anywhere}
 #lc.tremer{animation:lt .45s cubic-bezier(.36,.07,.19,.97)}
 @keyframes lt{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-7px)}40%,60%{transform:translateX(7px)}}
 @media(max-height:620px){#lgo{width:190px;height:190px;margin-bottom:-10px}.ls{margin-bottom:6px}#lgform{padding:16px}}
 @media(max-height:560px){#lgo{width:120px;height:120px;margin-bottom:-6px}.ls,.lr{display:none}.lt{margin-bottom:8px}#lgform{padding:14px;gap:10px}.lb input{padding:10px 12px}#lgb{min-height:44px}}
+/* celular deitado: ícone à esquerda e formulário à direita, para o botão caber sem rolar */
+@media(orientation:landscape) and (max-height:480px) and (min-width:560px){
+#lc{display:grid;grid-template-columns:minmax(110px,170px) minmax(280px,380px);grid-template-rows:auto auto 1fr;column-gap:28px;row-gap:0;width:auto;max-width:100%;align-items:start;justify-content:center;align-content:center}
+#lgo{grid-column:1;grid-row:1;width:min(150px,38vh);height:min(150px,38vh);margin:0 auto;align-self:end}
+.lt{grid-column:1;grid-row:2;margin:6px 0 0 .42em;text-align:center}
+#lgform{grid-column:2;grid-row:1 / span 3;align-self:center;gap:9px;padding:14px}
+.lr{display:none}
+.hud{display:none!important}}
 @media(prefers-reduced-motion:reduce){#lc.tremer{animation:none}#lg{transition:none}#lgb.busy::after{animation:none}}
 
 #lgb .rp{position:absolute;border-radius:50%;background:radial-gradient(circle,#ffffffaa,#ffffff00 65%);transform:scale(0);animation:rp .6s ease-out forwards;pointer-events:none}
@@ -463,22 +470,22 @@ body[data-estado=busy] .qw{background-color:#1a1203d9}
 <canvas id="lgbg" aria-hidden="true"></canvas>
 <div class="hud tl" aria-hidden="true"><b>PAULUS // CORE</b>
 <span class="ln" style="animation-delay:.3s">SYS.BOOT ........ <i>OK</i></span>
-<span class="ln" style="animation-delay:.6s">CRYPTO ........ <i>PBKDF2</i></span>
-<span class="ln" style="animation-delay:.9s">CANAL ......... <i>TLS 1.3</i></span>
+<span class="ln" style="animation-delay:.6s">CRYPTO ........ <i id="hcr">PBKDF2</i></span>
+<span class="ln" style="animation-delay:.9s">CANAL ......... <i>HTTPS</i></span>
 <span class="ln" style="animation-delay:1.2s">NORMAS ........ <i>SUAS</i></span>
 <span class="ln" style="animation-delay:1.5s">ACESSO ........ <em>RESTRITO</em></span></div>
 <div class="hud tr" aria-hidden="true"><span class="big" id="hclk">--:--:--</span><span id="hdt" class="ln" style="animation-delay:.2s">--</span><span class="ln" style="animation-delay:.5s">FUSO AMT · UTC−04:00</span></div>
 <div class="hud bl" aria-hidden="true"><span class="ln" style="animation-delay:.8s">BOA VISTA · RR · BRASIL</span><span class="ln" style="animation-delay:1.1s">02.8235°N 060.6758°W</span><span class="ln" style="animation-delay:1.4s">ENTIDADE: <em>SUAS / CRAS</em></span></div>
-<div class="hud br" aria-hidden="true"><span class="ln" style="animation-delay:1s">TOKEN DE SESSÃO</span><span class="ln" id="hhex" style="animation-delay:1.2s;color:var(--c)">0x000000000000</span><span class="ln" style="animation-delay:1.4s">v<span id="hver">1</span> · ASSINATURA HMAC-SHA256</span></div>
+<div class="hud br" aria-hidden="true"><span class="ln" style="animation-delay:1s">TOKEN DE SESSÃO</span><span class="ln" id="hhex" style="animation-delay:1.2s;color:var(--c)">0x000000000000</span><span class="ln" style="animation-delay:1.4s">v<span id="hver">1</span> · <span id="hass">ASSINATURA HMAC-SHA256</span></span></div>
 <div id="lc">
 <canvas id="lgo" aria-hidden="true"></canvas>
 <h1 id="lgt" class="lt">PAULUS_IA</h1>
 <div class="ls">ACESSO RESTRITO · SUAS</div>
 <form id="lgform" autocomplete="on" novalidate>
 <div class="lf"><label for="lgu">USUÁRIO</label>
-<div class="lb" id="lgub"><input id="lgu" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="40" placeholder="seu usuário" disabled></div></div>
+<div class="lb" id="lgub"><input id="lgu" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="40" placeholder="seu usuário" aria-describedby="lgs" disabled></div></div>
 <div class="lf"><label for="lgp">SENHA</label>
-<div class="lb" id="lgpb"><input id="lgp" name="password" type="password" autocomplete="current-password" maxlength="200" placeholder="sua senha" disabled>
+<div class="lb" id="lgpb"><input id="lgp" name="password" type="password" autocomplete="current-password" maxlength="200" placeholder="sua senha" aria-describedby="lgs lgc" disabled>
 <button type="button" id="lgv" aria-pressed="false" aria-label="Mostrar senha">VER</button></div>
 <div id="lgc" hidden>⇪ CAPS LOCK LIGADO</div></div>
 <label class="ll"><input type="checkbox" id="lgl"> Manter conectado neste aparelho</label>
