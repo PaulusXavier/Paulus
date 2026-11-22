@@ -399,6 +399,7 @@
           : function () { return sessao ? sessao.token : ''; };
         o.aoNegar = function (f) { sair('Sua sessão venceu. Entre de novo.'); if (typeof antes === 'function') antes(f); };
       }
+      if (sessao) window.PaulusSessao = { token: o.token, firebase: !!FB };
       return ini.call(window.Paulus, o);
     };
     window.Paulus.__login = true;
