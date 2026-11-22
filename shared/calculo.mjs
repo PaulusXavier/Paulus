@@ -20,9 +20,25 @@ const CALC_LIMITE = 1e15;
 
 const CALC_FUNCOES = {
   raiz: 'raiz', sqrt: 'raiz', media: 'media', min: 'min', max: 'max', arred: 'arred', arredonda: 'arred', round: 'arred',
-  teto: 'teto', ceil: 'teto', piso: 'piso', floor: 'piso', abs: 'abs', soma: 'soma', sum: 'soma'
+  teto: 'teto', ceil: 'teto', piso: 'piso', floor: 'piso', abs: 'abs', soma: 'soma', sum: 'soma',
+  trunc: 'trunc', sinal: 'sinal', potencia: 'potencia', hipot: 'hipot',
+  ln: 'ln', log: 'log', log10: 'log', log2: 'log2', exp: 'exp',
+  seno: 'seno', sen: 'seno', sin: 'seno', cosseno: 'cosseno', cos: 'cosseno', tangente: 'tangente', tan: 'tangente',
+  fatorial: 'fatorial', resto: 'resto', mod: 'resto', mdc: 'mdc', mmc: 'mmc', comb: 'comb', perm: 'perm', arranjo: 'perm',
+  mediana: 'mediana', moda: 'moda', desvio: 'desvio', desviop: 'desviop', variancia: 'variancia', variancip: 'variancip',
+  amplitude: 'amplitude', produto: 'produto', contar: 'contar', percentil: 'percentil', quartil: 'quartil',
+  ponderada: 'ponderada', mediageo: 'mediageo', cv: 'cv', escorez: 'escorez',
+  montante: 'montante', parcela: 'parcela', vp: 'vp'
 };
-const CALC_ROTULO_FUNCAO = { raiz: 'raiz', media: 'média', min: 'mín', max: 'máx', arred: 'arred', teto: 'teto', piso: 'piso', abs: 'abs', soma: 'soma' };
+const CALC_ROTULO_FUNCAO = {
+  raiz: 'raiz', media: 'média', min: 'mín', max: 'máx', arred: 'arred', teto: 'teto', piso: 'piso', abs: 'abs', soma: 'soma',
+  mediana: 'mediana', desvio: 'desvio padrão', desviop: 'desvio padrão (população)', variancia: 'variância', variancip: 'variância (população)',
+  fatorial: 'fatorial', resto: 'resto', mdc: 'mdc', mmc: 'mmc', comb: 'combinação', perm: 'arranjo', ponderada: 'média ponderada',
+  mediageo: 'média geométrica', escorez: 'escore z', cv: 'coef. de variação', seno: 'seno', cosseno: 'cosseno', tangente: 'tangente',
+  montante: 'montante', parcela: 'parcela', vp: 'valor presente', trunc: 'trunc', hipot: 'hipotenusa'
+};
+// Constantes: pi sempre; "e" só na conta escrita pela IA (em texto de gente "e" é a conjunção).
+const CALC_CONSTANTES = { pi: Math.PI, e: Math.E };
 const CALC_ROTULO_CMP = { '<': '<', '<=': '≤', '>': '>', '>=': '≥', '==': '=', '!=': '≠' };
 
 function calcSemAcentos(s) {
@@ -114,6 +130,7 @@ function calcTokens(s, opc) {
     if (c === '<' || c === '>') { tks.push({ t: 'cmp', v: c, ini: i, fim: i + 1 }); i++; continue; }
     if (c === '+' || c === '-' || c === '*' || c === '/' || c === '^') { tks.push({ t: 'op', v: c, ini: i, fim: i + 1 }); i++; continue; }
     if (c === '%') { tks.push({ t: 'pct', ini: i, fim: i + 1 }); i++; continue; }
+    if (c === '!' && /[\d)]/.test(s.charAt(i - 1))) { tks.push({ t: 'fat', ini: i, fim: i + 1 }); i++; continue; }
     if (c === '(') { tks.push({ t: 'lp', ini: i, fim: i + 1 }); i++; continue; }
     if (c === ')') { tks.push({ t: 'rp', ini: i, fim: i + 1 }); i++; continue; }
     if (c === ';') { tks.push({ t: 'sep', ini: i, fim: i + 1 }); i++; continue; }
@@ -149,7 +166,8 @@ function calcChecar(x) {
 
 // Executa os tokens. vars: { 1: 800, 2: 1 } para #1, #2. Devolve { valor, bool, ops, literais, refs }.
 // "ops" conta operadores, comparações e funções (porcentagem sozinha não conta): zero significa que não era uma conta.
-function calcAvaliar(tokens, vars) {
+function calcAvaliar(tokens, vars, opc) {
+  const constE = !!(opc && opc.constantes);
   if (tokens.length > CALC_MAX_TOKENS) throw calcErro('conta longa demais');
   let p = 0, ops = 0, prof = 0;
   const literais = [], refs = [];
@@ -240,9 +258,10 @@ function calcAvaliar(tokens, vars) {
 
   function posfixo() {
     let x = primario();
-    while (olhar() && olhar().t === 'pct') {
+    while (olhar() && (olhar().t === 'pct' || olhar().t === 'fat')) {
+      const t = olhar();
       p++;
-      x = { v: calcLimpar(numero(x) / 100), pct: true };
+      if (t.t === 'fat') { ops++; x = { v: calcFatorial(numero(x)) }; } else x = { v: calcLimpar(numero(x) / 100), pct: true };
     }
     return x;
   }
@@ -263,6 +282,9 @@ function calcAvaliar(tokens, vars) {
       p++;
       r = comparacao();
       exigir('rp');
+    } else if (t.t === 'id' && CALC_CONSTANTES[t.v] !== undefined && (t.v === 'pi' || constE) && !(tokens[p + 1] && tokens[p + 1].t === 'lp')) {
+      p++;
+      r = { v: CALC_CONSTANTES[t.v] };
     } else if (t.t === 'id') {
       const f = CALC_FUNCOES[t.v];
       if (!f) throw calcErro('não conheço "' + t.v + '"');
@@ -289,19 +311,153 @@ function calcAvaliar(tokens, vars) {
   return { valor: r.bool ? r.v : calcLimpar(r.v), bool: !!r.bool, ops: ops, literais: literais, refs: refs };
 }
 
+function calcFatorial(n) {
+  if (!isFinite(n) || n < 0 || Math.floor(n) !== n) throw calcErro('fatorial pede inteiro, zero ou maior');
+  if (n > 17) throw calcErro('fatorial grande demais');
+  let r = 1;
+  for (let k = 2; k <= n; k++) r *= k;
+  return r;
+}
+
+function calcInteiros(f, a, minimo) {
+  a.forEach(function (x) { if (Math.floor(x) !== x || x < minimo) throw calcErro(f + ' pede números inteiros' + (minimo > 0 ? ' positivos' : '')); });
+}
+
+function calcMdc(x, y) {
+  x = Math.abs(x); y = Math.abs(y);
+  while (y) { const t = x % y; x = y; y = t; }
+  return x;
+}
+
+function calcOrdenar(a) {
+  return a.slice().sort(function (x, y) { return x - y; });
+}
+
+// Percentil com interpolação linear (o mesmo do PERCENTIL.INC do Excel). p de 0 a 100.
+function calcPercentil(p, lista) {
+  if (p < 0 || p > 100) throw calcErro('percentil vai de 0 a 100');
+  if (!lista.length) throw calcErro('percentil pede números');
+  const o = calcOrdenar(lista);
+  const pos = (o.length - 1) * p / 100;
+  const i = Math.floor(pos);
+  const frac = pos - i;
+  return calcLimpar(i + 1 < o.length ? o[i] + (o[i + 1] - o[i]) * frac : o[i]);
+}
+
+function calcMedia(a) { return a.reduce(function (x, y) { return x + y; }, 0) / a.length; }
+
+function calcVariancia(a, amostral) {
+  if (amostral && a.length < 2) throw calcErro('desvio amostral pede pelo menos 2 números');
+  const m = calcMedia(a);
+  return a.reduce(function (x, y) { return x + (y - m) * (y - m); }, 0) / (a.length - (amostral ? 1 : 0));
+}
+
+// Trigonometria em graus; o resíduo de ponto flutuante (sen 180 = 1e-16) vira zero.
+function calcTrig(x) {
+  return Math.abs(x) < 1e-12 ? 0 : calcLimpar(x);
+}
+
 function calcFuncao(f, a) {
   const um = function () { if (a.length !== 1) throw calcErro(f + ' pede 1 número'); return a[0]; };
   const varios = function () { if (!a.length) throw calcErro(f + ' pede números'); return a; };
+  const dois = function () { if (a.length !== 2) throw calcErro(f + ' pede 2 números'); return a; };
+  const tres = function () { if (a.length !== 3) throw calcErro(f + ' pede 3 números'); return a; };
+  const rad = function (x) { return x * Math.PI / 180; };
   if (f === 'raiz') { const x = um(); if (x < 0) throw calcErro('raiz de número negativo'); return calcLimpar(Math.sqrt(x)); }
   if (f === 'abs') return Math.abs(um());
   if (f === 'teto') return Math.ceil(calcLimpar(um()));
   if (f === 'piso') return Math.floor(calcLimpar(um()));
+  if (f === 'trunc') return Math.trunc(calcLimpar(um()));
+  if (f === 'sinal') { const x = um(); return x > 0 ? 1 : x < 0 ? -1 : 0; }
   if (f === 'arred') {
     if (a.length < 1 || a.length > 2) throw calcErro('arred pede 1 ou 2 números');
     return arredondarCasas(a[0], a.length === 2 ? a[1] : 0);
   }
   if (f === 'min') return Math.min.apply(null, varios());
   if (f === 'max') return Math.max.apply(null, varios());
+  if (f === 'potencia') { const d = dois(); if (Math.abs(d[1]) > 100) throw calcErro('expoente grande demais'); return Math.pow(d[0], d[1]); }
+  if (f === 'hipot') { const d = dois(); return calcLimpar(Math.sqrt(d[0] * d[0] + d[1] * d[1])); }
+  if (f === 'ln') { const x = um(); if (x <= 0) throw calcErro('logaritmo pede número positivo'); return calcLimpar(Math.log(x)); }
+  if (f === 'log2') { const x = um(); if (x <= 0) throw calcErro('logaritmo pede número positivo'); return calcLimpar(Math.round(Math.log(x) / Math.LN2 * 1e10) / 1e10); }
+  if (f === 'log') {
+    if (a.length < 1 || a.length > 2) throw calcErro('log pede 1 número (base 10) ou 2 (número; base)');
+    const x = a[0], b = a.length === 2 ? a[1] : 10;
+    if (x <= 0 || b <= 0 || b === 1) throw calcErro('logaritmo pede número e base positivos (base diferente de 1)');
+    return calcLimpar(Math.round(Math.log(x) / Math.log(b) * 1e10) / 1e10);
+  }
+  if (f === 'exp') { const x = um(); if (x > 100) throw calcErro('expoente grande demais'); return calcLimpar(Math.exp(x)); }
+  if (f === 'seno') return calcTrig(Math.sin(rad(um())));
+  if (f === 'cosseno') return calcTrig(Math.cos(rad(um())));
+  if (f === 'tangente') {
+    const x = um();
+    if (Math.abs(Math.cos(rad(x))) < 1e-12) throw calcErro('tangente não existe nesse ângulo');
+    return calcTrig(Math.tan(rad(x)));
+  }
+  if (f === 'fatorial') return calcFatorial(um());
+  if (f === 'resto') { const d = dois(); if (d[1] === 0) throw calcErro('divisão por zero'); return calcLimpar(d[0] - d[1] * Math.floor(d[0] / d[1])); }
+  if (f === 'mdc') { calcInteiros(f, varios(), 0); return a.reduce(calcMdc); }
+  if (f === 'mmc') {
+    calcInteiros(f, varios(), 1);
+    return a.reduce(function (x, y) { const r = x / calcMdc(x, y) * y; calcChecar(r); return r; });
+  }
+  if (f === 'comb' || f === 'perm') {
+    const d = dois();
+    calcInteiros(f, d, 0);
+    if (d[1] > d[0]) throw calcErro(f === 'comb' ? 'combinação pede k menor ou igual a n' : 'arranjo pede k menor ou igual a n');
+    if (d[0] > 1000) throw calcErro('número grande demais');
+    const k = f === 'comb' ? Math.min(d[1], d[0] - d[1]) : d[1];
+    let r = 1;
+    for (let q = 1; q <= k; q++) { r = f === 'comb' ? r * (d[0] - k + q) / q : r * (d[0] - q + 1); calcChecar(r); }
+    return Math.round(r);
+  }
+  if (f === 'mediana') return calcPercentil(50, varios());
+  if (f === 'percentil') { if (a.length < 2) throw calcErro('percentil pede o percentil e os números'); return calcPercentil(a[0], a.slice(1)); }
+  if (f === 'quartil') {
+    if (a.length < 2) throw calcErro('quartil pede o quartil (1 a 3) e os números');
+    if ([1, 2, 3].indexOf(a[0]) === -1) throw calcErro('quartil vai de 1 a 3');
+    return calcPercentil(a[0] * 25, a.slice(1));
+  }
+  if (f === 'moda') {
+    const cont = {};
+    varios().forEach(function (x) { cont[x] = (cont[x] || 0) + 1; });
+    const maior = Math.max.apply(null, Object.keys(cont).map(function (k) { return cont[k]; }));
+    const modas = Object.keys(cont).filter(function (k) { return cont[k] === maior; });
+    if (maior === 1 && a.length > 1) throw calcErro('não há moda (nenhum valor se repete)');
+    if (modas.length > 1) throw calcErro('há mais de uma moda: ' + modas.join(', '));
+    return Number(modas[0]);
+  }
+  if (f === 'desvio') return calcLimpar(Math.sqrt(calcVariancia(varios(), true)));
+  if (f === 'desviop') return calcLimpar(Math.sqrt(calcVariancia(varios(), false)));
+  if (f === 'variancia') return calcLimpar(calcVariancia(varios(), true));
+  if (f === 'variancip') return calcLimpar(calcVariancia(varios(), false));
+  if (f === 'amplitude') return calcLimpar(Math.max.apply(null, varios()) - Math.min.apply(null, a));
+  if (f === 'produto') return calcLimpar(varios().reduce(function (x, y) { return calcChecar(x * y); }, 1));
+  if (f === 'contar') return varios().length;
+  if (f === 'ponderada') {
+    if (a.length < 2 || a.length % 2) throw calcErro('média ponderada pede pares valor; peso');
+    let num = 0, den = 0;
+    for (let q = 0; q < a.length; q += 2) { num += a[q] * a[q + 1]; den += a[q + 1]; }
+    if (den === 0) throw calcErro('a soma dos pesos é zero');
+    return calcLimpar(num / den);
+  }
+  if (f === 'mediageo') {
+    varios().forEach(function (x) { if (x <= 0) throw calcErro('média geométrica pede números positivos'); });
+    return calcLimpar(Math.exp(a.reduce(function (x, y) { return x + Math.log(y); }, 0) / a.length));
+  }
+  if (f === 'cv') {
+    const m = calcMedia(varios());
+    if (m === 0) throw calcErro('a média é zero');
+    return calcLimpar(Math.sqrt(calcVariancia(a, true)) / Math.abs(m) * 100);
+  }
+  if (f === 'escorez') { const t = tres(); if (t[2] === 0) throw calcErro('desvio padrão zero'); return calcLimpar((t[0] - t[1]) / t[2]); }
+  if (f === 'montante') { const t = tres(); return calcLimpar(t[0] * Math.pow(1 + t[1], t[2])); }
+  if (f === 'vp') { const t = tres(); return calcLimpar(t[0] / Math.pow(1 + t[1], t[2])); }
+  if (f === 'parcela') {
+    const t = tres();
+    if (t[2] <= 0) throw calcErro('parcela pede prazo positivo');
+    if (t[1] === 0) return calcLimpar(t[0] / t[2]);
+    return calcLimpar(t[0] * t[1] / (1 - Math.pow(1 + t[1], -t[2])));
+  }
   const soma = varios().reduce(function (x, y) { return x + y; }, 0);
   return f === 'media' ? calcLimpar(soma / a.length) : calcLimpar(soma);
 }
@@ -315,7 +471,7 @@ export function calcularExpressao(texto, opc) {
     if (s.length > CALC_MAX_TEXTO) return { ok: false, erro: 'conta longa demais' };
     const tks = calcTokens(s, o);
     if (tks.some(function (t) { return t.t === 'out'; })) return { ok: false, erro: 'caractere que não entendi' };
-    const r = calcAvaliar(tks, o.vars);
+    const r = calcAvaliar(tks, o.vars, { constantes: o.constantes || o.ponto === 'decimal' });
     return { ok: true, valor: r.valor, bool: r.bool, ops: r.ops, literais: r.literais, refs: r.refs, tokens: tks };
   } catch (e) {
     return { ok: false, erro: e && e.calc ? e.message : 'não consegui ler a conta' };
@@ -356,12 +512,14 @@ function calcRenderizar(tokens) {
     else if (t.t === 'op') x = t.v === '*' ? (ant && ant.t === 'pct' ? 'de' : '×') : t.v === '/' ? '÷' : t.v;
     else if (t.t === 'cmp') x = CALC_ROTULO_CMP[t.v];
     else if (t.t === 'pct') x = '%';
+    else if (t.t === 'fat') x = '!';
     else if (t.t === 'lp') x = '(';
     else if (t.t === 'rp') x = ')';
     else if (t.t === 'sep') x = ';';
     else if (t.t === 'ref') x = '[' + t.v + ']';
+    else if (t.v === 'pi') x = 'π';
     else x = CALC_ROTULO_FUNCAO[CALC_FUNCOES[t.v]] || t.v;
-    const grudaAntes = t.t === 'pct' || t.t === 'rp' || t.t === 'sep';
+    const grudaAntes = t.t === 'pct' || t.t === 'fat' || t.t === 'rp' || t.t === 'sep';
     const grudaDepois = ant && (ant.t === 'lp' || (ant.t === 'id' && t.t === 'lp'));
     const unarioAntes = ant && ant.t === 'op' && ant.v === '-' && (i < 2 || tokens[i - 2].t === 'op' || tokens[i - 2].t === 'lp' || tokens[i - 2].t === 'cmp' || tokens[i - 2].t === 'sep');
     s += (i === 0 || grudaAntes || grudaDepois || unarioAntes || (t.t === 'lp' && ant.t === 'id') ? '' : ' ') + x;
@@ -386,12 +544,12 @@ export function expressaoLegivel(tokens) {
 
 // ------------------------------------------------------------------ contas em linguagem natural
 
-const CALC_RE_INTENCAO = /\b(?:calcul\w*|quanto\s+(?:e|da|dao|fica|ficou|ficaria|sobra|sobrou|vai|vale|valeria|seria|serao|custa|recebe|receberia|ganha|paga|pagaria|falta|faltam|resta|restam|passa|deu)|da\s+quanto|qual\s+(?:e\s+)?(?:o\s+)?(?:resultado|total|valor\s+total|soma|media|percentual|porcentagem|saldo|diferenca)|resultado\s+d[ea]|some|soma|somar|subtra\w+|multipli\w+|divid\w+|media|percentual|porcentagem|por\s+cento|per\s*capita|dentro\s+do\s+limite|acima\s+do|abaixo\s+do)\b/;
+const CALC_RE_INTENCAO = /\b(?:calcul\w*|quanto\s+(?:e|da|dao|fica|ficou|ficaria|sobra|sobrou|vai|vale|valeria|seria|serao|custa|recebe|receberia|ganha|paga|pagaria|falta|faltam|resta|restam|passa|deu)|da\s+quanto|qual\s+(?:e\s+)?(?:o\s+)?(?:resultado|total|valor\s+total|soma|media|mediana|moda|percentual|porcentagem|saldo|diferenca|desvio|variancia|amplitude|mdc|mmc|fatorial|resto|raiz|logaritmo|seno|cosseno|tangente)|resultado\s+d[ea]|some|soma|somar|subtra\w+|multipli\w+|divid\w+|media|mediana|moda|desvio\s+padrao|variancia|amplitude|fatorial|mdc|mmc|logaritmo|raiz\s+quadrada|seno|cosseno|tangente|hipotenusa|combinacao|arranjo|permutacao|arredond\w*|metade|dobro|triplo|quadruplo|terco|percentual|porcentagem|por\s+cento|per\s*capita|dentro\s+do\s+limite|acima\s+do|abaixo\s+do|resto\s+d[ea]\s+divisao)\b/;
 
 // Palavras que sobram numa pergunta que É só a conta ("quanto é 15% de 1200 reais, por favor?").
 const CALC_FILLER = new Set(('quanto e calcule calcula calcular calculo me ajuda ajude pode poderia voce vc por favor pfv pf qual o a os as resultado de do da dos das ' +
   'conta isso seria fica ficou ficaria total valor soma some somar uma um paulus ola oi bom dia tarde noite para pra em que sao deu reais real r sobre ' +
-  'com aqui ai agora so apenas vale vai sera resolva resolve faca faz pro na no media entre cento percentual porcentagem hein ne').split(' '));
+  'com aqui ai agora so apenas vale vai sera resolva resolve faca faz pro na no media entre cento percentual porcentagem hein ne padrao populacional natural quadrada quadrado cubo casas casa decimais decimal a ao os numeros numero valores').split(' '));
 
 // Trechos que parecem conta mas não são: data, lei, artigo, parágrafo, horário.
 function calcMascarar(n) {
@@ -404,6 +562,8 @@ function calcMascarar(n) {
 }
 
 const CALC_NUM = '\\d[\\d.,]*';
+// número dentro de lista: não engole a vírgula que separa os itens ("10, 20, 30")
+const CALC_NUMI = '\\d+(?:[.,]\\d+)*';
 
 function calcListaDe(lista) {
   return lista.split(/\s*(?:;|,\s+|\s+e\s+|\s+com\s+|\s*\+\s*)\s*/).map(function (x) { return x.trim().replace(/[.,]+$/, ''); }).filter(Boolean);
@@ -416,10 +576,7 @@ function calcNormalizarFrase(n) {
   s = s.replace(new RegExp('\\b(?:desconto|abatimento|reducao|corte)\\s+(?:de\\s+)?(' + CALC_NUM + ')\\s*%\\s*(?:sobre|em|no valor de|do valor de|ao valor de|de)\\s+(?:o\\s+|a\\s+)?(' + CALC_NUM + ')', 'g'), ' $2 - $1% ');
   s = s.replace(new RegExp('(' + CALC_NUM + ')\\s*%\\s*(?:de|do|da)\\s+(?=[\\d(])', 'g'), '$1% * ');
   s = s.replace(new RegExp('\\bdiferenca\\s+entre\\s+(' + CALC_NUM + ')\\s+e\\s+(' + CALC_NUM + ')', 'g'), ' abs($1 - $2) ');
-  s = s.replace(new RegExp('\\b(?:soma|some|somar|total)\\s+(?:de\\s+|dos\\s+|das\\s+)?(' + CALC_NUM + '(?:\\s*(?:;|,\\s+|\\s+e\\s+|\\s+com\\s+|\\+)\\s*' + CALC_NUM + ')+)', 'g'),
-    function (_, lista) { return ' ' + calcListaDe(lista).join(' + ') + ' '; });
-  s = s.replace(new RegExp('\\bmedia\\s+(?:de\\s+|dos\\s+|das\\s+|entre\\s+)?(' + CALC_NUM + '(?:\\s*(?:;|,\\s+|\\s+e\\s+|\\s+com\\s+)\\s*' + CALC_NUM + ')+)', 'g'),
-    function (_, lista) { return ' media(' + calcListaDe(lista).join('; ') + ') '; });
+  s = calcNormalizarMais(s);
   s = s.replace(new RegExp('\\braiz(?:\\s+quadrada)?\\s+de\\s+(' + CALC_NUM + ')', 'g'), ' raiz($1) ');
   s = s.replace(new RegExp('(' + CALC_NUM + ')\\s+ao\\s+quadrado', 'g'), '$1 ^ 2 ');
   s = s.replace(new RegExp('(' + CALC_NUM + ')\\s+ao\\s+cubo', 'g'), '$1 ^ 3 ');
@@ -435,9 +592,64 @@ function calcNormalizarFrase(n) {
   return s.replace(/\s+/g, ' ');
 }
 
+// Funções com lista de números ("mediana de 3, 5 e 9", "desvio padrão de 2; 4; 6"): a frase mais longa vem antes.
+const CALC_LISTAS = [
+  ['mdc|maximo\\s+divisor\\s+comum', 'mdc'], ['mmc|minimo\\s+multiplo\\s+comum', 'mmc'],
+  ['media\\s+geometrica', 'mediageo'], ['coeficiente\\s+de\\s+variacao', 'cv'], ['mediana', 'mediana'],
+  ['desvio\\s+padrao\\s+populacional', 'desviop'], ['desvio\\s+padrao(?:\\s+amostral)?', 'desvio'],
+  ['variancia\\s+populacional', 'variancip'], ['variancia(?:\\s+amostral)?', 'variancia'],
+  ['amplitude', 'amplitude'], ['moda', 'moda'], ['produto', 'produto'],
+  ['(?:maior|maximo)(?:\\s+valor)?', 'max'], ['(?:menor|minimo)(?:\\s+valor)?', 'min'],
+  ['(?:soma|some|somar|total)', null], ['media', 'media']
+];
+const CALC_FRACOES = { terco: 3, tercos: 3, quarto: 4, quartos: 4, quinto: 5, quintos: 5, sexto: 6, sextos: 6, setimo: 7, setimos: 7, oitavo: 8, oitavos: 8, nono: 9, nonos: 9, decimo: 10, decimos: 10 };
+const CALC_QUANTOS = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5 };
+
+function calcNormalizarMais(s) {
+  const sep = '(?:\\s*(?:;|,\\s+|\\s+e\\s+|\\s+com\\s+)\\s*)';
+  // média ponderada: "média ponderada de 8 (peso 2), 6 (peso 3)"
+  const par = '(' + CALC_NUMI + ')\\s*\\(?\\s*(?:com\\s+)?pesos?\\s+(' + CALC_NUMI + ')\\s*\\)?';
+  s = s.replace(new RegExp('\\bmedia\\s+ponderada\\s+(?:de\\s+|dos\\s+|das\\s+)?((?:' + par + sep + '?)+)', 'g'),
+    function (_, lista) {
+      const pares = [], re = new RegExp(par, 'g');
+      let m;
+      while ((m = re.exec(lista))) pares.push(m[1], m[2]);
+      return ' ponderada(' + pares.join('; ') + ') ';
+    });
+  CALC_LISTAS.forEach(function (l) {
+    s = s.replace(new RegExp('\\b(?:' + l[0] + ')\\s+(?:de\\s+|dos\\s+|das\\s+|do\\s+|da\\s+|entre\\s+)?(' + CALC_NUMI + '(?:' + sep + CALC_NUMI + ')+)', 'g'),
+      function (_, lista) {
+        const itens = calcListaDe(lista);
+        return l[1] ? ' ' + l[1] + '(' + itens.join('; ') + ') ' : ' ' + itens.join(' + ') + ' ';
+      });
+  });
+  // "mmc 12 e 18" já passou acima. Duas listas curtas usam "de": "diferença entre" fica em calcNormalizarFrase.
+  const n1 = '(' + CALC_NUMI + ')';
+  s = s.replace(new RegExp('\\bfatorial\\s+(?:de\\s+)?' + n1, 'g'), ' fatorial($1) ');
+  s = s.replace(new RegExp('\\bresto\\s+(?:da\\s+divisao\\s+)?(?:de\\s+)?' + n1 + '\\s+(?:por|dividido\\s+por|entre)\\s+' + n1, 'g'), ' resto($1; $2) ');
+  s = s.replace(new RegExp('\\b(?:logaritmo|log)\\s+(?:natural|neperiano)\\s+de\\s+' + n1, 'g'), ' ln($1) ');
+  s = s.replace(new RegExp('\\b(?:logaritmo|log)\\s+de\\s+' + n1 + '\\s+na\\s+base\\s+' + n1, 'g'), ' log($1; $2) ');
+  s = s.replace(new RegExp('\\b(?:logaritmo|log)\\s+(?:decimal\\s+)?de\\s+' + n1, 'g'), ' log($1) ');
+  s = s.replace(new RegExp('\\b(seno|cosseno|tangente)\\s+de\\s+' + n1 + '(?:\\s+graus?)?', 'g'), ' $1($2) ');
+  s = s.replace(new RegExp('\\b(?:combinacao|combinacoes)\\s+de\\s+' + n1 + '\\s+(?:em|a|tomados\\s+de|tomadas\\s+de|elementos\\s+em)\\s+' + n1, 'g'), ' comb($1; $2) ');
+  s = s.replace(new RegExp('\\b(?:arranjo|arranjos|permutacao|permutacoes)\\s+de\\s+' + n1 + '\\s+(?:em|a|tomados\\s+de|tomadas\\s+de|elementos\\s+em)\\s+' + n1, 'g'), ' perm($1; $2) ');
+  s = s.replace(new RegExp('\\barredonde?(?:ar)?\\s+' + n1 + '\\s+para\\s+' + n1 + '\\s+casas?(?:\\s+decimais)?', 'g'), ' arred($1; $2) ');
+  s = s.replace(new RegExp('\\barredonde?(?:ar)?\\s+' + n1 + '(?:\\s+para\\s+(?:o\\s+)?inteiro)?', 'g'), ' arred($1) ');
+  s = s.replace(new RegExp('\\bhipotenusa\\s+(?:de\\s+|dos\\s+|com\\s+catetos\\s+)?' + n1 + sep + n1, 'g'), ' hipot($1; $2) ');
+  // metade, dobro, triplo, frações
+  s = s.replace(new RegExp('\\bmetade\\s+d[eoa]s?\\s+' + n1, 'g'), ' ($1 / 2) ');
+  s = s.replace(new RegExp('\\bdobro\\s+d[eoa]s?\\s+' + n1, 'g'), ' ($1 * 2) ');
+  s = s.replace(new RegExp('\\btriplo\\s+d[eoa]s?\\s+' + n1, 'g'), ' ($1 * 3) ');
+  s = s.replace(new RegExp('\\bquadruplo\\s+d[eoa]s?\\s+' + n1, 'g'), ' ($1 * 4) ');
+  s = s.replace(new RegExp('\\b(um|uma|dois|duas|tres|quatro|cinco)\\s+(' + Object.keys(CALC_FRACOES).join('|') + ')\\s+d[eoa]s?\\s+' + n1, 'g'),
+    function (_, q, d, x) { return ' (' + x + ' * ' + CALC_QUANTOS[q] + ' / ' + CALC_FRACOES[d] + ') '; });
+  s = s.replace(new RegExp('\\b(\\d+)\\s*/\\s*(\\d+)\\s+d[eoa]s?\\s+' + n1, 'g'), ' (($1 / $2) * $3) ');
+  return s;
+}
+
 function calcTokenValido(t) {
-  return t.t === 'num' || t.t === 'op' || t.t === 'cmp' || t.t === 'pct' || t.t === 'lp' || t.t === 'rp' || t.t === 'sep' || t.t === 'ref'
-    || (t.t === 'id' && !!CALC_FUNCOES[t.v]);
+  return t.t === 'num' || t.t === 'op' || t.t === 'cmp' || t.t === 'pct' || t.t === 'fat' || t.t === 'lp' || t.t === 'rp' || t.t === 'sep' || t.t === 'ref'
+    || (t.t === 'id' && (!!CALC_FUNCOES[t.v] || t.v === 'pi'));
 }
 
 // Acha, nos tokens, as contas completas (a maior janela que fecha, da esquerda para a direita).
@@ -480,7 +692,7 @@ function calcJanelas(tokens) {
 // intencao: a mensagem usa palavra de conta ("quanto é", "calcule", "soma"...). soConta: fora a conta só sobra enchimento ("por favor", "reais").
 export function extrairContas(texto) {
   const bruto = calcSemAcentos(String(texto == null ? '' : texto).slice(0, 600)).toLowerCase();
-  const mascarado = calcMascarar(bruto);
+  const mascarado = calcMascarar(bruto.replace(/\b(\d+)\s*\/\s*(\d+)\s+d[eoa]s?\s+(?=\d)/g, '($1 / $2) * '));
   const moeda = /r\$|\breais\b|\breal\b/.test(mascarado);
   const frase = calcNormalizarFrase(mascarado);
   const tokens = calcTokens(frase, { ponto: 'milhar' });
