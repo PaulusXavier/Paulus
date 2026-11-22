@@ -14,7 +14,7 @@
   var FBKEY = String((metaFb && metaFb.content) || window.PAULUS_FIREBASE_KEY || '').trim();
   var FB = !!FBKEY;
   var $ = function (id) { return document.getElementById(id); };
-  var sessao = null, bloqueioAte = 0, tick = 0, ocupado = false, orbe = null, consoleCarregado = false;
+  var sessao = null, bloqueioAte = 0, tick = 0, ocupado = false, orbe = null, consoleCarregado = false, noAparelho = false;
   var reduzido = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   // ---------------------------------------------------------------- armazenamento (pode falhar: aba anônima etc.)
@@ -23,17 +23,20 @@
   function apagar(st, k) { try { st.removeItem(k); } catch (e) { /* nada */ } }
 
   function lerSessao() {
-    var cru = ler(sessionStorage, KEY) || ler(localStorage, KEY);
+    var daAba = ler(sessionStorage, KEY), cru = daAba || ler(localStorage, KEY);
     if (!cru) return null;
     try {
       var s = JSON.parse(cru);
-      if (s && typeof s.token === 'string' && (s.expira > Date.now() || (FB && s.refresh))) return s;
+      if (s && typeof s.token === 'string' && (s.expira > Date.now() || (FB && s.refresh))) { noAparelho = !daAba; return s; }
     } catch (e) { /* lixo */ }
     apagar(sessionStorage, KEY); apagar(localStorage, KEY);
     return null;
   }
+  // Grava na aba ou no aparelho. Só apaga a cópia do OUTRO lugar: apagar e regravar a mesma chave dispararia, nas outras abas,
+  // um evento "storage" de remoção e elas sairiam sem motivo (a cada renovação do token do Firebase, por exemplo).
   function guardar(s, lembrar) {
-    apagar(sessionStorage, KEY); apagar(localStorage, KEY);
+    noAparelho = !!lembrar;
+    apagar(lembrar ? sessionStorage : localStorage, KEY);
     gravar(lembrar ? localStorage : sessionStorage, KEY, JSON.stringify(s));
   }
 
@@ -71,20 +74,31 @@
       renovando = null;
       if (r.status === 200) {
         var n = dadosDoFirebase(r.j, antiga);
-        if (n) { n.usuario = antiga.usuario; sessao = n; guardar(n, !!ler(localStorage, KEY) || !!lembrarFb); return true; }
+        if (n) { n.usuario = antiga.usuario; sessao = n; guardar(n, noAparelho); return true; }
       }
       if (r.status === 400 || r.status === 401) { sair('Sua sessão foi encerrada. Entre de novo.'); }
       return false;
     });
     return renovando;
   }
-  var lembrarFb = false;
+  // Só erro de credencial vira "e-mail ou senha incorretos"; chave recusada, método desligado etc. são problema do serviço e não da pessoa.
   function mensagemFirebase(j) {
     var c = String(j && j.error && j.error.message || '');
     if (/TOO_MANY_ATTEMPTS/.test(c)) return { espera: 60 };
     if (/USER_DISABLED/.test(c)) return { texto: 'Esta conta está desativada.' };
     if (/INVALID_EMAIL|MISSING_EMAIL/.test(c)) return { texto: 'Informe um e-mail válido.' };
-    return { texto: 'E-mail ou senha incorretos.' };
+    if (/MISSING_PASSWORD/.test(c)) return { texto: 'Informe a senha.' };
+    if (/INVALID_LOGIN_CREDENTIALS|INVALID_PASSWORD|EMAIL_NOT_FOUND/.test(c) || !c) return { texto: 'E-mail ou senha incorretos.' };
+    if (/API.?KEY|REFERER|OPERATION_NOT_ALLOWED|PROJECT_NOT_FOUND|CONFIGURATION_NOT_FOUND/i.test(c)) return { texto: 'O login está indisponível por um problema de configuração. Avise quem administra o Paulus.' };
+    return { texto: 'Não foi possível entrar agora. Tente de novo em instantes.' };
+  }
+  // O Firebase aceita qualquer conta do projeto; o Worker pode recusar (e-mail fora da lista ou não verificado).
+  // Confere já no login, para dizer o motivo certo em vez de abrir o console e cair em "sessão venceu".
+  function conferirNoWorker(d) {
+    return post('/sessao', {}, d.token).then(function (v) {
+      if (v.status === 401) return { status: 403, j: { erro: 'Esta conta não tem acesso ao Paulus. Confirme o e-mail da conta ou peça a liberação a quem administra.' } };
+      return { status: 200, j: { ok: true, token: d.token, usuario: d.usuario, expira: d.expira, refresh: d.refresh } };
+    });
   }
 
   // ---------------------------------------------------------------- estado de interação compartilhado pelo ícone e pelo fundo
@@ -332,14 +346,13 @@
     if (ocupado || bloqueioAte > Date.now()) return;
     var u = $('lgu').value.trim(), s = $('lgp').value;
     if (!u || !s) { marcaErro(true); msg(FB ? 'Informe e-mail e senha.' : 'Informe usuário e senha.', 'erro'); (u ? $('lgp') : $('lgu')).focus(); return; }
-    marcaErro(false); ocupado = true; campos(false); $('lgb').classList.add('busy'); $('lgb').textContent = 'Verificando';
+    marcaErro(false); ocupado = true; campos(false); $('lgb').classList.add('busy'); $('lgb').textContent = 'Verificando…';
     if (orbe) orbe.estado('busy'); msg('VERIFICANDO CREDENCIAIS…');
     var lembrar = $('lgl').checked;
-    lembrarFb = lembrar;
     var chamada = FB
       ? fbPost('https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=' + encodeURIComponent(FBKEY), { email: u, password: s, returnSecureToken: true }).then(function (r) {
-          if (r.status === 200) { var d = dadosDoFirebase(r.j); if (d) { d.usuario = r.j.email || u; return { status: 200, j: { ok: true, token: d.token, usuario: d.usuario, expira: d.expira, refresh: d.refresh } }; } }
-          if (r.status === 0) return r;
+          if (r.status === 200) { var d = dadosDoFirebase(r.j); if (d) { d.usuario = r.j.email || u; return conferirNoWorker(d); } return { status: 502, j: {} }; }
+          if (r.status === 0 || r.status >= 500) return r;
           var m = mensagemFirebase(r.j);
           return m.espera ? { status: 429, j: { espera: m.espera } } : { status: 401, j: { erro: m.texto } };
         })
@@ -359,7 +372,7 @@
       if (r.status === 429 || (r.status === 401 && r.j.espera > 0)) { marcaErro(true); tremer(); bloquear(Math.max(1, Number(r.j.espera) || 30)); return; }
       marcaErro(true); tremer();
       if (r.status === 0) msg('SEM CONEXÃO COM O PAULUS. Verifique a internet e tente de novo.', 'erro');
-      else if (r.status === 401 || r.status === 400) msg(String(r.j.erro || 'Usuário ou senha incorretos.'), 'erro');
+      else if (r.status === 401 || r.status === 400 || r.status === 403) msg(String(r.j.erro || 'Usuário ou senha incorretos.'), 'erro');
       else msg('O servidor falhou (' + r.status + '). Tente de novo em instantes.', 'erro');
       $('lgp').focus();
     });
@@ -414,7 +427,11 @@
         });
       });
       // saiu em outra aba: sai aqui também
-      window.addEventListener('storage', function (e) { if (e.key === KEY && !e.newValue && sessao) sair('Você saiu em outra aba.'); });
+      // (espera um instante e confere: uma troca de token apaga e grava em seguida, e isso não é sair)
+      window.addEventListener('storage', function (e) {
+        if (!sessao || (e.key !== KEY && e.key !== null) || e.newValue) return;
+        setTimeout(function () { if (sessao && !ler(sessionStorage, KEY) && !ler(localStorage, KEY)) sair('Você saiu em outra aba.'); }, 80);
+      });
     }
     var lg = $('lg');
     document.body.classList.remove('lock');
@@ -434,6 +451,12 @@
     if (ultimo && !$('lgu').value) { $('lgu').value = ultimo; $('lgp').focus(); } else $('lgu').focus();
   }
 
+  // o bloqueio por tentativas sobrevive a recarregar a página
+  function retomarBloqueio() {
+    var antes = Number(ler(localStorage, BLOQ)) || 0;
+    if (antes > Date.now()) bloquear(Math.ceil((antes - Date.now()) / 1000));
+  }
+
   function iniciar() {
     var o = criarOrbe($('lgo')), pararHud = ligarHud();
     var f = criarFundo($('lgbg'), function () { var r = $('lgo').getBoundingClientRect(), b = $('lgbg').getBoundingClientRect(); return { x: r.left - b.left + r.width / 2, y: r.top - b.top + r.height / 2 }; });
@@ -442,6 +465,7 @@
       var rot = document.querySelector('label[for="lgu"]'); if (rot) rot.textContent = 'E-MAIL';
       $('lgu').placeholder = 'seu e-mail'; $('lgu').maxLength = 120; $('lgu').type = 'email'; $('lgu').setAttribute('autocomplete', 'email'); $('lgu').setAttribute('inputmode', 'email');
       var lr = document.querySelector('.lr'); if (lr) lr.textContent = 'LOGIN FIREBASE · A SENHA NUNCA FICA NO APARELHO';
+      if ($('hcr')) $('hcr').textContent = 'FIREBASE'; if ($('hass')) $('hass').textContent = 'ASSINATURA GOOGLE · RS256';
     }
     $('lgform').addEventListener('submit', enviar);
     $('lgv').addEventListener('click', function () {
@@ -493,11 +517,10 @@
       if (r.status === 200 && r.j.login === false) { abrir(false); return; }              // Worker sem login: console aberto
       if (r.status === 200 && r.j.ok && guardada) { sessao = { token: guardada.token, usuario: r.j.usuario || guardada.usuario, expira: r.j.expira || guardada.expira, refresh: guardada.refresh }; abrir(true); return; }
       if (r.status === 0 && guardada) { sessao = guardada; abrir(true); return; }          // sem rede: segue com a sessão guardada
-      if (r.status === 0) { mostrarFormulario('SEM CONEXÃO COM O PAULUS. Você ainda pode tentar entrar.', 'aviso'); return; }
+      if (r.status === 0) { mostrarFormulario('SEM CONEXÃO COM O PAULUS. Você ainda pode tentar entrar.', 'aviso'); retomarBloqueio(); return; }
       if (guardada) { apagar(sessionStorage, KEY); apagar(localStorage, KEY); aviso = aviso || 'Sua sessão venceu. Entre de novo.'; }
       mostrarFormulario(aviso || 'AGUARDANDO CREDENCIAIS', aviso ? 'aviso' : '');
-      var antes = Number(ler(localStorage, BLOQ)) || 0;
-      if (antes > Date.now()) bloquear(Math.ceil((antes - Date.now()) / 1000));
+      retomarBloqueio();
     });
   }
 
