@@ -586,6 +586,12 @@ button:focus-visible,a:focus-visible,select:focus-visible,[role=option]:focus-vi
 body.foco .rail,body.foco #hx,body.foco #rx,body.foco #bgc{display:none!important}
 body.foco::after{background:none}
 @media(min-width:1180px){body.foco #log,body.foco #bar{width:min(860px,94vw)}}
+/* socorro: telefones viram botões grandes, fáceis de tocar */
+.m.p.alerta .mc ul{list-style:none;padding:0;margin:12px 0 4px;display:grid;gap:8px}
+.m.p.alerta .mc li{display:flex;align-items:center;gap:12px;padding:6px 10px 6px 6px;border:1px solid #ff6b5e66;border-radius:10px;background:#1d0809}
+.m.p.alerta .mc li a[href^="tel:"]{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:112px;min-height:46px;padding:0 14px;border-radius:8px;background:var(--red);color:#2a0c0f;font:800 17px var(--hud);text-decoration:none;letter-spacing:.02em}
+.m.p.alerta .mc li a[href^="tel:"]::before{content:"Ligar";font-weight:600;font-size:13px}
+.m.p.alerta .mc li a[href^="tel:"]:hover{filter:brightness(1.1)}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
 <svg id="hx" aria-hidden="true" focusable="false"><defs><pattern id="hxp" width="56" height="97" patternUnits="userSpaceOnUse" patternTransform="scale(.9)"><path d="M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z M28 62 L28 95 M54 47 L82 62 M2 47 L-26 62" fill="none" stroke="currentColor" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#hxp)"/></svg>
@@ -685,7 +691,7 @@ body.foco::after{background:none}
 </dl>
 <ul id="fts" class="fts" aria-label="Fontes da última resposta"></ul></section>
 <section class="pn"><h3 class="pt">Comandos</h3>
-<ul class="cmd"><li><kbd>/</kbd><span>atalhos</span></li><li><kbd>Esc</kbd><span>parar</span></li><li><kbd>Ctrl+Shift+N</kbd><span>nova</span></li><li><kbd>Ctrl+Shift+F</kbd><span>foco</span></li><li><kbd>Enter</kbd><span>enviar</span></li></ul></section>
+<ul class="cmd"><li><kbd>/</kbd><span>atalhos</span></li><li><kbd>↑</kbd><span>última pergunta</span></li><li><kbd>Esc</kbd><span>parar</span></li><li><kbd>Ctrl+Shift+N</kbd><span>nova</span></li><li><kbd>Ctrl+Shift+F</kbd><span>foco</span></li><li><kbd>Enter</kbd><span>enviar</span></li></ul></section>
 </aside>
 <main id="log" role="log" aria-live="polite" aria-label="Conversa"></main>
 <div id="cap" aria-hidden="true"></div>
