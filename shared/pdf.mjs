@@ -32,14 +32,14 @@ const PDF_COR = {
 };
 
 const PDF_NAO_SUPORTA = {
-  tarja: 'Tarjar (cobrir dado sensível) eu ainda não faço com segurança: um retângulo por cima não apaga o texto que está embaixo, e quem abrir o arquivo consegue copiá-lo. Para sigilo de verdade, tarje no arquivo de origem (Word, Verbus) e gere o PDF de novo, ou imprima e digitalize.',
-  texto: 'Não consigo alterar o texto que já está dentro do PDF: ele guarda letras posicionadas, não parágrafos. Eu posso escrever um texto novo por cima, preencher campos de formulário, numerar, carimbar e mexer nas páginas. Para mudar o conteúdo, corrija no arquivo de origem (Word, Verbus) e gere o PDF de novo.',
-  comprimir: 'Comprimir ou reduzir o tamanho do PDF eu ainda não faço aqui. Dá para gerar de novo com qualidade menor no programa de origem, ou usar um compressor offline.',
-  senha: 'Não crio nem removo senha de PDF. Se o arquivo é seu e tem senha, abra no leitor com a senha e salve uma cópia (Imprimir > Salvar como PDF); aí eu edito a cópia.',
-  ocr: 'Não faço OCR (reconhecer o texto de um PDF escaneado) nem leio o conteúdo do PDF.',
+  tarja: 'Tarjar (cobrir dado sensível) eu ainda não faço com segurança: um retângulo por cima não apaga o texto que está embaixo, e quem abrir o arquivo consegue copiá-lo. Para sigilo de verdade, tarje no arquivo de origem (Word, Verbus) e gere o PDF de novo, ou imprima e digitalize. No Argo SUAS (Central de PDF), "cobrir" também só esconde; depois, "Reduzir tamanho" no modo "Páginas como imagem" transforma as páginas em imagem e o texto de baixo deixa de ser texto. Confira tentando selecionar e copiar no resultado.',
+  texto: 'Não consigo alterar o texto que já está dentro do PDF: ele guarda letras posicionadas, não parágrafos. Eu posso escrever um texto novo por cima, preencher campos de formulário, numerar, carimbar e mexer nas páginas. Para mudar o conteúdo, corrija no arquivo de origem (Word, Verbus) e gere o PDF de novo, ou use "PDF → Word" na Central de PDF do Argo SUAS e edite o .docx.',
+  comprimir: 'Comprimir ou reduzir o tamanho do PDF eu não faço por aqui. Isso é função da Central de PDF do Argo SUAS ("Reduzir tamanho"): no modo "Manter o texto" só as imagens são recomprimidas e o texto continua selecionável; no modo "Páginas como imagem" o arquivo fica menor, mas o texto deixa de poder ser copiado. Peça "abrir a central de pdf".',
+  senha: 'Não crio nem removo senha de PDF por aqui. A Central de PDF do Argo SUAS faz as duas coisas no próprio aparelho: "Proteger PDF" (senha para abrir, AES de 128 bits; anote a senha, porque não há como recuperar) e "Remover senha" (você precisa saber a senha; o app não adivinha nem quebra senha). Peça "abrir a central de pdf". Depois eu edito a cópia.',
+  ocr: 'Não faço OCR (reconhecer o texto de um PDF escaneado) nem leio o conteúdo do PDF. A Central de PDF do Argo SUAS tem "Extrair texto (.txt)", que copia o texto página por página, mas só de PDF com texto selecionável; documento escaneado (foto) não tem texto para copiar e também não passa por OCR lá.',
   assinatura: 'Assinatura digital com certificado eu não faço. Posso colocar a imagem de uma assinatura escaneada na página ("colocar a assinatura no canto inferior direito da última página", anexando a imagem), mas isso é só uma imagem e não tem validade de certificado digital.',
-  branco: 'Ainda não sei achar páginas em branco sozinha. Diga quais páginas remover, por exemplo: "remover as páginas 3 e 7".',
-  converter: 'Converter PDF para Word, Excel ou imagem eu não faço; eu edito PDFs. O contrário funciona: fotos JPG e PNG viram PDF.'
+  branco: 'Ainda não sei achar páginas em branco sozinha. Diga quais páginas remover, por exemplo: "remover as páginas 3 e 7". No Argo SUAS, "Reorganizar páginas" (Central de PDF) mostra todas as miniaturas para você tirar, girar ou duplicar páginas.',
+  converter: 'Converter PDF para Word ou imagem eu não faço por aqui; eu edito PDFs. A Central de PDF do Argo SUAS faz PDF → Word, Word → PDF e PDF → JPG, e fotos JPG e PNG viram PDF (aqui ou na Central, em "Digitalizar"). Peça "abrir a central de pdf".'
 };
 
 // ------------------------------------------------------------------ texto
@@ -213,6 +213,8 @@ function pdfClausula(o, n, citados) {
   if (T(/assinatura digital|certificado digital|assinar digitalmente|assinar com certificado/)) return { nao: 'assinatura' };
   if (T(/\b(converter|converta|transformar|transforme|exportar|salvar)\b.*\b(em|para|como)\s+(word|docx|excel|xlsx|imagem|jpg|jpeg|png|txt|powerpoint|ppt)\b/)) return { nao: 'converter' };
   if (T(/\bem branco\b/) && T(/\b(remov\w+|exclu\w+|apag\w+|retir\w+|elimin\w+|detect\w+|achar|ache)\b/)) return { nao: 'branco' };
+
+  if (T(/\b(limp\w+|apag\w+|remov\w+|tir\w+|elimin\w+|anonimiz\w+)\b.*\b(dados ocultos|metadados|propriedades|autor)\b|\bdados ocultos\b/) && !comAspas) return { op: 'limparmeta' };
 
   // 2) metadados: título, autor, assunto, palavras-chave (valor entre aspas)
   if (comAspas && T(/\b(titulo|autor|autora|assunto|palavras? chave)\b/) && !T(/\b(pagina|topo|rodape|canto|cabecalho)\b/)) {
@@ -770,6 +772,11 @@ async function pdfAplicar(L, op, ctx) {
       d.doc.getForm().flatten();
       marcar(d, '-travado');
       dizer(d, 'Travei o formulário: o que estava preenchido ficou fixo no papel, sem edição.');
+    } else if (op.op === 'limparmeta') {
+      d.doc.setTitle(''); d.doc.setAuthor(''); d.doc.setSubject(''); d.doc.setKeywords([]); d.doc.setProducer(''); d.doc.setCreator('');
+      d.limpo = true;
+      marcar(d, '-limpo');
+      dizer(d, 'Limpei título, autor, assunto, palavras-chave e o programa que criou o arquivo. O conteúdo das páginas não mudou.');
     } else if (op.op === 'metadados') {
       if (op.meta.titulo != null) d.doc.setTitle(op.meta.titulo);
       if (op.meta.autor != null) d.doc.setAuthor(op.meta.autor);
@@ -863,6 +870,7 @@ export async function editarPdf(operacoes, arquivos, opcoes) {
     for (let i = 0; i < ctx.docs.length; i++) {
       const d = ctx.docs[i];
       let bytes;
+      if (d.limpo) { try { d.doc.setProducer(''); d.doc.setCreator(''); d.doc.setTitle(''); d.doc.setAuthor(''); } catch (e) { /* ignora */ } }
       try { bytes = await d.doc.save(); } catch (e) { return falha('Não consegui salvar o resultado (' + String(e && e.message || e).slice(0, 100) + ').'); }
       const suf = d.sufixos.length === 1 ? d.sufixos[0] : d.sufixos.length ? '-editado' : '';
       let nome = nomeFixo ? nomeFixo + (ctx.docs.length > 1 ? (d.sufixos[0] && d.parte ? d.sufixos[0] : '-' + (i + 1)) : '') : d.nome + suf;
