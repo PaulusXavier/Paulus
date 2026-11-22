@@ -449,6 +449,97 @@ body[data-estado=busy] .qw{background-color:#1a1203d9}
 #core{touch-action:none;outline:none;transition:filter .2s}
 #core:hover,#core:focus-visible{filter:drop-shadow(0 0 14px #37e6ff88)}
 #core:focus-visible{outline:1px dashed var(--c);outline-offset:3px;border-radius:50%}
+
+/* =====================================================================
+   v3 · REDESENHO: o núcleo é a única peça de destaque; o resto fica quieto e legível.
+   Princípios: texto da resposta em primeiro lugar (caixa só no socorro), um único
+   sinal de "ação" (canto chanfrado), cores com função fixa (ciano = Paulus,
+   âmbar = você/atenção, verde = no aparelho, vermelho = socorro), contraste alto.
+   ===================================================================== */
+:root{--t:#e8f6fa;--mut:#9cc3cd;--bd:#37e6ff2e;--bd2:#37e6ff66;--panel:#071820;--panel2:#0b2230;--hud:"Bahnschrift","DIN Alternate","Segoe UI",system-ui,-apple-system,sans-serif}
+body{background:radial-gradient(ellipse 80% 50% at 50% -10%,#0d2f45 0%,#05111a 60%,#030a10 100%)}
+body::after{background:radial-gradient(ellipse at 50% 45%,transparent 60%,#030a10b0 100%)}
+#hx{display:none}
+#bgc{opacity:.55}
+#rx{opacity:.1}body.vazio #rx{opacity:.5}
+.brand{letter-spacing:.2em;text-shadow:none}.brand small{letter-spacing:.1em;font-size:11px}
+.sline{font-size:11px;letter-spacing:.1em}
+.hb{border-radius:8px;background:var(--panel);border-color:var(--bd2)}.hb:hover{box-shadow:none;background:var(--panel2)}
+
+/* painéis laterais: sólidos, sem cantos decorativos */
+.pn{background:var(--panel);border:1px solid var(--bd);border-radius:10px;backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
+.pn::before,.pn::after,.p::before,.p::after{display:none}
+.pt{font:600 12px var(--hud);letter-spacing:.06em;text-transform:none;color:var(--c2)}
+.pt::before{display:none}.pt::after{animation:none;background:var(--bd)}
+.kv div{font-size:12px;letter-spacing:.03em}.kv dt{color:var(--mut)}
+.pv{font-size:13px;color:var(--t)}.cmd{font-size:12px}.spl{font-size:10px;color:var(--mut)}
+
+/* conversa: resposta como texto corrido, com filete lateral */
+#log{gap:20px}
+.m.p{background:none;border:0;border-left:2px solid #37e6ff55;border-radius:0;padding:2px 0 2px 18px;max-width:100%;width:100%;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;animation:entra .3s ease-out both}
+.p .sw{display:none}
+.m.p .mc.dig{text-shadow:none}
+.mc{font-size:16.5px;line-height:1.7}
+.m p{margin:0 0 12px}
+.mh{font:600 11.5px var(--hud);letter-spacing:.08em;margin-bottom:8px}
+.mh .k{border:0;padding:0;font-weight:700;letter-spacing:.08em}
+.mh .o,.mh .id{color:var(--mut)}
+.m h3,.m h4{font:700 15px var(--hud);letter-spacing:.02em;text-transform:none;color:var(--c2);margin:16px 0 6px}
+.m th{font:700 12px var(--hud);letter-spacing:.04em;text-transform:none;background:var(--panel2)}
+.f{font-size:12.5px;color:var(--mut)}.fts{font-size:11.5px;color:var(--mut)}
+.u{background:var(--panel2);border:1px solid var(--bd2);border-right:2px solid var(--a);border-radius:10px 10px 2px 10px;box-shadow:none;max-width:88%}
+.u .mh{display:none}.u .mc{font-size:15.5px}
+.m.p.alerta{background:#2a0c0f;border:1px solid var(--red);border-left:4px solid var(--red);border-radius:6px;padding:14px 16px;box-shadow:none}
+.m.p.alerta .mc{color:#fff1ef}
+.cb pre{background:#030d13;border-radius:6px;border-left-width:2px}
+
+/* ações e sugestões: um só estilo de botão pequeno */
+.ac button,.ac a,#tb button{font:600 12px var(--hud);letter-spacing:.02em;text-transform:none;min-height:32px;padding:0 12px;border-radius:16px;background:transparent;border:1px solid var(--bd2);color:var(--c2)}
+.ac a{color:var(--a);border-color:#ffb34777}
+.ac button:hover,#tb button:hover{background:var(--panel2);border-color:var(--c)}
+#tb button{background:var(--panel)}
+.pens{font:600 12px var(--hud);letter-spacing:.06em}
+
+/* boas-vindas */
+.hi .ey{font:600 12px var(--hud);letter-spacing:.14em}
+.hi h2{font-weight:300;text-shadow:none}
+.hi .ch{background:var(--panel);border:1px solid var(--bd);border-radius:8px;font-size:15px;min-height:50px}
+.hi .ch i{color:var(--c);font:600 16px var(--hud)}
+.hi .ch:hover{transform:none;background:var(--panel2);border-color:var(--c);box-shadow:none}
+.hi .dt{font-size:12px;letter-spacing:.1em}
+
+/* entrada: campo sólido; o único canto chanfrado é o do botão de enviar */
+.qw{background:var(--panel);border:1px solid var(--bd2);border-radius:10px}
+.qw::before{font-size:22px;text-shadow:none}
+.qw:focus-within{box-shadow:0 0 0 3px #37e6ff26}
+body[data-estado=busy] .qw{background-color:var(--panel)}
+#q{font-size:16.5px}#q::placeholder{color:#7fa9b4}
+#at,#mic{background:var(--panel);border-radius:10px}
+#go{font-size:13px;letter-spacing:.12em}
+#cap{text-shadow:none}
+#sl{border-radius:8px}#sl div b{font-size:13px}
+#vp{border-radius:12px;box-shadow:0 12px 40px #000b}#vp h2{font-family:var(--hud);font-size:12px;letter-spacing:.06em;text-transform:none}
+#vp label{font-size:13px}
+.destino{border-radius:10px;background:var(--panel);box-shadow:none}
+.destino::before,.destino::after{display:none}
+.destino .dtag{font:600 12px var(--hud);letter-spacing:.1em}
+.destino .dchips span{font:600 12px var(--hud);letter-spacing:.03em;border-radius:12px}
+.mapa{border-radius:8px}.mapa::after{background:none}
+
+/* entrada (login) e carregamento */
+.hud.tl,.hud.bl,.hud.br{display:none}
+.hud{font-size:11px}
+#lgform{background:var(--panel);border-radius:14px;backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:0 18px 60px #000a}
+#lgform::before,#lgform::after{display:none}
+.lt{letter-spacing:.3em;text-shadow:none}
+.ls{font:13px var(--hud);letter-spacing:.04em;color:var(--mut)}
+.lf label{font:600 13px var(--hud);letter-spacing:.02em;color:var(--t)}
+.lb input::placeholder{color:#7fa9b4}
+#lgv{font:600 12px var(--hud);letter-spacing:.04em}
+#lgb{letter-spacing:.06em;text-transform:none;font:700 15px var(--hud);clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);border-radius:0}
+.lst{font:13px/1.5 var(--hud);letter-spacing:.02em}
+.lr{font:12px/1.6 var(--hud);letter-spacing:.02em;color:var(--mut)}
+#boot .bx{font-size:12px;letter-spacing:.1em}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
 <svg id="hx" aria-hidden="true" focusable="false"><defs><pattern id="hxp" width="56" height="97" patternUnits="userSpaceOnUse" patternTransform="scale(.9)"><path d="M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z M28 62 L28 95 M54 47 L82 62 M2 47 L-26 62" fill="none" stroke="currentColor" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#hxp)"/></svg>
@@ -480,11 +571,11 @@ body[data-estado=busy] .qw{background-color:#1a1203d9}
 <div id="lc">
 <canvas id="lgo" aria-hidden="true"></canvas>
 <h1 id="lgt" class="lt">PAULUS_IA</h1>
-<div class="ls">ACESSO RESTRITO · SUAS</div>
+<div class="ls">Acesso restrito aos profissionais do SUAS</div>
 <form id="lgform" autocomplete="on" novalidate>
-<div class="lf"><label for="lgu">USUÁRIO</label>
+<div class="lf"><label for="lgu">Usuário</label>
 <div class="lb" id="lgub"><input id="lgu" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="40" placeholder="seu usuário" aria-describedby="lgs" disabled></div></div>
-<div class="lf"><label for="lgp">SENHA</label>
+<div class="lf"><label for="lgp">Senha</label>
 <div class="lb" id="lgpb"><input id="lgp" name="password" type="password" autocomplete="current-password" maxlength="200" placeholder="sua senha" aria-describedby="lgs lgc" disabled>
 <button type="button" id="lgv" aria-pressed="false" aria-label="Mostrar senha">VER</button></div>
 <div id="lgc" hidden>⇪ CAPS LOCK LIGADO</div></div>
@@ -492,7 +583,7 @@ body[data-estado=busy] .qw{background-color:#1a1203d9}
 <button type="submit" id="lgb" disabled>Autenticar</button>
 <div id="lgs" class="lst" role="status" aria-live="polite">CONECTANDO…</div>
 </form>
-<div class="lr">SESSÃO ASSINADA · A SENHA NUNCA FICA NO APARELHO</div>
+<div class="lr">A senha nunca fica guardada neste aparelho.</div>
 </div>
 </section>
 
