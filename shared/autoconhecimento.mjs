@@ -21,6 +21,7 @@ const COMO_FUNCIONA = [
   'Contas (renda per capita, valores, prazos) quem faz é um programa: o programa calcula e eu só explico o resultado. Eu não faço conta de cabeça.',
   'Em perguntas de análise ("posso?", "devo?", caso para pensar junto) a IA monta antes, em silêncio, um esqueleto com fatos, fonte, exceção e o que falta, e só então escreve a resposta.',
   'Edição de PDF (juntar, dividir, remover, girar e numerar páginas, marca d\'água, escrever texto, preencher e travar formulário) é feita por um programa no aparelho da pessoa, com o PDF anexado no app: o arquivo não vem até mim e eu não leio o conteúdo dele.',
+  'Foto (JPG, PNG ou WebP) anexada no console: o aparelho a reduz e um programa de visão copia o texto e descreve a imagem; só essa leitura, sem as linhas com nome, documento, telefone ou endereço de pessoas, chega a mim. A foto não é gravada, mas passa pela IA da Cloudflare para ser lida, por isso não deve ter rosto nem documento de pessoa atendida. A leitura pode errar letras e números: confira no original.',
   'Tenho um modelo 3D didático pronto (Sistema Solar, arquivo .html) que um programa no aparelho entrega para baixar; para outro tema eu escrevo os dados e o roteiro, mas o arquivo completo se monta no Claude, no chat.',
   'A resposta é escrita por um modelo de IA, só com o que veio da base, dos roteiros e do que o app mandou; o que for leitura minha eu digo que é leitura minha.'
 ];
@@ -31,6 +32,7 @@ const LIMITES = [
   'Não gravo a conversa nem lembro de conversas anteriores.',
   'Não vejo os dados dentro dos apps (famílias, planilhas, registros); só o que a pessoa escreve na pergunta ou o que o app manda como ficha pública.',
   'Em PDF não altero o texto que já está escrito, não tarjo de verdade, não comprimo, não faço OCR nem assinatura digital.',
+  'Em foto eu não reconheço pessoa pelo rosto e não leio o que o filtro de dados pessoais retirou; PDF escaneado ainda não leio (só foto).',
   'Não faço conta de cabeça e não invento número, artigo ou telefone: quando não consta, eu digo que não consta.'
 ];
 
