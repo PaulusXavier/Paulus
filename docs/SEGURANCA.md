@@ -34,6 +34,14 @@ O Paulus guarda, **no aparelho** (`localStorage`), o que aprendeu sobre o estilo
 - O filtro de dados pessoais é por padrão (como já dito acima): uma pergunta com nome escrito de forma incomum pode passar e ficar guardada no aparelho (nunca no servidor).
 - Resposta aprovada é texto de IA de um dia específico: pode estar desatualizada. Por isso vence em 6 meses, aparece com data e com o aviso "confira a norma".
 
+## Foto anexada (leitura de imagem)
+- A foto é **reduzida no aparelho** e enviada **uma vez** ao Worker, que a entrega a um modelo de visão do Workers AI. Nada é gravado (nem imagem, nem leitura, nem IP).
+- **Ponto de atenção:** diferente de texto digitado, a imagem **não passa antes pelo filtro de dados pessoais** (não há como filtrar pixels no aparelho). O modelo de visão pode ver nome, documento ou rosto que estejam na foto. O filtro age **depois**, sobre o texto que o modelo devolve: linha com nome, documento, telefone, e-mail ou endereço de residência é descartada, e só o resto chega ao Paulus, ao histórico e de volta ao navegador.
+- Por isso a regra da casa: **só foto sem identificação de pessoa atendida** (cartaz, norma, gráfico, tela sem dados). O console avisa ao anexar e o chip mostra "vai para a IA".
+- A pergunta digitada junto continua passando por socorro, filtro de dados pessoais e limite por minuto **antes** da foto: pergunta bloqueada nem chega ao modelo de visão.
+- O texto lido da imagem é tratado como dado: tags são removidas e ordens escritas na imagem são ignoradas (o prompt do modelo de visão e o do Paulus dizem isso).
+- Chave de desligar: `VISAO = "desligado"` no Worker recusa qualquer imagem.
+
 ## Barreiras
 | Camada | O que faz |
 |---|---|
