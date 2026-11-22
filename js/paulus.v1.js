@@ -1164,6 +1164,89 @@ function limparMarcacao(texto) {
   return atual.trim();
 }
 
+// ---- shared/documento.mjs ----
+// Documento que a pessoa anexa para o Paulus ajudar: o texto é lido NO APARELHO (console/docs.js), dividido em trechos e só vão à IA os trechos
+// mais ligados à pergunta, SEM os que trazem dado pessoal (e-mail, CPF/NIS/RG rotulado, nome depois de gatilho...). O Worker confere de novo.
+// Nomes com prefixo "doc": este arquivo é concatenado com os demais em dist/paulus.v1.js.
+
+
+
+const DOC_MAX_TRECHO = 900;
+const DOC_ORCAMENTO = 12000;   // caracteres que vão à IA por pergunta (o resto fica no aparelho)
+const DOC_MAX_TRECHOS = 60;
+const DOC_SEM = ['para', 'como', 'sobre', 'qual', 'quais', 'quando', 'onde', 'este', 'esta', 'esse', 'essa', 'isso', 'isto', 'documento', 'arquivo', 'texto', 'pelo', 'pela', 'com', 'uma', 'dos', 'das', 'que', 'nos', 'nas', 'mais', 'muito', 'tem', 'ter', 'fala', 'diz', 'traz', 'resuma', 'resumo', 'explique', 'explica', 'anexo', 'anexado'];
+
+function docSimples(t) { return String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+
+// Divide em trechos de até "max" caracteres, respeitando parágrafos e frases.
+function docDividir(texto, max) {
+  max = max || DOC_MAX_TRECHO;
+  const pedacos = [];
+  String(texto || '').replace(/\r/g, '').split(/\n\s*\n/).forEach(function (p) {
+    p = p.replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, ' ').trim();
+    if (!p) return;
+    if (p.length <= max) { pedacos.push(p); return; }
+    const frases = p.match(/[^.!?;]+[.!?;]*\s*/g) || [p];
+    let atual = '';
+    frases.forEach(function (f) {
+      while (f.length > max) { if (atual) { pedacos.push(atual.trim()); atual = ''; } pedacos.push(f.slice(0, max)); f = f.slice(max); }
+      if ((atual + f).length > max) { pedacos.push(atual.trim()); atual = f; } else atual += f;
+    });
+    if (atual.trim()) pedacos.push(atual.trim());
+  });
+  const fora = [];
+  let cur = '';
+  pedacos.forEach(function (p) { if (cur && cur.length + p.length + 1 > max) { fora.push(cur); cur = p; } else cur = cur ? cur + '\n' + p : p; });
+  if (cur) fora.push(cur);
+  return fora;
+}
+
+// Escolhe QUAIS trechos mandar (devolve índices em ordem do documento): tudo se couber; senão o começo + os que mais combinam com a pergunta.
+function docSelecionar(trechos, pergunta, orcamento) {
+  orcamento = orcamento || DOC_ORCAMENTO;
+  const total = trechos.reduce(function (s, t) { return s + t.length; }, 0);
+  if (total <= orcamento) return trechos.map(function (_t, i) { return i; });
+  const termos = (docSimples(pergunta).match(/[a-z0-9]{4,}/g) || []).filter(function (w, i, l) { return l.indexOf(w) === i && DOC_SEM.indexOf(w) < 0; });
+  const pont = trechos.map(function (t, i) {
+    const s = docSimples(t); let p = 0;
+    termos.forEach(function (x) { const n = s.split(x).length - 1; if (n) p += 1 + Math.min(2, n - 1) * 0.3; });
+    return { i: i, p: p };
+  }).sort(function (a, b) { return b.p - a.p || a.i - b.i; });
+  const esc = [0]; let usado = trechos[0].length;
+  const cabe = function (i) { return esc.indexOf(i) < 0 && usado + trechos[i].length <= orcamento; };
+  if (!pont.length || pont[0].p === 0) {
+    const passo = Math.max(1, trechos.length / Math.max(1, Math.floor(orcamento / DOC_MAX_TRECHO)));
+    for (let k = 0; k < trechos.length; k += passo) { const i = Math.floor(k); if (cabe(i)) { esc.push(i); usado += trechos[i].length; } }
+  } else pont.forEach(function (o) { if (o.p > 0 && cabe(o.i)) { esc.push(o.i); usado += trechos[o.i].length; } });
+  return esc.sort(function (a, b) { return a - b; });
+}
+
+// No navegador: { nome, texto } -> { nome, trechos, omitidosPessoais, parcial, total } ou null
+function docPreparar(doc, pergunta) {
+  if (!doc || typeof doc.texto !== 'string' || !doc.texto.trim()) return null;
+  const todos = docDividir(doc.texto);
+  const seguros = todos.filter(function (t) { return !temIdentificacaoPessoal(t); });
+  const idx = docSelecionar(seguros, pergunta);
+  const trechos = idx.map(function (i) { return seguros[i]; });
+  return { nome: String(doc.nome || 'documento').slice(0, 120), trechos: trechos, omitidosPessoais: todos.length - seguros.length, parcial: trechos.length < seguros.length, total: todos.length };
+}
+
+// No Worker: confere o que chegou ({ nome, trechos:[...] }) e devolve { nome, texto, n, perdidos } ou null.
+function docSaneado(d) {
+  if (!d || typeof d !== 'object' || !Array.isArray(d.trechos)) return null;
+  const lim = function (s) { return limparMarcacao(String(s || '')).replace(/[ \t]+/g, ' ').trim(); };
+  let usado = 0, perdidos = 0;
+  const ok = [];
+  d.trechos.slice(0, DOC_MAX_TRECHOS).forEach(function (t) {
+    const x = lim(t).slice(0, 1200);
+    if (!x) return;
+    if (temIdentificacaoPessoal(x)) { perdidos++; return; }
+    if (usado + x.length > 14000) return;
+    usado += x.length; ok.push(x);
+  });
+  return { nome: lim(d.nome).slice(0, 120) || 'documento', texto: ok.map(function (x, i) { return '[trecho ' + (i + 1) + '] ' + x; }).join('\n\n'), n: ok.length, perdidos: perdidos };
+}
+
 // ---- shared/crise.mjs ----
 // Pedidos de socorro: resposta imediata, no aparelho, mesmo sem internet e sem IA.
 // Não faz triagem nem avaliação clínica: só mostra os telefones e pede para acionar o serviço.
@@ -2122,6 +2205,144 @@ function notasPorTermo(indice, termos, pesos, idfDe, k1, b) {
   return { score, achou };
 }
 
+// ------------------------------------------------------------------ cobertura por raridade
+function coberturaPorRaridade(d, termos, pesos, siglas, conceitos, idfDe, total, doDocumento) {
+  if (!total) return { cob: 1, ancora: true };
+  let achou = 0;
+  const creditados = new Set();
+  for (const t of termos) {
+    // o nome do documento que a pergunta cita ("Decreto 6.214") vale para todos os trechos DELE, mesmo que o texto não o repita
+    if (d.tf[t] || (doDocumento && doDocumento.has(t))) { achou += pesos.get(t) * idfDe(t); creditados.add(t); }
+  }
+  // sigla que o trecho traz só por extenso e gíria achada pelos termos técnicos contam como encontradas (como na cobertura comum)
+  for (const g of siglas) {
+    if (creditados.has(g.t)) continue;
+    let menor = Infinity;
+    for (const e of g.exp) menor = Math.min(menor, d.tf[e] || 0);
+    if (menor && menor !== Infinity) { achou += (pesos.get(g.t) || 1) * idfDe(g.t); creditados.add(g.t); }
+  }
+  for (const g of conceitos) {
+    let achados = 0;
+    for (const e of g.exp) if (d.tf[e]) achados++;
+    if (achados / g.exp.length < 0.5) continue;
+    for (const t of g.frase) if (!creditados.has(t) && pesos.has(t)) { achou += pesos.get(t) * idfDe(t); creditados.add(t); }
+  }
+  // termo âncora: o de maior peso de assunto da pergunta ("sigilo" em "como funciona o sigilo no registro?")
+  let ancora = null, melhor = -1;
+  for (const t of termos) { const v = pesos.get(t) * idfDe(t); if (v > melhor) { melhor = v; ancora = t; } }
+  return { cob: Math.min(1, achou / total), ancora: ancora === null || creditados.has(ancora) };
+}
+
+// ------------------------------------------------------------------ "art. 17 da NOB/SUAS": pedido de referência explícita
+// Quem cita o artigo e o documento quer ESSE artigo, não os trechos que mais repetem as palavras dele. O documento é reconhecido pelo
+// nome (LOAS, NOB/SUAS, PNAS, Tipificação, Constituição) ou pelo número (Lei 8.742, Decreto 6.214, Resolução CNAS 109), que a própria base traz.
+const PESO_DOC_CITADO = 1.5;
+const APELIDOS_DOCS = {
+  'loas-1993': ['loas', 'lei organica da assistencia social'],
+  'nob-suas-2012': ['nob suas', 'norma operacional basica do suas'],
+  'nob-rh-suas-anotada-2011': ['nob rh', 'nob rh suas'],
+  'pnas-2004': ['pnas', 'politica nacional de assistencia social'],
+  'tipificacao-2009': ['tipificacao', 'tipificacao nacional'],
+  'cf-1988-extratos': ['constituicao federal', 'constituicao', 'cf 88', 'cf 1988'],
+  'decreto-6214-2007': ['regulamento do bpc'],
+  'lei-14601-2023': ['lei do bolsa familia']
+};
+const RE_NUMERO_NORMA = /\b(Lei|Decreto|Resolu[cç][aã]o(?:\s+(?:CNAS\/MDS|CNAS|CFP|CNJ|CNS))?|Portaria(?:\s+Interministerial)?(?:\s+(?:MDS\/MS|MEC\/MDS|MDS|GM\/MS))?)\s+(?:n[ºo°.]*\s*)?(\d[\d.]*)/i;
+
+function normalizarRef(s) {
+  return normalizar(String(s == null ? '' : s).replace(/(\d)\.(?=\d{3}(?!\d))/g, '$1')).replace(/\b(?:n|no|num|numero)\s+(?=\d)/g, '');
+}
+
+const CACHE_DESIGNADORES = new WeakMap();
+function designadoresDosDocs(indice) {
+  let m = CACHE_DESIGNADORES.get(indice);
+  if (m) return m;
+  m = new Map();
+  for (const d of indice.docs) {
+    const c = d.c;
+    if (!c.doc || m.has(c.doc)) continue;
+    const frases = new Set((APELIDOS_DOCS[c.doc] || []).map(normalizarRef));
+    const n = RE_NUMERO_NORMA.exec(String(c.norma || '').slice(0, 140));
+    if (n) {
+      const numero = normalizarRef(n[2].replace(/\.+$/, ''));
+      const tipo = normalizarRef(n[1]);
+      if (numero) { frases.add(tipo + ' ' + numero); frases.add(tipo.split(' ')[0] + ' ' + numero); }
+    }
+    m.set(c.doc, Array.from(frases).filter(function (f) { return f.length >= 3; }));
+  }
+  CACHE_DESIGNADORES.set(indice, m);
+  return m;
+}
+
+// O índice parte "14.601" em "14" e "601"; o designador ("lei 14601") vem sem o ponto. Os dois jeitos valem.
+function tokensDoDesignador(frase) {
+  const toks = new Set(tokenizar(frase));
+  for (const t of Array.from(toks)) {
+    if (/^\d{4,}$/.test(t)) { tokenizar(t.slice(0, -3)).forEach(function (x) { toks.add(x); }); tokenizar(t.slice(-3)).forEach(function (x) { toks.add(x); }); }
+  }
+  return toks;
+}
+
+// Documentos que a pergunta nomeia: Map(id do documento -> a frase que o designou) ou null.
+function docsDaPergunta(indice, consulta) {
+  const q = ' ' + normalizarRef(consulta) + ' ';
+  let achou = null;
+  for (const [doc, frases] of designadoresDosDocs(indice)) {
+    const f = frases.find(function (x) { return q.indexOf(' ' + x + ' ') >= 0; });
+    if (f) (achou || (achou = new Map())).set(doc, f);
+  }
+  return achou;
+}
+
+const RE_PEDIDO_ARTIGO = /\b(?:artigos?|arts?)\s+(\d{1,4})(?:\s+(?:e|a|ao)\s+(\d{1,4}))?\b/;
+const RE_REFERENCIA_ARTIGO = /^art\. (\d+)[º°o]?(-[A-Z])?(?=,|\s|$)/;
+const CACHE_ARTIGOS = new WeakMap();
+function trechosPorArtigo(indice) {
+  let m = CACHE_ARTIGOS.get(indice);
+  if (m) return m;
+  m = new Map();
+  for (const d of indice.docs) {
+    const r = RE_REFERENCIA_ARTIGO.exec(String(d.c.referencia || '').trim());
+    if (!r || r[2]) continue; // "art. 17-A" é outro artigo que não o 17
+    const chave = d.c.doc + '|' + r[1];
+    (m.get(chave) || m.set(chave, []).get(chave)).push(d.c);
+  }
+  CACHE_ARTIGOS.set(indice, m);
+  return m;
+}
+
+// { docs:Set, exatos:[resultado] } quando a pergunta pede um artigo de um documento que a base tem; senão null.
+function referenciaExata(indice, consulta, max = 4) {
+  if (!indice || !indice.N) return null;
+  const docs = docsDaPergunta(indice, consulta);
+  if (!docs) return { docs: null, exatos: [], pediuArtigo: false };
+  const pedido = RE_PEDIDO_ARTIGO.exec(normalizarRef(consulta));
+  if (!pedido) return { docs: docs, exatos: [], pediuArtigo: false };
+  const paragrafo = /(?:§|par[aá]grafo)\s*(\d{1,2})/i.exec(String(consulta));
+  const marcaParagrafo = paragrafo ? '§ ' + paragrafo[1] : '';
+  // "art. 17, XV" (algarismo romano em maiúscula logo depois do artigo) ou "art. 17 inciso xv"
+  const inciso = /\binciso\s+([ivxlcdm]{1,6})\b/i.exec(String(consulta)) || /\bart[^\d]{0,8}\d+[º°o]?\s*,?\s*([IVXLCDM]{1,6})\b/.exec(String(consulta));
+  const marcaInciso = inciso ? ', ' + inciso[1].toUpperCase() : '';
+  const artigos = pedido[2] && Number(pedido[2]) - Number(pedido[1]) <= 1 ? [pedido[1], pedido[2]] : [pedido[1]];
+  const porArtigo = trechosPorArtigo(indice);
+  const exatos = [];
+  for (const art of artigos) {
+    for (const doc of docs.keys()) {
+      const lista = (porArtigo.get(doc + '|' + art) || []).slice();
+      const peso = function (t) {
+        const ref = String(t.referencia || '');
+        if (/^art\. \d+[º°o]?(?:, caput)?$/.test(ref.trim())) return 0;      // o próprio artigo (caput) vem primeiro
+        if (marcaParagrafo && ref.indexOf(marcaParagrafo) >= 0) return 1;       // o parágrafo pedido, logo depois
+        if (marcaInciso && (ref.endsWith(marcaInciso) || ref.indexOf(marcaInciso + ',') >= 0)) return 1; // ou o inciso pedido
+        return 2;                                                                // incisos e demais parágrafos, na ordem da norma
+      };
+      lista.map(function (t, i) { return { t: t, i: i, p: peso(t) }; }).sort(function (a, b) { return a.p - b.p || a.i - b.i; })
+        .forEach(function (x) { exatos.push({ trecho: x.t, score: 99, cobertura: 1, coberturaIdf: 1, ancora: true, ordem: 99 - exatos.length * 0.01, exata: true }); });
+    }
+  }
+  return { docs: docs, exatos: exatos.slice(0, max), pediuArtigo: true };
+}
+
 function buscar(indice, consulta, { k = 3, minScore = 1.2, minCobertura = 0.5, preferir = null } = {}) {
   if (!indice || !indice.N) return [];
   const { pesos, siglas } = termosDaConsulta(consulta);
@@ -2154,6 +2375,12 @@ function buscar(indice, consulta, { k = 3, minScore = 1.2, minCobertura = 0.5, p
   // Nota dos termos da pergunta de todos os trechos de uma vez, andando só pelas listas de ocorrência (em vez de perguntar a cada trecho
   // candidato, termo por termo, se o termo está lá). Cada trecho soma os termos na mesma ordem de antes, então a nota sai idêntica.
   const previa = notasPorTermo(indice, termos, pesos, idfDe, k1, b);
+  // Cobertura por RARIDADE: o termo raro da pergunta ("sigilo") diz mais sobre o assunto do que o comum ("funciona", "registro").
+  // A cobertura comum conta quantos termos o trecho tem; esta conta quanto do "peso de assunto" da pergunta ele cobre.
+  let pesoIdfTotal = 0;
+  for (const t of termos) pesoIdfTotal += pesos.get(t) * idfDe(t);
+  const docsCitados = docsDaPergunta(indice, consulta);
+  const tokensDoDoc = docsCitados ? new Map(Array.from(docsCitados, function (e) { return [e[0], tokensDoDesignador(e[1])]; })) : null;
   for (const i of candidatos(indice, termos, conceitos)) {
     const d = indice.docs[i];
     let score = 0, achou = 0;
@@ -2196,11 +2423,13 @@ function buscar(indice, consulta, { k = 3, minScore = 1.2, minCobertura = 0.5, p
     const cobertura = Math.min(1, achou / pesoTotal);
     if (score >= minScore && cobertura >= minCobertura) {
       let ordem = score * (PESO_TIPO[d.c.tipo || 'norma'] || 1) * fatorPreferido(preferir, d.c.doc) * fatorLocal(d.c, municipiosPergunta, querDado, querCenso) * fatorPista(d.c.doc, consultaNorm);
+      if (docsCitados && docsCitados.has(d.c.doc)) ordem *= PESO_DOC_CITADO;
       if (expansoesDefinicao.length) {
         const inicio = normalizar(String(d.c.texto).slice(0, 220));
         if (expansoesDefinicao.some(function (e) { return defineASigla(inicio, e); })) ordem *= PESO_DEFINICAO;
       }
-      res.push({ trecho: d.c, score, cobertura, ordem });
+      const rar = coberturaPorRaridade(d, termos, pesos, siglas, conceitos, idfDe, pesoIdfTotal, tokensDoDoc && tokensDoDoc.get(d.c.doc) || null);
+      res.push({ trecho: d.c, score, cobertura, coberturaIdf: rar.cob, ancora: rar.ancora, ordem });
     }
   }
   res.sort((x, y) => y.ordem - x.ordem);
@@ -2237,9 +2466,11 @@ function consultaComContexto(pergunta, historico) {
 
 // Como a fonte aparece para a pessoa (e como o Worker a devolve). "tipo" só vai quando NÃO é norma
 // (orientação técnica e material de apoio não obrigam, e o app precisa poder dizer isso).
-function fonteDe(trecho) {
+function fonteDe(trecho, achado) {
   const f = { documento: trecho.titulo || trecho.doc, norma: trecho.norma, ano: trecho.ano, referencia: trecho.referencia };
   if (trecho.tipo && trecho.tipo !== 'norma') f.tipo = trecho.tipo;
+  // aderencia (só quando a seleção a calculou): o quanto o trecho responde ESTA pergunta (alta, media, baixa)
+  if (achado && achado.aderencia) f.aderencia = achado.aderencia;
   return f;
 }
 
@@ -2275,6 +2506,77 @@ function buscarPergunta(indice, consulta, opcoes = {}) {
   // sobrou vaga (lados repetidos): completa com a busca da pergunta inteira
   if (saida.length < k) for (const r of buscar(indice, consulta, opcoes)) if (saida.length < k && !vistos.has(r.trecho)) { vistos.add(r.trecho); saida.push(r); }
   return saida;
+}
+
+// ------------------------------------------------------------------ seleção das fontes
+// buscarPergunta traz os "k melhores" por nota, mesmo quando só o primeiro responde: o resto é ruído que vai para a IA (que pode citá-lo)
+// e para a pessoa (que lê "Fonte:" de algo que nada tem a ver com a pergunta). buscarFontes escolhe QUAIS trechos valem, em quatro passos:
+//   1. pergunta que cita artigo e documento ("art. 17 da NOB/SUAS"): o artigo pedido vem primeiro, e só ele (e o documento citado) completa as vagas;
+//   2. descarta o trecho que cobre pouco do que a pergunta tem de raro (cobertura por raridade) ou que está muito abaixo do melhor;
+//   3. tira repetição (a mesma página em "parte 1" e "parte 2");
+//   4. marca a aderência de cada trecho à pergunta (alta, media, baixa), para a IA e o rodapé saberem o quanto confiar.
+// Só ENCOLHE ou reordena o que buscarPergunta já traria (a exceção é o artigo pedido por nome, que entra mesmo sem bater palavras).
+const MIN_COBERTURA_RARIDADE = 0.33;
+const CORTE_RELATIVO = 0.45;
+const PISO_COBERTURA_CONTAGEM = 0.35;
+
+function chaveDeRepeticao(t) {
+  return (t.doc || '') + '|' + String(t.referencia || '').replace(/\s*\(parte \d+(?: de \d+)?\)/g, '').trim();
+}
+
+// opcoes: { k, preferir, modo, temDiretorio } (modo 'consulta' com diretório do app: a pergunta é de unidade, e norma só entra se for forte).
+function buscarFontes(indice, consulta, opcoes = {}) {
+  if (!indice || !indice.N) return [];
+  const k = Math.max(1, opcoes.k || K_PADRAO);
+  const deUnidade = opcoes.modo === 'consulta' && opcoes.temDiretorio === true;
+  const alvo = deUnidade ? Math.min(k, 3) : k;
+  const ref = referenciaExata(indice, consulta, alvo);
+  const lados = ladosDaComparacao(consulta);
+  // Pergunta longa dilui a cobertura por contagem ("posso dar cesta básica para família que recebe bolsa família?" perdia o decreto dos benefícios
+  // eventuais): aqui o piso por contagem é mais baixo, e quem decide são a cobertura por raridade, o termo âncora e a distância do melhor.
+  const bruto = buscarPergunta(indice, consulta, { k: alvo + 4, preferir: opcoes.preferir || null, minCobertura: PISO_COBERTURA_CONTAGEM });
+  // Termo âncora: se algum trecho traz o termo mais característico da pergunta, os que não o trazem ficam de fora.
+  const comAncora = bruto.filter(function (r) { return r.ancora; });
+  const pool = comAncora.length ? comAncora : bruto;
+  const maxOrdem = pool.reduce(function (m, r) { return Math.max(m, r.ordem); }, 0);
+  const corte = deUnidade ? 0.7 : CORTE_RELATIVO;
+  let lista = pool.filter(function (r) {
+    if (r.coberturaIdf < MIN_COBERTURA_RARIDADE) return false;
+    if (!lados && r.ordem < maxOrdem * corte) return false; // na comparação cada lado tem o seu melhor: a régua do melhor geral não vale
+    return true;
+  });
+  const rotular = function (r, maximo) {
+    const rel = maximo > 0 ? r.ordem / maximo : 1;
+    r.aderencia = r.exata || (rel >= 0.7 && r.coberturaIdf >= 0.75) ? 'alta' : (rel >= 0.45 && r.coberturaIdf >= 0.5) ? 'media' : 'baixa';
+    return r;
+  };
+  let saida;
+  if (ref && ref.exatos.length) {
+    // O artigo pedido, e só depois o que a busca achou DENTRO do documento citado.
+    saida = ref.exatos.slice();
+    if (saida.length < 2) for (const r of lista) if (ref.docs.has(r.trecho.doc) && r.aderencia !== 'baixa') saida.push(r);
+  } else if (ref && ref.pediuArtigo) {
+    // Pediu um artigo de um documento que a base tem, mas esse artigo não está na base (ex.: art. 5 da CF, que só tem extratos): nada de
+    // trecho de outro documento fingindo ser resposta. O que for do documento citado vai como aproximação, marcado de aderência baixa.
+    saida = lista.filter(function (r) { return ref.docs.has(r.trecho.doc); }).slice(0, 2).map(function (r) { r.limiteDeAderencia = 'baixa'; return r; });
+  } else {
+    saida = lista;
+  }
+  const vistos = new Set();
+  const unicos = [];
+  for (const r of saida) {
+    const chave = chaveDeRepeticao(r.trecho);
+    if (vistos.has(chave) || vistos.has(r.trecho)) continue;
+    vistos.add(chave); vistos.add(r.trecho);
+    unicos.push(r);
+  }
+  const maxFinal = unicos.reduce(function (m, r) { return Math.max(m, r.exata ? 0 : r.ordem); }, 0);
+  unicos.forEach(function (r) { rotular(r, maxFinal); if (r.limiteDeAderencia) r.aderencia = r.limiteDeAderencia; });
+  // Com ao menos duas fontes que respondem de verdade, as de aderência baixa saem. Sem isso (a base não tem o assunto), ficam no máximo 3,
+  // marcadas como baixa: a IA e a pessoa sabem que é o mais próximo, não uma resposta.
+  const boas = unicos.filter(function (r) { return r.aderencia !== 'baixa'; });
+  const final = boas.length >= 2 ? boas : unicos.slice(0, Math.max(boas.length, Math.min(alvo, 3)));
+  return final.slice(0, alvo);
 }
 
 // ---- shared/pedido.mjs ----
@@ -2606,6 +2908,8 @@ function soPerguntou(texto) {
 }
 
 // ---- shared/verificacao.mjs ----
+
+
 // Conferência das citações da IA. O prompt já proíbe citar artigo ou lei que não esteja em <normas>, mas modelo erra.
 // Aqui a regra é conferida por código: o Worker diz quais artigos e leis estavam nos trechos que a IA LEU (numerosCitaveis),
 // e o navegador compara com o que a resposta citou (citacoesSemFonte). Citação fora da lista vira AVISO para a pessoa conferir;
@@ -2721,6 +3025,45 @@ function citacoesSemFonte(texto, citaveis, fontes, extras) {
   return saida;
 }
 
+// Quais das fontes recuperadas a resposta realmente usou. A busca traz candidatas; a IA usa algumas. Uma fonte conta como usada se a resposta
+// cita o número da lei/decreto/resolução dela, ou nomeia o documento (a maior parte das palavras do título); quando a fonte é um artigo e a
+// resposta cita artigos, o artigo da fonte precisa estar entre os citados.
+function fontesUsadas(texto, fontes) {
+  const t = String(texto == null ? '' : texto);
+  const tn = ' ' + normalizar(t) + ' ';
+  const tokens = new Set(tokenizar(t));
+  const artigos = artigosCitados(t);
+  const leis = leisCitadas(t);
+  return (Array.isArray(fontes) ? fontes : []).map(function (f) {
+    if (!f) return false;
+    let porNumero = false;
+    leisCitadas([f.norma, f.documento].join(' ')).forEach(function (_, k) { if (leis.has(k)) porNumero = true; });
+    const titulo = normalizar(f.documento);
+    const palavras = Array.from(new Set(tokenizar(f.documento)));
+    const nomeou = (titulo.length >= 3 && tn.indexOf(' ' + titulo + ' ') >= 0) ||
+      (palavras.length >= 2 && palavras.filter(function (w) { return tokens.has(w); }).length / palavras.length >= 0.7);
+    if (!porNumero && !nomeou) return false;
+    const art = /^art\.\s*(\d{1,4})/i.exec(String(f.referencia || ''));
+    if (art && artigos.size && !artigos.has(semZeros(art[1]))) return false;
+    return true;
+  });
+}
+
+// Fontes sem repetição, com "usada" marcado e as usadas primeiro. Se nenhuma for reconhecida como usada, nada é afirmado: volta a lista como veio.
+function marcarFontesUsadas(texto, fontes) {
+  const vistos = new Set();
+  const lista = (Array.isArray(fontes) ? fontes : []).filter(function (f) {
+    const c = f ? [f.documento, f.referencia].join('|') : '';
+    if (!f || vistos.has(c)) return false;
+    vistos.add(c);
+    return true;
+  });
+  const uso = fontesUsadas(texto, lista);
+  if (!uso.some(Boolean)) return lista;
+  const marcadas = lista.map(function (f, i) { return Object.assign({}, f, { usada: uso[i] }); });
+  return marcadas.filter(function (f) { return f.usada; }).concat(marcadas.filter(function (f) { return !f.usada; }));
+}
+
 // ---- shared/calculo.mjs ----
 // Calculadora do Paulus: conta exata, sem IA e sem eval. FONTE ÚNICA: o navegador (dist/paulus.v1.js) e o Worker usam este arquivo.
 //
@@ -2744,9 +3087,25 @@ const CALC_LIMITE = 1e15;
 
 const CALC_FUNCOES = {
   raiz: 'raiz', sqrt: 'raiz', media: 'media', min: 'min', max: 'max', arred: 'arred', arredonda: 'arred', round: 'arred',
-  teto: 'teto', ceil: 'teto', piso: 'piso', floor: 'piso', abs: 'abs', soma: 'soma', sum: 'soma'
+  teto: 'teto', ceil: 'teto', piso: 'piso', floor: 'piso', abs: 'abs', soma: 'soma', sum: 'soma',
+  trunc: 'trunc', sinal: 'sinal', potencia: 'potencia', hipot: 'hipot',
+  ln: 'ln', log: 'log', log10: 'log', log2: 'log2', exp: 'exp',
+  seno: 'seno', sen: 'seno', sin: 'seno', cosseno: 'cosseno', cos: 'cosseno', tangente: 'tangente', tan: 'tangente',
+  fatorial: 'fatorial', resto: 'resto', mod: 'resto', mdc: 'mdc', mmc: 'mmc', comb: 'comb', perm: 'perm', arranjo: 'perm',
+  mediana: 'mediana', moda: 'moda', desvio: 'desvio', desviop: 'desviop', variancia: 'variancia', variancip: 'variancip',
+  amplitude: 'amplitude', produto: 'produto', contar: 'contar', percentil: 'percentil', quartil: 'quartil',
+  ponderada: 'ponderada', mediageo: 'mediageo', cv: 'cv', escorez: 'escorez',
+  montante: 'montante', parcela: 'parcela', vp: 'vp'
 };
-const CALC_ROTULO_FUNCAO = { raiz: 'raiz', media: 'média', min: 'mín', max: 'máx', arred: 'arred', teto: 'teto', piso: 'piso', abs: 'abs', soma: 'soma' };
+const CALC_ROTULO_FUNCAO = {
+  raiz: 'raiz', media: 'média', min: 'mín', max: 'máx', arred: 'arred', teto: 'teto', piso: 'piso', abs: 'abs', soma: 'soma',
+  mediana: 'mediana', desvio: 'desvio padrão', desviop: 'desvio padrão (população)', variancia: 'variância', variancip: 'variância (população)',
+  fatorial: 'fatorial', resto: 'resto', mdc: 'mdc', mmc: 'mmc', comb: 'combinação', perm: 'arranjo', ponderada: 'média ponderada',
+  mediageo: 'média geométrica', escorez: 'escore z', cv: 'coef. de variação', seno: 'seno', cosseno: 'cosseno', tangente: 'tangente',
+  montante: 'montante', parcela: 'parcela', vp: 'valor presente', trunc: 'trunc', hipot: 'hipotenusa'
+};
+// Constantes: pi sempre; "e" só na conta escrita pela IA (em texto de gente "e" é a conjunção).
+const CALC_CONSTANTES = { pi: Math.PI, e: Math.E };
 const CALC_ROTULO_CMP = { '<': '<', '<=': '≤', '>': '>', '>=': '≥', '==': '=', '!=': '≠' };
 
 function calcSemAcentos(s) {
@@ -2838,6 +3197,7 @@ function calcTokens(s, opc) {
     if (c === '<' || c === '>') { tks.push({ t: 'cmp', v: c, ini: i, fim: i + 1 }); i++; continue; }
     if (c === '+' || c === '-' || c === '*' || c === '/' || c === '^') { tks.push({ t: 'op', v: c, ini: i, fim: i + 1 }); i++; continue; }
     if (c === '%') { tks.push({ t: 'pct', ini: i, fim: i + 1 }); i++; continue; }
+    if (c === '!' && /[\d)]/.test(s.charAt(i - 1))) { tks.push({ t: 'fat', ini: i, fim: i + 1 }); i++; continue; }
     if (c === '(') { tks.push({ t: 'lp', ini: i, fim: i + 1 }); i++; continue; }
     if (c === ')') { tks.push({ t: 'rp', ini: i, fim: i + 1 }); i++; continue; }
     if (c === ';') { tks.push({ t: 'sep', ini: i, fim: i + 1 }); i++; continue; }
@@ -2873,7 +3233,8 @@ function calcChecar(x) {
 
 // Executa os tokens. vars: { 1: 800, 2: 1 } para #1, #2. Devolve { valor, bool, ops, literais, refs }.
 // "ops" conta operadores, comparações e funções (porcentagem sozinha não conta): zero significa que não era uma conta.
-function calcAvaliar(tokens, vars) {
+function calcAvaliar(tokens, vars, opc) {
+  const constE = !!(opc && opc.constantes);
   if (tokens.length > CALC_MAX_TOKENS) throw calcErro('conta longa demais');
   let p = 0, ops = 0, prof = 0;
   const literais = [], refs = [];
@@ -2964,9 +3325,10 @@ function calcAvaliar(tokens, vars) {
 
   function posfixo() {
     let x = primario();
-    while (olhar() && olhar().t === 'pct') {
+    while (olhar() && (olhar().t === 'pct' || olhar().t === 'fat')) {
+      const t = olhar();
       p++;
-      x = { v: calcLimpar(numero(x) / 100), pct: true };
+      if (t.t === 'fat') { ops++; x = { v: calcFatorial(numero(x)) }; } else x = { v: calcLimpar(numero(x) / 100), pct: true };
     }
     return x;
   }
@@ -2987,6 +3349,9 @@ function calcAvaliar(tokens, vars) {
       p++;
       r = comparacao();
       exigir('rp');
+    } else if (t.t === 'id' && CALC_CONSTANTES[t.v] !== undefined && (t.v === 'pi' || constE) && !(tokens[p + 1] && tokens[p + 1].t === 'lp')) {
+      p++;
+      r = { v: CALC_CONSTANTES[t.v] };
     } else if (t.t === 'id') {
       const f = CALC_FUNCOES[t.v];
       if (!f) throw calcErro('não conheço "' + t.v + '"');
@@ -3013,19 +3378,153 @@ function calcAvaliar(tokens, vars) {
   return { valor: r.bool ? r.v : calcLimpar(r.v), bool: !!r.bool, ops: ops, literais: literais, refs: refs };
 }
 
+function calcFatorial(n) {
+  if (!isFinite(n) || n < 0 || Math.floor(n) !== n) throw calcErro('fatorial pede inteiro, zero ou maior');
+  if (n > 17) throw calcErro('fatorial grande demais');
+  let r = 1;
+  for (let k = 2; k <= n; k++) r *= k;
+  return r;
+}
+
+function calcInteiros(f, a, minimo) {
+  a.forEach(function (x) { if (Math.floor(x) !== x || x < minimo) throw calcErro(f + ' pede números inteiros' + (minimo > 0 ? ' positivos' : '')); });
+}
+
+function calcMdc(x, y) {
+  x = Math.abs(x); y = Math.abs(y);
+  while (y) { const t = x % y; x = y; y = t; }
+  return x;
+}
+
+function calcOrdenar(a) {
+  return a.slice().sort(function (x, y) { return x - y; });
+}
+
+// Percentil com interpolação linear (o mesmo do PERCENTIL.INC do Excel). p de 0 a 100.
+function calcPercentil(p, lista) {
+  if (p < 0 || p > 100) throw calcErro('percentil vai de 0 a 100');
+  if (!lista.length) throw calcErro('percentil pede números');
+  const o = calcOrdenar(lista);
+  const pos = (o.length - 1) * p / 100;
+  const i = Math.floor(pos);
+  const frac = pos - i;
+  return calcLimpar(i + 1 < o.length ? o[i] + (o[i + 1] - o[i]) * frac : o[i]);
+}
+
+function calcMedia(a) { return a.reduce(function (x, y) { return x + y; }, 0) / a.length; }
+
+function calcVariancia(a, amostral) {
+  if (amostral && a.length < 2) throw calcErro('desvio amostral pede pelo menos 2 números');
+  const m = calcMedia(a);
+  return a.reduce(function (x, y) { return x + (y - m) * (y - m); }, 0) / (a.length - (amostral ? 1 : 0));
+}
+
+// Trigonometria em graus; o resíduo de ponto flutuante (sen 180 = 1e-16) vira zero.
+function calcTrig(x) {
+  return Math.abs(x) < 1e-12 ? 0 : calcLimpar(x);
+}
+
 function calcFuncao(f, a) {
   const um = function () { if (a.length !== 1) throw calcErro(f + ' pede 1 número'); return a[0]; };
   const varios = function () { if (!a.length) throw calcErro(f + ' pede números'); return a; };
+  const dois = function () { if (a.length !== 2) throw calcErro(f + ' pede 2 números'); return a; };
+  const tres = function () { if (a.length !== 3) throw calcErro(f + ' pede 3 números'); return a; };
+  const rad = function (x) { return x * Math.PI / 180; };
   if (f === 'raiz') { const x = um(); if (x < 0) throw calcErro('raiz de número negativo'); return calcLimpar(Math.sqrt(x)); }
   if (f === 'abs') return Math.abs(um());
   if (f === 'teto') return Math.ceil(calcLimpar(um()));
   if (f === 'piso') return Math.floor(calcLimpar(um()));
+  if (f === 'trunc') return Math.trunc(calcLimpar(um()));
+  if (f === 'sinal') { const x = um(); return x > 0 ? 1 : x < 0 ? -1 : 0; }
   if (f === 'arred') {
     if (a.length < 1 || a.length > 2) throw calcErro('arred pede 1 ou 2 números');
     return arredondarCasas(a[0], a.length === 2 ? a[1] : 0);
   }
   if (f === 'min') return Math.min.apply(null, varios());
   if (f === 'max') return Math.max.apply(null, varios());
+  if (f === 'potencia') { const d = dois(); if (Math.abs(d[1]) > 100) throw calcErro('expoente grande demais'); return Math.pow(d[0], d[1]); }
+  if (f === 'hipot') { const d = dois(); return calcLimpar(Math.sqrt(d[0] * d[0] + d[1] * d[1])); }
+  if (f === 'ln') { const x = um(); if (x <= 0) throw calcErro('logaritmo pede número positivo'); return calcLimpar(Math.log(x)); }
+  if (f === 'log2') { const x = um(); if (x <= 0) throw calcErro('logaritmo pede número positivo'); return calcLimpar(Math.round(Math.log(x) / Math.LN2 * 1e10) / 1e10); }
+  if (f === 'log') {
+    if (a.length < 1 || a.length > 2) throw calcErro('log pede 1 número (base 10) ou 2 (número; base)');
+    const x = a[0], b = a.length === 2 ? a[1] : 10;
+    if (x <= 0 || b <= 0 || b === 1) throw calcErro('logaritmo pede número e base positivos (base diferente de 1)');
+    return calcLimpar(Math.round(Math.log(x) / Math.log(b) * 1e10) / 1e10);
+  }
+  if (f === 'exp') { const x = um(); if (x > 100) throw calcErro('expoente grande demais'); return calcLimpar(Math.exp(x)); }
+  if (f === 'seno') return calcTrig(Math.sin(rad(um())));
+  if (f === 'cosseno') return calcTrig(Math.cos(rad(um())));
+  if (f === 'tangente') {
+    const x = um();
+    if (Math.abs(Math.cos(rad(x))) < 1e-12) throw calcErro('tangente não existe nesse ângulo');
+    return calcTrig(Math.tan(rad(x)));
+  }
+  if (f === 'fatorial') return calcFatorial(um());
+  if (f === 'resto') { const d = dois(); if (d[1] === 0) throw calcErro('divisão por zero'); return calcLimpar(d[0] - d[1] * Math.floor(d[0] / d[1])); }
+  if (f === 'mdc') { calcInteiros(f, varios(), 0); return a.reduce(calcMdc); }
+  if (f === 'mmc') {
+    calcInteiros(f, varios(), 1);
+    return a.reduce(function (x, y) { const r = x / calcMdc(x, y) * y; calcChecar(r); return r; });
+  }
+  if (f === 'comb' || f === 'perm') {
+    const d = dois();
+    calcInteiros(f, d, 0);
+    if (d[1] > d[0]) throw calcErro(f === 'comb' ? 'combinação pede k menor ou igual a n' : 'arranjo pede k menor ou igual a n');
+    if (d[0] > 1000) throw calcErro('número grande demais');
+    const k = f === 'comb' ? Math.min(d[1], d[0] - d[1]) : d[1];
+    let r = 1;
+    for (let q = 1; q <= k; q++) { r = f === 'comb' ? r * (d[0] - k + q) / q : r * (d[0] - q + 1); calcChecar(r); }
+    return Math.round(r);
+  }
+  if (f === 'mediana') return calcPercentil(50, varios());
+  if (f === 'percentil') { if (a.length < 2) throw calcErro('percentil pede o percentil e os números'); return calcPercentil(a[0], a.slice(1)); }
+  if (f === 'quartil') {
+    if (a.length < 2) throw calcErro('quartil pede o quartil (1 a 3) e os números');
+    if ([1, 2, 3].indexOf(a[0]) === -1) throw calcErro('quartil vai de 1 a 3');
+    return calcPercentil(a[0] * 25, a.slice(1));
+  }
+  if (f === 'moda') {
+    const cont = {};
+    varios().forEach(function (x) { cont[x] = (cont[x] || 0) + 1; });
+    const maior = Math.max.apply(null, Object.keys(cont).map(function (k) { return cont[k]; }));
+    const modas = Object.keys(cont).filter(function (k) { return cont[k] === maior; });
+    if (maior === 1 && a.length > 1) throw calcErro('não há moda (nenhum valor se repete)');
+    if (modas.length > 1) throw calcErro('há mais de uma moda: ' + modas.join(', '));
+    return Number(modas[0]);
+  }
+  if (f === 'desvio') return calcLimpar(Math.sqrt(calcVariancia(varios(), true)));
+  if (f === 'desviop') return calcLimpar(Math.sqrt(calcVariancia(varios(), false)));
+  if (f === 'variancia') return calcLimpar(calcVariancia(varios(), true));
+  if (f === 'variancip') return calcLimpar(calcVariancia(varios(), false));
+  if (f === 'amplitude') return calcLimpar(Math.max.apply(null, varios()) - Math.min.apply(null, a));
+  if (f === 'produto') return calcLimpar(varios().reduce(function (x, y) { return calcChecar(x * y); }, 1));
+  if (f === 'contar') return varios().length;
+  if (f === 'ponderada') {
+    if (a.length < 2 || a.length % 2) throw calcErro('média ponderada pede pares valor; peso');
+    let num = 0, den = 0;
+    for (let q = 0; q < a.length; q += 2) { num += a[q] * a[q + 1]; den += a[q + 1]; }
+    if (den === 0) throw calcErro('a soma dos pesos é zero');
+    return calcLimpar(num / den);
+  }
+  if (f === 'mediageo') {
+    varios().forEach(function (x) { if (x <= 0) throw calcErro('média geométrica pede números positivos'); });
+    return calcLimpar(Math.exp(a.reduce(function (x, y) { return x + Math.log(y); }, 0) / a.length));
+  }
+  if (f === 'cv') {
+    const m = calcMedia(varios());
+    if (m === 0) throw calcErro('a média é zero');
+    return calcLimpar(Math.sqrt(calcVariancia(a, true)) / Math.abs(m) * 100);
+  }
+  if (f === 'escorez') { const t = tres(); if (t[2] === 0) throw calcErro('desvio padrão zero'); return calcLimpar((t[0] - t[1]) / t[2]); }
+  if (f === 'montante') { const t = tres(); return calcLimpar(t[0] * Math.pow(1 + t[1], t[2])); }
+  if (f === 'vp') { const t = tres(); return calcLimpar(t[0] / Math.pow(1 + t[1], t[2])); }
+  if (f === 'parcela') {
+    const t = tres();
+    if (t[2] <= 0) throw calcErro('parcela pede prazo positivo');
+    if (t[1] === 0) return calcLimpar(t[0] / t[2]);
+    return calcLimpar(t[0] * t[1] / (1 - Math.pow(1 + t[1], -t[2])));
+  }
   const soma = varios().reduce(function (x, y) { return x + y; }, 0);
   return f === 'media' ? calcLimpar(soma / a.length) : calcLimpar(soma);
 }
@@ -3039,7 +3538,7 @@ function calcularExpressao(texto, opc) {
     if (s.length > CALC_MAX_TEXTO) return { ok: false, erro: 'conta longa demais' };
     const tks = calcTokens(s, o);
     if (tks.some(function (t) { return t.t === 'out'; })) return { ok: false, erro: 'caractere que não entendi' };
-    const r = calcAvaliar(tks, o.vars);
+    const r = calcAvaliar(tks, o.vars, { constantes: o.constantes || o.ponto === 'decimal' });
     return { ok: true, valor: r.valor, bool: r.bool, ops: r.ops, literais: r.literais, refs: r.refs, tokens: tks };
   } catch (e) {
     return { ok: false, erro: e && e.calc ? e.message : 'não consegui ler a conta' };
@@ -3080,12 +3579,14 @@ function calcRenderizar(tokens) {
     else if (t.t === 'op') x = t.v === '*' ? (ant && ant.t === 'pct' ? 'de' : '×') : t.v === '/' ? '÷' : t.v;
     else if (t.t === 'cmp') x = CALC_ROTULO_CMP[t.v];
     else if (t.t === 'pct') x = '%';
+    else if (t.t === 'fat') x = '!';
     else if (t.t === 'lp') x = '(';
     else if (t.t === 'rp') x = ')';
     else if (t.t === 'sep') x = ';';
     else if (t.t === 'ref') x = '[' + t.v + ']';
+    else if (t.v === 'pi') x = 'π';
     else x = CALC_ROTULO_FUNCAO[CALC_FUNCOES[t.v]] || t.v;
-    const grudaAntes = t.t === 'pct' || t.t === 'rp' || t.t === 'sep';
+    const grudaAntes = t.t === 'pct' || t.t === 'fat' || t.t === 'rp' || t.t === 'sep';
     const grudaDepois = ant && (ant.t === 'lp' || (ant.t === 'id' && t.t === 'lp'));
     const unarioAntes = ant && ant.t === 'op' && ant.v === '-' && (i < 2 || tokens[i - 2].t === 'op' || tokens[i - 2].t === 'lp' || tokens[i - 2].t === 'cmp' || tokens[i - 2].t === 'sep');
     s += (i === 0 || grudaAntes || grudaDepois || unarioAntes || (t.t === 'lp' && ant.t === 'id') ? '' : ' ') + x;
@@ -3110,12 +3611,12 @@ function expressaoLegivel(tokens) {
 
 // ------------------------------------------------------------------ contas em linguagem natural
 
-const CALC_RE_INTENCAO = /\b(?:calcul\w*|quanto\s+(?:e|da|dao|fica|ficou|ficaria|sobra|sobrou|vai|vale|valeria|seria|serao|custa|recebe|receberia|ganha|paga|pagaria|falta|faltam|resta|restam|passa|deu)|da\s+quanto|qual\s+(?:e\s+)?(?:o\s+)?(?:resultado|total|valor\s+total|soma|media|percentual|porcentagem|saldo|diferenca)|resultado\s+d[ea]|some|soma|somar|subtra\w+|multipli\w+|divid\w+|media|percentual|porcentagem|por\s+cento|per\s*capita|dentro\s+do\s+limite|acima\s+do|abaixo\s+do)\b/;
+const CALC_RE_INTENCAO = /\b(?:calcul\w*|quanto\s+(?:e|da|dao|fica|ficou|ficaria|sobra|sobrou|vai|vale|valeria|seria|serao|custa|recebe|receberia|ganha|paga|pagaria|falta|faltam|resta|restam|passa|deu)|da\s+quanto|qual\s+(?:e\s+)?(?:o\s+)?(?:resultado|total|valor\s+total|soma|media|mediana|moda|percentual|porcentagem|saldo|diferenca|desvio|variancia|amplitude|mdc|mmc|fatorial|resto|raiz|logaritmo|seno|cosseno|tangente)|resultado\s+d[ea]|some|soma|somar|subtra\w+|multipli\w+|divid\w+|media|mediana|moda|desvio\s+padrao|variancia|amplitude|fatorial|mdc|mmc|logaritmo|raiz\s+quadrada|seno|cosseno|tangente|hipotenusa|combinacao|arranjo|permutacao|arredond\w*|metade|dobro|triplo|quadruplo|terco|percentual|porcentagem|por\s+cento|per\s*capita|dentro\s+do\s+limite|acima\s+do|abaixo\s+do|resto\s+d[ea]\s+divisao)\b/;
 
 // Palavras que sobram numa pergunta que É só a conta ("quanto é 15% de 1200 reais, por favor?").
 const CALC_FILLER = new Set(('quanto e calcule calcula calcular calculo me ajuda ajude pode poderia voce vc por favor pfv pf qual o a os as resultado de do da dos das ' +
   'conta isso seria fica ficou ficaria total valor soma some somar uma um paulus ola oi bom dia tarde noite para pra em que sao deu reais real r sobre ' +
-  'com aqui ai agora so apenas vale vai sera resolva resolve faca faz pro na no media entre cento percentual porcentagem hein ne').split(' '));
+  'com aqui ai agora so apenas vale vai sera resolva resolve faca faz pro na no media entre cento percentual porcentagem hein ne padrao populacional natural quadrada quadrado cubo casas casa decimais decimal a ao os numeros numero valores').split(' '));
 
 // Trechos que parecem conta mas não são: data, lei, artigo, parágrafo, horário.
 function calcMascarar(n) {
@@ -3128,6 +3629,8 @@ function calcMascarar(n) {
 }
 
 const CALC_NUM = '\\d[\\d.,]*';
+// número dentro de lista: não engole a vírgula que separa os itens ("10, 20, 30")
+const CALC_NUMI = '\\d+(?:[.,]\\d+)*';
 
 function calcListaDe(lista) {
   return lista.split(/\s*(?:;|,\s+|\s+e\s+|\s+com\s+|\s*\+\s*)\s*/).map(function (x) { return x.trim().replace(/[.,]+$/, ''); }).filter(Boolean);
@@ -3140,10 +3643,7 @@ function calcNormalizarFrase(n) {
   s = s.replace(new RegExp('\\b(?:desconto|abatimento|reducao|corte)\\s+(?:de\\s+)?(' + CALC_NUM + ')\\s*%\\s*(?:sobre|em|no valor de|do valor de|ao valor de|de)\\s+(?:o\\s+|a\\s+)?(' + CALC_NUM + ')', 'g'), ' $2 - $1% ');
   s = s.replace(new RegExp('(' + CALC_NUM + ')\\s*%\\s*(?:de|do|da)\\s+(?=[\\d(])', 'g'), '$1% * ');
   s = s.replace(new RegExp('\\bdiferenca\\s+entre\\s+(' + CALC_NUM + ')\\s+e\\s+(' + CALC_NUM + ')', 'g'), ' abs($1 - $2) ');
-  s = s.replace(new RegExp('\\b(?:soma|some|somar|total)\\s+(?:de\\s+|dos\\s+|das\\s+)?(' + CALC_NUM + '(?:\\s*(?:;|,\\s+|\\s+e\\s+|\\s+com\\s+|\\+)\\s*' + CALC_NUM + ')+)', 'g'),
-    function (_, lista) { return ' ' + calcListaDe(lista).join(' + ') + ' '; });
-  s = s.replace(new RegExp('\\bmedia\\s+(?:de\\s+|dos\\s+|das\\s+|entre\\s+)?(' + CALC_NUM + '(?:\\s*(?:;|,\\s+|\\s+e\\s+|\\s+com\\s+)\\s*' + CALC_NUM + ')+)', 'g'),
-    function (_, lista) { return ' media(' + calcListaDe(lista).join('; ') + ') '; });
+  s = calcNormalizarMais(s);
   s = s.replace(new RegExp('\\braiz(?:\\s+quadrada)?\\s+de\\s+(' + CALC_NUM + ')', 'g'), ' raiz($1) ');
   s = s.replace(new RegExp('(' + CALC_NUM + ')\\s+ao\\s+quadrado', 'g'), '$1 ^ 2 ');
   s = s.replace(new RegExp('(' + CALC_NUM + ')\\s+ao\\s+cubo', 'g'), '$1 ^ 3 ');
@@ -3159,9 +3659,64 @@ function calcNormalizarFrase(n) {
   return s.replace(/\s+/g, ' ');
 }
 
+// Funções com lista de números ("mediana de 3, 5 e 9", "desvio padrão de 2; 4; 6"): a frase mais longa vem antes.
+const CALC_LISTAS = [
+  ['mdc|maximo\\s+divisor\\s+comum', 'mdc'], ['mmc|minimo\\s+multiplo\\s+comum', 'mmc'],
+  ['media\\s+geometrica', 'mediageo'], ['coeficiente\\s+de\\s+variacao', 'cv'], ['mediana', 'mediana'],
+  ['desvio\\s+padrao\\s+populacional', 'desviop'], ['desvio\\s+padrao(?:\\s+amostral)?', 'desvio'],
+  ['variancia\\s+populacional', 'variancip'], ['variancia(?:\\s+amostral)?', 'variancia'],
+  ['amplitude', 'amplitude'], ['moda', 'moda'], ['produto', 'produto'],
+  ['(?:maior|maximo)(?:\\s+valor)?', 'max'], ['(?:menor|minimo)(?:\\s+valor)?', 'min'],
+  ['(?:soma|some|somar|total)', null], ['media', 'media']
+];
+const CALC_FRACOES = { terco: 3, tercos: 3, quarto: 4, quartos: 4, quinto: 5, quintos: 5, sexto: 6, sextos: 6, setimo: 7, setimos: 7, oitavo: 8, oitavos: 8, nono: 9, nonos: 9, decimo: 10, decimos: 10 };
+const CALC_QUANTOS = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5 };
+
+function calcNormalizarMais(s) {
+  const sep = '(?:\\s*(?:;|,\\s+|\\s+e\\s+|\\s+com\\s+)\\s*)';
+  // média ponderada: "média ponderada de 8 (peso 2), 6 (peso 3)"
+  const par = '(' + CALC_NUMI + ')\\s*\\(?\\s*(?:com\\s+)?pesos?\\s+(' + CALC_NUMI + ')\\s*\\)?';
+  s = s.replace(new RegExp('\\bmedia\\s+ponderada\\s+(?:de\\s+|dos\\s+|das\\s+)?((?:' + par + sep + '?)+)', 'g'),
+    function (_, lista) {
+      const pares = [], re = new RegExp(par, 'g');
+      let m;
+      while ((m = re.exec(lista))) pares.push(m[1], m[2]);
+      return ' ponderada(' + pares.join('; ') + ') ';
+    });
+  CALC_LISTAS.forEach(function (l) {
+    s = s.replace(new RegExp('\\b(?:' + l[0] + ')\\s+(?:de\\s+|dos\\s+|das\\s+|do\\s+|da\\s+|entre\\s+)?(' + CALC_NUMI + '(?:' + sep + CALC_NUMI + ')+)', 'g'),
+      function (_, lista) {
+        const itens = calcListaDe(lista);
+        return l[1] ? ' ' + l[1] + '(' + itens.join('; ') + ') ' : ' ' + itens.join(' + ') + ' ';
+      });
+  });
+  // "mmc 12 e 18" já passou acima. Duas listas curtas usam "de": "diferença entre" fica em calcNormalizarFrase.
+  const n1 = '(' + CALC_NUMI + ')';
+  s = s.replace(new RegExp('\\bfatorial\\s+(?:de\\s+)?' + n1, 'g'), ' fatorial($1) ');
+  s = s.replace(new RegExp('\\bresto\\s+(?:da\\s+divisao\\s+)?(?:de\\s+)?' + n1 + '\\s+(?:por|dividido\\s+por|entre)\\s+' + n1, 'g'), ' resto($1; $2) ');
+  s = s.replace(new RegExp('\\b(?:logaritmo|log)\\s+(?:natural|neperiano)\\s+de\\s+' + n1, 'g'), ' ln($1) ');
+  s = s.replace(new RegExp('\\b(?:logaritmo|log)\\s+de\\s+' + n1 + '\\s+na\\s+base\\s+' + n1, 'g'), ' log($1; $2) ');
+  s = s.replace(new RegExp('\\b(?:logaritmo|log)\\s+(?:decimal\\s+)?de\\s+' + n1, 'g'), ' log($1) ');
+  s = s.replace(new RegExp('\\b(seno|cosseno|tangente)\\s+de\\s+' + n1 + '(?:\\s+graus?)?', 'g'), ' $1($2) ');
+  s = s.replace(new RegExp('\\b(?:combinacao|combinacoes)\\s+de\\s+' + n1 + '\\s+(?:em|a|tomados\\s+de|tomadas\\s+de|elementos\\s+em)\\s+' + n1, 'g'), ' comb($1; $2) ');
+  s = s.replace(new RegExp('\\b(?:arranjo|arranjos|permutacao|permutacoes)\\s+de\\s+' + n1 + '\\s+(?:em|a|tomados\\s+de|tomadas\\s+de|elementos\\s+em)\\s+' + n1, 'g'), ' perm($1; $2) ');
+  s = s.replace(new RegExp('\\barredonde?(?:ar)?\\s+' + n1 + '\\s+para\\s+' + n1 + '\\s+casas?(?:\\s+decimais)?', 'g'), ' arred($1; $2) ');
+  s = s.replace(new RegExp('\\barredonde?(?:ar)?\\s+' + n1 + '(?:\\s+para\\s+(?:o\\s+)?inteiro)?', 'g'), ' arred($1) ');
+  s = s.replace(new RegExp('\\bhipotenusa\\s+(?:de\\s+|dos\\s+|com\\s+catetos\\s+)?' + n1 + sep + n1, 'g'), ' hipot($1; $2) ');
+  // metade, dobro, triplo, frações
+  s = s.replace(new RegExp('\\bmetade\\s+d[eoa]s?\\s+' + n1, 'g'), ' ($1 / 2) ');
+  s = s.replace(new RegExp('\\bdobro\\s+d[eoa]s?\\s+' + n1, 'g'), ' ($1 * 2) ');
+  s = s.replace(new RegExp('\\btriplo\\s+d[eoa]s?\\s+' + n1, 'g'), ' ($1 * 3) ');
+  s = s.replace(new RegExp('\\bquadruplo\\s+d[eoa]s?\\s+' + n1, 'g'), ' ($1 * 4) ');
+  s = s.replace(new RegExp('\\b(um|uma|dois|duas|tres|quatro|cinco)\\s+(' + Object.keys(CALC_FRACOES).join('|') + ')\\s+d[eoa]s?\\s+' + n1, 'g'),
+    function (_, q, d, x) { return ' (' + x + ' * ' + CALC_QUANTOS[q] + ' / ' + CALC_FRACOES[d] + ') '; });
+  s = s.replace(new RegExp('\\b(\\d+)\\s*/\\s*(\\d+)\\s+d[eoa]s?\\s+' + n1, 'g'), ' (($1 / $2) * $3) ');
+  return s;
+}
+
 function calcTokenValido(t) {
-  return t.t === 'num' || t.t === 'op' || t.t === 'cmp' || t.t === 'pct' || t.t === 'lp' || t.t === 'rp' || t.t === 'sep' || t.t === 'ref'
-    || (t.t === 'id' && !!CALC_FUNCOES[t.v]);
+  return t.t === 'num' || t.t === 'op' || t.t === 'cmp' || t.t === 'pct' || t.t === 'fat' || t.t === 'lp' || t.t === 'rp' || t.t === 'sep' || t.t === 'ref'
+    || (t.t === 'id' && (!!CALC_FUNCOES[t.v] || t.v === 'pi'));
 }
 
 // Acha, nos tokens, as contas completas (a maior janela que fecha, da esquerda para a direita).
@@ -3204,7 +3759,7 @@ function calcJanelas(tokens) {
 // intencao: a mensagem usa palavra de conta ("quanto é", "calcule", "soma"...). soConta: fora a conta só sobra enchimento ("por favor", "reais").
 function extrairContas(texto) {
   const bruto = calcSemAcentos(String(texto == null ? '' : texto).slice(0, 600)).toLowerCase();
-  const mascarado = calcMascarar(bruto);
+  const mascarado = calcMascarar(bruto.replace(/\b(\d+)\s*\/\s*(\d+)\s+d[eoa]s?\s+(?=\d)/g, '($1 / $2) * '));
   const moeda = /r\$|\breais\b|\breal\b/.test(mascarado);
   const frase = calcNormalizarFrase(mascarado);
   const tokens = calcTokens(frase, { ponto: 'milhar' });
@@ -3280,6 +3835,1026 @@ function pareceProblemaDeCalculo(texto, historico) {
 function temNumeroPorExtenso(texto) {
   const n = calcSemAcentos(String(texto == null ? '' : texto)).toLowerCase();
   return (n.match(CALC_RE_NUM_EXTENSO) || []).length > 0;
+}
+
+// ---- shared/datas.mjs ----
+// Datas e prazos do Paulus: no aparelho, exato, sem IA e sem rede. FONTE ÚNICA: navegador (dist/paulus.v1.js) e Worker.
+//
+//   resolverDatas('30 dias depois de 10/03/2026', { hoje })  -> { itens:[{ texto, rotulo, erro, sensivel }], soConta, sensivel, origem:'datas' } ou null
+//
+// Faz: diferença entre datas (dias, meses, semanas, dias úteis), data + ou − N dias/semanas/meses/anos/dias úteis, dia da semana,
+// idade, "daqui a N dias", "quantos dias faltam para...". Dia útil = segunda a sexta sem feriado NACIONAL (feriado estadual,
+// municipal e ponto facultativo não entram; a resposta avisa). "hoje" vem de opc.hoje (dias desde 1970) ou do relógio do aparelho.
+// Nomes com prefixo "dts" porque no navegador os módulos viram um arquivo só.
+
+const DTS_MESES = { janeiro: 1, fevereiro: 2, marco: 3, abril: 4, maio: 5, junho: 6, julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12 };
+const DTS_SEMANA = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+const DTS_FERIADOS_FIXOS = { '1/1': 'Confraternização Universal', '21/4': 'Tiradentes', '1/5': 'Dia do Trabalho', '7/9': 'Independência', '12/10': 'Nossa Senhora Aparecida', '2/11': 'Finados', '15/11': 'Proclamação da República', '20/11': 'Consciência Negra', '25/12': 'Natal' };
+const DTS_AVISO_UTIL = 'Dia útil = segunda a sexta, sem feriado nacional; feriado estadual/municipal e ponto facultativo não entram (confira o calendário do serviço).';
+const DTS_MAX_ITER = 40000;
+
+function dtsSemAcentos(s) {
+  return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+// ------------------------------------------------------------------ calendário
+
+function dtsDias(a, m, d) { return Math.round(Date.UTC(a, m - 1, d) / 86400000); }
+
+function dtsData(dias) {
+  const x = new Date(dias * 86400000);
+  return { a: x.getUTCFullYear(), m: x.getUTCMonth() + 1, d: x.getUTCDate(), sem: x.getUTCDay(), dias: dias };
+}
+
+function dtsDiasDoMes(a, m) { return new Date(Date.UTC(a, m, 0)).getUTCDate(); }
+
+function dtsValida(a, m, d) {
+  return a >= 1000 && a <= 9999 && m >= 1 && m <= 12 && d >= 1 && d <= dtsDiasDoMes(a, m);
+}
+
+function dtsDois(n) { return (n < 10 ? '0' : '') + n; }
+
+function dtsPlural(n, um, varios) { return n + ' ' + (n === 1 ? um : varios); }
+
+// Páscoa (algoritmo gregoriano anônimo): a Sexta-feira Santa é feriado nacional.
+function dtsPascoa(a) {
+  const g = a % 19, c = Math.floor(a / 100), h = (c - Math.floor(c / 4) - Math.floor((8 * c + 13) / 25) + 19 * g + 15) % 30;
+  const i = h - Math.floor(h / 28) * (1 - Math.floor(29 / (h + 1)) * Math.floor((21 - g) / 11));
+  const j = (a + Math.floor(a / 4) + i + 2 - c + Math.floor(c / 4)) % 7;
+  const l = i - j;
+  const mes = 3 + Math.floor((l + 40) / 44);
+  const dia = l + 28 - 31 * Math.floor(mes / 4);
+  return dtsDias(a, mes, dia);
+}
+
+function dtsFeriado(x) {
+  const nome = DTS_FERIADOS_FIXOS[x.d + '/' + x.m];
+  if (nome) return nome;
+  if (x.dias === dtsPascoa(x.a) - 2) return 'Sexta-feira Santa';
+  return '';
+}
+
+function dtsUtil(x) { return x.sem !== 0 && x.sem !== 6 && !dtsFeriado(x); }
+
+function dtsEscrever(dias, comNota) {
+  const x = dtsData(dias);
+  let s = dtsDois(x.d) + '/' + dtsDois(x.m) + '/' + x.a + ' (' + DTS_SEMANA[x.sem] + ')';
+  if (comNota) {
+    const f = dtsFeriado(x);
+    if (f) s += ' (feriado nacional: ' + f + ')';
+    else if (x.sem === 0 || x.sem === 6) s += ' (não é dia útil)';
+  }
+  return s;
+}
+
+// Soma meses mantendo o dia; se o mês de chegada é mais curto, vai para o último dia (31/01 + 1 mês = 28/02).
+function dtsSomarMeses(dias, meses) {
+  const x = dtsData(dias);
+  const t = x.a * 12 + (x.m - 1) + meses;
+  const a = Math.floor(t / 12), m = t - a * 12 + 1;
+  if (a < 1000 || a > 9999) return null;
+  return dtsDias(a, m, Math.min(x.d, dtsDiasDoMes(a, m)));
+}
+
+function dtsSomarUteis(dias, n) {
+  const passo = n < 0 ? -1 : 1;
+  let falta = Math.abs(n), atual = dias, it = 0;
+  while (falta > 0 && it++ < DTS_MAX_ITER) {
+    atual += passo;
+    if (dtsUtil(dtsData(atual))) falta--;
+  }
+  return falta > 0 ? null : atual;
+}
+
+// Dias úteis em (de, ate]: não conta o dia inicial, conta o final.
+function dtsContarUteis(de, ate) {
+  let n = 0;
+  for (let d = de + 1; d <= ate; d++) if (dtsUtil(dtsData(d))) n++;
+  return n;
+}
+
+// Anos, meses e dias de a até b (a <= b).
+function dtsPeriodo(a, b) {
+  const x = dtsData(a), y = dtsData(b);
+  let anos = y.a - x.a, meses = y.m - x.m, dias = y.d - x.d;
+  if (dias < 0) {
+    meses--;
+    const mesAnt = y.m === 1 ? 12 : y.m - 1, anoAnt = y.m === 1 ? y.a - 1 : y.a;
+    dias += dtsDiasDoMes(anoAnt, mesAnt);
+  }
+  if (meses < 0) { anos--; meses += 12; }
+  return { anos: anos, meses: meses, dias: dias, totalMeses: anos * 12 + meses };
+}
+
+function dtsPeriodoTexto(p) {
+  const partes = [];
+  if (p.anos) partes.push(dtsPlural(p.anos, 'ano', 'anos'));
+  if (p.meses) partes.push(dtsPlural(p.meses, 'mês', 'meses'));
+  if (p.dias || !partes.length) partes.push(dtsPlural(p.dias, 'dia', 'dias'));
+  return partes.join(', ').replace(/, ([^,]*)$/, ' e $1');
+}
+
+// ------------------------------------------------------------------ leitura
+
+// Troca cada data do texto por §0§, §1§... e devolve as datas lidas (válidas ou não).
+function dtsExtrair(n) {
+  const achadas = [];
+  const re1 = /(?:^|[^\d/.\-])(\d{1,2})\s*[\/.\-]\s*(\d{1,2})\s*[\/.\-]\s*(\d{4}|\d{2})(?![\d/])/g;
+  let m;
+  while ((m = re1.exec(n))) {
+    const ini = m.index + m[0].indexOf(m[1]);
+    let a = Number(m[3]);
+    if (m[3].length === 2) a += a < 70 ? 2000 : 1900;
+    achadas.push({ ini: ini, fim: m.index + m[0].length, d: Number(m[1]), m: Number(m[2]), a: a });
+  }
+  const re2 = /\b(\d{1,2})\s*(?:o\s+)?de\s+(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s*(?:de|,)?\s*(\d{4})\b/g;
+  while ((m = re2.exec(n))) achadas.push({ ini: m.index, fim: m.index + m[0].length, d: Number(m[1]), m: DTS_MESES[m[2]], a: Number(m[3]) });
+  achadas.sort(function (x, y) { return x.ini - y.ini; });
+  const datas = [];
+  let texto = '', pos = 0;
+  achadas.forEach(function (x) {
+    if (x.ini < pos) return;
+    texto += n.slice(pos, x.ini) + ' §' + datas.length + '§ ';
+    pos = x.fim;
+    datas.push(x);
+  });
+  texto += n.slice(pos);
+  return { texto: texto, datas: datas };
+}
+
+const DTS_UNID = '(dias?\\s+uteis|dias?\\s+util|dias?|semanas?|meses|mes|anos?)';
+const DTS_ALVO = '(§\\d§|hoje)';
+const DTS_ENCHIMENTO = new Set(('quanto quantos quantas e foi sera cai caiu dia dias que da de do dos das a o as os um uma para pra por favor paulus qual me diga calcule ' +
+  'calcular data prazo resultado faltam falta passaram passou desde ate entre idade nasceu nascimento em quem inclusive contando hoje ola oi uteis util semana ' +
+  'semanas meses mes anos ano depois antes apos partir daqui atras ha faz fazem se corridos corrido tenho tem completos completo exato exata na no vai ficar fica ' +
+  'cair cairia seria isso conta conte quando termina vence vencimento final inicio comeca ser pessoa fez completa completar').split(' '));
+
+function dtsSoConta(resto) {
+  const palavras = resto.replace(/§\d§/g, ' ').replace(/[^a-z]+/g, ' ').split(' ').filter(Boolean);
+  return palavras.every(function (w) { return DTS_ENCHIMENTO.has(w); });
+}
+
+function dtsUnidade(u) {
+  if (/^dias?\s+ut/.test(u)) return 'uteis';
+  if (/^dia/.test(u)) return 'dias';
+  if (/^semana/.test(u)) return 'semanas';
+  if (/^mes/.test(u)) return 'meses';
+  return 'anos';
+}
+
+function dtsSomarUnidade(base, n, unidade) {
+  if (unidade === 'uteis') return dtsSomarUteis(base, n);
+  if (unidade === 'dias') return base + n;
+  if (unidade === 'semanas') return base + 7 * n;
+  if (unidade === 'meses') return dtsSomarMeses(base, n);
+  return dtsSomarMeses(base, 12 * n);
+}
+
+function dtsItem(rotulo, texto, extra) {
+  return Object.assign({ rotulo: rotulo, texto: texto, expressao: '', erro: false, sensivel: false }, extra || {});
+}
+
+function dtsErro(texto) { return dtsItem('', texto, { erro: true }); }
+
+function dtsHoje(opc) {
+  if (opc && typeof opc.hoje === 'number' && isFinite(opc.hoje)) return Math.floor(opc.hoje);
+  const x = new Date();
+  return dtsDias(x.getFullYear(), x.getMonth() + 1, x.getDate());
+}
+
+function dtsLinhaDiferenca(de, ate, unidade, inclusive) {
+  const ini = Math.min(de, ate), fim = Math.max(de, ate);
+  if (unidade === 'uteis') {
+    return dtsContarUteis(ini, fim) + (inclusive && dtsUtil(dtsData(ini)) ? 1 : 0);
+  }
+  return fim - ini + (inclusive ? 1 : 0);
+}
+
+// ------------------------------------------------------------------ principal
+
+function resolverDatas(texto, opc) {
+  const bruto = dtsSemAcentos(String(texto == null ? '' : texto).slice(0, 400)).toLowerCase();
+  if (!/\d|hoje|\bidade\b|\bdaqui\b/.test(bruto)) return null;
+  const ext = dtsExtrair(bruto);
+  const t = ext.texto.replace(/\s+/g, ' ');
+  const hoje = dtsHoje(opc);
+
+  // Data inválida (31/02): para tudo e avisa.
+  for (let i = 0; i < ext.datas.length; i++) {
+    const x = ext.datas[i];
+    if (!dtsValida(x.a, x.m, x.d)) {
+      const esc = dtsDois(x.d) + '/' + dtsDois(x.m) + '/' + x.a;
+      return { itens: [dtsErro('A data ' + esc + ' não existe no calendário. Confira o dia e o mês.')], soConta: true, sensivel: false, origem: 'datas' };
+    }
+  }
+  const dia = function (i) { const x = ext.datas[i]; return dtsDias(x.a, x.m, x.d); };
+  const alvo = function (s) { return s === 'hoje' ? hoje : dia(Number(s.slice(1, -1))); };
+  const sair = function (itens, resto, sensivel, extra) {
+    const util = itens.some(function (i) { return i.util; });
+    if (util) itens.push(dtsItem('', DTS_AVISO_UTIL, { aviso: true }));
+    return { itens: itens, soConta: dtsSoConta(resto) && !/feriado|ponto facultativo|recesso|suspens/.test(t), sensivel: !!sensivel, origem: 'datas' };
+  };
+  let m;
+
+  // idade: "idade de quem nasceu em 15/05/1990", "idade em meses de 10/03/2025"
+  if ((/\bidade\b|\bnasceu\b|\bnascimento\b|\bnascida\b|\bnascido\b/.test(t)) && ext.datas.length === 1) {
+    const nasc = dia(0);
+    if (nasc > hoje) return { itens: [dtsErro('A data de nascimento está no futuro. Confira.')], soConta: true, sensivel: true, origem: 'datas' };
+    const p = dtsPeriodo(nasc, hoje);
+    const longo = dtsPeriodoTexto(p);
+    let linha;
+    if (/\bem\s+meses\b/.test(t)) linha = dtsPlural(p.totalMeses, 'mês completo', 'meses completos') + ' (' + longo + ')';
+    else if (/\bem\s+dias\b/.test(t)) linha = dtsPlural(hoje - nasc, 'dia', 'dias') + ' de vida (' + longo + ')';
+    else linha = dtsPlural(p.anos, 'ano completo', 'anos completos') + ' (' + longo + ')';
+    return sair([dtsItem('idade', linha, { sensivel: true })], t.replace(/\bidade\b|\bnasc\w+|\bem\s+(?:meses|dias)\b/g, ' '), true);
+  }
+
+  // dia da semana
+  m = new RegExp('\\bque\\s+dia\\s+(?:da\\s+semana\\s+)?(?:e|foi|cai|caiu|sera|cairia|seria)\\s+' + DTS_ALVO).exec(t) || new RegExp('\\bdia\\s+da\\s+semana\\s+(?:de|em|d[eo])\\s+' + DTS_ALVO).exec(t);
+  if (m) {
+    const d = alvo(m[1]);
+    const x = dtsData(d);
+    const f = dtsFeriado(x);
+    const txt = m[1] === 'hoje' ? dtsEscrever(d) : DTS_SEMANA[x.sem] + (f ? ' (feriado nacional: ' + f + ')' : '');
+    return sair([dtsItem('', txt)], t.replace(m[0], ' '), false);
+  }
+  if (/^\s*(?:(?:e|foi)\s+)?(?:qual\s+(?:e\s+)?)?(?:a\s+)?data\s+de\s+hoje\s*\??\s*$/.test(t) || /^\s*que\s+dia\s+e\s+hoje\s*\??\s*$/.test(t)) {
+    return sair([dtsItem('', dtsEscrever(hoje))], '', false);
+  }
+
+  // diferença entre duas datas
+  if (ext.datas.length >= 2 || (ext.datas.length === 1 && /\bhoje\b/.test(t) && /\bentre\b/.test(t))) {
+    const dif = new RegExp('(?:\\bentre\\s+|\\bde\\s+|\\bdesde\\s+)' + DTS_ALVO + '\\s+(?:e|ate|a|para)\\s+' + DTS_ALVO).exec(t);
+    if (dif && /\b(?:quant\w+|dias?|semanas?|meses|anos?|diferenca|intervalo|prazo|periodo)\b/.test(t) && !/\b(?:depois|antes|apos|partir)\b/.test(t)) {
+      const de = alvo(dif[1]), ate = alvo(dif[2]);
+      const uteis = /\buteis\b|\bdias?\s+util\b/.test(t);
+      const inclusive = /\binclusive\b|\bcontando\s+os\s+dois\b|\bincluindo\b/.test(t);
+      const n = dtsLinhaDiferenca(de, ate, uteis ? 'uteis' : 'dias', inclusive);
+      const ini = Math.min(de, ate), fim = Math.max(de, ate);
+      let linha;
+      if (uteis) {
+        linha = dtsPlural(n, 'dia útil', 'dias úteis') + (inclusive ? ' (conta os dois extremos)' : ' (sem contar o dia inicial; conta o final)');
+      } else {
+        const p = dtsPeriodo(ini, fim + (inclusive ? 1 : 0));
+        const sem = Math.floor(n / 7), r = n % 7;
+        linha = dtsPlural(n, 'dia', 'dias') + (n >= 31 ? ' · ' + dtsPeriodoTexto(p) : '') + (n >= 7 ? ' · ' + dtsPlural(sem, 'semana', 'semanas') + (r ? ' e ' + dtsPlural(r, 'dia', 'dias') : '') : '');
+        if (inclusive) linha += ' (contando os dois extremos)';
+      }
+      return sair([dtsItem('', linha, { util: uteis })], t.replace(dif[0], ' '), false);
+    }
+  }
+
+  // quantos dias faltam / passaram / há quantos dias foi
+  m = new RegExp('\\bquantos\\s+(?:dias|meses)\\s+(?:faltam|falta)\\s+(?:para|pra|ate)\\s+' + DTS_ALVO).exec(t);
+  if (m) {
+    const d = alvo(m[1]);
+    if (d < hoje) return sair([dtsItem('', 'Essa data já passou (hoje é ' + dtsEscrever(hoje) + '). Use "há quantos dias foi ' + dtsEscrever(d).slice(0, 10) + '".')], '', false);
+    const p = dtsPeriodo(hoje, d), n = d - hoje;
+    const linha = dtsPlural(n, 'dia', 'dias') + ' (faltam, contando de hoje ' + dtsEscrever(hoje).slice(0, 10) + ')' + (n >= 31 ? ' · ' + dtsPeriodoTexto(p) : '') + (n >= 7 ? ' · ' + dtsPlural(Math.floor(n / 7), 'semana', 'semanas') + (n % 7 ? ' e ' + dtsPlural(n % 7, 'dia', 'dias') : '') : '');
+    return sair([dtsItem('', linha)], t.replace(m[0], ' '), false);
+  }
+  m = new RegExp('\\b(?:ha\\s+quantos\\s+dias\\s+(?:foi|era|aconteceu)|quantos\\s+dias\\s+(?:se\\s+)?(?:passaram|faz|fazem)\\s+(?:desde|de))\\s+' + DTS_ALVO).exec(t);
+  if (m) {
+    const d = alvo(m[1]);
+    if (d > hoje) return sair([dtsItem('', 'Essa data ainda não chegou (hoje é ' + dtsEscrever(hoje) + ').')], '', false);
+    const p = dtsPeriodo(d, hoje), n = hoje - d;
+    const linha = dtsPlural(n, 'dia', 'dias') + ' (já passaram, contando até hoje ' + dtsEscrever(hoje).slice(0, 10) + ')' + (n >= 31 ? ' · ' + dtsPeriodoTexto(p) : '') + (n >= 7 ? ' · ' + dtsPlural(Math.floor(n / 7), 'semana', 'semanas') + (n % 7 ? ' e ' + dtsPlural(n % 7, 'dia', 'dias') : '') : '');
+    return sair([dtsItem('', linha)], t.replace(m[0], ' '), false);
+  }
+
+  // N unidades depois/antes de uma data
+  m = new RegExp('(?:^|\\s)(\\d+)\\s*' + DTS_UNID + '\\s*(?:corridos?\\s*)?(depois\\s+d[eo]|apos|a\\s+partir\\s+d[eo]|antes\\s+d[eo]|depois|antes)\\s+' + DTS_ALVO).exec(t);
+  let n = null, un = null, sinal = 1, base = null, usado = null;
+  if (m) {
+    n = Number(m[1]); un = dtsUnidade(m[2]); sinal = /^antes/.test(m[3]) ? -1 : 1; base = alvo(m[4]); usado = m[0];
+  } else {
+    m = new RegExp(DTS_ALVO + '\\s*([+-])\\s*(\\d+)\\s*' + DTS_UNID).exec(t);
+    if (m) { n = Number(m[3]); un = dtsUnidade(m[4]); sinal = m[2] === '-' ? -1 : 1; base = alvo(m[1]); usado = m[0]; }
+  }
+  if (!usado) {
+    // "daqui a 90 dias", "há 15 dias", "15 dias atrás"
+    m = new RegExp('\\bdaqui\\s+a\\s+(\\d+)\\s*' + DTS_UNID).exec(t);
+    if (m) { n = Number(m[1]); un = dtsUnidade(m[2]); sinal = 1; base = hoje; usado = m[0]; }
+    else {
+      m = new RegExp('(?:\\bha\\s+(\\d+)\\s*' + DTS_UNID + '|\\b(\\d+)\\s*' + DTS_UNID + '\\s+atras)').exec(t);
+      if (m && !/\bquantos\b/.test(t)) { n = Number(m[1] || m[3]); un = dtsUnidade(m[2] || m[4]); sinal = -1; base = hoje; usado = m[0]; }
+    }
+  }
+  if (usado) {
+    if (n > 100000) return sair([dtsErro('Número grande demais para contar prazo.')], '', false);
+    const r = dtsSomarUnidade(base, sinal * n, un);
+    if (r === null) return sair([dtsErro('Não consegui chegar a essa data (fora do calendário).')], '', false);
+    return sair([dtsItem('', dtsEscrever(r, true), { util: un === 'uteis' })], t.replace(usado, ' '), false);
+  }
+
+  return null;
+}
+
+// ---- shared/calculo-mais.mjs ----
+// Cálculos prontos do Paulus (alem da aritmética de calculo.mjs): porcentagem, regra de três, rateio, renda per capita, frequência, IMC, taxa por mil,
+// conversão de unidades, geometria, juros e financiamento, férias e 13º, horas, viagem, bases numéricas, números romanos, fatoração,
+// equação do 1º e 2º grau, escore z/T e tamanho de amostra. Tudo no aparelho, exato, sem IA e sem rede. FONTE ÚNICA: navegador e Worker.
+//
+//   contasDoPedido(texto, opc)   -> { itens, soConta, sensivel, origem:'datas'|'especial'|'aritmetica' } ou null (quem decide é a mensagem)
+//   respostaDoPedido(texto, opc) -> { texto, itens, sensivel, origem } só quando a mensagem É o pedido de conta (resposta direta, sem IA)
+//   linhaDeItem(item)            -> "rótulo: conta = resultado"
+//
+// Item: { rotulo, expressao, valor, texto, moeda, bool, erro, sensivel }. Nomes com prefixo "cmx" (no navegador os módulos viram um arquivo só).
+// Faixas e fórmulas são as de uso corrente (IMC da OMS para adultos, Price, tamanho de amostra de população grande); a resposta diz quando é suposição.
+
+
+
+
+const CMX_NUM = '\\d[\\d.]*(?:,\\d+)?';
+const CMX_PI = Math.PI;
+
+// ------------------------------------------------------------------ utilidades
+
+function cmxSemAcentos(s) {
+  return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+// Lê um número escrito do jeito brasileiro ("1.518,50", "1,75", "200.").
+function cmxNum(s) {
+  const r = calcularExpressao(String(s == null ? '' : s).replace(/[.,]+$/, ''), {});
+  return r.ok && !r.bool ? r.valor : NaN;
+}
+
+function cmxNumeros(s) {
+  const achados = String(s).match(new RegExp(CMX_NUM, 'g')) || [];
+  return achados.map(cmxNum).filter(function (x) { return isFinite(x); });
+}
+
+function cmxF(x, casas) {
+  return formatarNumero(x, { casas: casas == null ? 4 : casas });
+}
+
+// Valor já arredondado de propósito: sem o "≈" automático.
+function cmxA(x, casas) {
+  return formatarNumero(arredondarCasas(x, casas), { casas: casas });
+}
+
+function cmxM(x) {
+  return formatarNumero(x, { moeda: true });
+}
+
+// Negativo entre parênteses dentro de uma conta escrita: (-5)².
+function cmxP(x) {
+  return x < 0 ? '(' + cmxF(x) + ')' : cmxF(x);
+}
+
+function cmxItem(rotulo, expressao, valor, texto, extra) {
+  return Object.assign({ rotulo: rotulo, expressao: expressao, valor: valor, texto: texto, moeda: false, bool: false, erro: false, sensivel: false }, extra || {});
+}
+
+function cmxErro(texto) {
+  return cmxItem('', '', null, texto, { erro: true });
+}
+
+function cmxSaida(itens, n) {
+  const palavras = String(n).replace(/[^a-z]+/g, ' ').split(' ').filter(Boolean).length;
+  // Pergunta com contexto ("posso incluir no BPC?") não é só a conta: segue para a IA, que recebe o número pronto.
+  const contexto = /\b(?:posso|devo|pode|podem|tenho|temos|direito|elegivel|elegibilidade|incluir|como\s+(?:faco|fazer|funciona|se|calcular|calculo|e)|porque|por que|explique|explica|o que|bpc|cras|creas|loas|suas|beneficio|cadunico|relatorio|oficio|paf|caso|paciente|usuario|atendido|atendida)\b/.test(n);
+  return { itens: itens, soConta: palavras <= 20 && !contexto, sensivel: false, origem: 'especial' };
+}
+
+function cmxPlural(nome, v) {
+  if (Math.abs(v) === 1) return nome;
+  if (/^(?:segundo|minuto|hora|dia|semana|polegada|milha|jarda|libra|onça|arroba|radiano|hectare|tonelada|nó|galão)$/.test(nome)) return nome + (nome === 'nó' ? 's' : nome === 'galão' ? '' : 's');
+  if (nome === 'galão') return 'galões';
+  if (nome === 'pé') return 'pés';
+  return nome;
+}
+
+// ------------------------------------------------------------------ porcentagem
+
+function cmxPorcentagem(n) {
+  let m = new RegExp('(' + CMX_NUM + ')\\s+(?:e|representa|corresponde\\s+a)\\s+(?:quantos?\\s+(?:por\\s+cento|%|porcento)|que\\s+(?:porcentagem|percentual))\\s+d[eoa]s?\\s+(' + CMX_NUM + ')').exec(n)
+    || new RegExp('quantos?\\s+(?:por\\s+cento|%|porcento)\\s+(?:e|representa)\\s+(' + CMX_NUM + ')\\s+d[eoa]s?\\s+(' + CMX_NUM + ')').exec(n)
+    || new RegExp('(?:qual\\s+(?:a\\s+)?(?:porcentagem|percentual)\\s+(?:de|que)\\s+)(' + CMX_NUM + ')\\s+(?:em\\s+relacao\\s+a|sobre|de|d[eoa]s?)\\s+(' + CMX_NUM + ')').exec(n);
+  if (m) {
+    const a = cmxNum(m[1]), b = cmxNum(m[2]);
+    if (b === 0) return [cmxErro('Divisão por zero: o total não pode ser 0.')];
+    const r = a / b * 100;
+    return [cmxItem('porcentagem', cmxF(a) + ' ÷ ' + cmxF(b) + ' × 100', r, cmxF(r) + '%')];
+  }
+  m = new RegExp('(?:variacao|variou|aumento|reducao|crescimento|queda|diferenca)\\s+(?:percentual\\s+)?(?:de|entre)\\s+(' + CMX_NUM + ')\\s+(?:para|a|e|ate)\\s+(' + CMX_NUM + ')').exec(n)
+    || new RegExp('(?:aument\\w+|sub\\w+|cresc\\w+|caiu|cair\\w*|reduz\\w+|diminu\\w+|baix\\w+|passou|foi)\\s+de\\s+(' + CMX_NUM + ')\\s+(?:para|a|ate)\\s+(' + CMX_NUM + ')').exec(n)
+    || new RegExp('\\bde\\s+(' + CMX_NUM + ')\\s+(?:para|a|ate)\\s+(' + CMX_NUM + ')\\s*,?\\s*(?:qual|quanto|quantos)').exec(n);
+  if (m && /%|por\s*cento|percent|variac|quantos?\s+(?:por|%)/.test(n)) {
+    const a = cmxNum(m[1]), b = cmxNum(m[2]);
+    if (a === 0) return [cmxErro('A variação percentual não existe quando o valor inicial é 0.')];
+    const r = (b - a) / Math.abs(a) * 100;
+    return [cmxItem('variação percentual', '(' + cmxF(b) + ' − ' + cmxF(a) + ') ÷ ' + cmxF(Math.abs(a)) + ' × 100', r, (r > 0 ? '+' : '') + cmxF(r) + '%' + (r > 0 ? ' (aumento)' : r < 0 ? ' (queda)' : ' (sem variação)'))];
+  }
+  m = new RegExp('(' + CMX_NUM + ')\\s+e\\s+(' + CMX_NUM + ')\\s*(?:%|por\\s*cento)\\s+de\\s+quanto').exec(n);
+  if (m) {
+    const a = cmxNum(m[1]), p = cmxNum(m[2]);
+    if (p === 0) return [cmxErro('Porcentagem 0 não permite achar o total.')];
+    const r = a / (p / 100);
+    return [cmxItem('valor total', cmxF(a) + ' ÷ ' + cmxF(p) + '%', r, cmxF(r))];
+  }
+  m = new RegExp('(' + CMX_NUM + ')\\s*(?:%|por\\s*cento)\\s+de\\s+(desconto|abatimento|aumento|acrescimo)[^\\d]{0,40}(?:custa|custou|ficou|fica|saiu|paguei|pago|vale|foi)\\s*(?:r\\$)?\\s*(' + CMX_NUM + ')').exec(n);
+  if (m && /original|antes|sem\s+(?:o\s+)?(?:desconto|aumento)|inicial/.test(n)) {
+    const p = cmxNum(m[1]) / 100, v = cmxNum(m[3]);
+    const fator = /desconto|abatimento/.test(m[2]) ? 1 - p : 1 + p;
+    if (fator === 0) return [cmxErro('Com 100% de desconto não dá para achar o valor original.')];
+    const r = v / fator;
+    return [cmxItem('valor original', cmxF(v) + ' ÷ (' + (/desconto|abatimento/.test(m[2]) ? '1 − ' : '1 + ') + cmxF(p * 100) + '%)', r, cmxF(r))];
+  }
+  m = new RegExp('(' + CMX_NUM + ')\\s+com\\s+(?:um\\s+)?(?:desconto\\s+de\\s+)?(' + CMX_NUM + ')\\s*(?:%|por\\s*cento)(?:\\s+de\\s+(desconto|acrescimo|aumento|juros))?').exec(n);
+  if (m && (/desconto/.test(n) || m[3])) {
+    const v = cmxNum(m[1]), p = cmxNum(m[2]);
+    const desc = /desconto/.test(m[3] || '') || (!m[3] && /desconto/.test(n));
+    const r = desc ? v * (1 - p / 100) : v * (1 + p / 100);
+    return [cmxItem(desc ? 'valor com desconto' : 'valor com acréscimo', cmxF(v) + (desc ? ' − ' : ' + ') + cmxF(p) + '%', r, cmxF(r))];
+  }
+  return null;
+}
+
+// ------------------------------------------------------------------ regra de três, rateio, per capita
+
+function cmxRegraDeTres(n) {
+  const m = new RegExp('(' + CMX_NUM + ')\\s+esta\\s+para\\s+(' + CMX_NUM + ')\\s+(?:assim\\s+)?como\\s+(' + CMX_NUM + ')\\s+esta\\s+para\\s+(?:x|\\?|quanto)').exec(n)
+    || new RegExp('(' + CMX_NUM + ')\\s+(?:esta|estao)\\s+para\\s+(' + CMX_NUM + ')\\s*,?\\s*(?:entao\\s+)?(' + CMX_NUM + ')\\s+(?:esta|estao)\\s+para\\s+(?:x|\\?|quanto)').exec(n);
+  if (!m) return null;
+  const a = cmxNum(m[1]), b = cmxNum(m[2]), c = cmxNum(m[3]);
+  const inversa = /\binversa\w*/.test(n);
+  if (a === 0 || (inversa && c === 0)) return [cmxErro('Divisão por zero na regra de três.')];
+  const r = inversa ? a * b / c : b * c / a;
+  return [cmxItem(inversa ? 'regra de três inversa' : 'regra de três direta', inversa ? cmxF(a) + ' × ' + cmxF(b) + ' ÷ ' + cmxF(c) : cmxF(b) + ' × ' + cmxF(c) + ' ÷ ' + cmxF(a), r, cmxF(r))];
+}
+
+function cmxRateio(n) {
+  if (!/\b(?:dividir|divida|dividindo|ratear|rateio|repartir|reparta|partilhar)\b/.test(n)) return null;
+  let m = new RegExp('(?:dividir|divida|ratear|repartir|reparta|partilhar)\\s+(?:o\\s+valor\\s+de\\s+)?(' + CMX_NUM + ')\\s+(?:reais\\s+)?(?:igualmente\\s+|em\\s+partes\\s+iguais\\s+)?(?:entre|por|para)\\s+(\\d+)\\b(?!\\s*[,;]|\\s+e\\s+\\d)').exec(n);
+  if (m && !/proporcional/.test(n)) {
+    const v = cmxNum(m[1]), k = cmxNum(m[2]);
+    if (k <= 0) return [cmxErro('A divisão pede pelo menos 1 parte.')];
+    const r = v / k;
+    return [cmxItem('divisão igual', cmxF(v) + ' ÷ ' + cmxF(k), r, cmxF(r) + ' para cada um(a)')];
+  }
+  m = new RegExp('(?:dividir|divida|ratear|rateio|repartir|reparta|partilhar)\\s+(?:o\\s+valor\\s+de\\s+)?(' + CMX_NUM + ')\\s+(?:reais\\s+)?proporcionalmente\\s+(?:a|aos|as|com|entre)\\s+(.+)').exec(n);
+  if (m) {
+    const v = cmxNum(m[1]);
+    const pesos = (m[2].match(/\d[\d.]*(?:,\d+)?/g) || []).map(cmxNum);
+    const soma = pesos.reduce(function (x, y) { return x + y; }, 0);
+    if (pesos.length < 2 || soma <= 0) return [cmxErro('O rateio proporcional pede pelo menos 2 pesos.')];
+    return pesos.slice(0, 8).map(function (pe, i) {
+      const r = v * pe / soma;
+      return cmxItem('parte ' + (i + 1), cmxF(v) + ' × ' + cmxF(pe) + ' ÷ ' + cmxF(soma), r, cmxF(r));
+    });
+  }
+  return null;
+}
+
+function cmxPerCapita(n) {
+  if (!/per\s*capita|renda\b/.test(n) || !/\b(?:pessoas?|membros?|integrantes?|moradores?)\b/.test(n)) return null;
+  let t = n.replace(/\br\$\s*/g, ' ');
+  const mp = new RegExp('(\\d+)\\s*(?:pessoas?|membros?|integrantes?|moradores?)').exec(t);
+  if (!mp) return null;
+  const pessoas = Number(mp[1]);
+  t = t.replace(mp[0], ' ');
+  let limite = null, rotuloLimite = 'limite informado';
+  let ml = new RegExp('(meio|1\\s*/\\s*2|um\\s+quarto|1\\s*/\\s*4|metade\\s+d[eo])\\s+salario\\s+minimo\\s+(?:de\\s+|que\\s+e\\s+|=\\s*)?(' + CMX_NUM + ')').exec(t);
+  if (ml) {
+    const frac = /quarto|1\s*\/\s*4/.test(ml[1]) ? 0.25 : 0.5;
+    limite = cmxNum(ml[2]) * frac;
+    rotuloLimite = (frac === 0.5 ? 'meio' : '1/4 do') + ' salário mínimo informado';
+    t = t.replace(ml[0], ' ');
+  } else {
+    ml = new RegExp('(?:limite|teto|corte|criterio|linha(?:\\s+de\\s+pobreza)?|referencia|parametro)\\s+(?:de\\s+|e\\s+|=\\s*)?(' + CMX_NUM + ')').exec(t);
+    if (ml) { limite = cmxNum(ml[1]); t = t.replace(ml[0], ' '); }
+  }
+  // Comparação sem limite identificado: não dá para saber qual número é a renda e qual é o limite. Segue para a IA.
+  if (limite === null && /\b(?:dentro|acima|abaixo|passa|passam|ultrapassa|menor|maior|inferior|superior|excede|limite|linha|teto)\b/.test(t)) return null;
+  const rendas = cmxNumeros(t.replace(/\bem\s+(?:19|20)\d{2}\b/g, ' '));
+  if (!rendas.length || pessoas < 1) return null;
+  const itens = [];
+  let total = rendas.reduce(function (x, y) { return x + y; }, 0);
+  if (rendas.length > 1) itens.push(cmxItem('renda total', rendas.map(function (x) { return cmxF(x); }).join(' + '), total, cmxM(total), { moeda: true }));
+  const pc = total / pessoas;
+  itens.push(cmxItem('renda per capita', cmxF(total) + ' ÷ ' + pessoas, pc, cmxM(pc), { moeda: true }));
+  if (limite !== null) {
+    const ok = pc <= limite + 1e-9;
+    itens.push(cmxItem('compara com o ' + rotuloLimite + ' (' + cmxM(limite) + ')', cmxM(pc) + ' ≤ ' + cmxM(limite), ok ? 1 : 0,
+      (ok ? 'SIM, igual ou abaixo do limite informado' : 'NÃO, acima do limite informado'), { bool: true }));
+  }
+  return itens;
+}
+
+// ------------------------------------------------------------------ frequência
+
+function cmxFrequencia(n) {
+  if (!/\b(?:frequencia|faltas?|faltou|faltaram|presencas?|ausencias?|assiduidade)\b/.test(n)) return null;
+  let total = null, faltas = null, pres = null, minimo = null;
+  let m = new RegExp('(' + CMX_NUM + ')\\s*(?:dias\\s+letivos|dias\\s+de\\s+aula|aulas|dias|encontros|atendimentos|sessoes|reunioes|atividades)').exec(n);
+  if (m) total = cmxNum(m[1]);
+  m = new RegExp('(' + CMX_NUM + ')\\s*(?:faltas?|ausencias?)').exec(n) || new RegExp('falt(?:ou|aram|ei)\\s+(?:a\\s+)?(' + CMX_NUM + ')').exec(n);
+  if (m) faltas = cmxNum(m[1]);
+  m = new RegExp('(' + CMX_NUM + ')\\s*presencas?').exec(n) || new RegExp('(?:presente|estive|foi|compareceu)\\s+(?:em|a|na|nas)?\\s*(' + CMX_NUM + ')\\s+(?:de|em)').exec(n);
+  if (m) pres = cmxNum(m[1]);
+  m = new RegExp('(?:minimo|exigido|exigencia|exige|piso)\\s+(?:de\\s+)?(' + CMX_NUM + ')\\s*%').exec(n);
+  if (m) minimo = cmxNum(m[1]);
+  m = new RegExp('falt\\w+\\s+(' + CMX_NUM + ')\\s+de\\s+(' + CMX_NUM + ')').exec(n);
+  if (m) { faltas = cmxNum(m[1]); total = cmxNum(m[2]); }
+  m = new RegExp('(' + CMX_NUM + ')\\s*presencas?\\s+(?:em|de)\\s+(' + CMX_NUM + ')').exec(n);
+  if (m) { pres = cmxNum(m[1]); total = cmxNum(m[2]); }
+  if (!total || total <= 0) return null;
+  if (pres === null && faltas === null) return null;
+  if (pres === null) pres = total - faltas;
+  if (faltas === null) faltas = total - pres;
+  if (pres < 0 || faltas < 0 || pres > total) return [cmxErro('Os números de presenças e faltas não fecham com o total de ' + cmxF(total) + '. Confira.')];
+  const freq = pres / total * 100;
+  const itens = [cmxItem('frequência', cmxF(pres) + ' ÷ ' + cmxF(total) + ' × 100', freq, cmxF(freq) + '% (' + cmxF(pres) + ' presenças e ' + cmxF(faltas) + ' faltas em ' + cmxF(total) + ')')];
+  if (minimo !== null) {
+    const exigidas = Math.ceil(calcSemRuido(total * minimo / 100));
+    const maxFaltas = total - exigidas;
+    const ok = pres >= exigidas;
+    itens.push(cmxItem('mínimo de ' + cmxF(minimo) + '%', cmxF(total) + ' × ' + cmxF(minimo) + '%', exigidas,
+      'mínimo de ' + cmxF(exigidas) + ' presenças (no máximo ' + cmxF(maxFaltas) + ' faltas); ' + (ok ? 'ATINGE o mínimo informado' + (maxFaltas - faltas > 0 ? ', ainda pode faltar ' + cmxF(maxFaltas - faltas) : '') : 'NÃO atinge o mínimo informado (faltam ' + cmxF(exigidas - pres) + ' presenças)')));
+  }
+  return itens;
+}
+
+function calcSemRuido(x) { return Number(x.toPrecision(12)); }
+
+// ------------------------------------------------------------------ IMC, taxa
+
+function cmxImc(n) {
+  if (!/\bimc\b|indice\s+de\s+massa/.test(n)) return null;
+  const mk = new RegExp('(' + CMX_NUM + ')\\s*(?:kg|quilos?|kilos?)\\b').exec(n);
+  const ma = new RegExp('(' + CMX_NUM + ')\\s*(cm|m|metros?|centimetros?)\\b').exec(n);
+  if (!mk || !ma) return null;
+  const peso = cmxNum(mk[1]);
+  let alt = cmxNum(ma[1]);
+  if (/^c/.test(ma[2])) alt = alt / 100;
+  if (alt > 3 || alt < 0.4) return [cmxErro('Altura fora do normal: confira se é em metros (1,75) ou centímetros (175).')];
+  const imc = peso / (alt * alt);
+  const f = imc < 18.5 ? 'abaixo do peso' : imc < 25 ? 'peso adequado' : imc < 30 ? 'sobrepeso' : imc < 35 ? 'obesidade grau I' : imc < 40 ? 'obesidade grau II' : 'obesidade grau III';
+  return [cmxItem('IMC', cmxF(peso) + ' ÷ ' + cmxF(alt) + '²', imc, cmxA(imc, 2) + ' kg/m² (' + f + ', faixas da OMS para adultos)')];
+}
+
+function cmxBase(txt) {
+  const t = txt.trim();
+  if (/^mil$/.test(t)) return 1000;
+  if (/^cem\s+mil$/.test(t)) return 100000;
+  const m = /^(\d[\d.]*(?:,\d+)?)\s*mil$/.exec(t);
+  if (m) return cmxNum(m[1]) * 1000;
+  return cmxNum(t);
+}
+
+function cmxTaxa(n) {
+  if (!/\b(?:taxa|incidencia|prevalencia|coeficiente|mortalidade|natalidade)\b/.test(n)) return null;
+  const mb = /por\s+(mil|cem\s+mil|\d[\d.]*(?:,\d+)?\s*mil|\d[\d.]*)(?:\s+(?:habitantes|pessoas|nascidos|nascimentos|criancas|mulheres|homens|idosos|familias))?\b/.exec(n);
+  if (!mb) return null;
+  const base = cmxBase(mb[1]);
+  const m = new RegExp('(' + CMX_NUM + ')\\s+(?:casos?|obitos?|mortes?|nascimentos?|ocorrencias?|atendimentos?|pessoas?|registros?|notificacoes|eventos?)?\\s*(?:em|para|entre|numa?\\s+populacao\\s+de|de)\\s+(' + CMX_NUM + ')').exec(n);
+  if (!m || !isFinite(base)) return null;
+  const a = cmxNum(m[1]), pop = cmxNum(m[2]);
+  if (pop <= 0) return [cmxErro('A população precisa ser maior que 0.')];
+  const r = a / pop * base;
+  return [cmxItem('taxa por ' + cmxF(base), cmxF(a) + ' ÷ ' + cmxF(pop) + ' × ' + cmxF(base), r, cmxF(r) + ' por ' + cmxF(base) + ' habitantes (ou pessoas expostas)')];
+}
+
+// ------------------------------------------------------------------ conversão de unidades
+
+// [símbolo, fator para a unidade base, apelidos sem acento]
+const CMX_UNIDADES = [
+  { cat: 'comprimento', un: [['mm', 0.001, ['milimetro', 'milimetros', 'mm']], ['cm', 0.01, ['centimetro', 'centimetros', 'cm']], ['m', 1, ['metro', 'metros', 'm']], ['km', 1000, ['quilometro', 'quilometros', 'km']], ['polegada', 0.0254, ['polegada', 'polegadas', 'pol']], ['pé', 0.3048, ['pe', 'pes', 'ft']], ['jarda', 0.9144, ['jarda', 'jardas', 'yd']], ['milha', 1609.344, ['milha', 'milhas']]] },
+  { cat: 'massa', un: [['mg', 0.001, ['miligrama', 'miligramas', 'mg']], ['g', 1, ['grama', 'gramas', 'g']], ['kg', 1000, ['quilo', 'quilos', 'quilograma', 'quilogramas', 'kg']], ['tonelada', 1000000, ['tonelada', 'toneladas']], ['libra', 453.59237, ['libra', 'libras', 'lb']], ['onça', 28.349523125, ['onca', 'oncas', 'oz']], ['arroba', 15000, ['arroba', 'arrobas']]] },
+  { cat: 'volume', un: [['ml', 0.001, ['mililitro', 'mililitros', 'ml']], ['l', 1, ['litro', 'litros', 'l']], ['m³', 1000, ['m3', 'm³', 'metro cubico', 'metros cubicos']], ['galão', 3.785411784, ['galao', 'galoes']]] },
+  { cat: 'tempo', un: [['segundo', 1, ['segundo', 'segundos']], ['minuto', 60, ['minuto', 'minutos', 'min']], ['hora', 3600, ['hora', 'horas']], ['dia', 86400, ['dia', 'dias']], ['semana', 604800, ['semana', 'semanas']]] },
+  { cat: 'área', un: [['cm²', 0.0001, ['cm2', 'cm²', 'centimetro quadrado', 'centimetros quadrados']], ['m²', 1, ['m2', 'm²', 'metro quadrado', 'metros quadrados']], ['ha', 10000, ['hectare', 'hectares', 'ha']], ['km²', 1000000, ['km2', 'km²', 'quilometro quadrado', 'quilometros quadrados']]] },
+  { cat: 'velocidade', un: [['m/s', 1, ['m/s']], ['km/h', 1 / 3.6, ['km/h', 'kmh', 'quilometros por hora']], ['mph', 0.44704, ['mph', 'milhas por hora']]] }
+];
+const CMX_APELIDOS = [];
+CMX_UNIDADES.forEach(function (c) { c.un.forEach(function (u) { u[2].forEach(function (ap) { CMX_APELIDOS.push({ ap: ap, cat: c, un: u }); }); }); });
+CMX_APELIDOS.sort(function (a, b) { return b.ap.length - a.ap.length; });
+const CMX_RE_UN = '(' + CMX_APELIDOS.map(function (x) { return x.ap.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&'); }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join('|') + ')(?![a-z0-9²³])';
+
+function cmxAchaUnidade(nome) {
+  for (let i = 0; i < CMX_APELIDOS.length; i++) if (CMX_APELIDOS[i].ap === nome) return CMX_APELIDOS[i];
+  return null;
+}
+
+const CMX_TEMP = { celsius: 'C', fahrenheit: 'F', kelvin: 'K' };
+
+function cmxTemperatura(n) {
+  const re = '(?:graus?\\s*)?(celsius|fahrenheit|kelvin|[°º]\\s*[cf])';
+  const m = new RegExp('(-?' + CMX_NUM + ')\\s*' + re + '\\s*(?:em|para|pra|->|→)\\s*' + re).exec(n);
+  if (!m) return null;
+  const tipo = function (s) { return CMX_TEMP[s] || s.replace(/[°º\s]/g, '').toUpperCase(); };
+  const de = tipo(m[2]), para = tipo(m[3]);
+  const v = cmxNum(m[1]);
+  const c = de === 'C' ? v : de === 'F' ? (v - 32) * 5 / 9 : v - 273.15;
+  const r = para === 'C' ? c : para === 'F' ? c * 9 / 5 + 32 : c + 273.15;
+  if (de === para) return [cmxItem('conversão de temperatura', cmxF(v) + ' °' + de, v, cmxF(v) + ' °' + para)];
+  return [cmxItem('conversão de temperatura', cmxF(v) + ' °' + de + ' → °' + para, r, cmxF(r, 2) + ' ' + (para === 'K' ? 'K' : '°' + para))];
+}
+
+function cmxConversao(n) {
+  const t = cmxTemperatura(n);
+  if (t) return t;
+  let m = new RegExp('(' + CMX_NUM + ')\\s*' + CMX_RE_UN + '\\s*(?:em|para|pra|->|→|=)\\s*' + CMX_RE_UN).exec(n);
+  let valor, a, b;
+  if (m) { valor = cmxNum(m[1]); a = cmxAchaUnidade(m[2]); b = cmxAchaUnidade(m[3]); }
+  else {
+    m = new RegExp('quant[oa]s?\\s+' + CMX_RE_UN + '\\s+(?:tem|ha|cabem|cabe|sao|equivale[mn]?|vale[m]?|existem)\\s+(?:em\\s+|numa?\\s+|nos?\\s+|nas?\\s+|uma?\\s+)?(?:(' + CMX_NUM + ')\\s*)?' + CMX_RE_UN).exec(n);
+    if (!m) return null;
+    b = cmxAchaUnidade(m[1]); a = cmxAchaUnidade(m[3]); valor = m[2] ? cmxNum(m[2]) : 1;
+  }
+  if (!a || !b || !isFinite(valor)) return null;
+  if (a.cat !== b.cat) return [cmxErro('Não dá para converter ' + a.un[0] + ' em ' + b.un[0] + ': são grandezas diferentes (' + a.cat.cat + ' e ' + b.cat.cat + ').')];
+  const r = valor * a.un[1] / b.un[1];
+  const aviso = a.un[0] === 'galão' || b.un[0] === 'galão' ? ' (galão americano)' : '';
+  return [cmxItem('conversão de ' + a.cat.cat, cmxF(valor) + ' ' + cmxPlural(a.un[0], valor) + ' → ' + cmxPlural(b.un[0], r), r, cmxF(r, 6) + ' ' + cmxPlural(b.un[0], r) + aviso)];
+}
+
+// ------------------------------------------------------------------ geometria
+
+function cmxGeometria(n) {
+  if (!/\b(?:area|perimetro|volume|circunferencia|capacidade)\b/.test(n)) return null;
+  const apos = function (re) { const m = re.exec(n); return m ? cmxNumeros(n.slice(m.index + m[0].length)) : null; };
+  let x;
+  const medida = function (re, nome) { const m = new RegExp(nome + '\\s+(?:de\\s+|=\\s*)?(' + CMX_NUM + ')').exec(n); return m ? cmxNum(m[1]) : null; };
+  if (/\bcirculo\b|\bcircunferencia\b/.test(n)) {
+    let r = medida(n, 'raio');
+    const d = medida(n, 'diametro');
+    if (r === null && d !== null) r = d / 2;
+    if (r === null) return null;
+    if (/circunferencia|perimetro|comprimento/.test(n)) return [cmxItem('comprimento da circunferência', '2 × π × ' + cmxF(r), 2 * CMX_PI * r, cmxF(2 * CMX_PI * r))];
+    return [cmxItem('área do círculo', 'π × ' + cmxF(r) + '²', CMX_PI * r * r, cmxF(CMX_PI * r * r))];
+  }
+  if (/\besfera\b/.test(n)) {
+    const r = medida(n, 'raio');
+    if (r === null) return null;
+    return [cmxItem('volume da esfera', '4 ÷ 3 × π × ' + cmxF(r) + '³', 4 / 3 * CMX_PI * r * r * r, cmxF(4 / 3 * CMX_PI * r * r * r))];
+  }
+  if (/\bcilindro\b/.test(n)) {
+    const r = medida(n, 'raio'), h = medida(n, 'altura');
+    if (r === null || h === null) return null;
+    return [cmxItem('volume do cilindro', 'π × ' + cmxF(r) + '² × ' + cmxF(h), CMX_PI * r * r * h, cmxF(CMX_PI * r * r * h))];
+  }
+  if (/\bcone\b/.test(n)) {
+    const r = medida(n, 'raio'), h = medida(n, 'altura');
+    if (r === null || h === null) return null;
+    return [cmxItem('volume do cone', 'π × ' + cmxF(r) + '² × ' + cmxF(h) + ' ÷ 3', CMX_PI * r * r * h / 3, cmxF(CMX_PI * r * r * h / 3))];
+  }
+  if (/\bcubo\b/.test(n) && /volume/.test(n)) {
+    const a = medida(n, 'aresta') !== null ? medida(n, 'aresta') : medida(n, 'lado');
+    if (a === null) return null;
+    return [cmxItem('volume do cubo', cmxF(a) + '³', a * a * a, cmxF(a * a * a))];
+  }
+  if (/volume/.test(n) && /\b(?:piscina|caixa|paralelepipedo|reservatorio|tanque|sala|quarto|prisma)\b/.test(n)) {
+    const c = medida(n, 'comprimento'), l = medida(n, 'largura'), p = medida(n, 'profundidade') !== null ? medida(n, 'profundidade') : (medida(n, 'altura') !== null ? medida(n, 'altura') : medida(n, 'fundo'));
+    if (c === null || l === null || p === null) return null;
+    return [cmxItem('volume', cmxF(c) + ' × ' + cmxF(l) + ' × ' + cmxF(p), c * l * p, cmxF(c * l * p))];
+  }
+  if (/\bretangulo\b|\bsala\b|\bterreno\b|\bquarto\b/.test(n)) {
+    x = apos(/\b(?:retangulo|sala|terreno|quarto)\b/);
+    if (!x || x.length < 2) return null;
+    if (/perimetro/.test(n)) return [cmxItem('perímetro do retângulo', '2 × (' + cmxF(x[0]) + ' + ' + cmxF(x[1]) + ')', 2 * (x[0] + x[1]), cmxF(2 * (x[0] + x[1])))];
+    return [cmxItem('área do retângulo', cmxF(x[0]) + ' × ' + cmxF(x[1]), x[0] * x[1], cmxF(x[0] * x[1]))];
+  }
+  if (/\bquadrado\b/.test(n)) {
+    let l = medida(n, 'lado');
+    if (l === null) { x = apos(/\bquadrado\b/); l = x && x.length ? x[0] : null; }
+    if (l === null) return null;
+    if (/perimetro/.test(n)) return [cmxItem('perímetro do quadrado', '4 × ' + cmxF(l), 4 * l, cmxF(4 * l))];
+    return [cmxItem('área do quadrado', cmxF(l) + '²', l * l, cmxF(l * l))];
+  }
+  if (/\btriangulo\b/.test(n)) {
+    const b = medida(n, 'base'), h = medida(n, 'altura');
+    if (b !== null && h !== null) return [cmxItem('área do triângulo', cmxF(b) + ' × ' + cmxF(h) + ' ÷ 2', b * h / 2, cmxF(b * h / 2))];
+    x = apos(/\btriangulo\b/);
+    if (x && x.length >= 3) {
+      const s = (x[0] + x[1] + x[2]) / 2, q = s * (s - x[0]) * (s - x[1]) * (s - x[2]);
+      if (q <= 0) return [cmxErro('Esses três lados não formam um triângulo.')];
+      if (/perimetro/.test(n)) return [cmxItem('perímetro do triângulo', cmxF(x[0]) + ' + ' + cmxF(x[1]) + ' + ' + cmxF(x[2]), 2 * s, cmxF(2 * s))];
+      return [cmxItem('área do triângulo (fórmula de Herão, p = ' + cmxF(s) + ')', '', Math.sqrt(q), cmxF(Math.sqrt(q)))];
+    }
+  }
+  if (/\btrapezio\b/.test(n)) {
+    const bm = medida(n, 'base\\s+maior'), bn = medida(n, 'base\\s+menor'), h = medida(n, 'altura');
+    if (bm === null || bn === null || h === null) return null;
+    return [cmxItem('área do trapézio', '(' + cmxF(bm) + ' + ' + cmxF(bn) + ') × ' + cmxF(h) + ' ÷ 2', (bm + bn) * h / 2, cmxF((bm + bn) * h / 2))];
+  }
+  return null;
+}
+
+// ------------------------------------------------------------------ juros, financiamento, férias, 13º
+
+function cmxPrazoEmPeriodos(prazo, unidadePrazo, unidadeTaxa) {
+  const meses = { mes: 1, meses: 1, ano: 12, anos: 12 };
+  const p = meses[unidadePrazo], t = meses[unidadeTaxa];
+  if (!p || !t) return null;
+  return prazo * p / t;
+}
+
+function cmxFinanceiro(n) {
+  let m;
+  if (/juros\s+(?:compostos|simples)|rendimento\s+de|montante/.test(n)) {
+    const simples = /juros\s+simples/.test(n);
+    m = new RegExp('(?:capital|principal|valor|de|aplicar|aplicando|investir)\\s*(?:inicial\\s*)?(?:de\\s*)?(?:r\\$\\s*)?(' + CMX_NUM + ')').exec(n.replace(/juros\s+(?:compostos|simples)\s+/, ''));
+    const mt = new RegExp('(' + CMX_NUM + ')\\s*%\\s*(?:ao|por|a\\.?)\\s*(mes|ano)').exec(n);
+    const mp = new RegExp('(?:por|durante|em|prazo\\s+de)\\s+(' + CMX_NUM + ')\\s*(meses|mes|anos|ano)\\b').exec(n);
+    if (!m || !mt || !mp) return null;
+    const cap = cmxNum(m[1]), i = cmxNum(mt[1]) / 100;
+    const k = cmxPrazoEmPeriodos(cmxNum(mp[1]), mp[2], mt[2]);
+    if (k === null) return null;
+    const kt = cmxF(k);
+    const un = mt[2] === 'mes' ? 'mês' : 'ano';
+    if (simples) {
+      const j = cap * i * k;
+      return [cmxItem('juros simples', cmxF(cap) + ' × ' + cmxF(i * 100) + '% × ' + kt, j, cmxM(j), { moeda: true }),
+        cmxItem('montante', cmxF(cap) + ' + ' + cmxM(j), cap + j, cmxM(cap + j), { moeda: true })];
+    }
+    const mont = cap * Math.pow(1 + i, k);
+    return [cmxItem('montante (juros compostos)', cmxF(cap) + ' × (1 + ' + cmxF(i * 100) + '%)^' + kt, mont, cmxM(mont), { moeda: true }),
+      cmxItem('juros', cmxM(mont) + ' − ' + cmxF(cap), mont - cap, cmxM(mont - cap) + ' (taxa por ' + un + ')', { moeda: true })];
+  }
+  if (/financ|parcelas?\b|prestac\w+|emprestimo/.test(n) && /%/.test(n)) {
+    const mv = new RegExp('(?:financiar|financiado|emprestimo\\s+de|emprestar|pegar|valor\\s+de|de)\\s*(?:r\\$\\s*)?(' + CMX_NUM + ')\\s+(?:reais\\s+)?(?:em|com)\\s+(\\d+)\\s*(?:parcelas?|prestacoes?|vezes|meses)').exec(n);
+    const mt = new RegExp('(' + CMX_NUM + ')\\s*%\\s*(?:ao|por)\\s*(mes|ano)').exec(n);
+    if (!mv || !mt) return null;
+    const pv = cmxNum(mv[1]), k = Number(mv[2]);
+    let i = cmxNum(mt[1]) / 100;
+    if (mt[2] === 'ano') i = Math.pow(1 + i, 1 / 12) - 1;
+    if (k < 1 || k > 600) return [cmxErro('O prazo precisa estar entre 1 e 600 parcelas.')];
+    const parcela = i === 0 ? pv / k : pv * i / (1 - Math.pow(1 + i, -k));
+    return [cmxItem('parcela (tabela Price, juros compostos)', cmxF(pv) + ' × ' + cmxF(i * 100) + '% ÷ (1 − (1 + ' + cmxF(i * 100) + '%)^−' + k + ')', parcela, cmxM(parcela), { moeda: true }),
+      cmxItem('total pago', cmxM(parcela) + ' × ' + k, parcela * k, cmxM(parcela * k) + ' (juros de ' + cmxM(parcela * k - pv) + ')', { moeda: true })];
+  }
+  const semTerco = n.replace(/1\s*\/\s*3/g, ' ');
+  m = new RegExp('ferias[^0-9]{0,60}(' + CMX_NUM + ')').exec(semTerco);
+  if (m && /(?:1\s*\/\s*3|terco)/.test(n)) {
+    const sal = cmxNum(m[1]);
+    return [cmxItem('férias com 1/3 constitucional (bruto)', cmxF(sal) + ' + ' + cmxF(sal) + ' ÷ 3', sal * 4 / 3, cmxM(sal * 4 / 3) + ' (30 dias de férias; sem descontos de INSS e IR; abono pecuniário não incluso)', { moeda: true })];
+  }
+  m = new RegExp('(?:13o|13º|decimo\\s+terceiro)[^0-9]{0,40}(\\d{1,2})\\s*(?:/\\s*12\\s*)?meses?[^0-9]{0,40}(?:salario\\s+(?:de\\s+)?)?(?:r\\$\\s*)?(' + CMX_NUM + ')').exec(n);
+  if (m) {
+    const meses = Number(m[1]), sal = cmxNum(m[2]);
+    if (meses < 1 || meses > 12) return [cmxErro('O 13º proporcional vai de 1 a 12 meses.')];
+    return [cmxItem('13º proporcional (bruto)', cmxF(sal) + ' × ' + meses + ' ÷ 12', sal * meses / 12, cmxM(sal * meses / 12) + ' (sem descontos; mês conta com 15 dias ou mais trabalhados)', { moeda: true })];
+  }
+  return null;
+}
+
+// ------------------------------------------------------------------ horas e viagem
+
+function cmxHora(h, mi) { return Number(h) * 60 + Number(mi || 0); }
+
+function cmxHoraTexto(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  return h + 'h' + (m ? (m < 10 ? '0' : '') + m + 'min' : '');
+}
+
+function cmxHoras(n) {
+  if (!/quanto|duracao|horas?\s+(?:trabalhad|total|de\s+trabalho)|jornada|tempo|calcul|total|carga|trabalh|intervalo|almoco/.test(n)) return null;
+  const m = /das?\s+(\d{1,2})\s*(?:h|:)\s*(\d{2})?\s*(?:min)?\s*(?:as|ate|a)\s+(\d{1,2})\s*(?:h|:)\s*(\d{2})?/.exec(n);
+  if (!m) return null;
+  const ini = cmxHora(m[1], m[2]), fim = cmxHora(m[3], m[4]);
+  if (Number(m[1]) > 24 || Number(m[3]) > 24) return null;
+  let tot = fim - ini;
+  if (tot < 0) tot += 1440;
+  const mi = /(?:intervalo|almoco|descanso|pausa)\s+(?:de\s+)?(\d+(?:,\d+)?)\s*(h|min|hora|horas|minutos)?/.exec(n);
+  let desc = 0;
+  if (mi) {
+    const v = cmxNum(mi[1]);
+    desc = /^h/.test(mi[2] || '') ? v * 60 : (mi[2] ? v : (v <= 4 ? v * 60 : v));
+  }
+  const liq = tot - desc;
+  const linha = cmxHoraTexto(fim) + ' − ' + cmxHoraTexto(ini) + (desc ? ' − intervalo de ' + cmxHoraTexto(desc) : '');
+  return [cmxItem('duração', linha, liq / 60, cmxHoraTexto(liq) + ' (' + cmxF(liq / 60, 2) + ' h)')];
+}
+
+function cmxViagem(n) {
+  const md = new RegExp('(' + CMX_NUM + ')\\s*km\\b(?!\\s*/)').exec(n);
+  if (!md) return null;
+  const dist = cmxNum(md[1]);
+  const mv = new RegExp('(' + CMX_NUM + ')\\s*km\\s*/\\s*h').exec(n);
+  if (mv && /tempo|demora|leva|quanto\s+tempo|chego|chegar/.test(n)) {
+    const v = cmxNum(mv[1]);
+    if (v <= 0) return [cmxErro('A velocidade precisa ser maior que 0.')];
+    const min = Math.round(dist / v * 60);
+    return [cmxItem('tempo de viagem', cmxF(dist) + ' ÷ ' + cmxF(v), dist / v, cmxHoraTexto(min) + ' (' + cmxF(dist / v, 2) + ' h)')];
+  }
+  const mc = new RegExp('(' + CMX_NUM + ')\\s*km\\s*/\\s*l\\b').exec(n);
+  if (mc && /consum|gasta|litros?|combustivel|gasolina|etanol|diesel/.test(n)) {
+    const c = cmxNum(mc[1]);
+    if (c <= 0) return [cmxErro('O consumo precisa ser maior que 0.')];
+    const litros = dist / c;
+    const itens = [cmxItem('combustível', cmxF(dist) + ' ÷ ' + cmxF(c), litros, cmxF(litros, 2) + ' litros')];
+    const mp = new RegExp('(?:r\\$\\s*)?(' + CMX_NUM + ')\\s*(?:reais\\s*)?(?:o|por|/)\\s*litro').exec(n);
+    if (mp) { const p = cmxNum(mp[1]); itens.push(cmxItem('custo', cmxF(litros, 2) + ' × ' + cmxM(p), litros * p, cmxM(litros * p), { moeda: true })); }
+    return itens;
+  }
+  return null;
+}
+
+// ------------------------------------------------------------------ bases, romanos, primos
+
+const CMX_ROMANOS = [['M', 1000], ['CM', 900], ['D', 500], ['CD', 400], ['C', 100], ['XC', 90], ['L', 50], ['XL', 40], ['X', 10], ['IX', 9], ['V', 5], ['IV', 4], ['I', 1]];
+
+function cmxParaRomano(v) {
+  let r = '';
+  CMX_ROMANOS.forEach(function (p) { while (v >= p[1]) { r += p[0]; v -= p[1]; } });
+  return r;
+}
+
+function cmxDeRomano(s) {
+  let i = 0, v = 0;
+  CMX_ROMANOS.forEach(function (p) { while (s.substr(i, p[0].length) === p[0]) { v += p[1]; i += p[0].length; } });
+  return i === s.length && cmxParaRomano(v) === s ? v : null;
+}
+
+const CMX_BASES = { binario: 2, octal: 8, hexadecimal: 16, hexa: 16 };
+
+function cmxNumerico(n) {
+  let m = /\b([mdclxvi]{2,})\s+(?:em|para|pra)\s+(?:numero|decimal|arabico|algarismos?)/.exec(n);
+  if (m) {
+    const v = cmxDeRomano(m[1].toUpperCase());
+    if (v === null) return [cmxErro('"' + m[1].toUpperCase() + '" não é um número romano válido.')];
+    return [cmxItem('romano para decimal', '', v, m[1].toUpperCase() + ' = ' + v)];
+  }
+  m = /\b(\d+)\s+(?:em|para|pra)\s+(?:numero\s+)?romano/.exec(n);
+  if (m) {
+    const v = Number(m[1]);
+    if (v < 1 || v > 3999) return [cmxErro('Números romanos vão de 1 a 3.999.')];
+    return [cmxItem('decimal para romano', '', v, v + ' = ' + cmxParaRomano(v))];
+  }
+  m = /\b([0-9a-f]+)\s+(?:em\s+|de\s+)?(binario|octal|hexadecimal|hexa)\s+(?:em|para|pra)\s+decimal/.exec(n) || /\b(binario|octal|hexadecimal|hexa)\s+([0-9a-f]+)\s+(?:em|para|pra)\s+decimal/.exec(n);
+  if (m) {
+    const base = CMX_BASES[m[1] in CMX_BASES ? m[1] : m[2]], txt = m[1] in CMX_BASES ? m[2] : m[1];
+    const validos = '0123456789abcdef'.slice(0, base);
+    if (txt.split('').some(function (c) { return validos.indexOf(c) === -1; }) || txt.length > 12) return [cmxErro('"' + txt + '" não é um número válido na base ' + base + '.')];
+    const v = parseInt(txt, base);
+    return [cmxItem('base ' + base + ' para decimal', '', v, txt + ' (base ' + base + ') = ' + v)];
+  }
+  m = /\b(\d+)\s+(?:em|para|pra)\s+(binario|octal|hexadecimal|hexa)\b/.exec(n);
+  if (m) {
+    const v = Number(m[1]), base = CMX_BASES[m[2]];
+    if (v > 1e12) return [cmxErro('Número grande demais para converter.')];
+    return [cmxItem('decimal para base ' + base, '', v, v + ' = ' + v.toString(base).toUpperCase() + ' (base ' + base + ')')];
+  }
+  m = /\b(?:fatore|fatorar|fatoracao\s+d[eo]|decomponha|decompor)\s+(?:o\s+)?(?:numero\s+)?(\d+)/.exec(n);
+  if (m) {
+    let v = Number(m[1]);
+    if (v < 2 || v > 1e12) return [cmxErro('Fatoração: use um número inteiro entre 2 e 1.000.000.000.000.')];
+    const orig = v, f = [];
+    for (let p = 2; p * p <= v; p++) { let e = 0; while (v % p === 0) { v /= p; e++; } if (e) f.push(e > 1 ? p + '^' + e : String(p)); }
+    if (v > 1) f.push(String(v));
+    return [cmxItem('fatoração em primos', '', orig, orig + ' = ' + f.join(' × '))];
+  }
+  m = /\b(?:divisores\s+d[eo]|quais\s+os\s+divisores\s+d[eo])\s+(\d+)/.exec(n);
+  if (m) {
+    const v = Number(m[1]);
+    if (v < 1 || v > 1e9) return [cmxErro('Divisores: use um número entre 1 e 1.000.000.000.')];
+    const d = [];
+    for (let k = 1; k * k <= v; k++) if (v % k === 0) { d.push(k); if (k * k !== v) d.push(v / k); }
+    d.sort(function (a, b) { return a - b; });
+    return [cmxItem('divisores de ' + v, '', d.length, d.join(', ') + ' (' + d.length + ' divisores)')];
+  }
+  m = /\b(\d+)\s+e\s+(?:um\s+)?(?:numero\s+)?primo/.exec(n) || /\b(?:o\s+)?(?:numero\s+)?(\d+)\s+e\s+primo/.exec(n);
+  if (m) {
+    const v = Number(m[1]);
+    if (v > 1e12) return [cmxErro('Número grande demais para testar.')];
+    let primo = v >= 2, d = null;
+    for (let p = 2; p * p <= v; p++) if (v % p === 0) { primo = false; d = p; break; }
+    return [cmxItem('número primo', '', primo ? 1 : 0, v + (primo ? ' é primo' : ' não é primo (divisível por ' + d + ')'), { bool: false })];
+  }
+  return null;
+}
+
+// ------------------------------------------------------------------ equações
+
+function cmxPoli(str) {
+  let s = str.replace(/\s+/g, '').replace(/²/g, '^2').replace(/,/g, '.').replace(/\*/g, '');
+  const c = { 0: 0, 1: 0, 2: 0 };
+  if (!s) return null;
+  if (!/^[+-]/.test(s)) s = '+' + s;
+  const re = /^([+-])(\d+(?:\.\d+)?)?(x(?:\^(\d))?)?/;
+  while (s.length) {
+    const m = re.exec(s);
+    if (!m || (m[2] === undefined && m[3] === undefined)) return null;
+    const k = m[3] ? (m[4] === undefined ? 1 : Number(m[4])) : 0;
+    if (k > 2) return null;
+    c[k] += (m[1] === '-' ? -1 : 1) * (m[2] === undefined ? 1 : Number(m[2]));
+    s = s.slice(m[0].length);
+  }
+  return c;
+}
+
+function cmxEquacao(n) {
+  const m = /(?:resolva|resolver|calcule|ache|encontre|raizes?\s+d[aeo]|equacao)?[^=]*?([0-9x^².,+\-*()\s]*x[0-9x^².,+\-*\s]*)=\s*([0-9x^².,+\-*\s]+)/.exec(n.replace(/\b(?:resolva|resolver|raizes?\s+da\s+equacao|equacao|a\s+equacao|de|do|2o|segundo|primeiro)\b/g, ' ').replace(/:/g, ' '));
+  if (!m) return null;
+  const L = cmxPoli(m[1]), R = cmxPoli(m[2]);
+  if (!L || !R) return null;
+  const a = L[2] - R[2], b = L[1] - R[1], c = L[0] - R[0];
+  if (a === 0) {
+    if (b === 0) return [cmxErro(c === 0 ? 'A equação é verdadeira para qualquer x (infinitas soluções).' : 'A equação não tem solução.')];
+    const x = -c / b;
+    return [cmxItem('x', cmxF(-c) + ' ÷ ' + cmxP(b), x, cmxF(x) + ' (equação do 1º grau)')];
+  }
+  const delta = b * b - 4 * a * c;
+  const itens = [cmxItem('Δ (delta)', cmxP(b) + '² − 4 × ' + cmxP(a) + ' × ' + cmxP(c), delta, cmxF(delta))];
+  if (delta < 0) { itens.push(cmxErro('Δ negativo: não há raízes reais.')); return itens; }
+  const x1 = (-b + Math.sqrt(delta)) / (2 * a), x2 = (-b - Math.sqrt(delta)) / (2 * a);
+  itens.push(cmxItem('x₁', '(−b + √Δ) ÷ 2a', x1, cmxF(x1)));
+  if (delta > 0) itens.push(cmxItem('x₂', '(−b − √Δ) ÷ 2a', x2, cmxF(x2)));
+  return itens;
+}
+
+// ------------------------------------------------------------------ escore z, T, amostra
+
+// Φ(z) pela aproximação de Abramowitz e Stegun (erro < 1e-7).
+function cmxFi(z) {
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989422804 * Math.exp(-z * z / 2);
+  const p = d * t * (0.31938153 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+  return z >= 0 ? 1 - p : p;
+}
+
+const CMX_Z = { 80: 1.2816, 85: 1.4395, 90: 1.6449, 95: 1.96, 98: 2.3263, 99: 2.5758 };
+
+function cmxEstatistica(n) {
+  let m = new RegExp('(?:escore|score|pontuacao|nota)\\s*z\\b[^\\d-]{0,20}(-?' + CMX_NUM + ')[^\\d]{1,40}media\\s+(?:de\\s+)?(-?' + CMX_NUM + ')[^\\d]{1,40}(?:dp|desvio(?:\\s+padrao)?)\\s+(?:de\\s+)?(' + CMX_NUM + ')').exec(n);
+  if (m) {
+    const x = cmxNum(m[1]), mu = cmxNum(m[2]), dp = cmxNum(m[3]);
+    if (dp <= 0) return [cmxErro('O desvio padrão precisa ser maior que 0.')];
+    const z = (x - mu) / dp, pc = cmxFi(z) * 100;
+    return [cmxItem('escore z', '(' + cmxF(x) + ' − ' + cmxF(mu) + ') ÷ ' + cmxF(dp), z, cmxF(z, 2)),
+      cmxItem('escore T', '50 + 10 × z', 50 + 10 * z, cmxF(50 + 10 * z, 1)),
+      cmxItem('percentil (se a distribuição for normal)', 'Φ(z) × 100', pc, cmxA(pc, 1) + ' (cerca de ' + cmxA(pc, 1).replace('.', ',') + '% do grupo de referência fica abaixo)')];
+  }
+  if (/amostra/.test(n)) {
+    const mc = new RegExp('confianca\\s+(?:de\\s+)?(\\d{2})').exec(n) || new RegExp('(\\d{2})\\s*%\\s*de\\s+confianca').exec(n);
+    const me = new RegExp('margem\\s+de\\s+erro\\s+(?:de\\s+)?(' + CMX_NUM + ')\\s*%?').exec(n) || new RegExp('(' + CMX_NUM + ')\\s*%\\s*de\\s+margem').exec(n);
+    if (!mc || !me) return null;
+    const conf = Number(mc[1]), e = cmxNum(me[1]) / 100;
+    const z = CMX_Z[conf];
+    if (!z || e <= 0 || e >= 1) return [cmxErro('Use confiança de 80, 85, 90, 95, 98 ou 99% e margem de erro entre 0 e 100%.')];
+    const mpop = new RegExp('popula\\w+\\s+(?:de\\s+)?(' + CMX_NUM + ')').exec(n);
+    const p = 0.5;
+    const n0 = z * z * p * (1 - p) / (e * e);
+    if (mpop) {
+      const N = cmxNum(mpop[1]);
+      const nf = n0 / (1 + (n0 - 1) / N);
+      return [cmxItem('amostra (população finita)', 'n₀ ÷ (1 + (n₀ − 1) ÷ N), n₀ = ' + cmxF(z) + '² × 0,5 × 0,5 ÷ ' + cmxF(e) + '²', Math.ceil(nf), cmxF(Math.ceil(nf)) + ' pessoas (população de ' + cmxF(N) + ', confiança ' + conf + '%, margem ' + cmxF(e * 100) + '%, p = 50% para o pior caso)')];
+    }
+    return [cmxItem('amostra (população grande)', cmxF(z) + '² × 0,5 × 0,5 ÷ ' + cmxF(e) + '²', Math.ceil(n0), cmxF(Math.ceil(n0)) + ' pessoas (confiança ' + conf + '%, margem ' + cmxF(e * 100) + '%, p = 50% para o pior caso)')];
+  }
+  return null;
+}
+
+// ------------------------------------------------------------------ painel de regras
+
+const CMX_REGRAS = [cmxRegraDeTres, cmxRateio, cmxPerCapita, cmxFrequencia, cmxImc, cmxTaxa, cmxEstatistica, cmxEquacao, cmxFinanceiro, cmxHoras, cmxViagem, cmxNumerico, cmxGeometria, cmxPorcentagem, cmxConversao];
+
+// Resolve pedidos "de cálculo pronto". Devolve null se nenhuma regra reconhece a mensagem.
+function resolverEspecial(texto) {
+  const n = cmxSemAcentos(String(texto == null ? '' : texto).slice(0, 500)).toLowerCase().replace(/r\$\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!n || !/\d|hexadecimal|binario|octal|romano|numero|decimal|metade|dobro|triplo/.test(n)) return null;
+  for (let i = 0; i < CMX_REGRAS.length; i++) {
+    let r = null;
+    try { r = CMX_REGRAS[i](n); } catch (e) { r = null; }
+    if (r && r.length) return cmxSaida(r, n);
+  }
+  return null;
+}
+
+// ------------------------------------------------------------------ fachada
+
+function linhaDeItem(item) {
+  if (item.erro) return (item.rotulo ? item.rotulo + ': ' : '') + item.texto;
+  return (item.rotulo ? item.rotulo + ': ' : '') + (item.expressao ? item.expressao + (item.bool ? ' → ' : ' = ') : '') + item.texto;
+}
+
+// Datas, depois cálculos prontos, depois aritmética. origem diz de onde veio (o cliente trata idade como dado sensível).
+function contasDoPedido(texto, opc) {
+  let r = null;
+  try { r = resolverDatas(texto, opc); } catch (e) { r = null; }
+  if (r) return r;
+  r = resolverEspecial(texto);
+  if (r) return r;
+  const a = contasConfiaveis(texto);
+  if (a) return Object.assign({}, a, { origem: 'aritmetica', sensivel: false });
+  return null;
+}
+
+// Resposta direta, sem IA e sem rede, SÓ quando a mensagem é o pedido. Mais assunto na mensagem: null (a IA responde com a conta pronta).
+function respostaDoPedido(texto, opc) {
+  const r = contasDoPedido(texto, opc);
+  if (!r || !r.soConta) return null;
+  if (r.origem === 'aritmetica') {
+    const c = respostaDeConta(texto);
+    return c ? { texto: c.texto, itens: c.itens, sensivel: false, origem: 'aritmetica' } : null;
+  }
+  const itens = r.itens.slice(0, 6).map(function (i) {
+    return { expressao: i.expressao || '', valor: i.valor == null ? null : i.valor, bool: !!i.bool, moeda: !!i.moeda, texto: i.texto, rotulo: i.rotulo || '', erro: !!i.erro, sensivel: !!i.sensivel };
+  });
+  return { texto: itens.map(linhaDeItem).join('\n'), itens: itens, sensivel: !!r.sensivel, origem: r.origem };
 }
 
 // ---- shared/geo.mjs ----
@@ -4184,6 +5759,348 @@ function respostaDeGeo(texto, opcoes) {
   return geoResponderCoordenadas(t, n, f, o);
 }
 
+// ---- shared/diretorio-boa-vista.mjs ----
+// Diretório público de Boa Vista (unidades e serviços; nunca residência). Gerado do diretório do Argo SUAS (knowledge/documentos/argo-enderecos-diretorio.md, copiado em 2026-11-21). Só 11 unidades têm coordenada; as demais entram no link do mapa pelo ENDEREÇO. Endereço e horário mudam: confirme com a unidade.
+// Usado por rota.mjs quando o app não passa o diretório (opcoes.pontos). Sem coordenada inventada.
+const DIRETORIO_BOA_VISTA = [{"nome":"Abrigo Feminino Pastor Josué da Rocha Araújo","endereco":"R. Rio Anauá, 78 - São Vicente, Boa Vista-RR, CEP 69.303-290","bairro":"São Vicente","grupo":"Abrigos de Gestão Estadual (SETRABES/DPSE)"},
+{"nome":"Abrigo Institucional Masculino","endereco":"R. Jacamim, 22 - Mecejana, Boa Vista-RR, CEP 69.304-070","bairro":"Mecejana","grupo":"Abrigos de Gestão Estadual (SETRABES/DPSE)"},
+{"nome":"Casa de Passagem","endereco":"Av. Eldorado, 19 - Treze de Setembro, Boa Vista-RR (atrás da UBS do 13 de Setembro)","bairro":"Treze de Setembro","grupo":"Abrigos de Gestão Estadual (SETRABES/DPSE)"},
+{"nome":"Casa Viva Criança","endereco":"R. Monte Roraima, 100 - São Vicente, Boa Vista-RR, CEP 69.303-370","bairro":"São Vicente","grupo":"Abrigos de Gestão Estadual (SETRABES/DPSE)"},
+{"nome":"Abrigo Infantil Pedra Pintada","endereco":"R. Interna, 182 - Centenário, Boa Vista-RR","bairro":"Centenário","grupo":"Acolhimento Institucional","lat":2.796161,"lng":-60.703623},
+{"nome":"CIAPI","endereco":"Rua Cabo PM Laurence de Melo, 259 – Caranã, Boa Vista-RR","bairro":"Caranã","grupo":"Atenção à Pessoa Idosa"},
+{"nome":"CERNUTRI","endereco":"R. Dom José Nepote, 901 - São Francisco, Boa Vista-RR, 69314-382","bairro":"São Francisco","grupo":"Atenção Básica"},
+{"nome":"UBS 13 de Setembro","endereco":"Avenida Eldorado, 19 - 13 de Setembro, Boa Vista-RR","bairro":"13 de Setembro","grupo":"Atenção Básica"},
+{"nome":"UBS Arminda L.L. Gomes","endereco":"Rua José Airton de Almeida, 422 - Jóquei Clube, Boa Vista-RR","bairro":"Jóquei Clube","grupo":"Atenção Básica"},
+{"nome":"UBS Cambará","endereco":"Rua Raimunda Mendes, 16 - Cambará, Boa Vista-RR","bairro":"Cambará","grupo":"Atenção Básica"},
+{"nome":"UBS Centenário","endereco":"Rua Bréscia, Centenário, Boa Vista-RR","bairro":"Centenário","grupo":"Atenção Básica"},
+{"nome":"UBS Cinturão Verde","endereco":"Rua Santa Clara, 1081 - Cinturão Verde, Boa Vista-RR","bairro":"Cinturão Verde","grupo":"Atenção Básica"},
+{"nome":"UBS Délio Tupinambá","endereco":"Avenida Belo Horizonte, 178 - Nova Cidade, Boa Vista-RR","bairro":"Nova Cidade","grupo":"Atenção Básica"},
+{"nome":"UBS Dr. Alceste Madeira de Almeida","endereco":"Rua Macau, 950 - Said Salomão, Boa Vista-RR","bairro":"Said Salomão","grupo":"Atenção Básica"},
+{"nome":"UBS Dr. Dalmo Silva Feitosa","endereco":"Rua Austrália, 700 - Cauamé, Boa Vista-RR","bairro":"Cauamé","grupo":"Atenção Básica"},
+{"nome":"UBS Dr. Dimitri R. Grandez","endereco":"Avenida dos Corretores de Imóveis, 764 - Alvorada, Boa Vista-RR","bairro":"Alvorada","grupo":"Atenção Básica"},
+{"nome":"UBS Dr. Jan Roman Wilt","endereco":"Rua São Silvestre, 410 - Dr. Airton Rocha, Boa Vista-RR","bairro":"Dr. Airton Rocha","grupo":"Atenção Básica"},
+{"nome":"UBS Dr. Rômulo Ferreira da Silva","endereco":"Avenida Presidente Castelo Branco, 1875 - São Vicente, Boa Vista-RR","bairro":"São Vicente","grupo":"Atenção Básica"},
+{"nome":"UBS Dr. Rubeldimar Maia de Azevedo Cruz","endereco":"Rua Governador Felix Valois - São Bento, Boa Vista-RR","bairro":"São Bento","grupo":"Atenção Básica"},
+{"nome":"UBS Fanir Oliveira Silva","endereco":"Rua Ana Cecília Mota da Silva, 646 - Jardim Floresta, Boa Vista-RR","bairro":"Jardim Floresta","grupo":"Atenção Básica"},
+{"nome":"UBS Ione Santiago","endereco":"Avenida Sebastião Diniz, 115 - São Pedro, Boa Vista-RR","bairro":"São Pedro","grupo":"Atenção Básica"},
+{"nome":"UBS Liberdade","endereco":"Rua Guilherme de Brito, 214 - Liberdade, Boa Vista-RR","bairro":"Liberdade","grupo":"Atenção Básica"},
+{"nome":"UBS Lupércio Lima Ferreira","endereco":"Rua Laura Pinheiro Maia - Pintolândia, Boa Vista-RR","bairro":"Pintolândia","grupo":"Atenção Básica"},
+{"nome":"UBS Maria das Dores Pereira da Silva","endereco":"Avenida Manoel Aniceto Pontes, 96 - Conj. Cruviana (Equatorial), Boa Vista-RR","bairro":"Conj. Cruviana","grupo":"Atenção Básica"},
+{"nome":"UBS Marta Almeida Machado","endereco":"Vicinal 7, Gleba Murupu - P.A. Nova Amazônia, Boa Vista-RR","bairro":"P.A. Nova Amazônia","grupo":"Atenção Básica"},
+{"nome":"UBS Pricumã","endereco":"Avenida Via das Flores, 2347 - Pricumã, Boa Vista-RR","bairro":"Pricumã","grupo":"Atenção Básica"},
+{"nome":"UBS Raiar do Sol","endereco":"Rua das Estrelas, 672 - Raiar do Sol, Boa Vista-RR","bairro":"Raiar do Sol","grupo":"Atenção Básica"},
+{"nome":"UBS Santa Tereza","endereco":"Rua Aruanã, 355 - Santa Tereza, Boa Vista-RR","bairro":"Santa Tereza","grupo":"Atenção Básica"},
+{"nome":"UBS Senador Hélio Campos","endereco":"Rua Pedro Aldemar Bantim, 28 - Senador Hélio Campos, Boa Vista-RR","bairro":"Senador Hélio Campos","grupo":"Atenção Básica"},
+{"nome":"UBS Tancredo Neves","endereco":"Avenida São Sebastião, 1766 - Tancredo Neves, Boa Vista-RR","bairro":"Tancredo Neves","grupo":"Atenção Básica"},
+{"nome":"CEAC","endereco":"Av. Mário Homem de Melo, 4534 - Caimbé, Boa Vista-RR, 69312-155","bairro":"Caimbé","grupo":"Atendimento e Benefícios Eventuais"},
+{"nome":"APAE Boa Vista","endereco":"Av. Surumu, nº 71 - Calungá, Boa Vista-RR","bairro":"Calungá","grupo":"Autismo (TEA) e neurodesenvolvimento"},
+{"nome":"CIAPD","endereco":"Avenida São Sebastião, 1195 – Santa Tereza, Boa Vista-RR, CEP 69314-152","bairro":"Santa Tereza","grupo":"Autismo (TEA) e neurodesenvolvimento"},
+{"nome":"TEAMARR","endereco":"Avenida Santos Dumont, 1193 – São Francisco, Boa Vista-RR","bairro":"São Francisco","grupo":"Autismo (TEA) e neurodesenvolvimento"},
+{"nome":"TEAMARR - Polo 2","endereco":"Rua Dorvalina Pessoa da Silva, nº 456 – Jardim Tropical, Boa Vista-RR","bairro":"Jardim Tropical","grupo":"Autismo (TEA) e neurodesenvolvimento"},
+{"nome":"Caixa Econômica Federal - Asa Branca","endereco":"Ag. Asa Branca (3027): Av. Gen. Ataíde Teive, 3997 - Asa Branca, Boa Vista-RR, CEP 69309-000","bairro":"Asa Branca","grupo":"Bancos"},
+{"nome":"Caixa Econômica Federal - Centro / Ville Roy","endereco":"Ag. Centro (0653): R. José Magalhães, 321 - Centro, Boa Vista-RR, CEP 69301-360 Ag. Ville Roy (3588): Av. Ville Roy, S/N - Qd. 147, Lote 02 - São Pedro, Boa Vista-RR, CEP 69306-665","bairro":"Centro","grupo":"Bancos"},
+{"nome":"Caixa Econômica Federal - Raiar do Sol / Cruviana","endereco":"Ag. Raiar do Sol (3905): R. Estrela D'Alva, 456 - Raiar do Sol, Boa Vista-RR, CEP 69316-002 Ag. Cruviana (3906): Av. Gen. Ataíde Teive, 7721 - Alvorada, Boa Vista-RR, CEP 69317-182","bairro":"Raiar do Sol","grupo":"Bancos"},
+{"nome":"BPC Idoso","endereco":"INSS - Instituto Nacional do Seguro Social: Av. Glaycon de Paiva, 86 - Mecejana, Boa Vista - RR (solicitação também disponível pelo Meu INSS)","bairro":"Mecejana","grupo":"Benefícios Assistenciais e Previdenciários (INSS)"},
+{"nome":"BPC Pessoa com Deficiência","endereco":"INSS - Instituto Nacional do Seguro Social: Av. Glaycon de Paiva, 86 - Mecejana, Boa Vista - RR (solicitação também disponível pelo Meu INSS)","bairro":"Mecejana","grupo":"Benefícios Assistenciais e Previdenciários (INSS)"},
+{"nome":"Recuperação de Senha – Meu INSS","endereco":"INSS - Instituto Nacional do Seguro Social: Av. Glaycon de Paiva, 86 - Mecejana, Boa Vista - RR (procedimento também disponível online)","bairro":"Mecejana","grupo":"Benefícios Assistenciais e Previdenciários (INSS)"},
+{"nome":"CAPS AD III","endereco":"R. José Bonifácio, 630 - Aparecida, Boa Vista-RR","bairro":"Aparecida","grupo":"CAPS (Boa Vista)"},
+{"nome":"CAPS II","endereco":"R. Pavão, 295 - Mecejana, Boa Vista-RR","bairro":"Mecejana","grupo":"CAPS (Boa Vista)"},
+{"nome":"CAPS III","endereco":"Av. Cap. Ene Garcês, 497 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"CAPS (Boa Vista)"},
+{"nome":"Atendimento CAS","endereco":"R. James Meirelles Sobreiro Júnior, 1876 - Cidade Satélite, Boa Vista-RR, 69317-530","bairro":"Cidade Satélite","grupo":"CAS"},
+{"nome":"Clínica de Psicologia - FACETEN","endereco":"Avenida dos Bandeirantes, 900 - Pricumã, Boa Vista-RR","bairro":"Pricumã","grupo":"Clínicas-Escola de Psicologia"},
+{"nome":"Clínica Escola de Psicologia - Cathedral","endereco":"Av. Luís Canuto Chaves, 293 - Caçari, Boa Vista-RR, 69307-053","bairro":"Caçari","grupo":"Clínicas-Escola de Psicologia"},
+{"nome":"SAP/UFRR","endereco":"Rua Paris, em frente à Prefeitura Universitária, Campus Paricarana, Boa Vista-RR","bairro":"Campus Paricarana","grupo":"Clínicas-Escola de Psicologia"},
+{"nome":"Serviço-Escola Estácio","endereco":"Rua Jornalista Humberto Silva, 308 - União, Boa Vista-RR, 69313-792","bairro":"União","grupo":"Clínicas-Escola de Psicologia"},
+{"nome":"Conselho Tutelar I","endereco":"R. Bento Brasil, 835 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"Conselhos"},
+{"nome":"Conselho Tutelar II","endereco":"R. Dico Viêira, 1497 - Caimbé, Boa Vista-RR","bairro":"Caimbé","grupo":"Conselhos"},
+{"nome":"Conselho Tutelar III","endereco":"R. Pedro Aldemar Bantim, 1337 - Silvio Botelho, Boa Vista-RR","bairro":"Silvio Botelho","grupo":"Conselhos"},
+{"nome":"CMAS","endereco":"Secretaria Municipal de Assistência e Desenvolvimento Social (SEMADS) - Av. Major Williams, nº 1687, Centro, Boa Vista-RR, CEP 69.301-365","bairro":"Centro","grupo":"Conselhos Municipais de Direitos"},
+{"nome":"CMDCA-BV","endereco":"Secretaria Municipal de Assistência e Desenvolvimento Social (SEMADS) - Av. Major Williams, nº 1687, Centro, Boa Vista-RR, CEP 69.301-365","bairro":"Centro","grupo":"Conselhos Municipais de Direitos"},
+{"nome":"CMDPI/BV-RR","endereco":"Secretaria Municipal de Assistência e Desenvolvimento Social (SEMADS) - Av. Major Williams, nº 1687, Centro, Boa Vista-RR, CEP 69.301-365","bairro":"Centro","grupo":"Conselhos Municipais de Direitos"},
+{"nome":"Bombeiros - CEIB","endereco":"Rua Fábio Magalhães, 230 - 31 de Março, Boa Vista-RR","bairro":"31 de Março","grupo":"Corpo de Bombeiros Militar de Roraima"},
+{"nome":"Bombeiros - Central de Operações (CICC)","endereco":"Via das Flores, 1696 - Pricumã, Boa Vista-RR","bairro":"Pricumã","grupo":"Corpo de Bombeiros Militar de Roraima"},
+{"nome":"Bombeiros - Cia de Busca e Salvamento","endereco":"R. Castelo Branco, 723 - São Vicente, Boa Vista-RR","bairro":"São Vicente","grupo":"Corpo de Bombeiros Militar de Roraima"},
+{"nome":"Bombeiros - Cia de Combate a Incêndios","endereco":"R. Jerusalém, 463 - Cambará, Boa Vista-RR","bairro":"Cambará","grupo":"Corpo de Bombeiros Militar de Roraima"},
+{"nome":"Bombeiros - Comando Geral","endereco":"Av. Venezuela, 1271 - Pricumã, Boa Vista-RR","bairro":"Pricumã","grupo":"Corpo de Bombeiros Militar de Roraima"},
+{"nome":"Atendimento CRAS","endereco":"Rua Santo Agostinho, 193 - Centenário, Boa Vista-RR (CRAS Cristiana Vicente Nunes)","bairro":"Centenário","grupo":"CRAS"},
+{"nome":"CRAS Cauamé","endereco":"Av. Carlos Pereira de Melo, 207 - Jardim Floresta, Boa Vista-RR","bairro":"Jardim Floresta","grupo":"CRAS (Boa Vista)","lat":2.828707,"lng":-60.699579},
+{"nome":"CRAS Cristiana Vicente Nunes","endereco":"Rua Santo Agostinho, 193 - Centenário, Boa Vista-RR","bairro":"Centenário","grupo":"CRAS (Boa Vista)","lat":2.794228,"lng":-60.715304},
+{"nome":"CRAS Dr. Silvio Leite","endereco":"R. Marieta de Mello Marquês, 869 - Dr. Silvio Leite, Boa Vista-RR","bairro":"Dr. Silvio Leite","grupo":"CRAS (Boa Vista)","lat":2.824589,"lng":-60.744222},
+{"nome":"CRAS Itinerante","endereco":"R. Maj. Manoel Corrêa, 620 - São Francisco, Boa Vista-RR","bairro":"São Francisco","grupo":"CRAS (Boa Vista)","lat":2.829942,"lng":-60.678552},
+{"nome":"CRAS Nova Cidade","endereco":"Rua Curitiba, 336 - Nova Cidade, Boa Vista-RR","bairro":"Nova Cidade","grupo":"CRAS (Boa Vista)","lat":2.763968,"lng":-60.730548},
+{"nome":"CRAS Pintolândia","endereco":"R. Sólon Rodrigues Pessoa, 615 - Nova Canaã (Sede do FQA), Boa Vista-RR","bairro":"Nova Canaã","grupo":"CRAS (Boa Vista)","lat":2.810585,"lng":-60.744989},
+{"nome":"CRAS São Francisco","endereco":"R. Floriano Peixoto, 140 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"CRAS (Boa Vista)","lat":2.817229,"lng":-60.666111},
+{"nome":"CRAS União","endereco":"R. Hilda Sobral Guedes, 81 - Bairro União, Boa Vista-RR","bairro":"Bairro União","grupo":"CRAS (Boa Vista)","lat":2.844086,"lng":-60.727368},
+{"nome":"CREAS Centenário","endereco":"R. Turin, 282 - Centenário, Boa Vista-RR","bairro":"Centenário","grupo":"CREAS (Boa Vista)","lat":2.797379,"lng":-60.718835},
+{"nome":"CREAS Centro","endereco":"Av. Mário Homem de Melo, 514 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"CREAS (Boa Vista)","lat":2.821765,"lng":-60.678314},
+{"nome":"CEPDC-RR","endereco":"Av. Venezuela, nº 1271 - Pricumã, Boa Vista-RR, CEP 69.309-690","bairro":"Pricumã","grupo":"Defesa Civil"},
+{"nome":"Defesa Civil Municipal","endereco":"Av. Capitão Júlio Bezerra, nº 1481 - 31 de Março, Boa Vista-RR, CEP 69.305-025 (mesma sede da GCM)","bairro":"31 de Março","grupo":"Defesa Civil"},
+{"nome":"Polícia Federal","endereco":"Av. Brasil, 551 - 13 de Setembro, Boa Vista-RR – CEP 69308-050","bairro":"13 de Setembro","grupo":"Delegacias e Unidades Federais"},
+{"nome":"PRF","endereco":"R. Professor Diomedes, 764 - São Vicente, Boa Vista-RR – CEP 69303-450","bairro":"São Vicente","grupo":"Delegacias e Unidades Federais"},
+{"nome":"DAT","endereco":"Bloco F, Cidade da Polícia Civil - Av. Getúlio Vargas, 3859, Canarinho, Boa Vista-RR – CEP 69.306-545","bairro":"Canarinho","grupo":"Delegacias Especializadas"},
+{"nome":"DDCON","endereco":"Bloco F, Cidade da Polícia Civil - Av. Getúlio Vargas, 3859, Canarinho, Boa Vista-RR – CEP 69.306-545","bairro":"Canarinho","grupo":"Delegacias Especializadas"},
+{"nome":"DEAM","endereco":"R. Uraricoera, S/N - São Vicente, Boa Vista-RR – CEP 69303-453 (Sede da Casa da Mulher Brasileira)","bairro":"São Vicente","grupo":"Delegacias Especializadas"},
+{"nome":"DECOR","endereco":"Cidade da Polícia Civil - Av. Getúlio Vargas, 3859, Canarinho, Boa Vista-RR – CEP 69.306-545","bairro":"Canarinho","grupo":"Delegacias Especializadas"},
+{"nome":"DERCC","endereco":"Cidade da Polícia Civil - Av. Getúlio Vargas, 3859, casa 12, Canarinho, Boa Vista-RR – CEP 69.306-545","bairro":"Canarinho","grupo":"Delegacias Especializadas"},
+{"nome":"DGH","endereco":"Av. Getúlio Vargas, 6400 - Centro, Boa Vista-RR – CEP 69301-077","bairro":"Centro","grupo":"Delegacias Especializadas"},
+{"nome":"DPCA / DDIJ","endereco":"Avenida Nazaré Filgueiras, nº 1991 - Pintolândia, Boa Vista-RR","bairro":"Pintolândia","grupo":"Delegacias Especializadas"},
+{"nome":"DPIPCD","endereco":"Cidade da Polícia Civil - Av. Getúlio Vargas, 3859, Canarinho, Boa Vista-RR – CEP 69.306-545","bairro":"Canarinho","grupo":"Delegacias Especializadas"},
+{"nome":"DPMA","endereco":"Bloco F, Cidade da Polícia Civil - Av. Getúlio Vargas, 3859, Canarinho, Boa Vista-RR – CEP 69.306-545","bairro":"Canarinho","grupo":"Delegacias Especializadas"},
+{"nome":"DRCAP","endereco":"Cidade da Polícia Civil - Av. Getúlio Vargas, 3859, Canarinho, Boa Vista-RR – CEP 69.306-545","bairro":"Canarinho","grupo":"Delegacias Especializadas"},
+{"nome":"DRE","endereco":"Cidade da Polícia Civil - Av. Getúlio Vargas, 3859, Canarinho, Boa Vista-RR – CEP 69.306-545","bairro":"Canarinho","grupo":"Delegacias Especializadas"},
+{"nome":"DROCO","endereco":"Av. Getúlio Vargas, nº 6400, Centro, Boa Vista-RR – CEP 69.301-070","bairro":"Centro","grupo":"Delegacias Especializadas"},
+{"nome":"DRRFVAT","endereco":"Cidade da Polícia Civil - Av. Getúlio Vargas, 3859, Canarinho, Boa Vista-RR – CEP 69.306-545","bairro":"Canarinho","grupo":"Delegacias Especializadas"},
+{"nome":"POLINTER","endereco":"Av. Getúlio Vargas, 3859 - Canarinho, Boa Vista-RR – CEP 69.306-545","bairro":"Canarinho","grupo":"Delegacias Especializadas"},
+{"nome":"1º DP","endereco":"Rua Pedro Rodrigues, nº 462, esquina com a Av. Terêncio Lima, Centro, Boa Vista-RR, CEP 69301-180","bairro":"Centro","grupo":"Distritos Policiais"},
+{"nome":"2º DP","endereco":"Rua Pedro Rodrigues, nº 462, esquina com a Av. Terêncio Lima, Centro, Boa Vista-RR, CEP 69301-180 (Endereço provisório - mesmo prédio do 1º DP)","bairro":"Centro","grupo":"Distritos Policiais"},
+{"nome":"3º DP","endereco":"Avenida São Sebastião, 2568, esquina com a Rua América Sarmento, Tancredo Neves, Boa Vista-RR, CEP 69313-492","bairro":"Tancredo Neves","grupo":"Distritos Policiais"},
+{"nome":"4º DP","endereco":"Avenida São Sebastião, 2568, esquina com a Rua América Sarmento, Tancredo Neves, Boa Vista-RR, CEP 69313-492 (Endereço provisório - mesmo prédio do 3º DP)","bairro":"Tancredo Neves","grupo":"Distritos Policiais"},
+{"nome":"5º DP","endereco":"R. Parque Industrial, S/N - Gov. Aquilino Mota Duarte (Distrito Industrial), Boa Vista-RR – CEP 69.308-050","bairro":"Gov. Aquilino Mota Duarte","grupo":"Distritos Policiais"},
+{"nome":"Central de Flagrantes","endereco":"R. Parque Industrial, S/N - Gov. Aquilino Mota Duarte, Boa Vista-RR – CEP 69.308-050 (mesmo prédio do 5º DP - endereço provisório)","bairro":"Gov. Aquilino Mota Duarte","grupo":"Distritos Policiais"},
+{"nome":"2º Ofício (Cartório Daniel Aquino)","endereco":"Av. Gen. Ataíde Teive, 4307 - Asa Branca, Boa Vista-RR, CEP 69312-242","bairro":"Asa Branca","grupo":"Documentação"},
+{"nome":"Casa do Cidadão","endereco":"R. Izidio Galdino da Silva, 2469 - Sen. Hélio Campos, Boa Vista-RR, 69316-358","bairro":"Sen. Hélio Campos","grupo":"Documentação"},
+{"nome":"IIOC","endereco":"Av. Venezuela, 2083 - Liberdade, Boa Vista-RR, 69309-005","bairro":"Liberdade","grupo":"Documentação"},
+{"nome":"Receita Federal (CAC)","endereco":"Av. Governador Anchieta, 618 - Caçari, Boa Vista-RR, 69307-775","bairro":"Caçari","grupo":"Documentação"},
+{"nome":"Registro Civil","endereco":"1º Ofício (Cartório Loureiro): Av. Ville Roy, 5636 - Centro, Boa Vista-RR, CEP 69301-000","bairro":"Centro","grupo":"Documentação"},
+{"nome":"Carteira do Autista (CIPTEA)","endereco":"Centro Integrado de Atenção à Pessoa com Deficiência (CIAPD) - Av. São Sebastião, 1195 - Santa Teresa, Boa Vista-RR","bairro":"Santa Teresa","grupo":"Documentação e Direitos da Pessoa com Deficiência"},
+{"nome":"Claretiano","endereco":"R. Antônio Augusto Martins, 52 - São Francisco, Boa Vista-RR, 69305-270","bairro":"São Francisco","grupo":"Ensino Superior"},
+{"nome":"Estácio","endereco":"Rua Jornalista Humberto Silva, 308 - União, Boa Vista-RR, 69313-792","bairro":"União","grupo":"Ensino Superior"},
+{"nome":"Faceten","endereco":"Av. dos Bandeirantes, 900 - Pricumã, Boa Vista-RR, 69309-100","bairro":"Pricumã","grupo":"Ensino Superior"},
+{"nome":"Faculdade Cathedral","endereco":"Av. Luís Canuto Chaves, 293 - Caçari, Boa Vista-RR, 69307-053","bairro":"Caçari","grupo":"Ensino Superior"},
+{"nome":"IFRR - Campus Boa Vista","endereco":"Av. Glaycon de Paiva, 2496 - Pricumã, Boa Vista-RR, 69303-340","bairro":"Pricumã","grupo":"Ensino Superior","apelidos":["Instituto Federal de Roraima","IFRR"]},
+{"nome":"IFRR - Campus Boa Vista Zona Oeste","endereco":"R. Prof. Nonato Chacon, 1976 - Laura Moreira (Conjunto Cidadão), Boa Vista-RR, 69318-060","bairro":"Laura Moreira","grupo":"Ensino Superior"},
+{"nome":"IFRR (Reitoria)","endereco":"R. Fernão Dias Paes Leme, 1 - Calungá, Boa Vista-RR, 69303-220","bairro":"Calungá","grupo":"Ensino Superior"},
+{"nome":"UERR","endereco":"Rua 7 de Setembro, 231 - Canarinho, Boa Vista-RR, 69306-530","bairro":"Canarinho","grupo":"Ensino Superior","apelidos":["Universidade Estadual de Roraima"]},
+{"nome":"UFRR","endereco":"Av. Cap. Ene Garcez, 2413 - Aeroporto, Campus Paricarana, Boa Vista-RR, 69304-000","bairro":"Campus Paricarana","grupo":"Ensino Superior","apelidos":["Universidade Federal de Roraima","Campus Paricarana","Federal de Roraima"]},
+{"nome":"Unama","endereco":"Rua Araújo Filho, 803 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"Ensino Superior"},
+{"nome":"UNIP","endereco":"Av. Mário Homem de Melo, 5008 - Caimbé, Boa Vista-RR, 69312-155","bairro":"Caimbé","grupo":"Ensino Superior"},
+{"nome":"SEMADS","endereco":"Av. Major Williams, nº 1687 - Centro, CEP 69.301-365, Boa Vista-RR","bairro":"CEP 69.301-365","grupo":"Gestão e Coordenação"},
+{"nome":"SETRABES","endereco":"Av. Mário Homem de Melo, 2310 - Mecejana, CEP 69.304-350, Boa Vista-RR","bairro":"CEP 69.304-350","grupo":"Gestão e Coordenação"},
+{"nome":"SEED","endereco":"Praça do Centro Cívico, 550 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"Gestão e Secretarias"},
+{"nome":"SMEC","endereco":"R. Gen. Penha Brasil, 705 - São Francisco, Boa Vista-RR","bairro":"São Francisco","grupo":"Gestão e Secretarias"},
+{"nome":"Centro de Zoonoses","endereco":"Av. Centenário, 469 - Centenário, Boa Vista-RR, 69312-377","bairro":"Centenário","grupo":"Gestão e Vigilância em Saúde"},
+{"nome":"SESAU","endereco":"R. Madrid, 180 - Aeroporto, Boa Vista-RR, 69310-043","bairro":"Aeroporto","grupo":"Gestão e Vigilância em Saúde"},
+{"nome":"SMSA","endereco":"R. Cel. Mota, 356 - Centro, Boa Vista-RR, 69301-120","bairro":"Centro","grupo":"Gestão e Vigilância em Saúde"},
+{"nome":"Guarda Civil Municipal","endereco":"Av. Capitão Júlio Bezerra, nº 1481 - 31 de Março, Boa Vista-RR, CEP 69.305-025","bairro":"31 de Março","grupo":"Guarda Civil Municipal"},
+{"nome":"CODESAIMA","endereco":"Av. Mário Homem de Melo, 1489 - Mecejana, Boa Vista-RR, 69304-350","bairro":"Mecejana","grupo":"Habitação"},
+{"nome":"Minha Casa, Minha Vida","endereco":"Rua Prof. Agnelo Bitencourt, nº 208 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"Habitação"},
+{"nome":"Hospital Coronel Mota","endereco":"R. Coronel Pinto, 636 - Centro, Boa Vista-RR, 69301-081","bairro":"Centro","grupo":"Hospitais"},
+{"nome":"Hospital Cosme e Silva","endereco":"R. Delman Veras, S/N - Pintolândia, Boa Vista-RR","bairro":"Pintolândia","grupo":"Hospitais"},
+{"nome":"Hospital da Criança Santo Antônio","endereco":"Av. das Guianas, 1645 - Treze de Setembro, Boa Vista-RR, 69308-160","bairro":"Treze de Setembro","grupo":"Hospitais"},
+{"nome":"Hospital Materno Infantil N. Sra. de Nazareth","endereco":"Av. Santos Dumont, 1321 - Aparecida, Boa Vista-RR","bairro":"Aparecida","grupo":"Hospitais"},
+{"nome":"Hospital Universitário","endereco":"Av. Nazaré Filgueiras, 2096 - Dr. Silvio Botelho, Boa Vista-RR, 69314-550","bairro":"Dr. Silvio Botelho","grupo":"Hospitais"},
+{"nome":"CEJUSC Cível","endereco":"Fórum Advogado Sobral Pinto, Praça do Centro Cívico, 666 - Centro, andar térreo, Boa Vista-RR, CEP 69301-380","bairro":"andar térreo","grupo":"Jurídico e defensoria"},
+{"nome":"DPE/Civil","endereco":"Av. Sebastião Diniz, 1165 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"Jurídico e defensoria"},
+{"nome":"DPE/Criminal","endereco":"R. Arineu Ferreira Lima, 1415 - Caranã, Boa Vista-RR","bairro":"Caranã","grupo":"Jurídico e defensoria"},
+{"nome":"DPU","endereco":"R. Gen. Penha Brasil, 1262 - São Francisco, Boa Vista-RR","bairro":"São Francisco","grupo":"Jurídico e defensoria"},
+{"nome":"Justiça do Trabalho / MPT","endereco":"Justiça do Trabalho: Av. Benjamin Constant, 1863 - Centro, Boa Vista-RR, CEP 69301-072 MPT/RR: Rua Capitão Franco de Carvalho, 352 - São Francisco, Boa Vista-RR, CEP 69305-120","bairro":"Centro","grupo":"Jurídico e defensoria"},
+{"nome":"Justiça Eleitoral","endereco":"Av. Juscelino Kubitschek, 543 - São Pedro, Boa Vista-RR, CEP 69306-685","bairro":"São Pedro","grupo":"Jurídico e defensoria"},
+{"nome":"Justiça Federal","endereco":"Av. Getúlio Vargas, 3999 - Canarinho, Boa Vista-RR, CEP 69306-700","bairro":"Canarinho","grupo":"Jurídico e defensoria"},
+{"nome":"Ministério Público de Roraima","endereco":"Edifício-Sede (PGJ): Av. Santos Dumont, nº 710 - São Pedro, Boa Vista-RR, CEP 69306-680 Espaço da Cidadania: Av. Ville Roy, nº 5584 - Centro, Boa Vista-RR, CEP 69301-000 Fórum Criminal (Promotorias Criminais): Av. José Tabira de Alencar Macedo, nº 602 - Caranã, Boa Vista-RR Casa da Mulher Brasileira (Promotoria de Defesa da Mulher): Rua Uraricoera, S/N - São Vicente, Boa Vista-RR CETAO - Centro de Treinamento Operacional: R. Barão do Rio Branco, 1184 - Centro, Boa Vista-RR","bairro":"São Pedro","grupo":"Jurídico e defensoria"},
+{"nome":"Ministério Público Federal","endereco":"Rua General Penha Brasil, nº 1255 - São Francisco, Boa Vista-RR, CEP 69305-130","bairro":"São Francisco","grupo":"Jurídico e defensoria"},
+{"nome":"OAB-RR","endereco":"Av. Ville Roy, 1830 - Caçari, Boa Vista-RR, CEP 69307-725","bairro":"Caçari","grupo":"Jurídico e defensoria"},
+{"nome":"Procon Boa Vista","endereco":"Av. Ville Roy, 6606 - Centro, Boa Vista-RR, CEP 69301-000 Unidade no Fórum da Cidadania - Palácio Latife Salomão: Av. Glaycon de Paiva, 458 - Mecejana, Boa Vista-RR","bairro":"Centro","grupo":"Jurídico e defensoria"},
+{"nome":"Tribunal de Justiça de Roraima","endereco":"Praça do Centro Cívico, 296 - Centro, Boa Vista-RR, CEP 69301-380","bairro":"Centro","grupo":"Jurídico e defensoria"},
+{"nome":"Vara da Infância e Juventude","endereco":"Av. General Ataíde Teive, 4270 - Caimbé, Boa Vista-RR, CEP 69312-218","bairro":"Caimbé","grupo":"Jurídico e defensoria"},
+{"nome":"Base da Operação Acolhida (FT Log Hum)","endereco":"Rua Floriano Peixoto, s/n - antigo prédio da Escola Estadual Airton Senna, Boa Vista-RR","bairro":"antigo prédio da Escola Estadual Airton Senna","grupo":"Migração e refúgio"},
+{"nome":"Centro de Interiorização (CCI)","endereco":"Antigo ginásio poliesportivo, Bairro 13 de Setembro, Boa Vista-RR (prédio cedido pelo Governo de Roraima à Força-Tarefa Logística Humanitária)","bairro":"Bairro 13 de Setembro","grupo":"Migração e refúgio"},
+{"nome":"PTRIG Boa Vista","endereco":"Av. Brasil, 551 - Pricumã, Boa Vista-RR, 69308-050 (ao lado da Polícia Federal)","bairro":"Pricumã","grupo":"Migração e refúgio"},
+{"nome":"Rede de Abrigos - Operação Acolhida","endereco":"Diversas unidades em Boa Vista (ex.: Tancredo Neves, Nova Canaã, Pintolândia, São Vicente 1 e 2, 13 de Setembro, Rondon 1 e 5, Waraotuma a Tuaronoko, Janokoida) e em Pacaraima (BV-8)","bairro":"","grupo":"Migração e refúgio"},
+{"nome":"Passe Livre (ANTT)","endereco":"N/A - Solicitação 100% digital pelo Gov.br. Para o Passe Livre Intermunicipal (Estadual), o atendimento presencial é feito no CEAC \"Valdenhilton Gomes\" - Av. Mário Homem de Melo, 4534 - Caimbé, Boa Vista-RR","bairro":"Caimbé","grupo":"Mobilidade e transporte"},
+{"nome":"SMTRAN","endereco":"Av. Cap. Júlio Bezerra, 1481 - Trinta e Um de Março, Boa Vista-RR, 69305-025","bairro":"Trinta e Um de Março","grupo":"Mobilidade e transporte","apelidos":["Transito","Trânsito"]},
+{"nome":"Terminal de Ônibus Urbano","endereco":"R. Barreto Leite, 202-A - Centro, Boa Vista-RR, 69301-330","bairro":"Centro","grupo":"Mobilidade e transporte","apelidos":["Rodoviária","Terminal Urbano"]},
+{"nome":"CAS","endereco":"R. James Meirelles Sobreiro Júnior, 1876 - Cidade Satélite, Boa Vista-RR, 69317-530","bairro":"Cidade Satélite","grupo":"Outros Equipamentos Socioassistenciais"},
+{"nome":"2º BPM","endereco":"Av. Nazaré Filgueiras, 1164 - Pintolândia, Boa Vista-RR","bairro":"Pintolândia","grupo":"Polícia Militar de Roraima"},
+{"nome":"PMRR - Comando Geral","endereco":"Av. Capitão Ene Garcez - Centro, Boa Vista-RR","bairro":"Centro","grupo":"Polícia Militar de Roraima"},
+{"nome":"INSS","endereco":"Av. Glaycon de Paiva, 86 - Mecejana, Boa Vista-RR, 69301-250","bairro":"Mecejana","grupo":"Previdência e INSS","apelidos":["Previdência Social"]},
+{"nome":"Feira do Passarão","endereco":"Av. General Ataíde Teive, s/n - Caimbé, Boa Vista-RR","bairro":"Caimbé","grupo":"Produção, Abastecimento e Doação de Alimentos"},
+{"nome":"Feira do Produtor Rural","endereco":"Av. Glaycon de Paiva, 217 - São Vicente, Boa Vista-RR, 69301-250","bairro":"São Vicente","grupo":"Produção, Abastecimento e Doação de Alimentos"},
+{"nome":"Mercado Municipal Romeu Caldas de Magalhães","endereco":"Av. Glaycon de Paiva, 1778 - Mecejana, Boa Vista-RR, 69304-560","bairro":"Mecejana","grupo":"Produção, Abastecimento e Doação de Alimentos"},
+{"nome":"PAA - Programa de Aquisição de Alimentos","endereco":"Av. Pátio Cauamé, 170 - Cauamé, Boa Vista-RR (ao lado do Pátio Roraima Shopping)","bairro":"Cauamé","grupo":"Produção, Abastecimento e Doação de Alimentos"},
+{"nome":"Projeto Cabelos de Prata","endereco":"CRAS Cristiana Vicente Nunes, Boa Vista-RR","bairro":"","grupo":"Programas para Pessoa Idosa"},
+{"nome":"Programa Dedo Verde","endereco":"Av. Brigadeiro Eduardo Gomes, nº 100 - Bairro dos Estados, Boa Vista-RR","bairro":"Bairro dos Estados","grupo":"Programas Socioeducativos (Crianças e Adolescentes)"},
+{"nome":"Programa Rumo Certo","endereco":"Atuação em órgãos públicos e instituições conveniadas, Boa Vista-RR","bairro":"","grupo":"Programas Socioeducativos (Crianças e Adolescentes)"},
+{"nome":"Projeto ArtCanto","endereco":"Avenida São Sebastião, s/n – Bairro Cambará, Boa Vista - RR.","bairro":"Bairro Cambará","grupo":"Programas Socioeducativos (Crianças e Adolescentes)"},
+{"nome":"SCFV","endereco":"CRAS Cristiana Vicente Nunes, Boa Vista-RR","bairro":"","grupo":"Programas Socioeducativos (Crianças e Adolescentes)"},
+{"nome":"CAI 18 de Maio","endereco":"Rua Lourival Soares da Silva, nº 100 - Aparecida, Boa Vista-RR","bairro":"Aparecida","grupo":"Rede de Proteção à Criança e ao Adolescente"},
+{"nome":"Casa da Mulher Brasileira","endereco":"R. Uraricoera, S/N - São Vicente, Boa Vista-RR, CEP 69303-453","bairro":"São Vicente","grupo":"Rede de Proteção à Mulher"},
+{"nome":"CADAHS","endereco":"São Francisco, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CAEBV","endereco":"Santa Tereza, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CAP-DVRR","endereco":"São Pedro, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CEEP Prof. Antônio de Pinho Lima","endereco":"Caranã, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CEM Fernando Grangeiro de Menezes","endereco":"Caranã, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CEM IX Pedro Elias Albuquerque Pereira","endereco":"Jóquei Clube, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CEM Prof. Jaceguai Reis Cunha","endereco":"Asa Branca, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CEM Profa. Conceição da Costa e Silva","endereco":"Senador Hélio Campos, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CEM Profa. Elza Breves de Carvalho","endereco":"Laura Moreira, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CEM Profa. Maria de Lourdes Neves","endereco":"Pintolândia, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CEM Profa. Maria Nilce Macedo Brandão","endereco":"Cauamé, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CEM Senador Hélio da Costa Campos","endereco":"Dr. Sílvio Leite, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CEM V Luiz Ribeiro de Lima","endereco":"Equatorial, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CEM VII Profa. Maria dos Prazeres Mota","endereco":"Santa Tereza, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CEM Vitória Mota Cruz","endereco":"Paraviana, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CEM XI Profa. Wanda David Aguiar","endereco":"Raiar do Sol, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"CEM XXXII Severino G. G. Cavalcante","endereco":"Dr. Sílvio Botelho, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"Colégio Militar Cel. PM Derly Luiz Vieira Borges","endereco":"Canarinho, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. 13 de Setembro","endereco":"Av. Caracaraí, 237 - Treze de Setembro, Boa Vista-RR, 69308-090","bairro":"Treze de Setembro","grupo":"Rede Estadual"},
+{"nome":"E.E. Albino Tavares","endereco":"Centro, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. América Sarmento Ribeiro","endereco":"Dr. Sílvio Botelho, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Ana Libória","endereco":"Mecejana, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Ayrton Senna da Silva","endereco":"Estados, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Barão de Parima","endereco":"Rua Castelo Branco, 668 - Calungá, Boa Vista-RR","bairro":"Calungá","grupo":"Rede Estadual"},
+{"nome":"E.E. Buritis","endereco":"Rua Antônio Pinheiro Galvão, 837 - Buritis, Boa Vista-RR","bairro":"Buritis","grupo":"Rede Estadual"},
+{"nome":"E.E. Carlo Casadio","endereco":"Av. Centenário, 900 - Cinturão Verde, Boa Vista-RR","bairro":"Cinturão Verde","grupo":"Rede Estadual"},
+{"nome":"E.E. Carlos Drummond de Andrade","endereco":"Rua Pastor Almir Nogueira Guerra, 150 - Pricumã, Boa Vista-RR","bairro":"Pricumã","grupo":"Rede Estadual"},
+{"nome":"E.E. Dom José Nepote","endereco":"Av. Via das Flores, 1111 - Pricumã, Boa Vista-RR","bairro":"Pricumã","grupo":"Rede Estadual"},
+{"nome":"E.E. Dr. Ulysses Guimarães","endereco":"Dr. Sílvio Botelho, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Euclides da Cunha","endereco":"Rua Bento Brasil, 112 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"Rede Estadual"},
+{"nome":"E.E. Fagundes Varela","endereco":"Praça do Nova Cidade, R. Macapá, 860 - Nova Cidade, Boa Vista-RR, 69316-262","bairro":"Nova Cidade","grupo":"Rede Estadual"},
+{"nome":"E.E. General Penha Brasil","endereco":"Av. Presidente Juscelino Kubitschek, 926 - Nossa Senhora Aparecida, Boa Vista-RR, 69306-295","bairro":"Nossa Senhora Aparecida","grupo":"Rede Estadual"},
+{"nome":"E.E. Girassol","endereco":"Buritis, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Gonçalves Dias","endereco":"Canarinho, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Indígena Índio Dionísio Figueiredo","endereco":"Comunidade Indígena do Milho, RR-319, Km 80 - Zona Rural, Boa Vista-RR, 69301-000","bairro":"Zona Rural","grupo":"Rede Estadual"},
+{"nome":"E.E. Irmã Maria Teresa Parodi","endereco":"Avenida Jardim, 802 - Cidade Satélite, Boa Vista-RR","bairro":"Cidade Satélite","grupo":"Rede Estadual"},
+{"nome":"E.E. Jesus Nazareno de Souza Cruz","endereco":"Caranã, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Lobo D'Almada","endereco":"Av. Benjamin Constant, 1453 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"Rede Estadual"},
+{"nome":"E.E. Major Alcides Rodrigues Santos","endereco":"Av. dos Imigrantes, 551-675 - Asa Branca, Boa Vista-RR","bairro":"Asa Branca","grupo":"Rede Estadual"},
+{"nome":"E.E. Maria das Dores Brasil","endereco":"Av. das Guianas, 1201 - Treze de Setembro, Boa Vista-RR, 69303-472","bairro":"Treze de Setembro","grupo":"Rede Estadual"},
+{"nome":"E.E. Maria Raimunda Mota de Andrade","endereco":"Pintolândia, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Maria Sônia de Brito Oliva","endereco":"R. S-24 Felintro Barbosa Monteiro, 559 - Senador Hélio Campos, Boa Vista-RR, 69316-584","bairro":"Senador Hélio Campos","grupo":"Rede Estadual"},
+{"nome":"E.E. Mário David Andreazza","endereco":"Caimbé, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Monteiro Lobato","endereco":"Rua Cecília Brasil, 1506 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"Rede Estadual"},
+{"nome":"E.E. Nilo José de Melo","endereco":"Centro, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Olavo Brasil Filho","endereco":"Jóquei Clube, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Oswaldo Cruz","endereco":"Centro, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Presidente Tancredo Neves","endereco":"R. Leôncio Barbosa, 1186 - Tancredo Neves, Boa Vista-RR, 69313-508","bairro":"Tancredo Neves","grupo":"Rede Estadual"},
+{"nome":"E.E. Prof. Antônio Carlos da Silva Natalino","endereco":"Rua José Francisco, 1339 - Jóquei Clube, Boa Vista-RR","bairro":"Jóquei Clube","grupo":"Rede Estadual"},
+{"nome":"E.E. Prof. Antônio Ferreira de Souza","endereco":"Jardim Floresta, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Prof. Camilo Dias","endereco":"Liberdade, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Prof. Hildebrando Ferro Bitencourt","endereco":"São Francisco, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Prof. Voltaire Pinto Ribeiro","endereco":"Dr. Sílvio Leite, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Profa. Antônia Coelho de Lucena","endereco":"Dr. Sílvio Leite, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Profa. Coema Souto Maior Nogueira","endereco":"Tancredo Neves, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Profa. Crisotelma F. de Brito Gomes","endereco":"Aeroporto, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Profa. Diva Alves de Lima","endereco":"São Francisco, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Profa. Francisca Elzika de Souza Coelho","endereco":"R. Dom Pedro I, 1899 - Mecejana, Boa Vista-RR, 69304-010","bairro":"Mecejana","grupo":"Rede Estadual"},
+{"nome":"E.E. Profa. Idarlene Severino da Silva","endereco":"R. Belarmino Fernandes Magalhães, 1584 - Tancredo Neves, Boa Vista-RR, 69313-485","bairro":"Tancredo Neves","grupo":"Rede Estadual"},
+{"nome":"E.E. Profa. Maria Neves Rezende","endereco":"Rua Lindolfo Bernardo Coutinho, 464 - Asa Branca, Boa Vista-RR","bairro":"Asa Branca","grupo":"Rede Estadual"},
+{"nome":"E.E. Profa. Raimunda Nonato Freitas da Silva","endereco":"Santa Tereza, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. Profa. Vanda da Silva Pinto","endereco":"Santa Luzia, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E. São José","endereco":"Rua Floriano Peixoto, 346 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"Rede Estadual"},
+{"nome":"E.E. São Vicente de Paula","endereco":"São Vicente, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E.I. Adolfo Ramiro Levi","endereco":"Comunidade Serra da Moca, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E.I. Atanázio Mota","endereco":"Centro, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E.I. Davi de Souza","endereco":"Zona Rural, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E.I. Homero Cruz","endereco":"Centro, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E.I. José Aleixo Ângelo","endereco":"Centro, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E.I. Lino Augusto da Silva","endereco":"Comunidade Campo Alegre, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E.I. Paulo Augusto Silva","endereco":"Comunidade Indígena Dadora, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E.I. Pireka","endereco":"Comunidade Aakan, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E.I. Prof. Genival Thomé Macuxi","endereco":"Área Rural de Boa Vista, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"E.E.I. Rosa Nascimento","endereco":"Comunidade Indígena, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"Esc. Formação de Professores de BV","endereco":"Calungá, Boa Vista-RR","bairro":"","grupo":"Rede Estadual"},
+{"nome":"Núcleo de Creche Casa Mãe Arco-Íris","endereco":"Rua Maçaranduba, 53 - Paraviana, Boa Vista-RR","bairro":"Paraviana","grupo":"Rede Municipal - Creches e Proinfância"},
+{"nome":"Núcleo de Creche Casa Mãe Branca de Neve","endereco":"Rua Carmelo, 1400 - Pintolândia, Boa Vista-RR","bairro":"Pintolândia","grupo":"Rede Municipal - Creches e Proinfância"},
+{"nome":"Núcleo de Creche Casa Mãe Estrelinha Mágica","endereco":"Rua Expedito Francisco da Silva, 910 - Dr. Silvio Leite, Boa Vista-RR","bairro":"Dr. Silvio Leite","grupo":"Rede Municipal - Creches e Proinfância"},
+{"nome":"Núcleo de Creche Casa Mãe Pequeno Príncipe","endereco":"Rua JCCA Farias, 1018 - Caranã, Boa Vista-RR","bairro":"Caranã","grupo":"Rede Municipal - Creches e Proinfância"},
+{"nome":"Núcleo de Creche Casa Mãe Pingo de Gente","endereco":"Rua Belarmino F. Magalhães, 1362 - Tancredo Neves, Boa Vista-RR","bairro":"Tancredo Neves","grupo":"Rede Municipal - Creches e Proinfância"},
+{"nome":"Núcleo de Creche Casa Mãe Raio de Sol","endereco":"Rua Curitiba, 446 - Nova Cidade, Boa Vista-RR","bairro":"Nova Cidade","grupo":"Rede Municipal - Creches e Proinfância"},
+{"nome":"Núcleo de Creche Casa Mãe Sonho Infantil","endereco":"Rua Deco Fonteles, 622 - Jardim Floresta, Boa Vista-RR","bairro":"Jardim Floresta","grupo":"Rede Municipal - Creches e Proinfância"},
+{"nome":"Núcleo de Creche Casa Mãe Tia Linda","endereco":"Rua Vereador Valdemar Gomes, 72 - Dr. Silvio Botelho, Boa Vista-RR","bairro":"Dr. Silvio Botelho","grupo":"Rede Municipal - Creches e Proinfância"},
+{"nome":"Núcleo de Creche Casa Mãe Vovó Clara","endereco":"Rua Paraguai, 259 - Cauamé, Boa Vista-RR","bairro":"Cauamé","grupo":"Rede Municipal - Creches e Proinfância"},
+{"nome":"Núcleo de Creche Casa Mãe Vovó Júlia","endereco":"Av. Mário Homem de Melo, 4665 - Caimbé, Boa Vista-RR","bairro":"Caimbé","grupo":"Rede Municipal - Creches e Proinfância"},
+{"nome":"Proinfância Odir Lucas – Nova Cidade","endereco":"Rua Porto Velho, 314 - Nova Cidade, Boa Vista-RR","bairro":"Nova Cidade","grupo":"Rede Municipal - Creches e Proinfância"},
+{"nome":"Proinfância Valderleide Baraúna Brandão","endereco":"Av. Ataíde Teive, 788 - Equatorial, Boa Vista-RR","bairro":"Equatorial","grupo":"Rede Municipal - Creches e Proinfância"},
+{"nome":"Proinfância Waldinete de Carvalho Chaves","endereco":"Rua Delman Veras, 342 - Dr. Silvio Botelho, Boa Vista-RR","bairro":"Dr. Silvio Botelho","grupo":"Rede Municipal - Creches e Proinfância"},
+{"nome":"CEM Dr. Luiz Rittler Brito de Lucena","endereco":"Rua João Pessoa, s/n - Nova Cidade, Boa Vista-RR","bairro":"Nova Cidade","grupo":"Rede Municipal - Escolas"},
+{"nome":"CEM Profa. Wanda David Aguiar","endereco":"Rua Estrela D'Alva, 736 - Raiar do Sol, Boa Vista-RR","bairro":"Raiar do Sol","grupo":"Rede Municipal - Escolas"},
+{"nome":"Centro Mun. Integrado de Educação Especial","endereco":"Rua Paraíba, 444 - Bairro dos Estados, Boa Vista-RR","bairro":"Bairro dos Estados","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Aquilino da Mota Duarte","endereco":"Av. Getúlio Vargas, 6241 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Cantinho do Céu","endereco":"Rua Cotingo, 48 - 13 de Setembro, Boa Vista-RR, 69308-014","bairro":"13 de Setembro","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Cantinho Feliz","endereco":"Rua Macunaíma, 392 - 13 de Setembro, Boa Vista-RR, 69308-240","bairro":"13 de Setembro","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Centenário de Boa Vista","endereco":"Rua João Pereira Caldas, 460 - Aparecida, Boa Vista-RR","bairro":"Aparecida","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Delacir De Melo Lima","endereco":"Rua Santo Agostinho, 173 - Centenário, Boa Vista-RR, 69312-490","bairro":"Centenário","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Dr. Silvio Leite","endereco":"Rua C-28 c/ Wolter Castelo Branco, 651 - Dr. Silvio Leite, Boa Vista-RR","bairro":"Dr. Silvio Leite","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Frei Artur Agostini","endereco":"Rua Surumu, 1905 - São Vicente, Boa Vista-RR","bairro":"São Vicente","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Glemiria Gonzaga Dias","endereco":"Endereço a confirmar - Boa Vista-RR","bairro":"","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Hilda Franco de Souza","endereco":"Rua Latitudinal, 259 - Jardim Equatorial (Cruviana), Boa Vista-RR","bairro":"Jardim Equatorial","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Ioládio Batista Da Silva","endereco":"Rua Antônio Ferreira de Souza, 445 - São Bento, Boa Vista-RR, 69316-054","bairro":"São Bento","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Isete Evangelista Albuquerque","endereco":"Av. Nossa Senhora de Nazaré, 955 - Asa Branca, Boa Vista-RR","bairro":"Asa Branca","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Jael da Silva Barradas","endereco":"Rua Uruguai, 481 - Cauamé, Boa Vista-RR","bairro":"Cauamé","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. James Macelaro Thomé","endereco":"R. PS-4, 02 - s/n - Centenário, Boa Vista-RR, 69312-606","bairro":"Centenário","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Jardim das Copaíbas","endereco":"Rua Gov. Aquilino da Mota, s/n - Distrito Industrial, Boa Vista-RR","bairro":"Distrito Industrial","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Jóquei Clube","endereco":"Rua CJ-06, s/n - Jóquei Clube, Boa Vista-RR","bairro":"Jóquei Clube","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. José Arnóbio da Silva","endereco":"Rua Pinto Martins, 462 - Cauamé, Boa Vista-RR","bairro":"Cauamé","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Juslany de Souza Flores","endereco":"Rua 08, nº 289 - Jardim Tropical, Boa Vista-RR","bairro":"Jardim Tropical","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Laucides Inácio de Oliveira","endereco":"Av. A, s/n - Conjunto Dr. Airton Rocha (Nova Cidade), Boa Vista-RR","bairro":"Conjunto Dr. Airton Rocha","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Luiz Canará","endereco":"Rua HC-04, nº 410 - Senador Hélio Campos, Boa Vista-RR","bairro":"Senador Hélio Campos","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Maria De Fátima Faria Andrade","endereco":"Rua Milão, 173 - Centenário, Boa Vista-RR, 69312-665","bairro":"Centenário","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Maria Gonçalves Vieira","endereco":"Rua JCCA Farias, 1775 - Caranã, Boa Vista-RR","bairro":"Caranã","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Maria Teresa Maciel da Silveira Melo","endereco":"Rua Severino Caetano, 310 - Jardim Floresta, Boa Vista-RR","bairro":"Jardim Floresta","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Martinha Thury Vieira","endereco":"Rua Romênia, 145 - Cauamé, Boa Vista-RR","bairro":"Cauamé","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Menino Jesus","endereco":"Rua Lindolfo Bernardo Coutinho, 330 - Asa Branca, Boa Vista-RR","bairro":"Asa Branca","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Menino Jesus de Praga","endereco":"Rua Itajara, 225 - Jóquei Clube, Boa Vista-RR","bairro":"Jóquei Clube","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Newton Tavares","endereco":"Rua Castelo Branco, 1277 - Calungá (Caetano Filho), Boa Vista-RR","bairro":"Calungá","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Nova Canaã","endereco":"Rua Jericó, 405 - Nova Canaã, Boa Vista-RR","bairro":"Nova Canaã","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Palmira Castro Machado","endereco":"R. Monte Sinai, 403 - Profa. Araceli Souto Maior, Boa Vista-RR, 69315-096","bairro":"Profa. Araceli Souto Maior","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Pequeno Polegar","endereco":"Av. General Sampaio, 262 - 13 de Setembro, Boa Vista-RR, 69314-570","bairro":"13 de Setembro","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Presidentes (Jânio da Silva Quadros)","endereco":"Rua Maria Rodrigues dos Santos, 1570 - Tancredo Neves, Boa Vista-RR","bairro":"Tancredo Neves","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Prof. Carlos Raimundo Rodrigues","endereco":"Rua Horácio Mardel de Magalhães, 1265 - Tancredo Neves, Boa Vista-RR","bairro":"Tancredo Neves","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Prof. Olavo Brasil Filho","endereco":"Rua Bolívia, 606 - Cauamé, Boa Vista-RR","bairro":"Cauamé","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Profa. Ana Maza de Oliveira Monteiro","endereco":"Rua C-35, s/n - Dr. Silvio Leite, Boa Vista-RR","bairro":"Dr. Silvio Leite","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Profa. Antônia Fernandes Cutrim","endereco":"Rua Abraão Félix Lima, s/n - Jardim Tropical, Boa Vista-RR","bairro":"Jardim Tropical","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Profa. Áurea de Holanda Lima","endereco":"Travessa dos Macuxis, s/n - Cruviana, Boa Vista-RR","bairro":"Cruviana","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Profa. Carmem Eugênia Macaggi","endereco":"Av. Nossa Senhora de Nazaré, 3351 - Asa Branca, Boa Vista-RR","bairro":"Asa Branca","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Profa. Danúbia Carvalho de Oliveira","endereco":"Rua Pavão, 103 - Mecejana, Boa Vista-RR","bairro":"Mecejana","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Profa. Edsonina de Barros Villa","endereco":"Rua Amapá, 872 - Bairro dos Estados, Boa Vista-RR","bairro":"Bairro dos Estados","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Profa. Ivany dos Santos Parente","endereco":"Rua Monte Sinai, s/n - Raiar do Sol, Boa Vista-RR","bairro":"Raiar do Sol","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Profa. Maria Gertrudes Mota de Lima","endereco":"Rua Antônio Cutrim, 1299 - Santa Luzia, Boa Vista-RR","bairro":"Santa Luzia","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Proinfância Profa. Lídia Coelho Tavares","endereco":"R. Bréscia, nº 526 - Centenário, Boa Vista-RR, 69312-673","bairro":"Centenário","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Raimundo Eloy Gomes","endereco":"Av. Major Eceldon Pinto, 1000 - Conjunto Cidadão, Boa Vista-RR","bairro":"Conjunto Cidadão","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Rujane Severiano dos Santos","endereco":"Rua Euclides Gomes da Silva, s/n - Alvorada, Boa Vista-RR","bairro":"Alvorada","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Senador Darcy Ribeiro","endereco":"Av. Santo Antônio, 1138 - Jardim Equatorial, Boa Vista-RR","bairro":"Jardim Equatorial","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Valdemarina Normando Martins","endereco":"Rua Macapá, 740 - Nova Cidade, Boa Vista-RR","bairro":"Nova Cidade","grupo":"Rede Municipal - Escolas"},
+{"nome":"E.M. Zacarias Assunção Ribeiro Araújo","endereco":"Rua Rio Verde, 164 - Bela Vista, Boa Vista-RR","bairro":"Bela Vista","grupo":"Rede Municipal - Escolas"},
+{"nome":"Restaurante Cidadão - Centro","endereco":"Av. Getúlio Vargas, nº 6258 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"Restaurante Cidadão (SETRABES)"},
+{"nome":"Restaurante Cidadão - Cidade Satélite","endereco":"Avenida das Galáxias, nº 1356 - Cidade Satélite, Boa Vista-RR","bairro":"Cidade Satélite","grupo":"Restaurante Cidadão (SETRABES)"},
+{"nome":"Restaurante Cidadão - Jardim Primavera","endereco":"Lote de Terra Urbana nº 0225, Quadra 379, Zona 12 - Jardim Primavera, Boa Vista-RR","bairro":"Jardim Primavera","grupo":"Restaurante Cidadão (SETRABES)"},
+{"nome":"Restaurante Cidadão - Nova Cidade","endereco":"Bairro Nova Cidade, Boa Vista-RR (endereço exato do imóvel não divulgado nas fontes oficiais - confirmar na unidade ou pela SETRABES)","bairro":"","grupo":"Restaurante Cidadão (SETRABES)"},
+{"nome":"Restaurante Cidadão - Senador Hélio Campos","endereco":"Rua Laura Pinheiro Maia, nº 2530 - Senador Hélio Campos, Boa Vista-RR","bairro":"Senador Hélio Campos","grupo":"Restaurante Cidadão (SETRABES)"},
+{"nome":"Restaurante Cidadão - Silvio Botelho","endereco":"Av. Nazaré Filgueiras, nº 940 - Dr. Silvio Botelho, Boa Vista-RR","bairro":"Dr. Silvio Botelho","grupo":"Restaurante Cidadão (SETRABES)"},
+{"nome":"CASAI Leste de Roraima","endereco":"BR-174, Boa Vista-RR","bairro":"","grupo":"Saúde Indígena (DSEI)"},
+{"nome":"CASAI Yanomami e Ye'kwana","endereco":"Zona Rural de Boa Vista-RR (cerca de 12 km do Centro)","bairro":"","grupo":"Saúde Indígena (DSEI)"},
+{"nome":"DSEI Leste de Roraima","endereco":"Av. Ville Roy, 8282 - São Vicente, Boa Vista-RR","bairro":"São Vicente","grupo":"Saúde Indígena (DSEI)"},
+{"nome":"DSEI Yanomami e Ye'kwana","endereco":"Av. Cecília Brasil, 1043 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"Saúde Indígena (DSEI)"},
+{"nome":"Cadeiras de Rodas, Muletas e Próteses","endereco":"NERF (Núcleo Estadual de Reabilitação Física 05 de Outubro) - Av. Ataíde Teive, 6459 - Nova Canaã, Boa Vista-RR CER II / Centro Integrado de Atenção à Pessoa com Deficiência - Av. São Sebastião, 1195 - Santa Tereza, Boa Vista-RR","bairro":"Nova Canaã","grupo":"Saúde, Reabilitação e Medicamentos"},
+{"nome":"Farmácia Popular","endereco":"Rede de farmácias e drogarias credenciadas em Boa Vista-RR (não é uma unidade única) - veja a lista completa abaixo","bairro":"","grupo":"Saúde, Reabilitação e Medicamentos"},
+{"nome":"Tarifa Social de Água (CAER)","endereco":"R. Melvin Jones, 219 - São Pedro, Boa Vista-RR, 69306-610","bairro":"São Pedro","grupo":"Tarifas Sociais e Utilidades Domésticas"},
+{"nome":"Tarifa Social de Energia","endereco":"Av. Capitão Ene Garcez, 691 - Centro, Boa Vista-RR, 69301-160","bairro":"Centro","grupo":"Tarifas Sociais e Utilidades Domésticas"},
+{"nome":"CIEE/RR","endereco":"Av. Ville Roy, 5320 - São Francisco, Boa Vista-RR, 69305-098","bairro":"São Francisco","grupo":"Trabalho, emprego e renda"},
+{"nome":"Escolegis","endereco":"Unidade Liberdade: Av. Venezuela, nº 1645 - Liberdade, Boa Vista-RR Também com turmas presenciais na unidade do bairro Santa Luzia e em polos do interior do Estado","bairro":"Liberdade","grupo":"Trabalho, emprego e renda"},
+{"nome":"Jovem Aprendiz / Emprega Jovem","endereco":"Rua Pavão, 206 - Mecejana, Boa Vista-RR (ao lado da Setrabes) Inscrições e treinamentos costumam ocorrer no auditório da Setrabes - Av. Mário Homem de Melo, 2310 - Mecejana","bairro":"Mecejana","grupo":"Trabalho, emprego e renda"},
+{"nome":"SENAC/RR","endereco":"Unidade Capital: Av. Maj. Williams, 2084 - São Francisco, Boa Vista-RR, CEP 69301-110 Unidade Asa Branca: R. Horácio Mardel de Magalhães, 400 - Asa Branca, Boa Vista-RR, CEP 69312-265","bairro":"São Francisco","grupo":"Trabalho, emprego e renda"},
+{"nome":"SESC/RR","endereco":"Sede Administrativa: R. Araújo Filho, nº 947 - Centro, Boa Vista-RR, CEP 69301-090","bairro":"Centro","grupo":"Trabalho, emprego e renda"},
+{"nome":"SESI/RR","endereco":"Sede/CET João de Mendonça Furtado: Av. Brigadeiro Eduardo Gomes, 3710 - Aeroporto, Boa Vista-RR, CEP 69310-005 CAT Waldir Peccini: Distrito Industrial Governador Aquilino Mota Duarte, Boa Vista-RR","bairro":"Aeroporto","grupo":"Trabalho, emprego e renda"},
+{"nome":"SINE/RR","endereco":"Rua Pavão, 206 - Mecejana, Boa Vista-RR (ao lado da Setrabes)","bairro":"Mecejana","grupo":"Trabalho, emprego e renda"},
+{"nome":"UBS Asa Branca","endereco":"R. Francisco Custódio de Andrade, 505 - Asa Branca, Boa Vista-RR, 69312-258","bairro":"Asa Branca","grupo":"UBS (Boa Vista)"},
+{"nome":"UBS Aygara Motta","endereco":"R. José Lacerda, 256 - Cidade Satélite, Boa Vista-RR","bairro":"Cidade Satélite","grupo":"UBS (Boa Vista)"},
+{"nome":"UBS Bernardo Alem","endereco":"R. Josemar Batista de Souza, 1200 - Cidade Satélite (Conj. Vila Jardim), Boa Vista-RR","bairro":"Cidade Satélite","grupo":"UBS (Boa Vista)"},
+{"nome":"UBS Buritis","endereco":"R. Raimundo Figueiras, 661 - Buritis, Boa Vista-RR, 69309-221","bairro":"Buritis","grupo":"UBS (Boa Vista)"},
+{"nome":"UBS Dr. Hélio Macedo","endereco":"Rua Joca Farias, 2199 - Jardim Caranã, Boa Vista-RR, 69313-600","bairro":"Jardim Caranã","grupo":"UBS (Boa Vista)"},
+{"nome":"UBS Dr. Silvio Botelho","endereco":"Av. Minas Gerais, 512 - Paraviana, Boa Vista-RR","bairro":"Paraviana","grupo":"UBS (Boa Vista)"},
+{"nome":"UBS Dr. Silvio Leite","endereco":"R. Vicente Tavares de Melo, 615 - Nova Canaã, Boa Vista-RR","bairro":"Nova Canaã","grupo":"UBS (Boa Vista)"},
+{"nome":"UBS Dra. Sandra Maria","endereco":"R. Maj. Carlos Mardel, 466 - Trinta e Um de Março, Boa Vista-RR, 69305-290","bairro":"Trinta e Um de Março","grupo":"UBS (Boa Vista)"},
+{"nome":"UBS Edna Diniz","endereco":"Rua Francisco Cândido, 177 - Aeroporto, Boa Vista-RR","bairro":"Aeroporto","grupo":"UBS (Boa Vista)"},
+{"nome":"UBS Jorge André Gurjão","endereco":"R. CC 24, 341 - Laura Moreira, Boa Vista-RR, 69318-115","bairro":"Laura Moreira","grupo":"UBS (Boa Vista)"},
+{"nome":"UBS Mecejana","endereco":"R. Pavão, 195 - Mecejana, Boa Vista-RR, 69304-451","bairro":"Mecejana","grupo":"UBS (Boa Vista)"},
+{"nome":"UBS Olenka Macellaro","endereco":"Av. Mário Homem de Melo, 5075 - Caimbé, Boa Vista-RR, 69312-155","bairro":"Caimbé","grupo":"UBS (Boa Vista)"},
+{"nome":"UBS Prof. Mariano de Andrade","endereco":"Av. Deco Fonteles, 264 - Caranã, Boa Vista-RR","bairro":"Caranã","grupo":"UBS (Boa Vista)"},
+{"nome":"UBS Santa Luzia","endereco":"Av. Abel Monteiro Reis, 1786 - Pintolândia, Boa Vista-RR, 69316-398","bairro":"Pintolândia","grupo":"UBS (Boa Vista)"},
+{"nome":"UBS Sayonara","endereco":"Av. Raimundo Rodrigues Coelho, 2280 - Dr. Silvio Botelho, Boa Vista-RR, 69316-762","bairro":"Dr. Silvio Botelho","grupo":"UBS (Boa Vista)"},
+{"nome":"Ambulatório Coronel Mota","endereco":"R. Coronel Pinto, 664 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"Urgência e Atenção Hospitalar"},
+{"nome":"HGRR","endereco":"Av. Brigadeiro Eduardo Gomes, 1364 - Aeroporto, Boa Vista-RR","bairro":"Aeroporto","grupo":"Urgência e Atenção Hospitalar","apelidos":["Hospital Geral de Roraima","Hospital Geral"]},
+{"nome":"UAA","endereco":"R. Bahia, 162-277 - Bairro dos Estados, Boa Vista-RR","bairro":"Bairro dos Estados","grupo":"Urgência e Atenção Hospitalar"}];
+
 // ---- shared/rota.mjs ----
 // Rotas do Paulus: ordem das paradas, distância, tempo e link do mapa. Sem IA, sem rede e sem eval. FONTE ÚNICA: navegador e Worker.
 //
@@ -4201,6 +6118,7 @@ function respostaDeGeo(texto, opcoes) {
 // É ESTIMATIVA: linha reta × 1,3 (ruas) numa velocidade média por modo, sem trânsito, mão de rua nem horário das unidades.
 // Endereço de residência de família não entra (o programa recusa): rota é entre unidades, bairros e serviços.
 // Sem lookbehind e sem BigInt de propósito (Safari/iOS antigos quebram o arquivo inteiro). Nomes com prefixo "rota" por causa do arquivo único do navegador.
+
 
 
 
@@ -4274,10 +6192,15 @@ function rotaSoAssunto(nome, explicito) {
 const ROTA_CONCEITO = /^(?:o que (?:e|sao|significa)|qual (?:e )?a diferenca|para que serve|por que|porque|quem faz|como funciona)\b/;
 // Pedido inequívoco (verbo de traçar, "como chegar", "melhor ordem"). "Rota de ..." sozinho é fraco: pode ser assunto ("rota de fuga").
 const ROTA_EXPLICITO = /\b(?:tracar|trace|tracando|calcule|calcular|monte|montar|planeje|planejar|faca|fazer|me de|quero|preciso|gere|gerar)\b[^.?!]{0,30}\b(?:rota|rotas|trajeto|percurso|itinerario|ordem)\b|\bcomo (?:chegar|ir)\b|\b(?:melhor|menor|mais curta|mais rapida) (?:ordem|rota|caminho|trajeto|percurso)\b/;
-const ROTA_GATILHO = /\b(?:rotas?|trajeto|percurso|itinerario|tracar|trace|melhor ordem|menor caminho|como chegar|como ir)\b/;
-const ROTA_ENDERECO = /\b(?:rua|r|av|avenida|travessa|tv|alameda|beco|quadra|qd|lote|estrada|vicinal)\.?\s+[^,;]{0,40}?\b\d+/i;
+// "Quero ir à UFRR", "preciso ir ao CAPS", "vou à UBS X": destino único, a rota parte de quem pergunta. Só responde se o lugar for do diretório.
+const ROTA_QUERO_IR = /\b(?:(?:quero|queria|preciso|gostaria de|desejo|tenho que|tenho de|vou|iria|ia) ir|me leva|me levar|vamos ir)\s+(?:(?:a|ao|aos|as|na|no|nas|nos|em|ate|para|pra)\s+)?/;
+const ROTA_GATILHO = /\b(?:rotas?|trajeto|percurso|itinerario|tracar|trace|melhor ordem|menor caminho|como chegar|como ir)\b|\b(?:quero|queria|preciso|gostaria de|desejo|tenho que|tenho de|vou|iria|ia) ir\b|\b(?:me leva|me levar|vamos ir)\b/;
+// "quero ir embora / dormir / ali" não é lugar.
+const ROTA_NAO_LUGAR = /^(?:embora|dormir|la|ali|ai|aqui|viajar|casa|pra casa|trabalhar|sair|comer|passear|descansar)$/;
+const ROTA_ENDERECO = /\b(?:rua|r|av|avenida|travessa|tv|alameda|beco|quadra|qd|lote|estrada|vicinal)\.?\s+[^;]{0,40}?\b\d+/i;
 
 const ROTA_INTROS = [
+  ROTA_QUERO_IR,
   /\bcomo (?:chegar|ir)(?: (?:a|ao|aos|as|na|no|nas|nos|em|ate|para|pra))?\b/,
   /\b(?:visitar|visitando|passar por|passando por|ir (?:a|ao|aos|as|na|no|nas|nos|em|para|pra))\b/,
   /\b(?:rotas?|trajeto|percurso|itinerario)(?: (?:de|do|da|dos|das|para|pra|ate|entre|em|ao|a|na|no))?\b/,
@@ -4330,7 +6253,8 @@ function lerPedidoDeRota(texto) {
   if (!ROTA_GATILHO.test(est.n)) return null;
   const explicito = ROTA_EXPLICITO.test(est.n);
   if (!explicito && ROTA_CONCEITO.test(est.n.trim())) return null;
-  const comoChegar = /\bcomo (?:chegar|ir)\b/.test(est.n);
+  const irPara = ROTA_QUERO_IR.test(est.n);
+  const comoChegar = /\bcomo (?:chegar|ir)\b/.test(est.n) || irPara;
 
   // modo de deslocamento e tempo em cada parada
   let modo = '';
@@ -4357,7 +6281,7 @@ function lerPedidoDeRota(texto) {
 
   // saída
   let origem = '', origemAparelho = false;
-  if (rotaCortar(est, /\b(?:(?:saindo|partindo|comecando|a partir)\s+(?:de\s+)?)?(?:daqui|de onde (?:eu )?estou|da minha (?:posicao|localizacao)(?: atual)?|de minha localizacao)\b/)) origemAparelho = true;
+  if (rotaCortar(est, /\b(?:(?:saindo|partindo|comecando|a partir)\s+(?:de\s+)?)?(?:daqui|de onde (?:eu )?(?:estou|me encontro)|(?:do|de) (?:meu )?(?:local|lugar|ponto) (?:onde|em que) (?:eu )?(?:estou|me encontro)|da posicao em que (?:eu )?estou|do meu local|da minha (?:posicao|localizacao)(?: atual)?|de minha (?:posicao|localizacao)|da localizacao atual)\b/)) origemAparelho = true;
   if (!origemAparelho) {
     g = rotaCortar(est, new RegExp('\\b(?:saindo|partindo|comecando|iniciando|a partir)\\s+(?:(?:do|da|de|dos|das|no|na|em)\\s+)?' + ROTA_NOME + ROTA_PARADA_FIM));
     if (g) origem = rotaLimparNome(g[0]);
@@ -4387,7 +6311,11 @@ function lerPedidoDeRota(texto) {
       const m = re.exec(est.n);
       if (m && m.index + m[0].length > inicio) inicio = m.index + m[0].length;
     });
-    if (inicio >= 0) lista = rotaDividir({ t: est.t.slice(inicio), n: est.n.slice(inicio) }, explicito);
+    // "quero ir à Rua X, 123, Centro": o endereço inteiro é UMA parada (a vírgula não separa paradas)
+    if (inicio >= 0 && irPara && ROTA_ENDERECO.test(est.n.slice(inicio))) {
+      const fim = est.n.slice(inicio).search(/\s(?:de moto|de carro|de bike|de bicicleta|a pe|andando|caminhando|de onibus)\b/);
+      lista = { itens: [rotaLimparNome(fim >= 0 ? est.t.slice(inicio, inicio + fim) : est.t.slice(inicio))], sequencia: false };
+    } else if (inicio >= 0) lista = rotaDividir({ t: est.t.slice(inicio), n: est.n.slice(inicio) }, explicito);
     if (!lista.itens.length) {
       // "A -> B -> C rota": a palavra vem depois da lista. Vale a frase inteira, se tiver ao menos duas paradas
       const limpo = { t: est.t, n: est.n };
@@ -4413,7 +6341,7 @@ function lerPedidoDeRota(texto) {
     else otimizar = 'sim';
   }
   return {
-    explicito: explicito, comoChegar: comoChegar, paradas: itens, inicioFixo: inicioFixo, fimFixo: fimFixo,
+    explicito: explicito, comoChegar: comoChegar, irPara: irPara, paradas: itens, inicioFixo: inicioFixo, fimFixo: fimFixo,
     origemAparelho: origemAparelho, volta: volta, otimizar: otimizar, modo: modo, minutosPorParada: minutosPorParada, sequencia: lista.sequencia
   };
 }
@@ -4652,14 +6580,14 @@ function respostaDeRota(texto, opcoes) {
   const o = opcoes || {};
   const ped = lerPedidoDeRota(texto);
   if (!ped) return null;
-  const pontos = pontosDeRota(o.pontos);
+  let pontos = pontosDeRota(o.pontos);
+  if (!pontos.length) pontos = pontosDeRota(DIRETORIO_BOA_VISTA);
   const aparelho = o.aparelho && rotaNumero(o.aparelho.lat) === rotaNumero(o.aparelho.lat) && isFinite(rotaNumero(o.aparelho.lat)) && isFinite(rotaNumero(o.aparelho.lng))
     ? { nome: 'Sua posição', lat: rotaNumero(o.aparelho.lat), lng: rotaNumero(o.aparelho.lng) } : null;
 
-  // endereço de residência: não trato (a regra do Paulus é proteger as famílias, e a conversa pode ser guardada pelo app)
-  if (ped.paradas.some(function (p) { return ROTA_ENDERECO.test(p); })) {
-    return rotaResposta('Não traço rota até endereço de residência: para proteger as famílias, só trabalho com unidades, serviços e bairros. Diga o nome da unidade ou do bairro. Para a casa de uma família, use o app de mapas direto, no aparelho.', { bloqueio: true });
-  }
+  // Qualquer endereço de Boa Vista vale como parada: o link do mapa sai pelo texto do endereço (nada é consultado nem enviado a servidor).
+  // O cliente não guarda no histórico o pedido que traz endereço (privacidade das famílias).
+  const temEndereco = ped.paradas.some(function (p) { return ROTA_ENDERECO.test(p); });
   // coordenada solta pode ser a porta de uma casa: mesma regra do endereço de residência
   if (geoLerCoordenadas(String(texto))) {
     return rotaResposta('Não traço rota até coordenada solta: ela pode ser a casa de uma família. Diga o nome da unidade, do lugar ou do bairro. Para um ponto exato, abra o app de mapas direto, no aparelho.', { bloqueio: true });
@@ -4677,7 +6605,7 @@ function respostaDeRota(texto, opcoes) {
   const res = resolverParadas(ped.paradas, pontos, extras);
   // Fora do pedido explícito, só responde quem reconhece ao menos uma unidade do diretório e tem duas paradas ("rota de fuga" vai para a IA).
   const achadas = res.filter(function (r) { return r.ponto; }).length;
-  if (!ped.explicito && !(achadas >= 1 && res.length + (ped.origemAparelho ? 1 : 0) >= 2)) return null;
+  if (!ped.explicito && !temEndereco && !(ped.irPara && res.length === 1 && !res[0].ambiguos && !ROTA_NAO_LUGAR.test(rotaNorm(res[0].texto))) && !(achadas >= 1 && (ped.irPara || res.length + (ped.origemAparelho || aparelho ? 1 : 0) >= 2))) return null;
 
   const duvida = res.filter(function (r) { return r.ambiguos; });
   if (duvida.length) {
@@ -4692,7 +6620,19 @@ function respostaDeRota(texto, opcoes) {
     if (aparelho) paradas.unshift(aparelho);
     else semOrigem = true;
   }
-  const inicioFixo = ped.inicioFixo || (ped.origemAparelho && !!aparelho);
+  let inicioFixo = ped.inicioFixo || (ped.origemAparelho && !!aparelho);
+  // "como chegar ao X" / "rota até X": com a posição do aparelho, ela é a saída e dá para estimar km e tempo
+  if (aparelho && !ped.origemAparelho && paradas.length === 1 && !semCoord.length) { paradas.unshift(aparelho); inicioFixo = true; }
+
+  // "quero ir a X" / "como chegar ao X" sem saída: só o destino. O mapa parte da posição de quem pergunta, e o link vai pelas coordenadas (se houver) ou pelo endereço.
+  if (paradas.length === 1) {
+    const p = paradas[0];
+    const ondeFica = p.endereco ? ' (' + p.endereco + ')' : '';
+    const nota = !res[0].ponto ? ' Não achei esse lugar no diretório, então o mapa vai procurar pelo texto "' + p.nome + '"' + (cidade ? ' em ' + cidade : '') + '; confira se achou o lugar certo.' : '';
+    return rotaResposta('Rota até ' + p.nome + ondeFica + ', ' + ROTA_NOME_MODO[modo] + '. Abra o link: o app de mapas parte da sua posição atual e mostra o mapa, o trajeto, o tempo e o passo a passo. Não sei onde você está (se o navegador pedir, permita a localização), então não estimo km nem tempo aqui; para eu calcular, diga de onde sai (unidade ou bairro).' + nota, {
+      links: geoLinksDeRota([p], { modo: modo, cidade: cidade, semOrigem: true, rotulo: 'Abrir mapa e rota até ' + p.nome }), paradas: [p.nome], semHistorico: temEndereco, modo: modo, destino: { nome: p.nome, endereco: p.endereco || '', noDiretorio: !!res[0].ponto }
+    });
+  }
 
   // Alguma parada sem coordenada: só o link por nome, na ordem escrita, e digo isso.
   if (semCoord.length || !paradas.length) {
@@ -4700,15 +6640,7 @@ function respostaDeRota(texto, opcoes) {
     const lks = geoLinksDeRota(paradas, { modo: modo, cidade: cidade, volta: ped.volta, semOrigem: semOrigem, rotulo: 'Abrir no app de mapas (por nome)' });
     const msg = (!temFonte ? 'Este app não me passou o diretório de unidades com coordenadas. ' : naoAchadas.length ? 'Não encontrei no diretório deste app: ' + naoAchadas.join('; ') + '. ' : 'Faltam as coordenadas de: ' + semCoord.map(function (r) { return r.texto; }).join('; ') + '. ') +
       'Sem as coordenadas não calculo km, tempo nem a melhor ordem. Deixei o link do mapa pelos nomes, na ordem que você escreveu' + (cidade ? ' (busca em ' + cidade + ')' : '') + '; confira se o mapa achou o lugar certo.';
-    return rotaResposta(msg, { links: lks, paradas: paradas.map(function (p) { return p.nome; }), semCoordenadas: semCoord.map(function (r) { return r.texto; }), aproximada: true });
-  }
-
-  // "como chegar ao X" sem saída: só o destino, o mapa parte da posição de quem pergunta
-  if (paradas.length === 1) {
-    const p = paradas[0];
-    return rotaResposta('Abro o trajeto até ' + p.nome + ' a partir da sua posição atual. Não sei onde você está, então não estimo km nem tempo; o app de mapas mostra.', {
-      links: geoLinksDeRota([p], { modo: modo, cidade: cidade, semOrigem: true }), paradas: [p.nome]
-    });
+    return rotaResposta(msg, { links: lks, paradas: paradas.map(function (p) { return p.nome; }), semCoordenadas: semCoord.map(function (r) { return r.texto; }), aproximada: true, semHistorico: temEndereco });
   }
 
   const r = planejarRota(paradas, { otimizar: ped.otimizar === 'sim', volta: ped.volta, inicioFixo: inicioFixo, fimFixo: ped.fimFixo, modo: modo, minutosPorParada: ped.minutosPorParada, cidade: cidade, semOrigemNoLink: semOrigem });
@@ -4717,8 +6649,185 @@ function respostaDeRota(texto, opcoes) {
   if (aprox.length) corpo += '\nParada por bairro ou rua (' + aprox.join('; ') + ') conta pelo centro dele, então km e tempo são aproximação.';
   if (r.ordem.some(function (p) { return p.fonte === 'mapa'; })) corpo += '\nLugar vindo do mapa colaborativo (OpenStreetMap), que pode estar desatualizado: confira no app de mapas.';
   if (r.links.length > 1) corpo += '\nO link do mapa aceita poucas paradas: a rota saiu em ' + r.links.length + ' partes, cada uma começa onde a anterior terminou.';
-  if (semOrigem) corpo = 'Saída: a sua posição atual (o app de mapas usa o GPS). Os km abaixo contam só entre as paradas.\n' + corpo;
-  return rotaResposta(corpo, { links: r.links, svg: svgDaRota(r), geojson: r.geojson, gpx: r.gpx, kml: r.kml, paradas: r.ordem.map(function (p) { return p.nome; }), km: Number(r.km.toFixed(2)), minutos: Math.round(r.minutos + r.minutosParadas), estimativa: true });
+  if (semOrigem) corpo = 'Saída: a sua posição atual (o app de mapas usa o GPS). Não recebi a sua posição, então os km abaixo contam só entre as paradas. Para eu calcular a partir de você, permita a localização do navegador e peça de novo.\n' + corpo;
+  return rotaResposta(corpo, { links: r.links, svg: svgDaRota(r), geojson: r.geojson, gpx: r.gpx, kml: r.kml, paradas: r.ordem.map(function (p) { return p.nome; }), km: Number(r.km.toFixed(2)), minutos: Math.round(r.minutos + r.minutosParadas), estimativa: true, modo: r.modo, volta: !!r.volta, semHistorico: temEndereco });
+}
+
+// ---- shared/modelos.mjs ----
+// Modelos 3D didáticos (v0.20.0; mapa 3D de Roraima em v0.21.0): o Paulus tem modelos-base prontos (arquivos .html em modelos/) e, quando a pessoa pede
+// "me manda o modelo 3D do sistema solar", o programa reconhece o pedido NO APARELHO, sem IA e sem rede, e devolve o arquivo
+// para baixar. O código do modelo nunca passa pela IA (são milhares de linhas; um modelo gratuito não as reproduz com fidelidade).
+// Tema novo: o Paulus entrega a base (o Sistema Solar, ou o mapa de Roraima quando o pedido é de mapa), explica o que trocar e manda montar o arquivo completo no Claude, no chat.
+//
+//   lerPedidoDeModelo(texto)    -> { modelo, tema, novoTema } ou null
+//   respostaDeModelo(texto)     -> { texto, modelo, novoTema, avisos } ou null
+//   urlDoModelo(modelo, base)   -> endereço do arquivo (base padrão: "modelos/")
+//
+// Perguntas sobre dados, lições, roteiro, adaptação ou revisão NÃO são tratadas aqui: seguem para a IA com as habilidades
+// modelo-3d-didatico, modelo-3d-didatico-dados e modelo-3d-didatico-qualidade.
+
+
+
+const MODELOS_3D = [
+  {
+    id: 'sistema-solar',
+    nome: 'Sistema Solar 3D · Edição Didática',
+    versao: 'v6',
+    arquivo: 'sistema-solar-3d-didatico-v6.html',
+    resumo: 'Sol, oito planetas, Plutão, luas e o cometa Halley em 3D, com ficha de cada corpo, laboratório de gravidade e distância, lições guiadas, quiz e comparação de tamanhos.',
+    recursos: [
+      'visão 3D com arraste e zoom',
+      'ficha de cada corpo (estatísticas, composição, camadas, conceito didático)',
+      'laboratório de gravidade, peso, salto e tempo de viagem',
+      'lições guiadas e quiz',
+      'comparação de tamanhos',
+      'órbitas, rastros, rótulos, zona habitável, inclinação do eixo e escala real',
+      'temas de cor e controle de velocidade'
+    ],
+    // assuntos que o modelo cobre (já normalizados: sem acento, minúsculos)
+    assuntos: ['sistema solar', 'planeta', 'planetas', 'sol', 'astronomia', 'orbita', 'orbitas', 'luas', 'cometa']
+  },
+  {
+    id: 'mapa-roraima',
+    nome: 'Roraima 3D · Edição Didática',
+    versao: 'v1',
+    arquivo: 'mapa-roraima-3d-didatico-v1.html',
+    resumo: 'Mapa 3D de Roraima com os 15 municípios em relevo: a altura e a cor mostram população, área, densidade ou percentual indígena, com ficha de cada município, ranking, lições guiadas e desafio.',
+    recursos: [
+      'mapa 3D com arraste, giro e zoom (mouse, toque e teclado)',
+      'altura e cor por população, área, densidade ou % indígena',
+      'ficha de cada município (população, área, densidade, notas)',
+      'ranking ordenável pelo mesmo critério',
+      'lições guiadas (capital, território, densidade, povos indígenas, fronteiras)',
+      'desafio com perguntas e jogo de achar o município no mapa',
+      'modo plano, nomes ligados ou desligados e bússola'
+    ],
+    assuntos: ['roraima', 'mapa', 'municipios', 'estado de roraima']
+  }
+];
+
+const MODELO_PASTA_PADRAO = 'modelos/';
+
+const RE_3D = /\b(3 ?d|tridimensional|tres dimensoes)\b/;
+const RE_MODELO = /\b(modelo|modelos|maquete|maquetes|simulador|simuladores|simulacao|simulacoes)\b/;
+const RE_SISTEMA_SOLAR = /\bsistema solar\b/;
+const RE_MAPA = /\b(mapa|mapas|roraima|municipio|municipios)\b/;
+const RE_MAQUETE = /\b(maquete|maquetes|relevo)\b/;
+const RE_ARQUIVO = /\b(arquivo|html|app|aplicativo|pagina|base)\b/;
+// perguntas de ajuda sobre o modelo (dados, lições, roteiro, adaptação, revisão...) vão para a IA com as habilidades
+const RE_AJUDA = /\b(dados|campos|licao|licoes|quiz|roteiro|adapt\w*|troc\w*|revis\w*|checklist|qualidade|erro|erros|corrig\w*|melhor\w*|como|explic\w*|expliq\w*|ensin\w*|aprend\w*|sabe|sabia|consegue|pode)\b/;
+const RE_ENVIO = /\b(mand\w*|envi\w*|baix\w*|quero|queria|preciso|gere|gera|gerar|faca|fazer|faz|crie|criar|cria|monte|montar|me da|me de|abra|abrir|mostr\w*|tem)\b/;
+
+function achaTema(norm) {
+  // tema depois de "modelo 3d ..." (ex.: "modelo 3d do corpo humano" -> "corpo humano")
+  const m = /\b(?:3 ?d|tridimensional|mapa|mapas|modelo|modelos|maquete|maquetes|simulador|simuladores|simulacao|simulacoes|didatico|didaticos|interativo|interativos)\s+(?:(?:3 ?d|didatico|didaticos|interativo|interativos)\s+)*(?:de|do|da|dos|das|sobre)\s+(.+)$/.exec(norm);
+  if (!m) return '';
+  let t = m[1].split(/\b(?:igual|como|que|com|usando|baseado|parecido|no estilo|nos moldes|para mim|pra mim|pelo|pela)\b/)[0];
+  t = t.replace(/\s+em\s+(?:3 ?d|tres dimensoes)\b.*$/, '').replace(/^(?:o|a|os|as|um|uma|uns|umas)\s+/, '').replace(/\s+(?:por favor|pf|pfv|obrigado|obrigada)$/, '').trim();
+  return t.slice(0, 60);
+}
+
+const MODELO_SOLAR = () => MODELOS_3D.find((m) => m.id === 'sistema-solar');
+const MODELO_MAPA = () => MODELOS_3D.find((m) => m.id === 'mapa-roraima');
+
+// "mapa 3d de roraima" -> 'roraima'; "modelo 3d do mapa de roraima" -> 'roraima'; "mapa 3d" -> ''
+function temaDoMapa(norm, tema) {
+  let t = String(tema || '').replace(/^(?:o\s+)?(?:mapa|mapas|maquete|maquetes)\s+(?:(?:3 ?d|didatico|didaticos|interativo|interativos)\s+)*(?:de|do|da|dos|das)\s+/, '');
+  if (/^(?:mapa|mapas|maquete|maquetes|municipio|municipios)$/.test(t)) t = '';
+  return t;
+}
+function ehMapaDeRoraima(tema) { return !tema || /\broraima\b/.test(tema); }
+
+function ehSistemaSolar(norm, tema) {
+  if (RE_SISTEMA_SOLAR.test(norm)) return true;
+  if (!tema) return true; // "me manda um modelo 3D" sem tema: a base é o Sistema Solar
+  const palavras = tema.split(' ');
+  return MODELO_SOLAR().assuntos.some(function (a) { return palavras.indexOf(a) >= 0 || tema === a; });
+}
+
+function lerPedidoDeModelo(texto) {
+  const norm = normalizar(texto);
+  if (!norm || norm.length > 400) return null;
+  // "faça um mapa 3d de roraima COMO o do sistema solar" compara; "COMO adaptar o modelo" pede ajuda. Só a comparação de quem pede algo escapa de RE_AJUDA.
+  const semComparacao = RE_ENVIO.test(norm) ? norm.replace(/\bcomo (?=(?:o|a|os|as|no|na|nos|nas|tem|em|esse|essa|este|esta|aquele|aquela)\b)/g, '') : norm;
+  if (RE_AJUDA.test(semComparacao)) return null;
+  const tem3d = RE_3D.test(norm), temModelo = RE_MODELO.test(norm), solar = RE_SISTEMA_SOLAR.test(norm);
+  const temVerbo = RE_ENVIO.test(norm), curto = norm.split(' ').length <= 8;
+  // "faça um mapa 3d de roraima como o do sistema solar" é mapa; "mapa do sistema solar 3d" continua sendo o Sistema Solar
+  const ehMapa = (tem3d || RE_MAQUETE.test(norm)) && !/\b(mental|mentais|conceitual|conceituais)\b/.test(norm)
+    && (/\b(roraima|municipio|municipios)\b/.test(norm) || (RE_MAPA.test(norm) && !solar));
+  let pedido = false;
+  if (ehMapa) pedido = temVerbo || curto;                                               // "mapa 3D de Roraima", "me manda o mapa em 3d"
+  else if (tem3d && temModelo) pedido = temVerbo || curto;                                   // "modelo 3D do corpo humano" também vale como pedido
+  else if (solar && (temModelo || tem3d || RE_ARQUIVO.test(norm))) pedido = temVerbo;    // "me manda o arquivo do sistema solar"
+  else if (tem3d && /\b(planeta|planetas)\b/.test(norm)) pedido = temVerbo;
+  if (!pedido) return null;
+  const tema = achaTema(norm);
+  if (ehMapa) {
+    const t = temaDoMapa(norm, tema);
+    return { modelo: MODELO_MAPA(), tema: t, novoTema: ehMapaDeRoraima(t) ? '' : temaComAcento(texto, norm, t) };
+  }
+  const base = MODELO_SOLAR();
+  return { modelo: base, tema: tema, novoTema: ehSistemaSolar(norm, tema) ? '' : temaComAcento(texto, norm, tema) };
+}
+
+// O tema é achado no texto sem acento; para mostrar à pessoa, volta a grafia que ela digitou (átomo, célula).
+function temaComAcento(texto, norm, tema) {
+  if (!tema) return tema;
+  const originais = String(texto).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const normais = norm.split(' ');
+  const n = tema.split(' ').length;
+  if (originais.length !== normais.length) return tema;
+  for (let i = normais.length - n; i >= 0; i--) {
+    if (normais.slice(i, i + n).join(' ') === tema) return originais.slice(i, i + n).join(' ');
+  }
+  return tema;
+}
+
+function urlDoModelo(modelo, pasta) {
+  const p = String(pasta || MODELO_PASTA_PADRAO);
+  return (p.endsWith('/') ? p : p + '/') + modelo.arquivo;
+}
+
+function respostaDeModelo(texto) {
+  const p = lerPedidoDeModelo(texto);
+  if (!p) return null;
+  const m = p.modelo, mapa = m.id === 'mapa-roraima';
+  const base = 'Tenho um modelo-base pronto: ' + m.nome + ' (' + m.versao + '). ' + m.resumo + '\n\n'
+    + 'É um arquivo único (.html): abre no navegador do celular ou do computador, sem internet e sem instalar nada. '
+    + 'Ele traz: ' + m.recursos.join('; ') + '.';
+  if (!p.novoTema) {
+    if (mapa) {
+      return {
+        texto: base + '\n\nUse o botão para baixar. Os números (população do Censo 2022, área e percentual indígena) vêm do arquivo do Argo; a densidade é calculada no próprio mapa. Para trocar ou acrescentar dados, peça "dados do modelo 3D" que eu explico os campos e escrevo o que você quiser.',
+        modelo: m, novoTema: '', avisos: ['O arquivo é entregue pronto, direto do Paulus, sem passar pela IA. A altura é exagerada para comparar e não representa relevo. Município sem dado aparece em cinza (não quer dizer zero). Confira os números na fonte oficial antes de citar.']
+      };
+    }
+    return {
+      texto: base + '\n\nUse o botão para baixar. Para trocar o conteúdo (lições, quiz, corpos), peça "dados do modelo 3D" que eu explico os campos e escrevo o que você quiser.',
+      modelo: m, novoTema: '', avisos: ['O arquivo é entregue pronto, direto do Paulus, sem passar pela IA. Alguns nomes na base usam a grafia de Portugal (Vénus, Neptuno).']
+    };
+  }
+  if (mapa) {
+    return {
+      texto: 'O modelo-base de mapa que eu tenho é o de Roraima (' + m.nome + ', ' + m.versao + '), e é por ele que começo qualquer mapa novo.\n\n'
+        + 'Para "' + p.novoTema + '" eu não monto o arquivo inteiro sozinho: são milhares de linhas, e a IA que roda aqui não as reproduz com fidelidade. O que eu faço:\n'
+        + '1) Baixe a base pelo botão.\n'
+        + '2) O motor de desenho (relevo por município, giro, zoom, ficha, ranking, lições e desafio) serve para outro estado ou região. O que muda são os contornos (GeoJSON do IBGE) e a tabela de dados. Eu escrevo os dados: peça "dados do modelo 3D de ' + p.novoTema + '". O ajuste do código e a geração do arquivo se fazem no Claude, no chat, anexando a base e pedindo "faça no estilo deste".\n'
+        + '3) Se o tema não é um mapa (corpo humano, átomo), peça "roteiro de modelo 3D de ' + p.novoTema + '" (objetivo de aprendizagem, partes, lições e quiz).\n\n'
+        + 'Quem revisa o conteúdo é o professor ou o profissional que vai usar.',
+      modelo: m, novoTema: p.novoTema, avisos: ['A base é entregue pronta, no aparelho, sem passar pela IA. Mapa de outra área exige novos contornos e novos dados.']
+    };
+  }
+  return {
+    texto: 'O modelo-base que eu tenho é o do Sistema Solar (' + m.nome + ', ' + m.versao + '), e é por ele que começo qualquer modelo novo.\n\n'
+      + 'Para "' + p.novoTema + '" eu não monto o arquivo inteiro sozinho: são milhares de linhas, e a IA que roda aqui não as reproduz com fidelidade. O que eu faço:\n'
+      + '1) Baixe a base pelo botão.\n'
+      + '2) Se o tema tem partes que giram em torno de um centro (átomo, luas de Júpiter, galáxia), o desenho de órbitas serve, mas o código tem partes presas ao Sistema Solar. Eu escrevo os dados: peça "dados do modelo 3D de ' + p.novoTema + '". O ajuste do código se faz no Claude.\n'
+      + '3) Se o tema não tem órbita, peça "roteiro de modelo 3D de ' + p.novoTema + '" (objetivo de aprendizagem, partes, lições e quiz). O arquivo completo você monta no Claude, no chat, anexando a base e pedindo "faça no estilo deste".\n\n'
+      + 'Quem revisa o conteúdo é o professor ou o profissional que vai usar.',
+    modelo: m, novoTema: p.novoTema, avisos: ['A base é entregue pronta, no aparelho, sem passar pela IA. Tema novo exige adaptar o motor ou os dados.']
+  };
 }
 
 // ---- shared/revisao-texto.mjs ----
@@ -4889,14 +6998,14 @@ const PDF_COR = {
 };
 
 const PDF_NAO_SUPORTA = {
-  tarja: 'Tarjar (cobrir dado sensível) eu ainda não faço com segurança: um retângulo por cima não apaga o texto que está embaixo, e quem abrir o arquivo consegue copiá-lo. Para sigilo de verdade, tarje no arquivo de origem (Word, Verbus) e gere o PDF de novo, ou imprima e digitalize.',
-  texto: 'Não consigo alterar o texto que já está dentro do PDF: ele guarda letras posicionadas, não parágrafos. Eu posso escrever um texto novo por cima, preencher campos de formulário, numerar, carimbar e mexer nas páginas. Para mudar o conteúdo, corrija no arquivo de origem (Word, Verbus) e gere o PDF de novo.',
-  comprimir: 'Comprimir ou reduzir o tamanho do PDF eu ainda não faço aqui. Dá para gerar de novo com qualidade menor no programa de origem, ou usar um compressor offline.',
-  senha: 'Não crio nem removo senha de PDF. Se o arquivo é seu e tem senha, abra no leitor com a senha e salve uma cópia (Imprimir > Salvar como PDF); aí eu edito a cópia.',
-  ocr: 'Não faço OCR (reconhecer o texto de um PDF escaneado) nem leio o conteúdo do PDF.',
+  tarja: 'Tarjar (cobrir dado sensível) eu ainda não faço com segurança: um retângulo por cima não apaga o texto que está embaixo, e quem abrir o arquivo consegue copiá-lo. Para sigilo de verdade, tarje no arquivo de origem (Word, Verbus) e gere o PDF de novo, ou imprima e digitalize. No Argo SUAS (Central de PDF), "cobrir" também só esconde; depois, "Reduzir tamanho" no modo "Páginas como imagem" transforma as páginas em imagem e o texto de baixo deixa de ser texto. Confira tentando selecionar e copiar no resultado.',
+  texto: 'Não consigo alterar o texto que já está dentro do PDF: ele guarda letras posicionadas, não parágrafos. Eu posso escrever um texto novo por cima, preencher campos de formulário, numerar, carimbar e mexer nas páginas. Para mudar o conteúdo, corrija no arquivo de origem (Word, Verbus) e gere o PDF de novo, ou use "PDF → Word" na Central de PDF do Argo SUAS e edite o .docx.',
+  comprimir: 'Comprimir ou reduzir o tamanho do PDF eu não faço por aqui. Isso é função da Central de PDF do Argo SUAS ("Reduzir tamanho"): no modo "Manter o texto" só as imagens são recomprimidas e o texto continua selecionável; no modo "Páginas como imagem" o arquivo fica menor, mas o texto deixa de poder ser copiado. Peça "abrir a central de pdf".',
+  senha: 'Não crio nem removo senha de PDF por aqui. A Central de PDF do Argo SUAS faz as duas coisas no próprio aparelho: "Proteger PDF" (senha para abrir, AES de 128 bits; anote a senha, porque não há como recuperar) e "Remover senha" (você precisa saber a senha; o app não adivinha nem quebra senha). Peça "abrir a central de pdf". Depois eu edito a cópia.',
+  ocr: 'Não faço OCR (reconhecer o texto de um PDF escaneado) nem leio o conteúdo do PDF. A Central de PDF do Argo SUAS tem "Extrair texto (.txt)", que copia o texto página por página, mas só de PDF com texto selecionável; documento escaneado (foto) não tem texto para copiar e também não passa por OCR lá.',
   assinatura: 'Assinatura digital com certificado eu não faço. Posso colocar a imagem de uma assinatura escaneada na página ("colocar a assinatura no canto inferior direito da última página", anexando a imagem), mas isso é só uma imagem e não tem validade de certificado digital.',
-  branco: 'Ainda não sei achar páginas em branco sozinha. Diga quais páginas remover, por exemplo: "remover as páginas 3 e 7".',
-  converter: 'Converter PDF para Word, Excel ou imagem eu não faço; eu edito PDFs. O contrário funciona: fotos JPG e PNG viram PDF.'
+  branco: 'Ainda não sei achar páginas em branco sozinha. Diga quais páginas remover, por exemplo: "remover as páginas 3 e 7". No Argo SUAS, "Reorganizar páginas" (Central de PDF) mostra todas as miniaturas para você tirar, girar ou duplicar páginas.',
+  converter: 'Converter PDF para Word ou imagem eu não faço por aqui; eu edito PDFs. A Central de PDF do Argo SUAS faz PDF → Word, Word → PDF e PDF → JPG, e fotos JPG e PNG viram PDF (aqui ou na Central, em "Digitalizar"). Peça "abrir a central de pdf".'
 };
 
 // ------------------------------------------------------------------ texto
@@ -5070,6 +7179,8 @@ function pdfClausula(o, n, citados) {
   if (T(/assinatura digital|certificado digital|assinar digitalmente|assinar com certificado/)) return { nao: 'assinatura' };
   if (T(/\b(converter|converta|transformar|transforme|exportar|salvar)\b.*\b(em|para|como)\s+(word|docx|excel|xlsx|imagem|jpg|jpeg|png|txt|powerpoint|ppt)\b/)) return { nao: 'converter' };
   if (T(/\bem branco\b/) && T(/\b(remov\w+|exclu\w+|apag\w+|retir\w+|elimin\w+|detect\w+|achar|ache)\b/)) return { nao: 'branco' };
+
+  if (T(/\b(limp\w+|apag\w+|remov\w+|tir\w+|elimin\w+|anonimiz\w+)\b.*\b(dados ocultos|metadados|propriedades|autor)\b|\bdados ocultos\b/) && !comAspas) return { op: 'limparmeta' };
 
   // 2) metadados: título, autor, assunto, palavras-chave (valor entre aspas)
   if (comAspas && T(/\b(titulo|autor|autora|assunto|palavras? chave)\b/) && !T(/\b(pagina|topo|rodape|canto|cabecalho)\b/)) {
@@ -5627,6 +7738,11 @@ async function pdfAplicar(L, op, ctx) {
       d.doc.getForm().flatten();
       marcar(d, '-travado');
       dizer(d, 'Travei o formulário: o que estava preenchido ficou fixo no papel, sem edição.');
+    } else if (op.op === 'limparmeta') {
+      d.doc.setTitle(''); d.doc.setAuthor(''); d.doc.setSubject(''); d.doc.setKeywords([]); d.doc.setProducer(''); d.doc.setCreator('');
+      d.limpo = true;
+      marcar(d, '-limpo');
+      dizer(d, 'Limpei título, autor, assunto, palavras-chave e o programa que criou o arquivo. O conteúdo das páginas não mudou.');
     } else if (op.op === 'metadados') {
       if (op.meta.titulo != null) d.doc.setTitle(op.meta.titulo);
       if (op.meta.autor != null) d.doc.setAuthor(op.meta.autor);
@@ -5720,6 +7836,7 @@ async function editarPdf(operacoes, arquivos, opcoes) {
     for (let i = 0; i < ctx.docs.length; i++) {
       const d = ctx.docs[i];
       let bytes;
+      if (d.limpo) { try { d.doc.setProducer(''); d.doc.setCreator(''); d.doc.setTitle(''); d.doc.setAuthor(''); } catch (e) { /* ignora */ } }
       try { bytes = await d.doc.save(); } catch (e) { return falha('Não consegui salvar o resultado (' + String(e && e.message || e).slice(0, 100) + ').'); }
       const suf = d.sufixos.length === 1 ? d.sufixos[0] : d.sufixos.length ? '-editado' : '';
       let nome = nomeFixo ? nomeFixo + (ctx.docs.length > 1 ? (d.sufixos[0] && d.parte ? d.sufixos[0] : '-' + (i + 1)) : '') : d.nome + suf;
@@ -6445,6 +8562,194 @@ function separarControles(texto, permitidas) {
   return { texto: s.texto, sugestoes: s.sugestoes, acoes: a.acoes };
 }
 
+// ---- shared/fala.mjs ----
+// Preparação do texto para a VOZ do Paulus (v0.23.0).
+// A tela mostra Markdown, tabelas, links, fontes e avisos; a voz não deve ler nada disso. Aqui o texto vira fala:
+//   falaTexto(bruto)       texto limpo, com símbolos, números, ordinais e siglas por extenso
+//   falaDividir(texto)     trechos curtos, cortados no fim da frase (a voz começa logo e o navegador não corta falas longas)
+//   falaResumir(bruto)     as primeiras frases + "O restante está na tela." (leitura automática de respostas longas)
+// Sem dependências e sem lookbehind (Safari antigo): o build junta este arquivo ao paulus.v1.js.
+
+const FL_LETRAS = { a: 'á', b: 'bê', c: 'cê', d: 'dê', e: 'é', f: 'éfe', g: 'gê', h: 'agá', i: 'i', j: 'jota', k: 'cá', l: 'éle', m: 'ême', n: 'ene', o: 'ó', p: 'pê', q: 'quê', r: 'érre', s: 'ésse', t: 'tê', u: 'u', v: 'vê', w: 'dáblio', x: 'xis', y: 'ípsilon', z: 'zê' };
+// Siglas lidas letra por letra. As que se leem como palavra (CRAS, CREAS, PAIF, SUAS, LOAS, CAPS, NIS) ficam de fora.
+const FL_SOLETRA = { BPC: 1, CPF: 1, RG: 1, CNPJ: 1, CNAS: 1, CNH: 1, LGPD: 1, SCFV: 1, MDS: 1, INSS: 1, CID: 1, CFP: 1, CRP: 1, TDAH: 1, TEA: 1, TCLE: 1, IA: 1, UBS: 1, UPA: 1, CMAS: 1, CGU: 1, PBF: 1, PIA: 1, PTA: 1, SMS: 1, DF: 1, UF: 1, TI: 1, IBGE: 1, EJA: 1 };
+const FL_MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const FL_UNID = ['', 'primeiro', 'segundo', 'terceiro', 'quarto', 'quinto', 'sexto', 'sétimo', 'oitavo', 'nono'];
+const FL_DEZ = ['', 'décimo', 'vigésimo', 'trigésimo', 'quadragésimo', 'quinquagésimo', 'sexagésimo', 'septuagésimo', 'octogésimo', 'nonagésimo'];
+
+function flOrdinal(n, fem) {
+  const num = Number(n);
+  if (!(num >= 1 && num <= 99)) return String(n);
+  const palavras = [];
+  if (num >= 10) palavras.push(FL_DEZ[Math.floor(num / 10)]);
+  if (num % 10) palavras.push(FL_UNID[num % 10]);
+  return palavras.map(function (p) { return fem ? p.replace(/o$/, 'a') : p; }).join(' ');
+}
+
+function flSoletrar(sigla) {
+  return sigla.toLowerCase().split('').map(function (c) { return FL_LETRAS[c] || c; }).join(' ');
+}
+
+function flDinheiro(t) {
+  return t.replace(/R\$\s*(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?(\s*(?:milh(?:ão|ões)|bilh(?:ão|ões)|mil(?![a-zà-ú])))?/gi, function (_, reais, cent, grande) {
+    const r = Number(reais.replace(/\./g, ''));
+    if (grande) {
+      const g = grande.trim().toLowerCase();
+      return reais + (cent ? ',' + cent : '') + ' ' + g + (g === 'mil' ? ' reais' : ' de reais');
+    }
+    const c = cent ? Number(cent.length === 1 ? cent + '0' : cent) : 0;   // "R$ 1,5" = 1 real e 50 centavos; "00" não é falado
+    if (r === 0 && c > 0) return c + (c === 1 ? ' centavo' : ' centavos');
+    const parteReais = reais + (r === 1 ? ' real' : ' reais');
+    return c > 0 ? parteReais + ' e ' + c + (c === 1 ? ' centavo' : ' centavos') : parteReais;
+  });
+}
+
+function flDatasEHoras(t) {
+  t = t.replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g, function (m, d, mes, a) {
+    const dia = Number(d), mm = Number(mes);
+    if (dia < 1 || dia > 31 || mm < 1 || mm > 12) return m;
+    return (dia === 1 ? 'primeiro' : String(dia)) + ' de ' + FL_MESES[mm - 1] + ' de ' + a;
+  });
+  t = t.replace(/\b(\d{1,2})h(\d{2})\b/g, function (m, h, min) { return h + (Number(h) === 1 ? ' hora' : ' horas') + (Number(min) ? ' e ' + Number(min) + (Number(min) === 1 ? ' minuto' : ' minutos') : ''); });
+  t = t.replace(/\b(\d{1,2})h\b/g, function (m, h) { return h + (Number(h) === 1 ? ' hora' : ' horas'); });
+  return t;
+}
+
+// Abreviações, símbolos e números que a voz lê errado ou não lê.
+function flSimbolos(t) {
+  t = flDinheiro(t);
+  t = flDatasEHoras(t);
+  t = t.replace(/(\d+(?:,\d+)?)\s*%/g, '$1 por cento').replace(/%/g, ' por cento ');
+  t = t.replace(/(\d{1,2})\s*ª/g, function (m, n) { return flOrdinal(n, true); });
+  t = t.replace(/(\d{1,2})\s*[º°]/g, function (m, n) { return flOrdinal(n, false); });
+  t = t.replace(/\bn\.?\s?[º°](s?)\s*/gi, function (m, s) { return s ? 'números ' : 'número '; });
+  t = t.replace(/§§\s*/g, 'parágrafos ').replace(/§\s*/g, 'parágrafo ');
+  t = t.replace(/\barts\.\s*/gi, 'artigos ').replace(/\bart\.\s*/gi, 'artigo ');
+  t = t.replace(/\binc\.\s*/gi, 'inciso ').replace(/\bcap\.\s*/gi, 'capítulo ');
+  t = t.replace(/\bpp\.\s*(?=\d)/gi, 'páginas ').replace(/\bp\.\s*(?=\d)/gi, 'página ');
+  t = t.replace(/\bpágs\.\s*/gi, 'páginas ').replace(/\bpág\.\s*/gi, 'página ');
+  t = t.replace(/\bobs\.\s*:?/gi, 'observação:').replace(/\bex\.\s*:?/gi, 'por exemplo, ').replace(/\bi\.e\./gi, 'isto é,').replace(/\be\.g\./gi, 'por exemplo,');
+  t = t.replace(/\betc\./gi, 'etcétera').replace(/\bmáx\./gi, 'máximo').replace(/\bmín\./gi, 'mínimo').replace(/\btel\.\s*/gi, 'telefone ');
+  t = t.replace(/\bDra\.\s*/g, 'doutora ').replace(/\bDr\.\s*/g, 'doutor ').replace(/\bSra\.\s*/g, 'senhora ').replace(/\bSr\.\s*/g, 'senhor ');
+  t = t.replace(/\bCad[ÚU]nico\b/g, 'Cadastro Único');
+  // "6º-C" já virou "sexto-C": a letra do artigo fica separada
+  t = t.replace(/\b(primeiro|segundo|terceiro|quarto|quinto|sexto|sétimo|oitavo|nono|décimo)-([A-Z])\b/g, '$1 $2');
+  // barras e travessões: nunca lidos como símbolo
+  t = t.replace(/\be\/ou\b/gi, 'e ou');
+  t = t.replace(/(\d)\/(\d{4})\b/g, '$1 de $2');
+  t = t.replace(/\b([A-Z]{2,})\/([A-Z]{2,})\b/g, '$1 e $2').replace(/\s*\/\s*/g, ' ou ');
+  t = t.replace(/\s+[—–-]\s+/g, ', ').replace(/[—–]/g, ', ').replace(/\s*[→➜➔]\s*/g, ', ').replace(/\s*-+>\s*/g, ', ');
+  t = t.replace(/\s*[·•]\s*/g, ', ').replace(/&/g, ' e ').replace(/\s\+\s/g, ' mais ').replace(/\s=\s/g, ' igual a ');
+  // siglas letra por letra: as da lista e qualquer sigla curta sem vogal (BV, RR, SCFV)
+  t = t.replace(/\b[A-Z]{2,5}\b/g, function (s) { return FL_SOLETRA[s] || !/[AEIOU]/.test(s) ? flSoletrar(s) : s; });
+  return t;
+}
+
+// ---------------------------------------------------------------- Markdown -> frases
+function flLinhaDeFonte(l) { return /^(fontes?|refer[êe]ncias?)\s*[:：]/i.test(l); }
+function flLinhaDeAviso(l) { return /gerada por (ia|intelig[êe]ncia artificial)/i.test(l) || /^confira antes de usar/i.test(l); }
+
+function flInline(l) {
+  l = l.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1');                       // imagem: fica o texto alternativo
+  l = l.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\[([^\]]+)\]\[[^\]]*\]/g, '$1');   // link: fica o texto
+  l = l.replace(/https?:\/\/\S+|www\.\S+/gi, ' ');
+  l = l.replace(/\[\^?\w{1,6}\]/g, ' ');                                 // marcas de nota [1], [^a]
+  l = l.replace(/`([^`]*)`/g, '$1').replace(/\*+|~~|_+/g, ' ');
+  l = l.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, ' ');
+  return l;
+}
+
+function flLimpar(t) {
+  t = t.replace(/\s+([.,;:!?])/g, '$1').replace(/([.!?…])\s*[,;]\s*/g, '$1 ').replace(/,\s*,+/g, ',').replace(/([,;:])\s*\./g, '.');
+  t = t.replace(/\(\s*\)/g, ' ').replace(/\.{4,}/g, '...').replace(/([.!?])\1+/g, '$1');
+  return t.replace(/\s+/g, ' ').replace(/^[\s.,;:]+/, '').trim();
+}
+
+function falaTexto(bruto) {
+  let t = String(bruto == null ? '' : bruto).replace(/\r/g, '').slice(0, 12000);
+  t = t.replace(/```[\s\S]*?(?:```|$)/g, '\n').replace(/~~~[\s\S]*?(?:~~~|$)/g, '\n');
+  t = t.replace(/<(script|style)[\s\S]*?<\/\1\s*>/gi, ' ').replace(/<\/?[a-zA-Z][^>\n]{0,200}>/g, ' ');
+  const unidades = [];   // { texto, solta } — "solta" = linha de lista, título ou tabela (sempre fecha com ponto)
+  let emFontes = false;
+  t.split('\n').forEach(function (linha) {
+    let l = linha.trim();
+    if (!l) { emFontes = false; if (unidades.length) unidades[unidades.length - 1].fim = true; return; }
+    if (/^(?:[-*_]\s*){3,}$/.test(l) || /^\|?\s*:?-{2,}:?\s*(?:\|\s*:?-{2,}:?\s*)*\|?$/.test(l)) return;   // régua e separador de tabela
+    if (/^(fontes?|refer[êe]ncias?)\s*:?\s*$/i.test(l)) { emFontes = true; return; }
+    if (emFontes || flLinhaDeFonte(l) || flLinhaDeAviso(l)) return;
+    let solta = false;
+    if (/^#{1,6}\s/.test(l)) { l = l.replace(/^#{1,6}\s+/, ''); solta = true; }
+    if (/^>+\s?/.test(l)) { l = l.replace(/^(?:>\s?)+/, ''); }
+    if (/^(?:[-*+•]|\d{1,3}[.)])\s+/.test(l)) { l = l.replace(/^(?:[-*+•]|\d{1,3}[.)])\s+/, '').replace(/^\[[ xX]\]\s*/, ''); solta = true; }
+    if (/^\|.*\|/.test(l) || (l.match(/\|/g) || []).length >= 2) { l = l.split('|').map(function (c) { return c.trim(); }).filter(Boolean).join(', '); solta = true; }
+    l = flInline(l).replace(/\s+/g, ' ').trim();
+    if (!l) return;
+    unidades.push({ texto: l, solta: solta, fim: false });
+  });
+  let saida = '';
+  unidades.forEach(function (u, i) {
+    const prox = unidades[i + 1];
+    const fecha = u.solta || u.fim || !prox || prox.solta;   // linha comum seguida de outra linha comum continua a mesma frase
+    let x = u.texto;
+    if (fecha && !/[.!?…:;]$/.test(x)) x += '.';
+    saida += (saida ? ' ' : '') + x;
+  });
+  return flLimpar(flSimbolos(saida));
+}
+
+// ---------------------------------------------------------------- trechos
+function flFrases(t) {
+  return String(t || '').replace(/([.!?…]+)\s+/g, '$1\n').split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+}
+
+// Quebra uma frase longa em vírgulas, ponto e vírgula e dois-pontos; se ainda passar do limite, nas palavras.
+function flQuebrar(frase, max) {
+  const partes = [];
+  let atual = '';
+  const empurrar = function (p) {
+    if (atual && (atual + ' ' + p).length > max) { partes.push(atual); atual = p; } else atual = atual ? atual + ' ' + p : p;
+  };
+  (frase.match(/[^,;:]+[,;:]?\s*/g) || [frase]).forEach(function (pedaco) {
+    pedaco = pedaco.trim();
+    if (!pedaco) return;
+    if (pedaco.length <= max) { empurrar(pedaco); return; }
+    pedaco.split(' ').forEach(empurrar);
+  });
+  if (atual) partes.push(atual);
+  return partes;
+}
+
+function falaDividir(texto, opc) {
+  const o = opc || {}, max = o.max || 240, primeiro = o.primeiro || 130;
+  const frases = flFrases(texto);
+  const trechos = [];
+  let atual = '';
+  frases.forEach(function (frase) {
+    (frase.length > max ? flQuebrar(frase, max) : [frase]).forEach(function (p) {
+      const limite = trechos.length === 0 ? primeiro : max;
+      if (atual && (atual + ' ' + p).length > limite) { trechos.push(atual); atual = p; } else atual = atual ? atual + ' ' + p : p;
+    });
+  });
+  if (atual) trechos.push(atual);
+  return trechos;
+}
+
+// Leitura automática: respostas longas viram as primeiras frases + aviso de que o resto está na tela (o botão Ouvir lê tudo).
+function falaResumir(bruto, opc) {
+  const o = opc || {}, nFrases = o.frases || 4, maxChars = o.chars || 500;
+  const t = falaTexto(bruto);
+  const frases = flFrases(t);
+  if (frases.length <= nFrases + 1 && t.length <= maxChars * 1.25) return t;
+  const ficam = [];
+  let n = 0;
+  for (let i = 0; i < frases.length; i++) {
+    if (ficam.length >= nFrases || (ficam.length && n + frases[i].length > maxChars)) break;
+    ficam.push(frases[i]);
+    n += frases[i].length + 1;
+  }
+  return ficam.join(' ') + ' O restante está na tela.';
+}
+
 // ---- client/skins.mjs ----
 // "Peles" do Paulus: só texto e configuração. O desenho do mascote continua em cada app
 // (argo-mascot.js, anona-mascot.js...). Para o Paulus, o mascote é o rosto; aqui ficam o nome,
@@ -6909,6 +9214,7 @@ function memEhSensivel(texto) { return MEM_RE_SENSIVEL.test(normalizar(texto)); 
 //   4. "buscar ..."              -> busca registrada pelo app, executada AQUI; o resultado NÃO vai para a IA
 //      (passos 3 e 4 são pulados com { semAcoes: true }, para apps que já tratam isso antes)
 //   4c. pedido de geografia     -> coordenadas, "perto de", distância entre dois lugares, bairro, endereço no padrão (shared/geo.mjs), sem IA.
+//   4a. pedido de modelo 3D      -> entrega o modelo-base (shared/modelos.mjs), sem IA
 //   4b. pedido de rota          -> ordem, km e tempo calculados no aparelho (shared/rota.mjs), sem IA
 //   0b. pedido de edição de PDF  -> editado no aparelho com pdf-lib (shared/pdf.mjs); o arquivo NUNCA sai do aparelho. Roda logo após o socorro,
 //      antes do filtro de dado pessoal, porque preencher uma ficha exige nome e o texto não vai a servidor nenhum.
@@ -6937,6 +9243,9 @@ function memEhSensivel(texto) { return MEM_RE_SENSIVEL.test(normalizar(texto)); 
 
 
 
+
+
+
 const AVISO_PESSOAL = 'Para proteger as famílias, não consigo analisar mensagens com nome, documento, telefone ou endereço residencial. Reescreva a pergunta sem identificar ninguém.';
 
 // Igual ao limite do Worker (worker/prompt.mjs). Antes eram 5 aqui, e o Argo mandava até 10 (lista de bairros, "liste todos").
@@ -6947,6 +9256,7 @@ const PADRAO = {
   app: '',
   endpoint: '',            // endereço do Worker; vazio = IA desligada
   maxPergunta: 1200,
+  modelosUrl: '',          // pasta dos modelos 3D didáticos (padrão: modelos/, ao lado da página); o arquivo só é baixado quando a pessoa clica
   pdfLibUrl: '',           // onde está o pdf-lib.min.js (padrão: na mesma pasta do paulus.v1.js); carregado só no primeiro pedido de PDF
   cidade: '',              // 'Boa Vista, RR': acrescentada ao nome nos links de rota feitos só com texto
   maxHistorico: 10,        // últimas mensagens (5 trocas) que vão inteiras à IA; as perguntas mais antigas vão num resumo curto (shared/conversa.mjs)
@@ -6996,6 +9306,24 @@ async function cabecalhosDoPedido() {
   return h;
 }
 
+// Voz própria (v0.22.0): pede ao Worker (rota /voz) o áudio do texto na voz clonada e devolve um Blob de áudio.
+// Devolve null quando a voz própria não está ligada, o servidor está fora do ar ou a rede falhou: quem chamou fala com a voz do navegador.
+// Depois de um 404/503 não insiste por 5 minutos, para a conversa não esperar à toa.
+let vozIndisponivelAte = 0;
+async function vozDoServidor(texto, sinal) {
+  const t = String(texto == null ? '' : texto).trim();
+  if (!t || !cfg.endpoint || Date.now() < vozIndisponivelAte) return null;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return null;
+  try {
+    const resp = await fetch(cfg.endpoint + '/voz', { method: 'POST', headers: await cabecalhosDoPedido(), body: JSON.stringify({ texto: t.slice(0, 1500) }), signal: sinal });
+    if (!resp.ok) { if (resp.status === 404 || resp.status >= 500) vozIndisponivelAte = Date.now() + 300000; return null; }
+    const b = await resp.blob();
+    return b && b.size > 100 && /^audio\//.test(b.type || '') ? b : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 function init(opcoes) {
   const o = opcoes || {};
   cfg = Object.assign({}, PADRAO, o);
@@ -7033,7 +9361,7 @@ function registrarAcao(a) {
     throw new Error('Paulus.registrarAcao: use { id, rotulos:[...], executar() }');
   }
   estado.acoes = estado.acoes.filter(function (x) { return x.id !== a.id; });
-  estado.acoes.push({ id: a.id, titulo: String(a.titulo || a.rotulos[0] || a.id), rotulos: a.rotulos.map(normalizar).filter(Boolean), descricao: a.descricao || '', executar: a.executar, confirmar: !!a.confirmar });
+  estado.acoes.push({ id: a.id, titulo: String(a.titulo || a.rotulos[0] || a.id), rotulos: a.rotulos.map(normalizar).filter(Boolean), descricao: a.descricao || '', executar: a.executar, confirmar: !!a.confirmar, fechar: !!a.fechar });
 }
 
 // Busca dentro do app. { id, rotulos:['unidade','equipamento'], buscar(consulta) -> [{titulo, detalhe?, abrir?()}] }
@@ -7052,7 +9380,9 @@ function iaLigada() {
 
 // ------------------------------------------------------------------ ações e buscas
 
-const REG_ACAO = /^(abrir|abra|ir para|ir pra|va para|va pra|me leve|leve me|mostrar|mostre|navegar)\b\s*(.*)$/;
+const REG_ACAO = /^(abrir|abra|abre|ir para|ir pra|va para|va pra|me leve|leve me|mostrar|mostre|navegar)\b\s*(.*)$/;
+// Verbos de fechar: só valem se o app registrou uma ação com esse rótulo; senão a frase segue para a IA.
+const REG_FECHAR = /^(fechar|feche|encerrar|encerre|sair|saia)\b\s*(.*)$/;
 const REG_BUSCA = /^(buscar|busque|procurar|procure|achar|ache|encontrar|encontre)\b\s*(.*)$/;
 
 function acharPorRotulo(lista, alvo) {
@@ -7066,17 +9396,46 @@ function acharPorRotulo(lista, alvo) {
   return melhor;
 }
 
-function tratarAcao(resto) {
+// "abrir o Argo e o Anona": várias ações de uma vez, só se TODAS as partes forem reconhecidas e nenhuma pedir confirmação.
+function tratarVariasAcoes(resto, fechando) {
+  if (fechando) return null;
+  let sobra = ' ' + resto + ' ';
+  const achadas = [];
+  // rótulos mais longos primeiro, para "argo suas" não ser comido por "argo"
+  const pares = [], posicao = new Map();
+  estado.acoes.forEach(function (a) { if (!a.fechar) a.rotulos.forEach(function (r) { pares.push([r, a]); }); });
+  pares.sort(function (x, y) { return y[0].length - x[0].length; });
+  for (const par of pares) {
+    const chave = ' ' + par[0] + ' ';
+    if (sobra.indexOf(chave) !== -1 && achadas.indexOf(par[1]) === -1) {
+      achadas.push(par[1]); posicao.set(par[1], (' ' + resto + ' ').indexOf(chave));
+      sobra = sobra.split(chave).join(' ');
+    }
+  }
+  if (achadas.length < 2 || achadas.length > 6) return null;
+  achadas.sort(function (x, y) { return posicao.get(x) - posicao.get(y); });
+  // só vale se o resto da frase for ligação ("e", "o", "tambem"...): qualquer palavra estranha cancela o lote
+  const LIGACAO = { e: 1, o: 1, a: 1, os: 1, as: 1, tambem: 1, depois: 1, mais: 1, um: 1, uma: 1, app: 1, apps: 1, aplicativo: 1, aplicativos: 1, aba: 1, abas: 1 };
+  if (sobra.split(/\s+/).filter(Boolean).some(function (w) { return !LIGACAO[w]; })) return null;
+  if (achadas.some(function (a) { return a.confirmar; })) return null;
+  achadas.forEach(function (a) { a.executar(); estado.mem.aprenderAcao(a.id); });
+  return { tipo: 'acao', acao: achadas.map(function (a) { return a.id; }).join(','), texto: 'Pronto: ' + achadas.map(function (a) { return a.titulo; }).join(', ') + '.', executada: true };
+}
+
+function tratarAcao(resto, fechando) {
+  const varias = tratarVariasAcoes(resto, fechando);
+  if (varias) return varias;
   // Apelido que a pessoa ensinou ("cadunico" -> tela X) vale antes do rótulo cadastrado pelo app.
   const idApelido = estado.mem.apelidoDe(resto.trim());
-  const a = (idApelido && estado.acoes.filter(function (x) { return x.id === idApelido; })[0]) || acharPorRotulo(estado.acoes, resto);
+  const doVerbo = estado.acoes.filter(function (x) { return !!x.fechar === !!fechando; });
+  const a = (idApelido && doVerbo.filter(function (x) { return x.id === idApelido; })[0]) || acharPorRotulo(doVerbo, resto);
   if (!a) {
     return {
       tipo: 'acao_desconhecida',
       texto: 'Não encontrei essa tela ou função neste app.',
-      opcoes: estado.acoes.map(function (x) { return x.rotulos[0]; }),
+      opcoes: doVerbo.map(function (x) { return x.rotulos[0]; }),
       // Para o app oferecer "era esta?": ao tocar numa opção, aprender(id) grava o apelido e da próxima vez o Paulus já sabe.
-      opcoesAcoes: estado.acoes.map(function (x) { return { id: x.id, rotulo: x.titulo }; }),
+      opcoesAcoes: doVerbo.map(function (x) { return { id: x.id, rotulo: x.titulo }; }),
       aprender: function (id) { return estado.mem.vincular(resto, id); }
     };
   }
@@ -7233,6 +9592,12 @@ async function pedirIA(texto, opcoes) {
   const bloqueio = estourouLimiteLocal();
   if (bloqueio) return { tipo: 'erro', texto: bloqueio };
 
+  // Documento anexado: só trechos escolhidos e sem dado pessoal saem do aparelho.
+  let documento = null;
+  if (opcoes.documento) {
+    documento = docPreparar(opcoes.documento, texto);
+    if (!documento || !documento.trechos.length) return { tipo: 'bloqueio', texto: 'Não consegui usar o documento: os trechos têm dados pessoais (nome, CPF, e-mail...) ou não há texto. Anexe uma versão sem identificação das pessoas.', fontes: [], avisos: [] };
+  }
   const fichas = fichasPublicas(texto, opcoes.aba, opcoes.fichas);
   const corpo = {
     app: cfg.app,
@@ -7240,6 +9605,7 @@ async function pedirIA(texto, opcoes) {
     pagina: String(opcoes.aba || '').slice(0, 80),
     historico: historicoParaEnvio(opcoes.historico, (function (h) { return ehRefinamento(texto, h) || !!pedidoSobreResposta(texto, h); })(Array.isArray(opcoes.historico) ? opcoes.historico : estado.historico)),
     fichas: fichas,
+    documento: documento ? { nome: documento.nome, trechos: documento.trechos } : undefined,
     stream: true
   };
   // O que a conversa já firmou (unidade, bairro, município, assunto), montado pelo app. Só campos fechados e curtos.
@@ -7322,7 +9688,7 @@ async function pedirIA(texto, opcoes) {
     if (semFonte.length) {
       avisos.push('A IA citou ' + semFonte.slice(0, 3).join(', ') + ', que não aparece nas normas consultadas. Confira no texto oficial antes de usar.');
     }
-    return { tipo: 'ia', texto: saida.texto, fontes: saida.fontes, sugestoes: partes.sugestoes, acoes: propostas, avisos: avisos, habilidades: saida.habilidades || [], geradoPorIA: true };
+    return { tipo: 'ia', texto: saida.texto, fontes: marcarFontesUsadas(saida.texto, saida.fontes), sugestoes: partes.sugestoes, acoes: propostas, avisos: avisos, habilidades: saida.habilidades || [], geradoPorIA: true };
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -7344,7 +9710,7 @@ function respostaDasNormas(achados) {
   return {
     tipo: 'norma',
     texto: resumirTrecho(melhor.texto, 900),
-    fontes: achados.map(function (a) { return fonteDe(a.trecho); }),
+    fontes: achados.map(function (a) { return fonteDe(a.trecho, a); }),
     avisos: [melhor.tipo && melhor.tipo !== 'norma'
       ? 'Trecho de ' + (melhor.tipo === 'apoio' ? 'material de apoio' : 'orientação técnica') + ' (não é norma legal: orienta, não obriga). Confira o documento original.'
       : 'Trecho da base de normas do Paulus. Confira o texto oficial vigente.']
@@ -7486,12 +9852,43 @@ async function tratarRota(t, o) {
   await geoCarregarLugares();
   try { rota = respostaDeRota(t, { pontos: o.pontos || estado.pontos, aparelho: aparelho, cidade: o.cidade || cfg.cidade, lugares: o.lugares || estado.lugares, bairros: o.bairros || estado.bairros, ruas: o.ruas || estado.ruas }); } catch (e) { rota = null; }
   if (!rota) return null;
-  if (!Array.isArray(o.historico)) {
+  if (!Array.isArray(o.historico) && !rota.semHistorico) {
     estado.historico.push({ papel: 'usuario', texto: t }, { papel: 'paulus', texto: rota.texto });
     estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
   }
   const avisos = rota.estimativa ? ['Rota estimada no aparelho, sem IA e sem trânsito. Confira no app de mapas.'] : rota.aproximada ? ['Sem coordenadas, o link do mapa segue a ordem que você escreveu.'] : [];
-  return { tipo: 'rota', texto: rota.texto, links: rota.links, svg: rota.svg, geojson: rota.geojson, gpx: rota.gpx || '', kml: rota.kml || '', paradas: rota.paradas, km: rota.km, minutos: rota.minutos, bloqueio: !!rota.bloqueio, fontes: [], avisos: avisos, pergunta: t, docs: [] };
+  return { tipo: 'rota', destino: rota.destino || null, texto: rota.texto, links: rota.links, svg: rota.svg, geojson: rota.geojson, gpx: rota.gpx || '', kml: rota.kml || '', paradas: rota.paradas, km: rota.km, minutos: rota.minutos, modo: rota.modo || '', volta: !!rota.volta, bloqueio: !!rota.bloqueio, fontes: [], avisos: avisos, pergunta: t, docs: [] };
+}
+
+// ------------------------------------------------------------------ modelos 3D didáticos
+
+// Pedido de modelo 3D ("me manda o modelo 3D do sistema solar"): o programa reconhece no aparelho e devolve o arquivo-base para baixar. Sem IA e sem rede para decidir.
+function tratarModelo(t, o) {
+  const m = respostaDeModelo(t);
+  if (!m) return null;
+  if (!Array.isArray(o.historico)) {
+    estado.historico.push({ papel: 'usuario', texto: t }, { papel: 'paulus', texto: m.texto });
+    estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
+  }
+  return { tipo: 'modelo', texto: m.texto, modelo: m.modelo, novoTema: m.novoTema, arquivos: [{ nome: m.modelo.arquivo, rotulo: m.modelo.nome, url: urlDoModelo(m.modelo, cfg.modelosUrl) }], fontes: [], avisos: m.avisos, pergunta: t, docs: [] };
+}
+
+// Baixa o arquivo do modelo. Se o navegador não deixar baixar por script, abre o arquivo numa aba nova.
+function modeloBaixar(modelo) {
+  const url = urlDoModelo(modelo, cfg.modelosUrl);
+  const abrir = function () { try { window.open(url, '_blank', 'noopener'); } catch (e) { /* segue */ } };
+  if (typeof fetch !== 'function' || typeof document === 'undefined') { abrir(); return Promise.resolve(false); }
+  return fetch(url, { credentials: 'omit' }).then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.blob();
+  }).then(function (blob) {
+    const u = URL.createObjectURL(new Blob([blob], { type: 'text/html;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = u; a.download = modelo.arquivo; a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(u); }, 4000);
+    return true;
+  }).catch(function () { abrir(); return false; });
 }
 
 // ------------------------------------------------------------------ geografia
@@ -7526,6 +9923,20 @@ async function tratarGeo(t, o, tipo) {
 
 // ------------------------------------------------------------------ pergunta
 
+
+// Resposta de conta feita no aparelho. Idade e nascimento (sensivel) nunca entram no histórico.
+function respostaDeCalculo(t, o, conta) {
+  if (!conta.sensivel && !Array.isArray(o.historico)) {
+    estado.historico.push({ papel: 'usuario', texto: t }, { papel: 'paulus', texto: conta.texto });
+    estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
+  }
+  return {
+    tipo: 'calculo', texto: conta.texto, itens: conta.itens, sensivel: !!conta.sensivel, fontes: [],
+    avisos: [conta.sensivel ? 'Conta feita no aparelho, sem IA. Não foi guardada no histórico. Confira as datas que você digitou.' : 'Conta feita no aparelho, sem IA. Confira os números que você digitou.'],
+    pergunta: conta.sensivel ? '' : t, docs: []
+  };
+}
+
 async function perguntar(texto, opcoes) {
   const o = opcoes || {};
   const t = String(texto == null ? '' : texto).replace(/\s+/g, ' ').trim().slice(0, cfg.maxPergunta);
@@ -7558,6 +9969,13 @@ async function perguntar(texto, opcoes) {
     if (rev) return { tipo: 'revisao', texto: rev.texto, apontamentos: rev.apontamentos, corrigido: rev.corrigido, sensivel: true, fontes: [], avisos: ['Correção feita neste aparelho, sem IA e sem rede. Não foi guardada no histórico. Só pega erros comuns: leia o resultado.'], pergunta: '', docs: [] };
   }
 
+  // Datas e prazos ("30 dias úteis a partir de 02/12/2026", "idade de quem nasceu em 15/05/1990"): no aparelho, antes do filtro, porque a data de
+  // nascimento faz o filtro bloquear. Idade é dado sensível: a resposta não entra no histórico.
+  if (!o.semCalculo) {
+    const dt = respostaDoPedido(t);
+    if (dt && dt.origem === 'datas') return respostaDeCalculo(t, o, dt);
+  }
+
   if (temDadoPessoal(t)) return { tipo: 'bloqueio', texto: avisoPessoalNoIdioma(idiomaDoPedido(t, o.historico || estado.historico), AVISO_PESSOAL) };
 
   // Vocabulário, frases e falsos amigos PT↔ES e PT↔EN (shared/espanhol.mjs e shared/ingles.mjs): no aparelho, sem IA e sem rede. Não entra no histórico.
@@ -7566,25 +9984,28 @@ async function perguntar(texto, opcoes) {
     if (esp) return { tipo: esp.idioma === 'en' ? 'ingles' : 'espanhol', tipoLocal: esp.tipoLocal, texto: esp.texto, fontes: [], avisos: ['Resposta feita neste aparelho, sem IA e sem rede. Confira o sentido com a pessoa atendida.'], pergunta: '', docs: [] };
   }
 
-  // Mensagem que É só uma conta ("quanto é 15% de 1200?"): o programa resolve no aparelho, exato, sem rede e sem gastar a cota da IA.
-  // Pergunta com mais assunto (\"renda per capita de 3200 / 4\") segue para a IA, que recebe a conta já feita.
+  // Mensagem que É só uma conta ("quanto é 15% de 1200?", "mediana de 3, 5 e 9", "IMC de 70 kg e 1,75 m", "30 dias úteis a partir de 02/12/2026"):
+  // o programa resolve no aparelho, exato, sem rede e sem gastar a cota da IA. Datas e idade já foram tratadas antes do filtro de dado pessoal.
+  // Pergunta com mais assunto ("renda per capita de 3200 / 4, posso incluir no BPC?") segue para a IA, que recebe a conta já feita.
   if (!o.semCalculo) {
-    const conta = respostaDeConta(t);
-    if (conta) {
-      if (!Array.isArray(o.historico)) {
-        estado.historico.push({ papel: 'usuario', texto: t }, { papel: 'paulus', texto: conta.texto });
-        estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
-      }
-      return { tipo: 'calculo', texto: conta.texto, itens: conta.itens, fontes: [], avisos: ['Conta feita no aparelho, sem IA. Confira os números que você digitou.'], pergunta: t, docs: [] };
-    }
+    const conta = respostaDoPedido(t);
+    if (conta) return respostaDeCalculo(t, o, conta);
   }
 
   if (!o.semAcoes) {
     const alvo = normalizar(t);
     let m = REG_ACAO.exec(alvo);
     if (m) return tratarAcao(m[2]);
+    m = REG_FECHAR.exec(alvo);
+    if (m && acharPorRotulo(estado.acoes.filter(function (x) { return x.fechar; }), m[2])) return tratarAcao(m[2], true);
     m = REG_BUSCA.exec(alvo);
     if (m) return tratarBusca(m[2]);
+  }
+
+  // Pedido de modelo 3D didático ("me manda o modelo 3D do sistema solar"): entrega o modelo-base no aparelho, sem IA.
+  if (!o.semModelos) {
+    const mod = tratarModelo(t, o);
+    if (mod) return mod;
   }
 
   // Pedido de rota ("traçar rota saindo do CRAS X: A, B e C, voltando ao CRAS X"): o programa ordena e mede no aparelho; endereço de residência é recusado.
@@ -7606,7 +10027,7 @@ async function perguntar(texto, opcoes) {
   // O tipo do pedido (shared/pedido.mjs) decide a busca offline: cumprimento não busca norma; ajuste ("mais curto") e seguimento herdam o assunto anterior.
   const hist = Array.isArray(o.historico) ? o.historico : estado.historico;
   const modo = classificarPedido(t, hist);
-  const achados = estado.indice && modo !== 'saudacao' ? buscar(estado.indice, (consultaDoPedido(t, hist, modo) + ' ' + paraBusca(t)).trim(), { k: trechosParaOPedido(modo, t, K_PADRAO), preferir: estado.mem.preferencias() }) : [];
+  const achados = estado.indice && modo !== 'saudacao' ? buscarFontes(estado.indice, (consultaDoPedido(t, hist, modo) + ' ' + paraBusca(t)).trim(), { k: trechosParaOPedido(modo, t, K_PADRAO), preferir: estado.mem.preferencias(), modo: modo }) : [];
   // Cumprimento, ajuste e seguimento não dizem nada sobre o assunto: não entram nas "perguntas frequentes" nem nos temas aprendidos.
   const aprende = modo === 'normal' || modo === 'consulta';
   const docs = achados.map(function (a) { return a.trecho.doc; }).filter(function (d, i, l) { return d && l.indexOf(d) === i; });
@@ -7621,6 +10042,7 @@ async function perguntar(texto, opcoes) {
       }
       // pergunta e docs ficam no resultado para o app devolver em Paulus.avaliar(r, 'bom'|'ruim'|...)
       r.pergunta = t; r.docs = docs;
+      if (o.documento) { const dp = docPreparar(o.documento, t); if (dp) r.avisos = (r.avisos || []).concat(['Documento "' + dp.nome + '": ' + dp.trechos.length + ' trecho(s) lido(s)' + (dp.parcial ? ' (os mais ligados à pergunta)' : '') + (dp.omitidosPessoais ? '; ' + dp.omitidosPessoais + ' com dados pessoais ficaram de fora' : '') + '.']); }
       if (aprende) estado.mem.aprenderPergunta(t, docs);
       return r;
     } catch (e) {
@@ -7673,15 +10095,19 @@ async function consultarNormas(texto, opcoes) {
   const hist = Array.isArray(o.historico) ? o.historico : estado.historico;
   const modo = classificarPedido(t, hist);
   if (modo === 'saudacao') return null;
-  const achados = buscar(estado.indice, (consultaDoPedido(t, hist, modo) + ' ' + paraBusca(t)).trim(), { k: trechosParaOPedido(modo, t, K_PADRAO), preferir: estado.mem.preferencias() });
+  const achados = buscarFontes(estado.indice, (consultaDoPedido(t, hist, modo) + ' ' + paraBusca(t)).trim(), { k: trechosParaOPedido(modo, t, K_PADRAO), preferir: estado.mem.preferencias(), modo: modo });
   return achados.length ? respostaDasNormas(achados) : null;
 }
 
 const Paulus = { init, perguntar, rota: { ler: lerPedidoDeRota, responder: respostaDeRota },
+  // Modelos 3D didáticos (v0.20.0; mapa de Roraima v0.21.0): ler(texto) -> pedido ou null; responder(texto) -> resultado ou null; catalogo; url(modelo); baixar(modelo)
+  modelos: { ler: lerPedidoDeModelo, responder: respostaDeModelo, catalogo: MODELOS_3D, url: function (m) { return urlDoModelo(m, cfg.modelosUrl); }, baixar: modeloBaixar },
   // Geografia no aparelho (v0.16.0): responder(texto, { pontos, lugares, bairros, ruas, aparelho }) -> resultado ou null; coordenadas/formatar/endereco/perto/distancia/gpx/kml para o app usar direto.
   geo: { responder: respostaDeGeo, tipo: geoTipoDePedido, coordenadas: geoLerCoordenadas, formatar: geoFormatarCoordenadas, endereco: geoNormalizarEndereco, montarEndereco: geoMontarEndereco, perto: function (centro, opcoes, o) { return geoPerto(centro, geoFontes(opcoes || {}), o); }, distanciaKm: geoDistanciaKm, links: geoLinksDeRota, gpx: geoParaGpx, kml: geoParaKml },
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
-  pdf: { ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.19.0',
+  pdf: { ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
+  // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
+  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.22.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
