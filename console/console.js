@@ -375,7 +375,8 @@
       });
       if ((r.itens || []).length) corpo.appendChild(lb);
     }
-    if (r.tipo === 'calculo' && r.itens && r.itens.length) {
+    var calcRepete = r.tipo === 'calculo' && r.itens && r.itens.length === 1 && (function (c) { var v = String(c.texto || c.valor || '').trim(); return v && String(r.texto || r.resposta || corpo.textContent || '').indexOf(v) !== -1; })(r.itens[0]);
+    if (r.tipo === 'calculo' && r.itens && r.itens.length && !calcRepete) {
       var lc = h('ul'); r.itens.forEach(function (c) { lc.appendChild(h('li', { text: c.texto || (c.expressao + ' = ' + c.valor) })); }); corpo.appendChild(lc);
     }
     if (r.tipo === 'rota') {
@@ -850,6 +851,14 @@
       transcricao.map(function (t) { return '**' + t.papel + ':**\n\n' + t.texto; }).join('\n\n---\n\n') + '\n';
     baixarTexto('conversa-paulus-' + new Date().toISOString().slice(0, 10) + '.md', md, 'text/markdown;charset=utf-8');
   }
+  // modo foco: esconde painéis e efeitos de fundo; a escolha fica neste aparelho
+  (function () {
+    var bt = $('fo'); if (!bt) return;
+    function aplicar(on) { document.body.classList.toggle('foco', on); bt.setAttribute('aria-pressed', on ? 'true' : 'false'); gravarLS('paulus.foco', on ? '1' : '0'); }
+    bt.addEventListener('click', function () { aplicar(!document.body.classList.contains('foco')); });
+    document.addEventListener('keydown', function (e) { if (e.ctrlKey && e.shiftKey && (e.key === 'F' || e.key === 'f')) { e.preventDefault(); bt.click(); } });
+    if (lerLS('paulus.foco') === '1') aplicar(true);
+  })();
   $('nv').addEventListener('click', nova);
   $('ex').addEventListener('click', exportar);
 
