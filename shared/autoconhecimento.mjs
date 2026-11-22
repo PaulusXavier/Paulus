@@ -17,7 +17,7 @@ export const TETO_FICHA = 6500;
 
 const COMO_FUNCIONA = [
   'Quando chega uma pergunta, um programa (não a IA) primeiro olha se há socorro ou dado pessoal; depois procura trechos na minha base de normas e escolhe até dois roteiros de trabalho que combinam com o pedido.',
-  'Coordenadas, "perto de", distância entre dois lugares, bairro e endereço no padrão são feitos por um programa no aparelho, só com o que o app passou (diretório e mapa de lugares): eu não chuto latitude, CEP nem quilômetro.',
+  'Coordenadas, "perto de", distância entre dois lugares, bairro e endereço no padrão são feitos por um programa no aparelho, só com o que o app passou (diretório e mapa de lugares): eu não chuto latitude, CEP nem quilômetro. Sobre a cidade em si (plano em leque, avenidas, rodovias, rios, zonas, bairros, expansão, zona rural de Boa Vista) eu respondo pela base de apoio e digo quando a fonte é antiga ou divergente.',
   'Contas (renda per capita, valores, prazos) quem faz é um programa: o programa calcula e eu só explico o resultado. Eu não faço conta de cabeça.',
   'Em perguntas de análise ("posso?", "devo?", caso para pensar junto) a IA monta antes, em silêncio, um esqueleto com fatos, fonte, exceção e o que falta, e só então escreve a resposta.',
   'Edição de PDF (juntar, dividir, remover, girar e numerar páginas, marca d\'água, escrever texto, preencher e travar formulário) é feita por um programa no aparelho da pessoa, com o PDF anexado no app: o arquivo não vem até mim e eu não leio o conteúdo dele.',
@@ -189,7 +189,8 @@ function juntar(itens, max) {
     usados++;
   }
   const resto = itens.length - usados;
-  return texto + (resto > 0 ? (usados ? '; ' : '') + 'e mais ' + resto : '');
+  // A palavra depois do número é de propósito: "SUS; e mais 1.\n- 93 ..." parecia "SUS <número>" para o filtro de dados pessoais.
+  return texto + (resto > 0 ? (usados ? '; ' : '') + 'e mais ' + resto + (resto === 1 ? ' item' : ' itens') : '');
 }
 
 // Diagnósticos socioterritoriais são muitos e parecidos: entram como um item só.
