@@ -154,7 +154,7 @@ function registrarAcao(a) {
     throw new Error('Paulus.registrarAcao: use { id, rotulos:[...], executar() }');
   }
   estado.acoes = estado.acoes.filter(function (x) { return x.id !== a.id; });
-  estado.acoes.push({ id: a.id, titulo: String(a.titulo || a.rotulos[0] || a.id), rotulos: a.rotulos.map(normalizar).filter(Boolean), descricao: a.descricao || '', executar: a.executar, confirmar: !!a.confirmar });
+  estado.acoes.push({ id: a.id, titulo: String(a.titulo || a.rotulos[0] || a.id), rotulos: a.rotulos.map(normalizar).filter(Boolean), descricao: a.descricao || '', executar: a.executar, confirmar: !!a.confirmar, fechar: !!a.fechar });
 }
 
 // Busca dentro do app. { id, rotulos:['unidade','equipamento'], buscar(consulta) -> [{titulo, detalhe?, abrir?()}] }
@@ -173,7 +173,9 @@ function iaLigada() {
 
 // ------------------------------------------------------------------ ações e buscas
 
-const REG_ACAO = /^(abrir|abra|ir para|ir pra|va para|va pra|me leve|leve me|mostrar|mostre|navegar)\b\s*(.*)$/;
+const REG_ACAO = /^(abrir|abra|abre|ir para|ir pra|va para|va pra|me leve|leve me|mostrar|mostre|navegar)\b\s*(.*)$/;
+// Verbos de fechar: só valem se o app registrou uma ação com esse rótulo; senão a frase segue para a IA.
+const REG_FECHAR = /^(fechar|feche|encerrar|encerre|sair|saia)\b\s*(.*)$/;
 const REG_BUSCA = /^(buscar|busque|procurar|procure|achar|ache|encontrar|encontre)\b\s*(.*)$/;
 
 function acharPorRotulo(lista, alvo) {
@@ -187,17 +189,46 @@ function acharPorRotulo(lista, alvo) {
   return melhor;
 }
 
-function tratarAcao(resto) {
+// "abrir o Argo e o Anona": várias ações de uma vez, só se TODAS as partes forem reconhecidas e nenhuma pedir confirmação.
+function tratarVariasAcoes(resto, fechando) {
+  if (fechando) return null;
+  let sobra = ' ' + resto + ' ';
+  const achadas = [];
+  // rótulos mais longos primeiro, para "argo suas" não ser comido por "argo"
+  const pares = [], posicao = new Map();
+  estado.acoes.forEach(function (a) { if (!a.fechar) a.rotulos.forEach(function (r) { pares.push([r, a]); }); });
+  pares.sort(function (x, y) { return y[0].length - x[0].length; });
+  for (const par of pares) {
+    const chave = ' ' + par[0] + ' ';
+    if (sobra.indexOf(chave) !== -1 && achadas.indexOf(par[1]) === -1) {
+      achadas.push(par[1]); posicao.set(par[1], (' ' + resto + ' ').indexOf(chave));
+      sobra = sobra.split(chave).join(' ');
+    }
+  }
+  if (achadas.length < 2 || achadas.length > 6) return null;
+  achadas.sort(function (x, y) { return posicao.get(x) - posicao.get(y); });
+  // só vale se o resto da frase for ligação ("e", "o", "tambem"...): qualquer palavra estranha cancela o lote
+  const LIGACAO = { e: 1, o: 1, a: 1, os: 1, as: 1, tambem: 1, depois: 1, mais: 1, um: 1, uma: 1, app: 1, apps: 1, aplicativo: 1, aplicativos: 1, aba: 1, abas: 1 };
+  if (sobra.split(/\s+/).filter(Boolean).some(function (w) { return !LIGACAO[w]; })) return null;
+  if (achadas.some(function (a) { return a.confirmar; })) return null;
+  achadas.forEach(function (a) { a.executar(); estado.mem.aprenderAcao(a.id); });
+  return { tipo: 'acao', acao: achadas.map(function (a) { return a.id; }).join(','), texto: 'Pronto: ' + achadas.map(function (a) { return a.titulo; }).join(', ') + '.', executada: true };
+}
+
+function tratarAcao(resto, fechando) {
+  const varias = tratarVariasAcoes(resto, fechando);
+  if (varias) return varias;
   // Apelido que a pessoa ensinou ("cadunico" -> tela X) vale antes do rótulo cadastrado pelo app.
   const idApelido = estado.mem.apelidoDe(resto.trim());
-  const a = (idApelido && estado.acoes.filter(function (x) { return x.id === idApelido; })[0]) || acharPorRotulo(estado.acoes, resto);
+  const doVerbo = estado.acoes.filter(function (x) { return !!x.fechar === !!fechando; });
+  const a = (idApelido && doVerbo.filter(function (x) { return x.id === idApelido; })[0]) || acharPorRotulo(doVerbo, resto);
   if (!a) {
     return {
       tipo: 'acao_desconhecida',
       texto: 'Não encontrei essa tela ou função neste app.',
-      opcoes: estado.acoes.map(function (x) { return x.rotulos[0]; }),
+      opcoes: doVerbo.map(function (x) { return x.rotulos[0]; }),
       // Para o app oferecer "era esta?": ao tocar numa opção, aprender(id) grava o apelido e da próxima vez o Paulus já sabe.
-      opcoesAcoes: estado.acoes.map(function (x) { return { id: x.id, rotulo: x.titulo }; }),
+      opcoesAcoes: doVerbo.map(function (x) { return { id: x.id, rotulo: x.titulo }; }),
       aprender: function (id) { return estado.mem.vincular(resto, id); }
     };
   }
@@ -758,6 +789,8 @@ async function perguntar(texto, opcoes) {
     const alvo = normalizar(t);
     let m = REG_ACAO.exec(alvo);
     if (m) return tratarAcao(m[2]);
+    m = REG_FECHAR.exec(alvo);
+    if (m && acharPorRotulo(estado.acoes.filter(function (x) { return x.fechar; }), m[2])) return tratarAcao(m[2], true);
     m = REG_BUSCA.exec(alvo);
     if (m) return tratarBusca(m[2]);
   }
