@@ -255,7 +255,7 @@
     var grade = h('div', { class: 'sg' });
     sug.forEach(function (s, i) { grade.appendChild(h('button', { type: 'button', class: 'ch', on: { click: function () { enviar(s); } } }, [h('i', { text: '\u203A' }), h('span', { text: s })])); });
     hi.appendChild(grade);
-    hi.appendChild(h('small', { text: 'Não digite nome nem documento de pessoas atendidas. Digite / para atalhos. Anexe PDF para editar no aparelho.' }));
+    hi.appendChild(h('small', { text: 'Não digite nome nem documento de pessoas atendidas. Digite / para atalhos. Anexe PDF para editar no aparelho ou uma foto para eu ler (a foto vai para a IA: sem rosto, nome nem documento de pessoas).' }));
     log.appendChild(hi); document.body.classList.add('vazio');
     decod(eySp, 'TODOS OS SISTEMAS OPERACIONAIS', 700); decod(dtSp, dataHud(), 600);
     decod(gSp, saudacao() + (nome ? ', ' : '.'), 520); if (nSp) decod(nSp, nome + '.', 700);
@@ -586,7 +586,8 @@
   function enviar(texto) {
     texto = String(texto == null ? q.value : texto).trim();
     if (ocupado || (!texto && !anexos.length)) return;
-    if (!texto) texto = 'o que posso fazer com este arquivo?';
+    var DI = window.PaulusDocs, soFoto = !!(DI && DI.ehImagem && anexos.length && anexos.every(DI.ehImagem));
+    if (!texto) texto = soFoto ? 'Descreva esta imagem e diga o que nela é útil para o meu trabalho.' : 'o que posso fazer com este arquivo?';
     var arqs = anexos.slice(), nomes = arqs.map(function (a) { return a.name; });
     anexos = []; renderAnexos(); q.value = ''; autoAltura(); sl.hidden = true;
     if (vozPendente) legenda(texto, false); else legenda('');
@@ -598,16 +599,27 @@
     ultimoPedido = texto;
     var id = ++envioAtual; atual = x; mudarBotao(true);
     var vivo = function () { return id === envioAtual; };   // falso depois de Parar ou de um envio mais novo
-    var D = window.PaulusDocs, querPdf = !!(P.pdf && P.pdf.ler && P.pdf.ler(texto, { temArquivo: arqs.length > 0 }));
-    var leitura = (!querPdf && arqs.length && D) ? D.ler(arqs) : Promise.resolve(null);
-    leitura.then(function (d) {
+    var D = window.PaulusDocs, fotos = (D && D.ehImagem) ? arqs.filter(D.ehImagem) : [];
+    var pedidoPdf = P.pdf && P.pdf.ler && P.pdf.ler(texto, { temArquivo: arqs.length > 0 });
+    // Só fotos e "leia", "resuma" ou "OCR": o editor de PDF responderia "não faço OCR", mas aqui é pedido de leitura da foto (vai para a IA).
+    var soLeitura = fotos.length > 0 && fotos.length === arqs.length && !!pedidoPdf && !(pedidoPdf.operacoes || []).length && !pedidoPdf.saida && (pedidoPdf.naoSuporta || []).every(function (c) { return c === 'ocr'; });
+    var querPdf = !!pedidoPdf && !soLeitura;
+    var docArqs = fotos.length ? arqs.filter(function (a) { return fotos.indexOf(a) < 0; }) : arqs;
+    if (!querPdf && fotos.length > 1) aviso('Leio uma foto por pergunta: usei só a primeira (' + fotos[0].name + ').');
+    var leitura = (!querPdf && docArqs.length && D) ? D.ler(docArqs) : Promise.resolve(null);
+    var leituraFoto = (!querPdf && fotos.length && D && D.imagem) ? D.imagem(fotos[0]) : Promise.resolve(null);
+    Promise.all([leitura, leituraFoto]).then(function (par) {
+      var d = par[0], foto = par[1];
       if (d && d.erro) return { tipo: 'erro', texto: d.erro, fontes: [], avisos: [] };
+      if (foto && foto.erro) return { tipo: 'erro', texto: foto.erro, fontes: [], avisos: [] };
       if (d && d.texto) { docAtivo = d; renderAnexos(); }
       return P.perguntar(texto, {
-      arquivos: arqs, documento: querPdf ? null : docAtivo,
+      arquivos: querPdf ? arqs : docArqs, documento: querPdf ? null : docAtivo, imagem: foto && foto.dados ? foto : undefined,
       onToken: function (_p, tudo) { if (!vivo()) return; fimPensando(x); legenda(''); x.streamed = true; x.corpo.classList.add('dig'); pintar(x.corpo, tudo); rolar(); }
     }); }).then(function (r) {
       if (!vivo()) return;
+      // Foto lida: o texto que o Paulus tirou dela fica "em uso" e as próximas perguntas seguem como documento anexado (a foto não sobe de novo).
+      if (r && r.imagemLida && r.imagemLida.texto) { docAtivo = { nome: r.imagemLida.nome, texto: r.imagemLida.texto }; renderAnexos(); }
       var ms = performance.now() - x.t0, tipar = !x.streamed && !reduzido && TIPA[r.tipo] && String(r.texto || '').length > 60;
       if (tipar) { fimPensando(x); legenda(''); x.streamed = true; }
       return (tipar ? digitar(x, String(r.texto), vivo) : Promise.resolve()).then(function () {
@@ -635,17 +647,19 @@
   function renderAnexos() {
     fl.textContent = '';
     anexos.forEach(function (a, i) {
-      fl.appendChild(h('div', { class: 'fc' }, [h('span', { text: a.name }), h('button', { type: 'button', text: '✕', 'aria-label': 'Remover ' + a.name, on: { click: function () { anexos.splice(i, 1); renderAnexos(); } } })]));
+      var foto = window.PaulusDocs && window.PaulusDocs.ehImagem && window.PaulusDocs.ehImagem(a);
+      fl.appendChild(h('div', foto ? { class: 'fc', title: 'A foto é reduzida neste aparelho e enviada à IA para ser lida; não é gravada.' } : { class: 'fc' }, [h('span', { text: foto ? '🖼 ' + a.name + ' · vai para a IA' : a.name }), h('button', { type: 'button', text: '✕', 'aria-label': 'Remover ' + a.name, on: { click: function () { anexos.splice(i, 1); renderAnexos(); } } })]));
     });
     if (docAtivo) fl.appendChild(h('div', { class: 'fc doc' }, [h('span', { text: 'Em uso: ' + docAtivo.nome }), h('button', { type: 'button', text: '✕', 'aria-label': 'Parar de usar o documento ' + docAtivo.nome, on: { click: function () { docAtivo = null; renderAnexos(); } } })]));
     ajustarBarra();
   }
   function adicionar(lista) {
     Array.prototype.forEach.call(lista || [], function (f) {
-      if (/pdf|png|jpe?g/i.test(f.type) || /\.(pdf|png|jpe?g)$/i.test(f.name) || (window.PaulusDocs && window.PaulusDocs.legivel(f))) {
+      if (/pdf|png|jpe?g|webp/i.test(f.type) || /\.(pdf|png|jpe?g|webp)$/i.test(f.name) || (window.PaulusDocs && window.PaulusDocs.legivel(f))) {
         if (f.size > 30 * 1024 * 1024) { aviso(f.name + ': maior que 30 MB.'); return; }
         if (anexos.length < 10) anexos.push(f);
-      } else aviso(f.name + ': só PDF, DOCX, TXT, MD, CSV, PNG ou JPG.');
+        if (window.PaulusDocs && window.PaulusDocs.ehImagem && window.PaulusDocs.ehImagem(f)) aviso('A foto vai para a IA ler. Não anexe imagem com rosto, nome ou documento de pessoa atendida.');
+      } else aviso(f.name + ': só PDF, DOCX, TXT, MD, CSV, PNG, JPG ou WebP.');
     });
     renderAnexos();
   }
