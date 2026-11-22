@@ -320,14 +320,18 @@
   // ------------------------------------------------------------ respostas
   function rodape(r) {
     var partes = [];
+    var ROTULO = { referencia: 'orientação técnica', apoio: 'material de apoio' };
     (r.fontes || []).forEach(function (f) {
       var t = [f.documento, f.norma, f.ano, f.referencia].filter(Boolean).join(' · ');
-      if (t) partes.push('Fonte: ' + t);
+      if (!t) return;
+      var tipo = ROTULO[f.tipo] ? ' [' + ROTULO[f.tipo] + ']' : '';
+      var base = f.usada === false ? 'Também consultada: ' : 'Fonte: ';
+      partes.push({ txt: base + t + tipo + (f.aderencia === 'baixa' ? ' (aproximada)' : ''), apagada: f.usada === false });
     });
-    (r.avisos || []).forEach(function (a) { partes.push(a); });
+    (r.avisos || []).forEach(function (a) { partes.push({ txt: a }); });
     if (!partes.length) return null;
     var f = h('div', { class: 'f' });
-    partes.forEach(function (p) { f.appendChild(h('div', { text: p })); });
+    partes.forEach(function (p) { f.appendChild(h('div', { text: p.txt, style: p.apagada ? 'opacity:.6' : '' })); });
     return f;
   }
   function acoes(x, r, texto) {
