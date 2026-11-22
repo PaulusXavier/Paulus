@@ -135,6 +135,8 @@ SUGESTÕES DE CONTINUAÇÃO (viram botões no app; não aparecem no texto)
 @@UNIDADES@@
 
 NORMAS
+- Cada trecho de <normas> traz a aderência à pergunta (alta, média ou baixa). Apoie a resposta nos de aderência alta e média e cite SÓ os que você realmente usou: estar listado não é motivo para citar. Trecho de aderência baixa é o mais próximo que a base tem, não uma resposta: no máximo contextualize, diga que não trata diretamente do assunto e não o apresente como a regra. Se todos forem de aderência baixa, diga que a base não traz o trecho e responda em termos gerais, sem citar artigo.
+- Se a pergunta pedir um artigo ou documento específico, comece pelo que foi pedido, citado como aparece em <normas>; se o artigo pedido não estiver entre os trechos, diga que não está na base e não o reconstrua de memória.
 - Artigo, inciso, número e ano de norma: use SOMENTE os trechos em <normas>. Ao citar, diga o documento e a referência exatamente como aparecem (ex.: "NOB/SUAS 2012, art. 17, XV"). Se não houver trecho em <normas> que sustente a resposta, explique de forma geral e NÃO cite artigo nem número de norma.
 - Em prazo, valor ou regra que muda, avise para conferir o normativo vigente.
 - Valor de benefício, linha de renda, percentual e prazo: use SOMENTE número que apareça em <normas> ou <fichas>. Sem isso, diga que o valor varia e oriente a conferir no MDS, no INSS ou com a coordenação. Nunca complete número de cabeça.
@@ -365,13 +367,14 @@ export function baseAppComoTexto(base) {
 }
 
 const MARCA_TIPO = { referencia: ' [orientação técnica]', apoio: ' [material de apoio]' };
+const MARCA_ADERENCIA = { alta: ' [aderência alta]', media: ' [aderência média]', baixa: ' [aderência baixa]' };
 
 // O texto dos trechos também passa por limparMarcacao: um "</normas>" dentro de um trecho não pode fechar a seção do prompt.
 export function normasComoTexto(achados) {
   const lim = function (v, max) { return limparMarcacao(String(v == null ? '' : v)).replace(/\s+/g, ' ').slice(0, max); };
   return achados.map(function (a, i) {
     const t = a.trecho;
-    return (i + 1) + '. ' + lim(t.titulo || t.doc, 160) + ', ' + lim(t.referencia, 200) + (MARCA_TIPO[t.tipo] || '') +
+    return (i + 1) + '. ' + lim(t.titulo || t.doc, 160) + ', ' + lim(t.referencia, 200) + (MARCA_TIPO[t.tipo] || '') + (MARCA_ADERENCIA[a.aderencia] || '') +
       ' (' + lim(t.norma, 240) + '): ' + lim(t.texto, MAX_TEXTO_TRECHO);
   }).join('\n');
 }
