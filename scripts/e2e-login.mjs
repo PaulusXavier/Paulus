@@ -36,8 +36,13 @@ fs.copyFileSync(path.join(RAIZ, 'icon-192.png'), path.join(site, 'icon-192.png')
 fs.copyFileSync(path.join(RAIZ, 'manifest.webmanifest'), path.join(site, 'manifest.webmanifest'));
 fs.writeFileSync(path.join(site, 'console.js'), "document.getElementById('st').textContent='CONSOLE ABERTO';");
 const html = fs.readFileSync(path.join(RAIZ, 'console/index.html'), 'utf8');
-fs.writeFileSync(path.join(site, 'index.html'), html.replace('<meta name="paulus-endpoint" content="">', '<meta name="paulus-endpoint" content="' + ORIGEM + '">'));
-fs.writeFileSync(path.join(site, 'sem-login.html'), html);
+// o index.html publicado já traz o endereço do Worker e a chave do Firebase: aqui o endereço aponta para o Worker de teste e o Firebase fica desligado
+const metaEndereco = /<meta name="paulus-endpoint" content="[^"]*">/, metaFirebase = /<meta name="paulus-firebase-key" content="[^"]*">/;
+if (!metaEndereco.test(html) || !metaFirebase.test(html)) throw new Error('index.html sem os metas paulus-endpoint / paulus-firebase-key: ajuste o e2e');
+const semFirebase = html.replace(metaFirebase, '<meta name="paulus-firebase-key" content="">');
+fs.writeFileSync(path.join(site, 'index.html'), semFirebase.replace(metaEndereco, '<meta name="paulus-endpoint" content="' + ORIGEM + '">'));
+fs.writeFileSync(path.join(site, 'firebase.html'), semFirebase.replace(metaEndereco, '<meta name="paulus-endpoint" content="' + ORIGEM + '">').replace('<meta name="paulus-firebase-key" content="">', '<meta name="paulus-firebase-key" content="CHAVE-DE-TESTE">'));
+fs.writeFileSync(path.join(site, 'sem-login.html'), semFirebase.replace(metaEndereco, '<meta name="paulus-endpoint" content="">'));
 const TIPOS = { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.webmanifest': 'application/json' };
 const servidor = http.createServer(async (q, r) => {
   if (q.url === '/__zerar') { zerar(); r.end('ok'); return; }
@@ -243,9 +248,64 @@ await teste('celular pequeno (390×520): sem rolagem lateral e botão alcançáv
   ok(b && b.y >= 0 && b.y + b.height <= 520 && b.width > 200, 'botão fora da tela: ' + JSON.stringify(b));
   await entrar(pg); await consoleAberto(pg);
 }, { viewport: { width: 390, height: 520 } });
-await teste('celular em paisagem (740×360)', async (pg) => {
-  await abrir(pg); await pg.locator('#lgb').scrollIntoViewIfNeeded(); await entrar(pg); await consoleAberto(pg);
+await teste('celular em paisagem (740×360): formulário inteiro cabe, sem rolar', async (pg) => {
+  await abrir(pg);
+  const b = await pg.locator('#lgb').boundingBox(), f = await pg.locator('#lgform').boundingBox();
+  ok(b && b.y >= 0 && b.y + b.height <= 360, 'botão fora da tela: ' + JSON.stringify(b));
+  ok(f && f.y >= 0 && f.y + f.height <= 360, 'formulário fora da tela: ' + JSON.stringify(f));
+  await entrar(pg); await consoleAberto(pg);
 }, { viewport: { width: 740, height: 360 } });
+
+// ---------------------------------------------------------------- login pelo Firebase (a rede do Google é simulada)
+const CORS = { 'access-control-allow-origin': '*' };
+const fbSimular = async (pg, { entrar: resp, sessao = 200 }) => {
+  await pg.route(/identitytoolkit\.googleapis\.com/, (r) => r.fulfill({ status: resp.status, contentType: 'application/json', headers: CORS, body: JSON.stringify(resp.corpo) }));
+  await pg.route(/securetoken\.googleapis\.com/, (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ id_token: 'novo.token.x', refresh_token: 'r2', expires_in: '3600' }) }));
+  await pg.route(ORIGEM + '/sessao', (r) => r.fulfill({ status: sessao, contentType: 'application/json', headers: { 'access-control-allow-origin': ORIGEM }, body: JSON.stringify(sessao === 200 ? { ok: true, usuario: 'ana@exemplo.gov.br', expira: Date.now() + 3600000 } : { erro: 'Sessão inválida ou vencida.' }) }));
+};
+const ENTRAR_FB = { status: 200, corpo: { idToken: 'aaa.bbb.ccc', refreshToken: 'r1', email: 'ana@exemplo.gov.br', expiresIn: '3600' } };
+const entrarFb = async (pg, lembrar = false) => { await pg.fill('#lgu', 'ana@exemplo.gov.br'); await pg.fill('#lgp', 'qualquer-senha'); if (lembrar) await pg.check('#lgl'); await pg.click('#lgb'); };
+await teste('Firebase: rótulo de e-mail e HUD coerentes com o método', async (pg) => {
+  await abrir(pg, ORIGEM + '/firebase.html');
+  igual(await pg.textContent('label[for="lgu"]'), 'E-MAIL', 'rótulo');
+  igual(await pg.getAttribute('#lgu', 'type'), 'email', 'type');
+  igual(await pg.textContent('#hcr'), 'FIREBASE', 'HUD diz PBKDF2 num login do Firebase');
+  ok(!/HMAC/.test(await pg.textContent('#hass')), 'HUD diz HMAC num login do Firebase');
+});
+await teste('Firebase: senha errada → "e-mail ou senha incorretos"', async (pg) => {
+  await fbSimular(pg, { entrar: { status: 400, corpo: { error: { message: 'INVALID_LOGIN_CREDENTIALS' } } } });
+  await abrir(pg, ORIGEM + '/firebase.html'); await entrarFb(pg); await pg.waitForFunction(() => /incorretos/.test(document.getElementById('lgs').textContent));
+});
+await teste('Firebase: chave/configuração recusada NÃO vira "senha incorreta"', async (pg) => {
+  await fbSimular(pg, { entrar: { status: 400, corpo: { error: { message: 'API key not valid. Please pass a valid API key.' } } } });
+  await abrir(pg, ORIGEM + '/firebase.html'); await entrarFb(pg); await pg.waitForFunction(() => /configuração/.test(document.getElementById('lgs').textContent));
+  ok(!/incorretos/.test(await pg.textContent('#lgs')), 'mensagem enganosa');
+});
+await teste('Firebase: erro 500 do Google → mensagem de servidor, não de senha', async (pg) => {
+  await fbSimular(pg, { entrar: { status: 503, corpo: {} } });
+  await abrir(pg, ORIGEM + '/firebase.html'); await entrarFb(pg); await pg.waitForFunction(() => /servidor falhou \(503\)/.test(document.getElementById('lgs').textContent));
+});
+await teste('Firebase: conta do Google que o Worker recusa explica o motivo e não guarda sessão', async (pg) => {
+  await fbSimular(pg, { entrar: ENTRAR_FB, sessao: 401 });
+  await abrir(pg, ORIGEM + '/firebase.html'); await entrarFb(pg, true); await pg.waitForFunction(() => /não tem acesso/.test(document.getElementById('lgs').textContent));
+  igual(await pg.evaluate(() => localStorage.getItem('paulus.sessao') || sessionStorage.getItem('paulus.sessao')), null, 'sessão não deveria ser guardada');
+  ok(await pg.isVisible('#lgform'), 'deveria continuar no login');
+});
+await teste('Firebase: entrada certa abre o console e guarda a sessão com o refresh token', async (pg) => {
+  await fbSimular(pg, { entrar: ENTRAR_FB });
+  await abrir(pg, ORIGEM + '/firebase.html'); await entrarFb(pg, true); await consoleAberto(pg);
+  const g = JSON.parse(await pg.evaluate(() => localStorage.getItem('paulus.sessao')));
+  igual(g.refresh, 'r1', 'refresh token'); igual(g.usuario, 'ana@exemplo.gov.br', 'usuário');
+});
+await teste('duas abas: renovar/regravar a sessão não derruba a outra aba', async (pg, ctx) => {
+  await abrir(pg); await entrar(pg, SENHA, true); await consoleAberto(pg);
+  const p2 = await ctx.newPage(); await p2.goto(ORIGEM + '/'); await consoleAberto(p2);
+  // o que a renovação do token faz: troca o valor da mesma chave (apagar + gravar)
+  await p2.evaluate(() => { const v = localStorage.getItem('paulus.sessao'); localStorage.removeItem('paulus.sessao'); localStorage.setItem('paulus.sessao', v); });
+  await pg.waitForTimeout(600);
+  ok(!(await pg.isVisible('#lgform')), 'a aba 1 saiu sem motivo');
+  ok(!!(await pg.evaluate(() => localStorage.getItem('paulus.sessao'))), 'sessão sumiu do aparelho');
+});
 
 await navegador.close(); servidor.close(); fs.rmSync(site, { recursive: true, force: true });
 const falhas = resultados.filter((r) => !r[0]);
