@@ -341,6 +341,7 @@
     if (r.tipo === 'ia' || r.tipo === 'norma') {
       ac.appendChild(btn('Útil', function () { try { P.avaliar(r, 'bom'); } catch (e) { /* segue */ } aviso('Anotado.'); }, 'Resposta boa'));
       ac.appendChild(btn('Não útil', function () { try { P.avaliar(r, 'ruim'); } catch (e) { /* segue */ } aviso('Anotado.'); }, 'Resposta ruim'));
+      if (ultimoPedido) { var perg = ultimoPedido; ac.appendChild(btn('Refazer', function () { enviar(perg); }, 'Perguntar de novo')); }
       ac.appendChild(btn('Mais curto', function () { try { P.avaliar(r, 'mais_curto'); } catch (e) { /* segue */ } enviar('responda de forma mais curta'); }));
       ac.appendChild(btn('Mais detalhe', function () { try { P.avaliar(r, 'mais_detalhe'); } catch (e) { /* segue */ } enviar('explique com mais detalhe'); }));
     }
@@ -851,6 +852,44 @@
       transcricao.map(function (t) { return '**' + t.papel + ':**\n\n' + t.texto; }).join('\n\n---\n\n') + '\n';
     baixarTexto('conversa-paulus-' + new Date().toISOString().slice(0, 10) + '.md', md, 'text/markdown;charset=utf-8');
   }
+  // ------------------------------------------------------------ ações do console (abrir apps, fechar, painéis)
+  // "abrir o Argo", "abrir Anona e Toth", "fechar o aplicativo", "abrir as anotações" são resolvidos no aparelho, sem IA.
+  (function () {
+    if (!P.registrarAcao) return;
+    var APPS = [
+      { id: 'abrir-argo', t: 'Argo SUAS', r: ['argo', 'argo suas', 'app argo'], u: 'https://paulusxavier.github.io/Projeto-Argo-SUAS/index.html' },
+      { id: 'abrir-anona', t: 'Anona', r: ['anona', 'bolsa familia app'], u: 'https://paulusxavier.github.io/Anona/index.html' },
+      { id: 'abrir-toth', t: 'Caderno de Campo (Toth)', r: ['toth', 'caderno de campo', 'diario de campo'], u: 'https://paulusxavier.github.io/Toth/' },
+      { id: 'abrir-umbrella', t: 'Umbrella (PAIF/PAF)', r: ['umbrella', 'umbrela', 'paif', 'paf'], u: 'https://paulusxavier.github.io/Projeto-Umbrela-PAIF/index.html' },
+      { id: 'abrir-grafia', t: 'Grafia', r: ['grafia', 'bloco de notas'], u: 'https://paulusxavier.github.io/Grafia/index.html' },
+      { id: 'abrir-verbus', t: 'Verbus', r: ['verbus', 'editor de texto'], u: 'https://paulusxavier.github.io/Verbus/' },
+      { id: 'abrir-vita', t: 'Vita (site)', r: ['vita', 'site pessoal'], u: 'https://paulusxavier.github.io/Vita/' }
+    ];
+    APPS.forEach(function (a) {
+      P.registrarAcao({ id: a.id, titulo: a.t, rotulos: a.r, executar: function () {
+        var w = null; try { w = window.open(a.u, '_blank', 'noopener'); } catch (e) { w = null; }
+        if (!w) aviso('O navegador bloqueou a nova aba. Libere pop-ups para este site e peça de novo.');
+      } });
+    });
+    P.registrarAcao({ id: 'fechar-app', fechar: true, titulo: 'Fechar o aplicativo', rotulos: ['aplicativo', 'app', 'console', 'o paulus', 'paulus', 'tudo', 'esta aba', 'essa aba', 'janela'], executar: function () {
+      try { if (typeof pararFala === 'function') pararFala(); } catch (e) { /* segue */ }
+      try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) { /* segue */ }
+      aviso('Fechando…');
+      setTimeout(function () {
+        try { window.close(); } catch (e) { /* o navegador decide */ }
+        // abas comuns só fecham se foram abertas por script; o app instalado fecha
+        setTimeout(function () { if (!document.hidden) aviso('O navegador não deixa fechar esta aba por comando. Feche pela aba ou pelo X da janela (no app instalado, isso funciona).'); }, 500);
+      }, 350);
+    } });
+    function clicar(id) { return function () { var b = $(id); if (b) b.click(); }; }
+    P.registrarAcao({ id: 'painel-notas', titulo: 'Anotações e compras', rotulos: ['anotacoes', 'anotações', 'notas', 'lista de compras', 'compras'], executar: clicar('nt') });
+    P.registrarAcao({ id: 'painel-voz', titulo: 'Escolher a voz', rotulos: ['escolher a voz', 'voz do paulus', 'vozes'], executar: clicar('vc') });
+    P.registrarAcao({ id: 'modo-voz', titulo: 'Modo voz', rotulos: ['modo voz', 'conversa por voz', 'conversa falada'], executar: clicar('jv') });
+    P.registrarAcao({ id: 'modo-foco', titulo: 'Modo foco', rotulos: ['modo foco', 'foco'], executar: clicar('fo') });
+    P.registrarAcao({ id: 'nova-conversa', titulo: 'Nova conversa', rotulos: ['nova conversa', 'conversa nova'], executar: clicar('nv') });
+    P.registrarAcao({ id: 'salvar-conversa', titulo: 'Salvar a conversa', rotulos: ['salvar a conversa', 'exportar a conversa', 'baixar a conversa'], executar: clicar('ex') });
+  })();
+
   // modo foco: esconde painéis e efeitos de fundo; a escolha fica neste aparelho
   (function () {
     var bt = $('fo'); if (!bt) return;
@@ -879,6 +918,8 @@
   function autoAltura() { q.style.height = 'auto'; q.style.height = Math.min(q.scrollHeight, 160) + 'px'; ajustarBarra(); }
   q.addEventListener('input', function () { autoAltura(); selSl = 0; abrirSl(); if (nucleo) nucleo.impulso(); });
   q.addEventListener('keydown', function (e) {
+    // seta para cima com o campo vazio: traz a última pergunta para editar
+    if (e.key === 'ArrowUp' && !q.value && ultimoPedido && sl.hidden) { e.preventDefault(); q.value = ultimoPedido; autoAltura(); return; }
     if (!sl.hidden) {
       if (e.key === 'ArrowDown') { e.preventDefault(); selSl = (selSl + 1) % listaSl.length; abrirSl(); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); selSl = (selSl - 1 + listaSl.length) % listaSl.length; abrirSl(); return; }
