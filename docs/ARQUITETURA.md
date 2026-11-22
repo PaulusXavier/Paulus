@@ -19,6 +19,7 @@ app (navegador)                            Worker (Cloudflare)             Worke
 5. Base de normas offline.
 6. IA (Worker), em streaming.
 7. Se a IA falhar ou estiver offline → trecho da norma ou "não encontrei".
+Com **imagem anexada** (`opcoes.imagem`), os atalhos locais (PDF, conta, idioma, rota, ações, busca) são pulados: a pergunta vai à IA, e o Worker lê a foto antes (`worker/visao.mjs`; veja DOCUMENTOS.md). Falha na leitura vira erro claro, nunca trecho de norma.
 Os passos 3 e 4 são pulados com `{ semAcoes: true }` (apps que já tratam isso, como o Argo).
 Apps com fluxo próprio, que só querem a norma quando não há IA, usam `Paulus.consultarNormas(texto)` (só o passo 5).
 
