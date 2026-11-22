@@ -33,6 +33,7 @@
 import { firebaseLigado, verificarFirebase } from './firebase.mjs';
 import { loginLigado, entrar, criarSessao, verificarSessao, tokenDoPedido, criarFreio, normalizarUsuario, MAX_SENHA, MAX_USUARIO } from './auth.mjs';
 import { temDadoPessoal, temIdentificacaoPessoal, limparMarcacao } from '../shared/pii.mjs';
+import { docSaneado } from '../shared/documento.mjs';
 import { normalizar, criarIndice, buscarFontes, fonteDe, K_PADRAO } from '../shared/busca.mjs';
 import { numerosCitaveis } from '../shared/verificacao.mjs';
 import { detectarCrise } from '../shared/crise.mjs';
@@ -352,6 +353,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     if (!pergunta) return json({ erro: 'Pergunta vazia.' }, 400);
     const interpretar = corpo.modo === 'interpretar';
     const querStream = corpo.stream === true && !interpretar;
+    const documento = !interpretar && corpo.documento ? docSaneado(corpo.documento) : null;
 
     // Socorro vem antes do filtro de dados pessoais e do limite por minuto: nunca é barrado e não chama a IA.
     const crise = detectarCrise(pergunta);
@@ -382,6 +384,13 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
 
     // O que a conversa já firmou (unidade, bairro, município, assunto): campos fechados, validados aqui de novo.
     const estadoDaConversa = sanearEstado(corpo.estado);
+
+    // Documento anexado sem nenhum trecho aproveitável (dado pessoal ou vazio): não responde como se o tivesse lido.
+    if (corpo.documento && !interpretar && (!documento || !documento.n)) {
+      const avisoD = 'Não consegui usar o documento: os trechos têm dados pessoais (nome, CPF, e-mail...) ou não há texto. Anexe uma versão sem identificação das pessoas.';
+      if (!querStream) return json({ resposta: avisoD, fontes: [] });
+      return sse('data: ' + JSON.stringify({ t: avisoD }) + '\n\ndata: [DONE]\n\n');
+    }
 
     // Interpretação: só reescreve e classifica a pergunta (nada de busca nem resposta). Falha da IA não derruba o app.
     if (interpretar) {
@@ -491,7 +500,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       // Prompt enxuto: só os blocos opcionais que a pergunta pede (regras de mapa/rota, de PDF, visão dos outros apps) e, no pedido de ajuste
       // ("mais curto"), só o essencial para reescrever. PROMPT_ENXUTO="desligado" (wrangler.toml) volta ao texto inteiro em toda pergunta.
       const dieta = String(env.PROMPT_ENXUTO || '').toLowerCase() === 'desligado' ? null : Object.assign(escopoDaConversa(pergunta, hist), { enxuto: modo === 'refinamento' });
-      mensagens = montarMensagens({
+      mensagens = montarMensagens({ documento: documento ? documento.texto : '',
         idiomaExtra: idiomaExtra,
         dieta: dieta,
         voce: voce,
