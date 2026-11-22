@@ -252,7 +252,7 @@
       h('p', { text: sk.saudacao || 'Console do Paulus no ar. Pergunte por texto ou voz.' })
     ]);
     var grade = h('div', { class: 'sg' });
-    sug.forEach(function (s, i) { grade.appendChild(h('button', { type: 'button', class: 'ch', on: { click: function () { enviar(s); } } }, [h('i', { text: '0' + (i + 1) }), h('span', { text: s })])); });
+    sug.forEach(function (s, i) { grade.appendChild(h('button', { type: 'button', class: 'ch', on: { click: function () { enviar(s); } } }, [h('i', { text: '\u203A' }), h('span', { text: s })])); });
     hi.appendChild(grade);
     hi.appendChild(h('small', { text: 'Não digite nome nem documento de pessoas atendidas. Digite / para atalhos. Anexe PDF para editar no aparelho.' }));
     log.appendChild(hi); document.body.classList.add('vazio');
