@@ -47,6 +47,7 @@
 
   var log = $('log'), q = $('q'), go = $('go'), fl = $('fl'), pi = $('pi'), sl = $('sl'), tb = $('tb'), dn = $('dn');
   var anexos = [];            // File[]
+  var docAtivo = null;        // documento lido ({nome, texto}) que segue valendo nas próximas perguntas até a pessoa tirar
   var transcricao = [];       // [{papel, texto}] para exportar
   var ocupado = false, vozLigada = false, envioAtual = 0, atual = null;
   var lerLS = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -595,10 +596,15 @@
     ultimoPedido = texto;
     var id = ++envioAtual; atual = x; mudarBotao(true);
     var vivo = function () { return id === envioAtual; };   // falso depois de Parar ou de um envio mais novo
-    P.perguntar(texto, {
-      arquivos: arqs,
+    var D = window.PaulusDocs, querPdf = !!(P.pdf && P.pdf.ler && P.pdf.ler(texto, { temArquivo: arqs.length > 0 }));
+    var leitura = (!querPdf && arqs.length && D) ? D.ler(arqs) : Promise.resolve(null);
+    leitura.then(function (d) {
+      if (d && d.erro) return { tipo: 'erro', texto: d.erro, fontes: [], avisos: [] };
+      if (d && d.texto) { docAtivo = d; renderAnexos(); }
+      return P.perguntar(texto, {
+      arquivos: arqs, documento: querPdf ? null : docAtivo,
       onToken: function (_p, tudo) { if (!vivo()) return; fimPensando(x); legenda(''); x.streamed = true; x.corpo.classList.add('dig'); pintar(x.corpo, tudo); rolar(); }
-    }).then(function (r) {
+    }); }).then(function (r) {
       if (!vivo()) return;
       var ms = performance.now() - x.t0, tipar = !x.streamed && !reduzido && TIPA[r.tipo] && String(r.texto || '').length > 60;
       if (tipar) { fimPensando(x); legenda(''); x.streamed = true; }
@@ -629,14 +635,15 @@
     anexos.forEach(function (a, i) {
       fl.appendChild(h('div', { class: 'fc' }, [h('span', { text: a.name }), h('button', { type: 'button', text: '✕', 'aria-label': 'Remover ' + a.name, on: { click: function () { anexos.splice(i, 1); renderAnexos(); } } })]));
     });
+    if (docAtivo) fl.appendChild(h('div', { class: 'fc doc' }, [h('span', { text: 'Em uso: ' + docAtivo.nome }), h('button', { type: 'button', text: '✕', 'aria-label': 'Parar de usar o documento ' + docAtivo.nome, on: { click: function () { docAtivo = null; renderAnexos(); } } })]));
     ajustarBarra();
   }
   function adicionar(lista) {
     Array.prototype.forEach.call(lista || [], function (f) {
-      if (/pdf|png|jpe?g/i.test(f.type) || /\.(pdf|png|jpe?g)$/i.test(f.name)) {
+      if (/pdf|png|jpe?g/i.test(f.type) || /\.(pdf|png|jpe?g)$/i.test(f.name) || (window.PaulusDocs && window.PaulusDocs.legivel(f))) {
         if (f.size > 30 * 1024 * 1024) { aviso(f.name + ': maior que 30 MB.'); return; }
         if (anexos.length < 10) anexos.push(f);
-      } else aviso(f.name + ': só PDF, PNG ou JPG.');
+      } else aviso(f.name + ': só PDF, DOCX, TXT, MD, CSV, PNG ou JPG.');
     });
     renderAnexos();
   }
@@ -833,7 +840,7 @@
   });
 
   // ------------------------------------------------------------ cabeçalho
-  function nova() {
+  function nova() { docAtivo = null; renderAnexos();
     pararFala();
     P.limpar(); posicao = null; var kp0 = $('kp'); if (kp0) { kp0.textContent = 'NÃO USADA'; kp0.className = ''; } transcricao = []; anexos = []; nResp = 0; legenda(''); renderAnexos(); log.textContent = ''; boasVindas(); estadoUI('idle'); q.focus();
   }
