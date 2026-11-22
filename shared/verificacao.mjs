@@ -1,3 +1,5 @@
+import { normalizar, tokenizar } from './busca.mjs';
+
 // Conferência das citações da IA. O prompt já proíbe citar artigo ou lei que não esteja em <normas>, mas modelo erra.
 // Aqui a regra é conferida por código: o Worker diz quais artigos e leis estavam nos trechos que a IA LEU (numerosCitaveis),
 // e o navegador compara com o que a resposta citou (citacoesSemFonte). Citação fora da lista vira AVISO para a pessoa conferir;
@@ -111,4 +113,43 @@ export function citacoesSemFonte(texto, citaveis, fontes, extras) {
   leisCitadas(texto).forEach(function (rotulo, k) { if (!leis.has(k)) saida.push(rotulo); });
   if (valoresOk) valoresCitados(texto).forEach(function (n) { if (!valoresOk.has(n)) saida.push(rotuloValor(n)); });
   return saida;
+}
+
+// Quais das fontes recuperadas a resposta realmente usou. A busca traz candidatas; a IA usa algumas. Uma fonte conta como usada se a resposta
+// cita o número da lei/decreto/resolução dela, ou nomeia o documento (a maior parte das palavras do título); quando a fonte é um artigo e a
+// resposta cita artigos, o artigo da fonte precisa estar entre os citados.
+export function fontesUsadas(texto, fontes) {
+  const t = String(texto == null ? '' : texto);
+  const tn = ' ' + normalizar(t) + ' ';
+  const tokens = new Set(tokenizar(t));
+  const artigos = artigosCitados(t);
+  const leis = leisCitadas(t);
+  return (Array.isArray(fontes) ? fontes : []).map(function (f) {
+    if (!f) return false;
+    let porNumero = false;
+    leisCitadas([f.norma, f.documento].join(' ')).forEach(function (_, k) { if (leis.has(k)) porNumero = true; });
+    const titulo = normalizar(f.documento);
+    const palavras = Array.from(new Set(tokenizar(f.documento)));
+    const nomeou = (titulo.length >= 3 && tn.indexOf(' ' + titulo + ' ') >= 0) ||
+      (palavras.length >= 2 && palavras.filter(function (w) { return tokens.has(w); }).length / palavras.length >= 0.7);
+    if (!porNumero && !nomeou) return false;
+    const art = /^art\.\s*(\d{1,4})/i.exec(String(f.referencia || ''));
+    if (art && artigos.size && !artigos.has(semZeros(art[1]))) return false;
+    return true;
+  });
+}
+
+// Fontes sem repetição, com "usada" marcado e as usadas primeiro. Se nenhuma for reconhecida como usada, nada é afirmado: volta a lista como veio.
+export function marcarFontesUsadas(texto, fontes) {
+  const vistos = new Set();
+  const lista = (Array.isArray(fontes) ? fontes : []).filter(function (f) {
+    const c = f ? [f.documento, f.referencia].join('|') : '';
+    if (!f || vistos.has(c)) return false;
+    vistos.add(c);
+    return true;
+  });
+  const uso = fontesUsadas(texto, lista);
+  if (!uso.some(Boolean)) return lista;
+  const marcadas = lista.map(function (f, i) { return Object.assign({}, f, { usada: uso[i] }); });
+  return marcadas.filter(function (f) { return f.usada; }).concat(marcadas.filter(function (f) { return !f.usada; }));
 }
