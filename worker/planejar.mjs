@@ -34,7 +34,7 @@ FALTA: dado que a conta precisa e que não está na pergunta, na conversa nem na
 SEM CONTA
 
 EXPRESSÃO
-- Números sem separador de milhar e com ponto decimal: 3200, 15.04, 0.5. Operadores: + - * / ^ e parênteses; porcentagem com %; comparações < <= > >= ==; funções raiz(x), media(a;b;c), min(a;b), max(a;b), arred(x;casas), teto(x), piso(x), abs(x). Separe argumentos com ponto e vírgula.
+- Números sem separador de milhar e com ponto decimal: 3200, 15.04, 0.5. Operadores: + - * / ^ e parênteses; porcentagem com %; comparações < <= > >= ==; funções raiz(x), media(a;b;c), min(a;b), max(a;b), arred(x;casas), teto(x), piso(x), abs(x), mediana(a;b;c), moda(a;b), desvio(a;b;c), variancia(a;b;c), fatorial(n) ou n!, resto(a;b), mdc(a;b), mmc(a;b), comb(n;k), seno(graus), cosseno(graus), ln(x), log(x) ou log(x;base), exp(x), potencia(a;b), hipot(a;b), percentil(p;a;b;c), ponderada(valor;peso;valor;peso), montante(capital;taxa;prazo), parcela(valor;taxa;prazo) e as constantes pi e e. Separe argumentos com ponto e vírgula.
 - Uma operação por linha, em passos pequenos, na ordem. #1, #2... é o resultado da conta de mesmo número (conte as linhas CONTA). Máximo de 8 linhas.
 - Pergunta do tipo "está dentro do limite?" ou "passa de X?": calcule o valor e, na linha seguinte, compare com o limite (ex.: #1 <= 218).
 - Unidade: R$, %, pessoas, dias, meses, anos, ou vazio.
@@ -149,10 +149,12 @@ export function executarPlano(plano, abonados, opc) {
 
 // Contas que o programa achou sozinho na pergunta (shared/calculo.mjs -> contasConfiaveis): mesmo formato do plano.
 export function calculosDiretos(achadas) {
-  const itens = (achadas && achadas.itens ? achadas.itens : []).slice(0, MAX_CONTAS).map(function (i, k) {
+  const itens = (achadas && achadas.itens ? achadas.itens : []).filter(function (i) { return !i.aviso; }).slice(0, MAX_CONTAS).map(function (i, k) {
+    // Itens de calculo-mais.mjs e datas.mjs já trazem o resultado escrito (texto); os da aritmética (calculo.mjs) só o valor.
+    const pronto = typeof i.texto === 'string' && i.texto;
     return {
-      n: k + 1, rotulo: '', expressao: i.expressao, valor: i.valor, bool: i.bool, unidade: i.moeda ? 'R$' : '',
-      texto: descreverResultado({ valor: i.valor, bool: i.bool }, i.moeda ? 'R$' : ''), suposicoes: []
+      n: k + 1, rotulo: i.rotulo || '', expressao: i.expressao || '', valor: typeof i.valor === 'number' ? i.valor : null, bool: !!i.bool && !pronto, unidade: i.moeda ? 'R$' : '',
+      texto: pronto ? i.texto : descreverResultado({ valor: i.valor, bool: i.bool }, i.moeda ? 'R$' : ''), suposicoes: [], erro: !!i.erro
     };
   });
   return { itens: itens, faltas: [], erros: [], origem: 'direta' };
@@ -165,7 +167,10 @@ export function valoresDosCalculos(calculos, textosDaPessoa) {
   const add = function (x) { if (typeof x === 'number' && isFinite(x)) v.add(String(x)); };
   if (calculos && Array.isArray(calculos.itens)) {
     calculos.itens.forEach(function (i) {
-      if (!i.bool) { add(i.valor); add(arredondarCasas(i.valor, 2)); }
+      if (!i.bool && typeof i.valor === 'number') { add(i.valor); add(arredondarCasas(i.valor, 2)); }
+      // resultado já escrito (datas, IMC, conversões): os números do texto e da conta também são conferidos
+      numerosDoTexto(i.texto).forEach(function (x) { v.add(x); });
+      numerosDoTexto(i.expressao).forEach(function (x) { v.add(x); });
     });
   }
   (Array.isArray(textosDaPessoa) ? textosDaPessoa : []).forEach(function (t) { numerosDoTexto(t).forEach(function (n) { v.add(n); }); });
