@@ -346,7 +346,7 @@ function lerSSE(resp, ganchos, controle) {
   return new Promise(function (resolve, reject) {
     const leitor = resp.body.getReader();
     const dec = new TextDecoder();
-    let buf = '', acumulado = '', fontes = [], habilidades = [], citaveis = null, recebeu = false, fim = false;
+    let buf = '', acumulado = '', fontes = [], habilidades = [], citaveis = null, imagem = null, recebeu = false, fim = false;
     function ler() {
       leitor.read().then(function (r) {
         controle.tique();
@@ -365,6 +365,7 @@ function lerSSE(resp, ganchos, controle) {
           if (Array.isArray(ev.fontes)) { fontes = ev.fontes; if (ganchos.onFontes) ganchos.onFontes(fontes); }
           if (Array.isArray(ev.habilidades)) { habilidades = ev.habilidades.map(String).slice(0, 3); if (ganchos.onHabilidades) ganchos.onHabilidades(habilidades); }
           if (ev.citaveis && typeof ev.citaveis === 'object') citaveis = ev.citaveis;
+          if (ev.imagem && typeof ev.imagem === 'object') imagem = ev.imagem;
           if (typeof ev.t === 'string') {
             recebeu = true;
             acumulado += ev.t;
@@ -373,12 +374,24 @@ function lerSSE(resp, ganchos, controle) {
           }
         }
         if (fim) {
-          if (!recebeu) reject(new Error('Resposta vazia.')); else resolve({ texto: acumulado, fontes: fontes, habilidades: habilidades, citaveis: citaveis });
+          if (!recebeu) reject(new Error('Resposta vazia.')); else resolve({ texto: acumulado, fontes: fontes, habilidades: habilidades, citaveis: citaveis, imagem: imagem });
         } else ler();
       }).catch(reject);
     }
     ler();
   });
+}
+
+// Imagem que o app manda ler: data URI JPEG, PNG ou WebP, já reduzida (console/docs.js). O Worker confere de novo (assinatura do arquivo e tamanho).
+const IMAGEM_MAX_ENVIO = 1200000;
+function imagemValida(img) {
+  return !!img && typeof img === 'object' && typeof img.dados === 'string' && img.dados.length <= IMAGEM_MAX_ENVIO && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(img.dados);
+}
+
+// Leitura da imagem que o Worker devolve ({ nome, texto, perdidos }): o app a mantém "em uso" e as próximas perguntas seguem como documento anexado.
+function imagemLidaSaneada(l) {
+  if (!l || typeof l !== 'object' || typeof l.texto !== 'string' || !l.texto.trim()) return null;
+  return { nome: String(l.nome || 'imagem').replace(/[\r\n\t]+/g, ' ').slice(0, 120), texto: l.texto.slice(0, 8000), perdidos: Math.max(0, Math.min(999, Number(l.perdidos) || 0)) };
 }
 
 async function pedirIA(texto, opcoes) {
@@ -399,6 +412,8 @@ async function pedirIA(texto, opcoes) {
     historico: historicoParaEnvio(opcoes.historico, (function (h) { return ehRefinamento(texto, h) || !!pedidoSobreResposta(texto, h); })(Array.isArray(opcoes.historico) ? opcoes.historico : estado.historico)),
     fichas: fichas,
     documento: documento ? { nome: documento.nome, trechos: documento.trechos } : undefined,
+    // Foto já reduzida no aparelho (console/docs.js): o Worker a lê com um modelo de visão e só o texto lido, sem dado pessoal, segue adiante.
+    imagem: imagemValida(opcoes.imagem) ? { nome: String(opcoes.imagem.nome || 'imagem').slice(0, 120), dados: opcoes.imagem.dados } : undefined,
     stream: true
   };
   // O que a conversa já firmou (unidade, bairro, município, assunto), montado pelo app. Só campos fechados e curtos.
@@ -462,7 +477,7 @@ async function pedirIA(texto, opcoes) {
     } else {
       const j = await resp.json();
       if (!j || typeof j.resposta !== 'string' || !j.resposta) throw new Error(j && j.erro ? String(j.erro) : 'Resposta vazia.');
-      saida = { texto: j.resposta, fontes: Array.isArray(j.fontes) ? j.fontes : [], habilidades: Array.isArray(j.habilidades) ? j.habilidades.map(String).slice(0, 3) : [], citaveis: j.citaveis && typeof j.citaveis === 'object' ? j.citaveis : null };
+      saida = { texto: j.resposta, fontes: Array.isArray(j.fontes) ? j.fontes : [], habilidades: Array.isArray(j.habilidades) ? j.habilidades.map(String).slice(0, 3) : [], citaveis: j.citaveis && typeof j.citaveis === 'object' ? j.citaveis : null, imagem: j.imagem && typeof j.imagem === 'object' ? j.imagem : null };
       if (opcoes.onToken) opcoes.onToken(saida.texto, ocultarControles(saida.texto));
     }
     const partes = separarControles(saida.texto, acoes.map(function (a) { return a.id; }));
@@ -472,6 +487,8 @@ async function pedirIA(texto, opcoes) {
       return { id: a.id, rotulo: a.rotulo, confirmar: a.confirmar, executar: a.executar };
     });
     const avisos = ['Resposta gerada por IA. Confira antes de usar em atendimento.'];
+    const lida = imagemLidaSaneada(saida.imagem);
+    if (lida) avisos.push('Imagem "' + lida.nome + '": lida por um programa de visão, que pode errar letras e números. Confira no original.' + (lida.perdidos ? ' ' + lida.perdidos + ' linha(s) com dados pessoais ficaram de fora da leitura.' : ''));
     if (telefonesDesconhecidos(saida.texto, fichas).length) {
       avisos.push('A IA citou um telefone que não consta no diretório. Confirme com a unidade antes de passar adiante.');
     }
@@ -481,7 +498,7 @@ async function pedirIA(texto, opcoes) {
     if (semFonte.length) {
       avisos.push('A IA citou ' + semFonte.slice(0, 3).join(', ') + ', que não aparece nas normas consultadas. Confira no texto oficial antes de usar.');
     }
-    return { tipo: 'ia', texto: saida.texto, fontes: marcarFontesUsadas(saida.texto, saida.fontes), sugestoes: partes.sugestoes, acoes: propostas, avisos: avisos, habilidades: saida.habilidades || [], geradoPorIA: true };
+    return { tipo: 'ia', texto: saida.texto, fontes: marcarFontesUsadas(saida.texto, saida.fontes), sugestoes: partes.sugestoes, acoes: propostas, avisos: avisos, habilidades: saida.habilidades || [], geradoPorIA: true, imagemLida: imagemLidaSaneada(saida.imagem) };
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -731,7 +748,11 @@ function respostaDeCalculo(t, o, conta) {
 }
 
 async function perguntar(texto, opcoes) {
-  const o = opcoes || {};
+  let o = opcoes || {};
+  // Com imagem anexada o pedido é "olhe esta foto": nenhum atalho local (PDF, conta, idioma, rota, busca...) responde no lugar da leitura.
+  // O socorro e o filtro de dado pessoal continuam valendo sobre o texto da pergunta.
+  const comImagem = imagemValida(o.imagem);
+  if (comImagem) o = Object.assign({}, o, { semPdf: true, semGeo: true, semRevisao: true, semCalculo: true, semEspanhol: true, semAcoes: true, semModelos: true, semRota: true, arquivos: [] });
   const t = String(texto == null ? '' : texto).replace(/\s+/g, ' ').trim().slice(0, cfg.maxPergunta);
   if (!t) return { tipo: 'erro', texto: 'Escreva uma pergunta.' };
 
@@ -826,6 +847,7 @@ async function perguntar(texto, opcoes) {
   const docs = achados.map(function (a) { return a.trecho.doc; }).filter(function (d, i, l) { return d && l.indexOf(d) === i; });
 
   let motivo = '';
+  if (comImagem && !iaLigada()) return { tipo: 'erro', texto: 'Para ler a imagem preciso da IA, que não está ligada agora (sem internet ou sem login).' };
   if (iaLigada()) {
     try {
       const r = await pedirIA(t, o);
@@ -843,6 +865,8 @@ async function perguntar(texto, opcoes) {
       if (o.sinal && o.sinal.aborted) return { tipo: 'erro', texto: 'Interrompido.' };
       // Limite de perguntas: a norma offline não resolve e o motivo importa (é só esperar).
       if (e && e.status === 429) return { tipo: 'erro', texto: e.motivo || 'Muitas perguntas seguidas. Aguarde um minuto.', limite: true };
+      // Foto que não foi lida: um trecho de norma no lugar dela não responderia o que a pessoa quis saber.
+      if (comImagem) return { tipo: 'erro', texto: (e && e.motivo) || 'Não consegui ler a imagem agora. Tente de novo em instantes.' };
       motivo = (e && e.motivo) || '';
       /* senão, cai para a base offline */
     }
