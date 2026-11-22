@@ -21,6 +21,8 @@
 //   estado (opcional): { unidade, bairro, municipio, assunto, intencao } o que a conversa já firmou; vira bloco no prompt e evita pedir de novo o que já foi dito (shared/conversa.mjs).
 //   modo: 'interpretar'  (opcional): em vez de responder, devolve { interpretacao: { pergunta, intencao, bairro, unidade, esclarecer } | null }
 //   (a pergunta reescrita de forma completa, usando a conversa; ver worker/interpretar.mjs).
+//   imagem (opcional): { nome, dados:"data:image/jpeg|png|webp;base64,..." } foto já reduzida no aparelho. Um modelo de visão (MODELO_VISAO, MODELO_VISAO_RESERVA) copia o texto e descreve a imagem;
+//   só essa leitura, SEM as linhas com dado pessoal, chega ao Paulus (worker/visao.mjs). VISAO="desligado" recusa imagem. A leitura volta em { imagem:{nome,texto,perdidos} } para as próximas perguntas.
 //   habilidades (opcional em criarManipulador): roteiros de trabalho carregados de knowledge/habilidades.json (ver docs/HABILIDADES.md).
 // Resposta com stream:true  -> text/event-stream:  data: {"fontes":[...]}  data: {"habilidades":["nome"]}  data: {"citaveis":{"a":[...],"l":[...],"v":["600","218.5"]}}  data: {"t":"..."}  data: [DONE]
 // Resposta sem stream       -> JSON { resposta, fontes, habilidades, citaveis }
@@ -50,6 +52,7 @@ import { pareceProblemaDeCalculo, temNumeroPorExtenso } from '../shared/calculo.
 import { contasDoPedido } from '../shared/calculo-mais.mjs';
 import { pedeAnalise, montarMensagensRaciocinio, lerRaciocinio, raciocinioComoTexto, buscaDoRaciocinio, completarAchados, conferirRaciocinio, calibrarSeguranca, tipoDeAnalise, disseSemAnalise, montarMensagensReformatar } from './raciocinar.mjs';
 import { tratarVoz } from './voz.mjs';
+import { imagemSaneada, lerImagem, sanearLeitura, CORPO_MAX_COM_IMAGEM } from './visao.mjs';
 import { montarMensagensPlano, lerPlano, executarPlano, calculosDiretos, numerosAbonados, valoresDosCalculos, mesclarValores } from './planejar.mjs';
 
 // Padrão: modelo grande (raciocina e segue as regras muito melhor) e, se ele falhar (ex.: cota gratuita do dia),
@@ -95,7 +98,7 @@ function extrairPedaco(ev) {
 // recuperar (opcional): função async que devolve a resposta inteira pelo modelo de reserva. Se o fluxo do modelo principal
 // falhar ou terminar sem nenhum texto ANTES de qualquer pedaço sair, a resposta vem da reserva (a pessoa não vê erro).
 // Se o fluxo cair no meio, o texto parcial não é completado por outro modelo (viraria uma resposta emendada): vai o aviso de erro.
-function normalizarFluxo(upstream, fontes, habilidades, citaveis, recuperar) {
+function normalizarFluxo(upstream, fontes, habilidades, citaveis, recuperar, imagemLida) {
   const dec = new TextDecoder();
   const enc = new TextEncoder();
   let leitor = null, cancelado = false;
@@ -116,6 +119,7 @@ function normalizarFluxo(upstream, fontes, habilidades, citaveis, recuperar) {
       if (fontes.length) emitir({ fontes: fontes });
       if (habilidades.length) emitir({ habilidades: habilidades });
       if (citaveis) emitir({ citaveis: citaveis });
+      if (imagemLida) emitir({ imagem: imagemLida });
       try {
         leitor = upstream.getReader();
         for (;;) {
@@ -332,9 +336,10 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     if (rota === '/voz') return tratarVoz(request, env, json, cors);
     if (!env.AI || typeof env.AI.run !== 'function') return json({ erro: 'Workers AI não está ligado a este Worker.' }, 500);
 
-    if (Number(request.headers.get('Content-Length')) > MAX_CORPO) return json({ erro: 'Pedido grande demais.' }, 413);
+    // Pedido só de texto: até 64 KB. Com foto (campo "imagem", já reduzida no aparelho) o teto sobe, e só para quem traz o campo.
+    if (Number(request.headers.get('Content-Length')) > CORPO_MAX_COM_IMAGEM) return json({ erro: 'Pedido grande demais.' }, 413);
     const texto = await request.text();
-    if (texto.length > MAX_CORPO) return json({ erro: 'Pedido grande demais.' }, 413);
+    if (texto.length > CORPO_MAX_COM_IMAGEM || (texto.length > MAX_CORPO && texto.indexOf('"imagem"') < 0)) return json({ erro: 'Pedido grande demais.' }, 413);
     let corpo;
     // Chaves que redefinem a conversão para texto (ex.: {"toString":1}) fazem String()/join() estourarem em qualquer campo: saem na leitura.
     try { corpo = JSON.parse(texto, function (k, v) { return (k === 'toString' || k === 'valueOf' || k === 'toJSON') ? undefined : v; }); } catch (e) { return json({ erro: 'JSON inválido.' }, 400); }
@@ -392,6 +397,28 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       return sse('data: ' + JSON.stringify({ t: avisoD }) + '\n\ndata: [DONE]\n\n');
     }
 
+    // Imagem anexada (worker/visao.mjs): um modelo de visão lê a foto e só o texto que ele devolve, sem as linhas com dado pessoal, segue adiante.
+    // Fica depois do socorro, do filtro da pergunta e do limite por minuto: a leitura gasta uma chamada de IA a mais.
+    let imagemLida = null;
+    if (corpo.imagem && !interpretar) {
+      const recusa = function (texto) {
+        if (!querStream) return json({ resposta: texto, fontes: [] });
+        return sse('data: ' + JSON.stringify({ t: texto }) + '\n\ndata: [DONE]\n\n');
+      };
+      if (String(env.VISAO || '').toLowerCase() === 'desligado') return recusa('A leitura de imagens está desligada neste Worker. Descreva o que a imagem mostra, sem dados de pessoas, ou anexe um documento de texto.');
+      const imagem = imagemSaneada(corpo.imagem);
+      if (!imagem) return recusa('Não consegui usar a imagem: aceito JPG, PNG ou WebP, de tamanho moderado. Tire outra foto ou reduza a imagem.');
+      let bruto;
+      try {
+        bruto = await lerImagem(env, imagem, pergunta);
+      } catch (e) {
+        return json({ erro: 'Não consegui ler a imagem agora (a cota gratuita do dia pode ter acabado).' }, 502);
+      }
+      const leitura = sanearLeitura(bruto);
+      if (!leitura.n) return recusa('Não consegui usar a imagem: não achei nela texto nem conteúdo que eu possa usar sem dados pessoais (nome, CPF, telefone, endereço). Anexe outra foto, sem identificação das pessoas.');
+      imagemLida = { nome: imagem.nome, texto: leitura.texto, perdidos: leitura.perdidos };
+    }
+
     // Interpretação: só reescreve e classifica a pergunta (nada de busca nem resposta). Falha da IA não derruba o app.
     if (interpretar) {
       let texto;
@@ -411,7 +438,9 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     const temFichas = Array.isArray(fichasRecebidas) && fichasRecebidas.length > 0;
     const temPanorama = (typeof corpo.panorama === 'string' && corpo.panorama.trim().length > 0) || (Array.isArray(corpo.baseApp) && corpo.baseApp.length > 0);
     // O Paulus lê o TIPO do pedido sem gastar IA (shared/pedido.mjs): cumprimento, ajuste da resposta anterior, seguimento, consulta ou normal.
-    const modo = classificarPedido(pergunta, hist, { temFichas: temFichas, temPanorama: temPanorama });
+    // Com imagem, "oi" não é só cumprimento: a pessoa quer que eu olhe a foto.
+    const modoBruto = classificarPedido(pergunta, hist, { temFichas: temFichas, temPanorama: temPanorama });
+    const modo = (imagemLida && modoBruto === 'saudacao') ? 'normal' : modoBruto;
 
     let idiomaExtra = '', raciocinio = '', tipoAnalise = '', achados = [], fontes = [], habilidades = [], tema = false, sobreSi = false, partesDaMsg = [], voce = '', mensagens, pref = null, calculos = null, quantitativo = false, textosDaPessoa = [];
     if (modo === 'saudacao') {
@@ -501,6 +530,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       // ("mais curto"), só o essencial para reescrever. PROMPT_ENXUTO="desligado" (wrangler.toml) volta ao texto inteiro em toda pergunta.
       const dieta = String(env.PROMPT_ENXUTO || '').toLowerCase() === 'desligado' ? null : Object.assign(escopoDaConversa(pergunta, hist), { enxuto: modo === 'refinamento' });
       mensagens = montarMensagens({ documento: documento ? documento.texto : '',
+        imagem: imagemLida ? imagemLida.texto : '',
         idiomaExtra: idiomaExtra,
         dieta: dieta,
         voce: voce,
@@ -555,12 +585,12 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       const recuperar = reserva !== principal
         ? async function () { return extrairTexto(await env.AI.run(reserva, parametrosDaIA(mensagens, ajuste, false))); }
         : null;
-      return sse(normalizarFluxo(saida, fontes, nomesHabilidades, citaveis, recuperar));
+      return sse(normalizarFluxo(saida, fontes, nomesHabilidades, citaveis, recuperar, imagemLida));
     }
 
     const resposta = extrairTexto(saida);
     if (!resposta) return json({ erro: 'Resposta vazia.' }, 502);
-    return json({ resposta: resposta, fontes: fontes, habilidades: nomesHabilidades, citaveis: citaveis });
+    return json({ resposta: resposta, fontes: fontes, habilidades: nomesHabilidades, citaveis: citaveis, imagem: imagemLida || undefined });
   }
 
   // Rede de segurança: qualquer exceção que escape vira 500 em JSON COM os cabeçalhos de CORS. Sem isso o Workers devolve a página de erro
