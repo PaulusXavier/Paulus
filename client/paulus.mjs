@@ -22,9 +22,9 @@
 import { temDadoPessoal } from '../shared/pii.mjs';
 import { detectarCrise } from '../shared/crise.mjs';
 import { respostaLocalDeIdioma, paraBusca, idiomaDoPedido, avisoPessoalNoIdioma } from '../shared/idioma.mjs';
-import { normalizar, criarIndice, buscar, fonteDe, K_PADRAO } from '../shared/busca.mjs';
+import { normalizar, criarIndice, buscarFontes, fonteDe, K_PADRAO } from '../shared/busca.mjs';
 import { classificarPedido, ehRefinamento, pedidoSobreResposta, consultaDoPedido, trechosParaOPedido } from '../shared/pedido.mjs';
-import { citacoesSemFonte } from '../shared/verificacao.mjs';
+import { marcarFontesUsadas, citacoesSemFonte } from '../shared/verificacao.mjs';
 import { respostaDoPedido } from '../shared/calculo-mais.mjs';
 import { respostaDeRota, lerPedidoDeRota } from '../shared/rota.mjs';
 import { respostaDeModelo, lerPedidoDeModelo, urlDoModelo, MODELOS_3D } from '../shared/modelos.mjs';
@@ -442,7 +442,7 @@ async function pedirIA(texto, opcoes) {
     if (semFonte.length) {
       avisos.push('A IA citou ' + semFonte.slice(0, 3).join(', ') + ', que não aparece nas normas consultadas. Confira no texto oficial antes de usar.');
     }
-    return { tipo: 'ia', texto: saida.texto, fontes: saida.fontes, sugestoes: partes.sugestoes, acoes: propostas, avisos: avisos, habilidades: saida.habilidades || [], geradoPorIA: true };
+    return { tipo: 'ia', texto: saida.texto, fontes: marcarFontesUsadas(saida.texto, saida.fontes), sugestoes: partes.sugestoes, acoes: propostas, avisos: avisos, habilidades: saida.habilidades || [], geradoPorIA: true };
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -464,7 +464,7 @@ function respostaDasNormas(achados) {
   return {
     tipo: 'norma',
     texto: resumirTrecho(melhor.texto, 900),
-    fontes: achados.map(function (a) { return fonteDe(a.trecho); }),
+    fontes: achados.map(function (a) { return fonteDe(a.trecho, a); }),
     avisos: [melhor.tipo && melhor.tipo !== 'norma'
       ? 'Trecho de ' + (melhor.tipo === 'apoio' ? 'material de apoio' : 'orientação técnica') + ' (não é norma legal: orienta, não obriga). Confira o documento original.'
       : 'Trecho da base de normas do Paulus. Confira o texto oficial vigente.']
@@ -779,7 +779,7 @@ async function perguntar(texto, opcoes) {
   // O tipo do pedido (shared/pedido.mjs) decide a busca offline: cumprimento não busca norma; ajuste ("mais curto") e seguimento herdam o assunto anterior.
   const hist = Array.isArray(o.historico) ? o.historico : estado.historico;
   const modo = classificarPedido(t, hist);
-  const achados = estado.indice && modo !== 'saudacao' ? buscar(estado.indice, (consultaDoPedido(t, hist, modo) + ' ' + paraBusca(t)).trim(), { k: trechosParaOPedido(modo, t, K_PADRAO), preferir: estado.mem.preferencias() }) : [];
+  const achados = estado.indice && modo !== 'saudacao' ? buscarFontes(estado.indice, (consultaDoPedido(t, hist, modo) + ' ' + paraBusca(t)).trim(), { k: trechosParaOPedido(modo, t, K_PADRAO), preferir: estado.mem.preferencias(), modo: modo }) : [];
   // Cumprimento, ajuste e seguimento não dizem nada sobre o assunto: não entram nas "perguntas frequentes" nem nos temas aprendidos.
   const aprende = modo === 'normal' || modo === 'consulta';
   const docs = achados.map(function (a) { return a.trecho.doc; }).filter(function (d, i, l) { return d && l.indexOf(d) === i; });
@@ -846,7 +846,7 @@ async function consultarNormas(texto, opcoes) {
   const hist = Array.isArray(o.historico) ? o.historico : estado.historico;
   const modo = classificarPedido(t, hist);
   if (modo === 'saudacao') return null;
-  const achados = buscar(estado.indice, (consultaDoPedido(t, hist, modo) + ' ' + paraBusca(t)).trim(), { k: trechosParaOPedido(modo, t, K_PADRAO), preferir: estado.mem.preferencias() });
+  const achados = buscarFontes(estado.indice, (consultaDoPedido(t, hist, modo) + ' ' + paraBusca(t)).trim(), { k: trechosParaOPedido(modo, t, K_PADRAO), preferir: estado.mem.preferencias(), modo: modo });
   return achados.length ? respostaDasNormas(achados) : null;
 }
 
