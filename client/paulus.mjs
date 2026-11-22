@@ -25,7 +25,7 @@ import { respostaLocalDeIdioma, paraBusca, idiomaDoPedido, avisoPessoalNoIdioma 
 import { normalizar, criarIndice, buscar, fonteDe, K_PADRAO } from '../shared/busca.mjs';
 import { classificarPedido, ehRefinamento, pedidoSobreResposta, consultaDoPedido, trechosParaOPedido } from '../shared/pedido.mjs';
 import { citacoesSemFonte } from '../shared/verificacao.mjs';
-import { respostaDeConta } from '../shared/calculo.mjs';
+import { respostaDoPedido } from '../shared/calculo-mais.mjs';
 import { respostaDeRota, lerPedidoDeRota } from '../shared/rota.mjs';
 import { respostaDeModelo, lerPedidoDeModelo, urlDoModelo, MODELOS_3D } from '../shared/modelos.mjs';
 import { respostaDeGeo, geoTipoDePedido, geoLerCoordenadas, geoFormatarCoordenadas, geoNormalizarEndereco, geoMontarEndereco, geoPerto, geoFontes, geoLinksDeRota, geoParaGpx, geoParaKml, geoDistanciaKm } from '../shared/geo.mjs';
@@ -677,6 +677,20 @@ async function tratarGeo(t, o, tipo) {
 
 // ------------------------------------------------------------------ pergunta
 
+
+// Resposta de conta feita no aparelho. Idade e nascimento (sensivel) nunca entram no histórico.
+function respostaDeCalculo(t, o, conta) {
+  if (!conta.sensivel && !Array.isArray(o.historico)) {
+    estado.historico.push({ papel: 'usuario', texto: t }, { papel: 'paulus', texto: conta.texto });
+    estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
+  }
+  return {
+    tipo: 'calculo', texto: conta.texto, itens: conta.itens, sensivel: !!conta.sensivel, fontes: [],
+    avisos: [conta.sensivel ? 'Conta feita no aparelho, sem IA. Não foi guardada no histórico. Confira as datas que você digitou.' : 'Conta feita no aparelho, sem IA. Confira os números que você digitou.'],
+    pergunta: conta.sensivel ? '' : t, docs: []
+  };
+}
+
 async function perguntar(texto, opcoes) {
   const o = opcoes || {};
   const t = String(texto == null ? '' : texto).replace(/\s+/g, ' ').trim().slice(0, cfg.maxPergunta);
@@ -709,6 +723,13 @@ async function perguntar(texto, opcoes) {
     if (rev) return { tipo: 'revisao', texto: rev.texto, apontamentos: rev.apontamentos, corrigido: rev.corrigido, sensivel: true, fontes: [], avisos: ['Correção feita neste aparelho, sem IA e sem rede. Não foi guardada no histórico. Só pega erros comuns: leia o resultado.'], pergunta: '', docs: [] };
   }
 
+  // Datas e prazos ("30 dias úteis a partir de 02/12/2026", "idade de quem nasceu em 15/05/1990"): no aparelho, antes do filtro, porque a data de
+  // nascimento faz o filtro bloquear. Idade é dado sensível: a resposta não entra no histórico.
+  if (!o.semCalculo) {
+    const dt = respostaDoPedido(t);
+    if (dt && dt.origem === 'datas') return respostaDeCalculo(t, o, dt);
+  }
+
   if (temDadoPessoal(t)) return { tipo: 'bloqueio', texto: avisoPessoalNoIdioma(idiomaDoPedido(t, o.historico || estado.historico), AVISO_PESSOAL) };
 
   // Vocabulário, frases e falsos amigos PT↔ES e PT↔EN (shared/espanhol.mjs e shared/ingles.mjs): no aparelho, sem IA e sem rede. Não entra no histórico.
@@ -717,17 +738,12 @@ async function perguntar(texto, opcoes) {
     if (esp) return { tipo: esp.idioma === 'en' ? 'ingles' : 'espanhol', tipoLocal: esp.tipoLocal, texto: esp.texto, fontes: [], avisos: ['Resposta feita neste aparelho, sem IA e sem rede. Confira o sentido com a pessoa atendida.'], pergunta: '', docs: [] };
   }
 
-  // Mensagem que É só uma conta ("quanto é 15% de 1200?"): o programa resolve no aparelho, exato, sem rede e sem gastar a cota da IA.
-  // Pergunta com mais assunto (\"renda per capita de 3200 / 4\") segue para a IA, que recebe a conta já feita.
+  // Mensagem que É só uma conta ("quanto é 15% de 1200?", "mediana de 3, 5 e 9", "IMC de 70 kg e 1,75 m", "30 dias úteis a partir de 02/12/2026"):
+  // o programa resolve no aparelho, exato, sem rede e sem gastar a cota da IA. Datas e idade já foram tratadas antes do filtro de dado pessoal.
+  // Pergunta com mais assunto ("renda per capita de 3200 / 4, posso incluir no BPC?") segue para a IA, que recebe a conta já feita.
   if (!o.semCalculo) {
-    const conta = respostaDeConta(t);
-    if (conta) {
-      if (!Array.isArray(o.historico)) {
-        estado.historico.push({ papel: 'usuario', texto: t }, { papel: 'paulus', texto: conta.texto });
-        estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
-      }
-      return { tipo: 'calculo', texto: conta.texto, itens: conta.itens, fontes: [], avisos: ['Conta feita no aparelho, sem IA. Confira os números que você digitou.'], pergunta: t, docs: [] };
-    }
+    const conta = respostaDoPedido(t);
+    if (conta) return respostaDeCalculo(t, o, conta);
   }
 
   if (!o.semAcoes) {
