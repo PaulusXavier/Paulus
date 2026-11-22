@@ -15,7 +15,7 @@ import { dirname, join } from 'node:path';
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Ordem importa: quem é usado vem antes de quem usa.
-const MODULOS = ['shared/espanhol-dados.mjs', 'shared/espanhol.mjs', 'shared/ingles-dados.mjs', 'shared/ingles.mjs', 'shared/idioma.mjs', 'shared/pii.mjs', 'shared/crise.mjs', 'shared/busca.mjs', 'shared/pedido.mjs', 'shared/conversa.mjs', 'shared/verificacao.mjs', 'shared/calculo.mjs', 'shared/geo.mjs', 'shared/diretorio-boa-vista.mjs', 'shared/rota.mjs', 'shared/modelos.mjs', 'shared/revisao-texto.mjs', 'shared/pdf.mjs', 'shared/visitas.mjs', 'shared/suicidio.mjs', 'shared/sugestoes.mjs', 'client/skins.mjs', 'client/memoria.mjs', 'client/paulus.mjs'];
+const MODULOS = ['shared/espanhol-dados.mjs', 'shared/espanhol.mjs', 'shared/ingles-dados.mjs', 'shared/ingles.mjs', 'shared/idioma.mjs', 'shared/pii.mjs', 'shared/crise.mjs', 'shared/busca.mjs', 'shared/pedido.mjs', 'shared/conversa.mjs', 'shared/verificacao.mjs', 'shared/calculo.mjs', 'shared/geo.mjs', 'shared/diretorio-boa-vista.mjs', 'shared/rota.mjs', 'shared/modelos.mjs', 'shared/revisao-texto.mjs', 'shared/pdf.mjs', 'shared/visitas.mjs', 'shared/suicidio.mjs', 'shared/sugestoes.mjs', 'shared/fala.mjs', 'client/skins.mjs', 'client/memoria.mjs', 'client/paulus.mjs'];
 
 const CABECALHO = '/*! Paulus v1 — gerado por scripts/build.mjs. Não edite: altere shared/ e client/. */\n(function (root) {\n\'use strict\';\n';
 const RODAPE = '})(typeof self !== \'undefined\' ? self : this);\n';
