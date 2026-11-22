@@ -91,7 +91,7 @@ test('Worker: pergunta que é só a conta vai pronta para a IA, sem passo de pla
 test('Worker: problema em linguagem natural passa pelo planejamento e o programa calcula', async () => {
   const { env, chamadas } = ambiente({ plano: 'CONTA: renda per capita | 3200 / 4 | R$\nCONTA: dentro da linha de 218? | #1 <= 218 |' });
   const m = criarManipulador({ base, apps: APPS });
-  const r = await (await m(pedido({ app: 'anona', pergunta: 'Família de 4 pessoas com renda de R$ 3.200: está dentro da linha de R$ 218 per capita?' }), env)).json();
+  const r = await (await m(pedido({ app: 'anona', pergunta: 'Renda total de R$ 3.200 dividida por quatro: está dentro da linha de R$ 218 per capita?' }), env)).json();
   assert.equal(chamadas.length, 2);
   assert.equal(chamadas[0].plano, true);
   assert.equal(chamadas[0].params.temperature, 0);
@@ -100,6 +100,18 @@ test('Worker: problema em linguagem natural passa pelo planejamento e o programa
   assert.match(user, /1\. renda per capita: 3\.200 ÷ 4 = R\$ 800/);
   assert.match(user, /2\. dentro da linha de 218\?: \[1\] ≤ 218 → NÃO/);
   assert.ok(r.citaveis.v.includes('800') && r.citaveis.v.includes('3200'));
+});
+
+test('Worker: renda per capita com limite é calculada pelo programa, sem chamar o planejamento (calculo-mais)', async () => {
+  const { env, chamadas } = ambiente({ plano: 'SEM CONTA' });
+  const m = criarManipulador({ base, apps: APPS });
+  const r = await (await m(pedido({ app: 'anona', pergunta: 'Família de 4 pessoas com renda de R$ 3.200: está dentro da linha de R$ 218 per capita?' }), env)).json();
+  assert.equal(chamadas.length, 1);
+  assert.ok(!chamadas[0].plano);
+  const user = chamadas[0].params.messages.at(-1).content;
+  assert.match(user, /renda per capita: 3\.200 ÷ 4 = R\$ 800/);
+  assert.match(user, /NÃO, acima do limite informado/);
+  assert.ok(r.citaveis.v.includes('800') && r.citaveis.v.includes('218'));
 });
 
 test('Worker: se o planejamento falhar, a resposta sai mesmo assim (sem derrubar nem inventar)', async () => {
