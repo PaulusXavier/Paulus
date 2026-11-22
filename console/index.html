@@ -231,6 +231,28 @@ header,#log,#bar,.rail{transition:opacity .6s ease}
 @media(max-width:520px){.brand{font-size:12px;letter-spacing:.26em}.brand small{display:none}#hr{display:none}.m{max-width:99%}#go{min-width:76px;padding:0 8px}.hb{width:34px;height:34px;min-width:34px}.hr{gap:4px}}
 @media(max-width:430px){.hb{width:32px;height:32px;min-width:32px}.hr{gap:3px}header{padding-left:8px;padding-right:8px}.hl{margin-left:66px}}
 @media(max-width:380px){#ins{display:none}.hl{margin-left:64px}.brand{letter-spacing:.2em}}
+/* ---------- reator (anéis do fundo, estilo J.A.R.V.I.S.) ---------- */
+#hx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;color:var(--c);opacity:.07;-webkit-mask-image:radial-gradient(ellipse 60% 55% at 50% 46%,#000 0%,transparent 100%);mask-image:radial-gradient(ellipse 60% 55% at 50% 46%,#000 0%,transparent 100%)}
+#rx{position:fixed;left:50%;top:46%;width:min(98vmin,900px);height:min(98vmin,900px);transform:translate(-50%,-50%);pointer-events:none;z-index:0;color:var(--c);opacity:.2;filter:drop-shadow(0 0 6px #37e6ff55);transition:opacity .9s ease,color .5s ease}
+body.vazio #rx{opacity:.8}
+#rx .rg{transform-box:fill-box;transform-origin:center}
+#rx .g1{animation:rxg 150s linear infinite}
+#rx .g2{animation:rxg 70s linear infinite reverse}
+#rx .g3{animation:rxg 45s linear infinite}
+#rx .g4{animation:rxg 16s linear infinite;color:var(--a)}
+#rx .g5{animation:rxg 110s linear infinite reverse}
+#rx .g6{animation:rxg 9s linear infinite}
+#rx .g7{animation:rxg 28s linear infinite reverse}
+#rx .rx-p{transform-box:fill-box;transform-origin:center;animation:rxr 5s ease-in-out infinite}
+@keyframes rxg{to{transform:rotate(360deg)}}
+@keyframes rxr{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.018);opacity:1}}
+body[data-estado=busy] #rx{color:var(--a);opacity:.5;filter:drop-shadow(0 0 8px #ffb34766)}
+body[data-estado=busy] #rx .g4{color:var(--c)}
+body[data-estado=listen] #rx{color:var(--ok);opacity:.6;filter:drop-shadow(0 0 8px #6ee7a866)}
+body[data-estado=speak] #rx{opacity:.7;filter:drop-shadow(0 0 12px #37e6ffaa)}
+body[data-estado=speak] #rx .rx-p,body[data-estado=listen] #rx .rx-p{animation-duration:.9s}
+body[data-estado=erro] #rx{color:var(--red);opacity:.5}
+@media(max-width:700px){#rx{top:40%;width:150vmin;height:150vmin}body.vazio #rx{opacity:.55}}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}#bgc{display:none}}
 
 
@@ -422,6 +444,21 @@ body[data-estado=busy] .qw{background-color:#1a1203d9}
 #core:focus-visible{outline:1px dashed var(--c);outline-offset:3px;border-radius:50%}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
+<svg id="hx" aria-hidden="true" focusable="false"><defs><pattern id="hxp" width="56" height="97" patternUnits="userSpaceOnUse" patternTransform="scale(.9)"><path d="M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z M28 62 L28 95 M54 47 L82 62 M2 47 L-26 62" fill="none" stroke="currentColor" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#hxp)"/></svg>
+<svg id="rx" viewBox="0 0 1000 1000" aria-hidden="true" focusable="false">
+<defs><linearGradient id="rxv" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="currentColor" stop-opacity="0"/><stop offset="1" stop-color="currentColor" stop-opacity=".34"/></linearGradient>
+<radialGradient id="rxn" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="currentColor" stop-opacity=".16"/><stop offset=".6" stop-color="currentColor" stop-opacity=".04"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></radialGradient></defs>
+<circle cx="500" cy="500" r="300" fill="url(#rxn)"/>
+<g class="rx-s"><circle cx="500" cy="500" r="486" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="none" opacity="0.45" class="" /><text x="500.0" y="35.0" text-anchor="middle" font-size="13" letter-spacing="3" fill="currentColor" opacity=".55" font-family="ui-monospace,Menlo,Consolas,monospace">000</text><text x="970.0" y="505.0" text-anchor="middle" font-size="13" letter-spacing="3" fill="currentColor" opacity=".55" font-family="ui-monospace,Menlo,Consolas,monospace">090</text><text x="500.0" y="975.0" text-anchor="middle" font-size="13" letter-spacing="3" fill="currentColor" opacity=".55" font-family="ui-monospace,Menlo,Consolas,monospace">180</text><text x="30.0" y="505.0" text-anchor="middle" font-size="13" letter-spacing="3" fill="currentColor" opacity=".55" font-family="ui-monospace,Menlo,Consolas,monospace">270</text><g stroke="currentColor" stroke-width="2" opacity=".6"><line x1="500" y1="45" x2="500" y2="65" transform="rotate(0 500 500)"/><line x1="500" y1="45" x2="500" y2="65" transform="rotate(90 500 500)"/><line x1="500" y1="45" x2="500" y2="65" transform="rotate(180 500 500)"/><line x1="500" y1="45" x2="500" y2="65" transform="rotate(270 500 500)"/></g></g>
+<g class="rg g1"><circle cx="500" cy="500" r="468" fill="none" stroke="currentColor" stroke-width="12" stroke-dasharray="1.5 18.10" opacity="1" class="" /></g>
+<g class="rg g2"><circle cx="500" cy="500" r="432" fill="none" stroke="currentColor" stroke-width="5" stroke-dasharray="330 70 120 60 200 80 150 90 260 60 120 70" opacity="0.8" class="" /></g>
+<g class="rg g3"><circle cx="500" cy="500" r="398" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="3 7" opacity="0.7" class="" /></g>
+<g class="rg g4 am"><circle cx="500" cy="500" r="366" fill="none" stroke="currentColor" stroke-width="4" stroke-dasharray="210 2090" opacity="0.95" class="" /><circle cx="500" cy="500" r="366" fill="none" stroke="currentColor" stroke-width="4" stroke-dasharray="80 2220" opacity="0.6" class="" stroke-dashoffset="-1150"/></g>
+<g class="rg g5"><circle cx="500" cy="500" r="332" fill="none" stroke="currentColor" stroke-width="16" stroke-dasharray="46 14" opacity="0.13" class="" /><circle cx="500" cy="500" r="332" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="none" opacity="0.5" class="" /></g>
+<g class="rg g6"><path d="M500 500 L500 100 A400 400 0 0 1 787.7 222.1 Z" fill="url(#rxv)" transform="rotate(-90 500 500)" opacity=".45"/></g>
+<g class="rx-p"><circle cx="500" cy="500" r="272" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".55"/><circle cx="500" cy="500" r="262" fill="none" stroke="currentColor" stroke-width="7" stroke-dasharray="2 12" opacity=".5"/></g>
+<g class="rg g7"><circle cx="500" cy="500" r="236" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="90 30 40 30 140 30" opacity="0.55" class="" /></g>
+</svg>
 <section id="lg" aria-labelledby="lgt">
 <canvas id="lgbg" aria-hidden="true"></canvas>
 <div class="hud tl" aria-hidden="true"><b>PAULUS // CORE</b>
