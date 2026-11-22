@@ -41,6 +41,16 @@
     "caracteres": 6173
   },
   {
+    "doc": "boa-vista-geografia-mapa",
+    "titulo": "Mapa e geografia de Boa Vista (RR): plano em leque, rios, avenidas, rodovias, zonas, bairros, expansão e zona rural",
+    "norma": "Reunião de fontes públicas lidas em 22/11/2026: Prefeitura de Boa Vista, síntese do diagnóstico do Plano Diretor (boavista.rr.gov.br); IBGE (Cidades e Estados; Diretoria de Geociências, Divisão Territorial do Brasil); Folha BV (série sobre avenidas, rios e igarapés, Ponte dos Macuxis); Portal Amazônia (praças e avenida Ville Roy); Rua CEP e artigo da Vitruvius (plano urbanístico); artigo acadêmico sobre a mancha urbana e os bairros (Censo 2000); Lei Ordinária municipal nº 1.232/2010; relação de bairros do CepBrasil. Não é cadastro oficial de bairros nem de ruas.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 34,
+    "caracteres": 16248
+  },
+  {
     "doc": "bolsa-familia-2026",
     "titulo": "Bolsa Família (informações 2026)",
     "norma": "Material informativo do MDS e da Caixa sobre o Programa Bolsa Família, valores atualizados em outubro de 2026",
