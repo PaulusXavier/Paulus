@@ -7,7 +7,7 @@
 <meta name="paulus-endpoint" content="https://paulus-ia.paulo-ae18.workers.dev">
 <!-- Login pelo Firebase (opcional): chave web do projeto (Firebase → Configurações do projeto → Geral → Chave de API da Web). Vazio = sem Firebase. -->
 <meta name="paulus-firebase-key" content="AIzaSyAIj8Un7IVal25a-aaJGspcL_C1O6-SZno">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self' https://*.workers.dev https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://routing.openstreetmap.de; img-src 'self' data: https://tile.openstreetmap.org; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self' https://firestore.googleapis.com https://*.workers.dev https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://routing.openstreetmap.de; img-src 'self' data: https://tile.openstreetmap.org; object-src 'none'; base-uri 'none'; form-action 'none'">
 <style>
 /* =====================================================================
    PAULUS_IA · CONSOLE — interface estilo J.A.R.V.I.S.
@@ -540,6 +540,27 @@ body[data-estado=busy] .qw{background-color:var(--panel)}
 .lst{font:13px/1.5 var(--hud);letter-spacing:.02em}
 .lr{font:12px/1.6 var(--hud);letter-spacing:.02em;color:var(--mut)}
 #boot .bx{font-size:12px;letter-spacing:.1em}
+
+/* anotações (lista de compras no Firebase) */
+#np{position:fixed;right:10px;top:calc(var(--hh) + var(--sat) + 4px);z-index:8;width:min(360px,calc(100vw - 20px));max-height:calc(100vh - var(--hh) - var(--sat) - 24px);overflow:auto;padding:16px;border-radius:12px;background:var(--panel);border:1px solid var(--bd2);box-shadow:0 12px 40px #000b;color:var(--t);font:14px/1.4 var(--hud)}
+#np[hidden]{display:none}
+#np h2{margin:0 0 10px;font:600 12px var(--hud);letter-spacing:.06em;color:var(--c2)}
+#np .nl{display:flex;flex-direction:column;gap:2px;margin-bottom:12px;max-height:46vh;overflow:auto}
+#np .nv{margin:4px 0;color:var(--mut);font-size:13px}
+#np .ni-l{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 4px;border-bottom:1px solid var(--bd)}
+#np .nt{flex:1;overflow-wrap:anywhere;font-size:15px}
+#np .feito .nt{text-decoration:line-through;color:var(--mut)}
+#np .nk{flex:none;width:28px;height:28px;min-width:28px;min-height:28px;padding:0;border-radius:8px;background:transparent;color:#02121a;font-weight:700;display:grid;place-items:center}
+#np .feito .nk{background:var(--ok);border-color:var(--ok)}
+#np .nx{flex:none;width:32px;height:32px;min-width:32px;min-height:32px;padding:0;border-radius:8px;background:transparent;border-color:transparent;color:var(--mut);font-size:20px}
+#np .nx:hover{color:var(--red);border-color:var(--red)}
+#np .na{display:flex;gap:8px;margin-top:8px}
+#np .ni{flex:1;min-width:0;min-height:44px;padding:0 12px;border-radius:10px;background:var(--bg);border:1px solid var(--bd2);color:var(--t);font:inherit;font-size:16px}
+#np .nb,#np .nd{min-height:40px;border-radius:10px;font:600 13px var(--hud);padding:0 12px;background:transparent;border:1px solid var(--bd2);color:var(--c2)}
+#np .nb{background:var(--c);color:#02121a;border-color:var(--c)}
+#np .nd{flex:1}
+#np .ns{min-height:18px;margin:10px 0 0;font-size:13px;color:var(--mut)}#np .ns.erro{color:#ff8a80}
+.m[data-k=notas] .k{color:var(--ok)}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
 <svg id="hx" aria-hidden="true" focusable="false"><defs><pattern id="hxp" width="56" height="97" patternUnits="userSpaceOnUse" patternTransform="scale(.9)"><path d="M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z M28 62 L28 95 M54 47 L82 62 M2 47 L-26 62" fill="none" stroke="currentColor" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#hxp)"/></svg>
@@ -595,6 +616,7 @@ body[data-estado=busy] .qw{background-color:var(--panel)}
 <button id="sair" class="hb" hidden title="Sair" aria-label="Sair da conta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
 <button id="ex" class="hb" title="Salvar a conversa em arquivo (.md)" aria-label="Salvar a conversa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg></button>
 <button id="nv" class="hb" title="Nova conversa (Ctrl+Shift+N)" aria-label="Nova conversa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4"/></svg></button>
+<button id="nt" class="hb" title="Anotações e lista de compras" aria-label="Anotações" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg></button>
 <button id="jv" class="hb" title="Modo voz: conversa falada contínua" aria-label="Modo voz" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></svg></button>
 <button id="vc" class="hb" title="Escolher a voz do Paulus" aria-label="Escolher a voz" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6"/></svg></button>
 <button id="vz" class="hb" title="Ler as respostas em voz alta" aria-label="Voz" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
@@ -658,5 +680,6 @@ body[data-estado=busy] .qw{background-color:var(--panel)}
 </div>
 <div id="boot" hidden aria-hidden="true"></div>
 <script src="paulus.v1.js"></script>
+<script src="notas.js"></script>
 <script src="login.js"></script>
 </body></html>
