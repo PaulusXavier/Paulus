@@ -267,7 +267,8 @@ export function calculosComoTexto(calculos) {
   if (!calculos || !Array.isArray(calculos.itens)) return '';
   const lim = function (v, max) { return limparMarcacao(String(v == null ? '' : v)).replace(/\s+/g, ' ').trim().slice(0, max); };
   const linhas = calculos.itens.map(function (i) {
-    return i.n + '. ' + (i.rotulo ? lim(i.rotulo, 80) + ': ' : '') + lim(i.expressao, 160) + (i.bool ? ' → ' : ' = ') + lim(i.texto, 40);
+    const conta = i.expressao ? lim(i.expressao, 160) + (i.bool ? ' → ' : ' = ') : '';
+    return i.n + '. ' + (i.rotulo ? lim(i.rotulo, 80) + ': ' : '') + conta + lim(i.texto, 200);
   });
   const avisos = [];
   calculos.itens.forEach(function (i) {
