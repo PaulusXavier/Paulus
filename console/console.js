@@ -339,7 +339,7 @@
       ac.appendChild(btn('Mais curto', function () { try { P.avaliar(r, 'mais_curto'); } catch (e) { /* segue */ } enviar('responda de forma mais curta'); }));
       ac.appendChild(btn('Mais detalhe', function () { try { P.avaliar(r, 'mais_detalhe'); } catch (e) { /* segue */ } enviar('explique com mais detalhe'); }));
     }
-    if (ENDPOINT && window.speechSynthesis) ac.appendChild(btn('Ouvir', function () { falar(r.texto || ''); }, 'Ouvir'));
+    if (ENDPOINT && window.speechSynthesis) ac.appendChild(btn('Ouvir', function () { falar(r.texto || '', 'tudo'); }, 'Ouvir'));
     x.m.appendChild(ac);
   }
   function baixarTexto(nome, conteudo, tipo) {
@@ -592,7 +592,7 @@
         registrar(r, ms);
         var ot = x.m.querySelector('.mh .o'); if (ot) ot.textContent = hora2() + ' · ' + tempoTxt(ms);
         if (r.tipo === 'erro') bip(320, 140, 0.26, 0.05); else { bip(880, 1320, 0.14, 0.04); setTimeout(function () { bip(1320, 1760, 0.1, 0.025); }, 110); }
-        if (vozLigada) falar(r.texto || '');
+        if (vozLigada) falar(r.texto || '', 'resumo');
         rolar(true);
         if (r.tipo === 'erro') { estadoUI('erro'); setTimeout(function () { if (estadoAtual === 'erro') estadoUI('idle'); }, 1400); }
       });
@@ -676,30 +676,53 @@
     if (estadoAtual === 'speak') estadoUI(ocupado ? 'busy' : 'idle');
     if (modoVoz && !ocupado) setTimeout(function () { if (modoVoz && !ocupado && !gravando) ouvir(); }, 450);
   }
-  function falarNoNavegador(limpo) {
-    if (!window.speechSynthesis) { fimDaFala(); return; }
-    var u = new SpeechSynthesisUtterance(limpo); u.lang = 'pt-BR'; ajustarFala(u);
-    u.onboundary = function () { if (nucleo) nucleo.impulso(); };
-    u.onstart = function () { if (!ocupado && !gravando) estadoUI('speak'); };
-    u.onend = u.onerror = fimDaFala;
-    speechSynthesis.speak(u);
+  // Fala em trechos curtos (a voz começa logo e o navegador não corta falas longas). Cada trecho só continua se a fala ainda for a mesma (id).
+  function falarNoNavegador(trechos, id, desde) {
+    var resto = trechos.slice(desde || 0);
+    if (!window.speechSynthesis || !resto.length) { fimDaFala(); return; }
+    resto.forEach(function (txt, k) {
+      var u = new SpeechSynthesisUtterance(txt); u.lang = 'pt-BR'; ajustarFala(u);
+      u.onboundary = function () { if (id === falaId && nucleo) nucleo.impulso(); };
+      if (k === 0) u.onstart = function () { if (id === falaId && !ocupado && !gravando) estadoUI('speak'); };
+      u.onend = function () { if (id === falaId && k === resto.length - 1) fimDaFala(); };
+      u.onerror = function () { if (id === falaId) { pararFala(); fimDaFala(); } };
+      speechSynthesis.speak(u);
+    });
   }
-  function falar(t) {
-    pararFala();
-    var limpo = String(t).replace(/[*_`#>|]/g, '').slice(0, 1500), id = falaId;
-    if (!limpo.trim()) return;
-    if (!ENDPOINT || typeof P.voz !== 'function') { falarNoNavegador(limpo); return; }
-    abortaVoz = typeof AbortController === 'function' ? new AbortController() : null;
-    P.voz(limpo, abortaVoz ? abortaVoz.signal : undefined).then(function (blob) {
+  // Voz própria (servidor): pede o trecho seguinte enquanto o atual toca, para não haver pausa entre eles.
+  function falarDoServidor(trechos, id, i, pronto) {
+    var sinal = abortaVoz ? abortaVoz.signal : undefined;
+    var recuar = function () {                         // servidor ou áudio falhou: o resto sai com a voz do navegador
+      if (pulso) { clearInterval(pulso); pulso = 0; }
+      if (audioAtual) { try { audioAtual.pause(); } catch (e) { /* segue */ } audioAtual = null; }
+      falarNoNavegador(trechos, id, i);
+    };
+    (pronto || P.voz(trechos[i], sinal)).then(function (blob) {
       if (id !== falaId) return;                       // outra fala começou (ou foi cancelada) enquanto o áudio vinha
-      if (!blob) { falarNoNavegador(limpo); return; }
+      if (!blob) { recuar(); return; }
+      var seguinte = i + 1 < trechos.length ? P.voz(trechos[i + 1], sinal) : null;
+      if (urlAudio) URL.revokeObjectURL(urlAudio);
       urlAudio = URL.createObjectURL(blob);
       var a = new Audio(urlAudio); audioAtual = a;
-      a.onplay = function () { if (!ocupado && !gravando) estadoUI('speak'); pulso = setInterval(function () { if (nucleo) nucleo.impulso(); }, 220); };
-      a.onended = function () { if (id !== falaId) return; pararFala(); fimDaFala(); };
-      a.onerror = function () { if (id !== falaId) return; pararFala(); falarNoNavegador(limpo); };
-      a.play().catch(function () { if (id === falaId) { pararFala(); falarNoNavegador(limpo); } });
+      a.onplay = function () { if (id !== falaId) return; if (!ocupado && !gravando) estadoUI('speak'); if (!pulso) pulso = setInterval(function () { if (nucleo) nucleo.impulso(); }, 220); };
+      a.onended = function () {
+        if (id !== falaId) return;
+        if (seguinte) falarDoServidor(trechos, id, i + 1, seguinte); else { pararFala(); fimDaFala(); }
+      };
+      a.onerror = function () { if (id === falaId) recuar(); };
+      a.play().catch(function () { if (id === falaId) recuar(); });
     });
+  }
+  // modo 'resumo' (leitura automática): respostas longas viram as primeiras frases + "O restante está na tela."; 'tudo' (botão Ouvir) lê inteira.
+  function falar(t, modo) {
+    pararFala();
+    var id = falaId, F = P.fala, bruto = String(t == null ? '' : t), trechos;
+    if (F) trechos = F.dividir(modo === 'resumo' ? F.resumir(bruto) : F.texto(bruto));
+    else { var limpo = bruto.replace(/[*_`#>|]/g, '').slice(0, 1500).trim(); trechos = limpo ? [limpo] : []; }
+    if (!trechos.length) { fimDaFala(); return; }
+    if (!ENDPOINT || typeof P.voz !== 'function') { falarNoNavegador(trechos, id); return; }
+    abortaVoz = typeof AbortController === 'function' ? new AbortController() : null;
+    falarDoServidor(trechos, id, 0);
   }
   // ---- Voz do navegador: escolhe sozinha a melhor voz masculina em português do Brasil e deixa trocar, com velocidade e tom.
   // O navegador não informa o gênero da voz; ele é deduzido pelo NOME (lista abaixo). Por isso há o seletor.
