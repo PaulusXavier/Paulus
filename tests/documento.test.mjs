@@ -26,7 +26,7 @@ test('trechos com dado pessoal ficam de fora, no aparelho e no Worker', () => {
   assert.equal(docSaneado({ trechos: ['CPF: 123.456.789-09'] }).n, 0);
   assert.equal(docSaneado('lixo'), null);
 });
-test('docs.js lê DOCX e TXT e recusa foto', async () => {
+test('docs.js lê DOCX e TXT e não trata foto como documento de texto (ela segue pela leitura de imagem)', async () => {
   const w = {}; vm.runInNewContext(readFileSync('console/docs.js', 'utf8'), { window: w, WeakMap, TextDecoder, DecompressionStream, Response, Uint8Array, Promise, Math, String, Array, Error, document: {}, URL });
   const buf = Buffer.from('UEsDBBQAAAAIAA18dl0rhCYSBgAAAAQAAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbLOp0LcDAFBLAwQUAAAACAANfHZdr+RmbaAAAADwAAAAEQAAAHdvcmQvZG9jdW1lbnQueG1sbY9NCsJADIWvkpVLu6+lUAoFV4oF93Em6kCnqZkpxdt4AVceoRdzIhRE3Hz5I+8lxZRbNqOnPpbFlJ/Y3jUOClHEcgf1oWqBzyRkCBj21baBFfphk4q2bo4wPwKc0c/PzmEAyxBJxMX5JY7XRaYqSvlw+DVo6TL2FqFz/RV1e7koZZSkQiQw7MGjC9q5jShpimBQ0CQrCv9MsuWd7OvHN1BLAQIUAxQAAAAIAA18dl0rhCYSBgAAAAQAAAATAAAAAAAAAAAAAACAAQAAAABbQ29udGVudF9UeXBlc10ueG1sUEsBAhQDFAAAAAgADXx2Xa/kZm2gAAAA8AAAABEAAAAAAAAAAAAAAIABNwAAAHdvcmQvZG9jdW1lbnQueG1sUEsFBgAAAAACAAIAgAAAAAYBAAAAAA==', 'base64');
   const f = { name: 'a.docx', size: buf.length, arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length) };
@@ -35,5 +35,5 @@ test('docs.js lê DOCX e TXT e recusa foto', async () => {
   const t = await w.PaulusDocs.ler([{ name: 'b.txt', size: 90, text: async () => 'Texto simples com mais de quarenta caracteres para o teste passar.' }]);
   assert.match(t.texto, /Texto simples/);
   const e = await w.PaulusDocs.ler([{ name: 'c.jpg', size: 10 }]);
-  assert.match(e.erro, /fotos/);
+  assert.match(e.erro, /leitura de imagem/);
 });
