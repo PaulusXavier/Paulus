@@ -20,6 +20,7 @@
 // Por isso: imports em UMA linha, e nomes de função sem repetir entre os módulos.
 
 import { temDadoPessoal } from '../shared/pii.mjs';
+import { docPreparar } from '../shared/documento.mjs';
 import { detectarCrise } from '../shared/crise.mjs';
 import { respostaLocalDeIdioma, paraBusca, idiomaDoPedido, avisoPessoalNoIdioma } from '../shared/idioma.mjs';
 import { normalizar, criarIndice, buscarFontes, fonteDe, K_PADRAO } from '../shared/busca.mjs';
@@ -353,6 +354,12 @@ async function pedirIA(texto, opcoes) {
   const bloqueio = estourouLimiteLocal();
   if (bloqueio) return { tipo: 'erro', texto: bloqueio };
 
+  // Documento anexado: só trechos escolhidos e sem dado pessoal saem do aparelho.
+  let documento = null;
+  if (opcoes.documento) {
+    documento = docPreparar(opcoes.documento, texto);
+    if (!documento || !documento.trechos.length) return { tipo: 'bloqueio', texto: 'Não consegui usar o documento: os trechos têm dados pessoais (nome, CPF, e-mail...) ou não há texto. Anexe uma versão sem identificação das pessoas.', fontes: [], avisos: [] };
+  }
   const fichas = fichasPublicas(texto, opcoes.aba, opcoes.fichas);
   const corpo = {
     app: cfg.app,
@@ -360,6 +367,7 @@ async function pedirIA(texto, opcoes) {
     pagina: String(opcoes.aba || '').slice(0, 80),
     historico: historicoParaEnvio(opcoes.historico, (function (h) { return ehRefinamento(texto, h) || !!pedidoSobreResposta(texto, h); })(Array.isArray(opcoes.historico) ? opcoes.historico : estado.historico)),
     fichas: fichas,
+    documento: documento ? { nome: documento.nome, trechos: documento.trechos } : undefined,
     stream: true
   };
   // O que a conversa já firmou (unidade, bairro, município, assunto), montado pelo app. Só campos fechados e curtos.
@@ -794,6 +802,7 @@ async function perguntar(texto, opcoes) {
       }
       // pergunta e docs ficam no resultado para o app devolver em Paulus.avaliar(r, 'bom'|'ruim'|...)
       r.pergunta = t; r.docs = docs;
+      if (o.documento) { const dp = docPreparar(o.documento, t); if (dp) r.avisos = (r.avisos || []).concat(['Documento "' + dp.nome + '": ' + dp.trechos.length + ' trecho(s) lido(s)' + (dp.parcial ? ' (os mais ligados à pergunta)' : '') + (dp.omitidosPessoais ? '; ' + dp.omitidosPessoais + ' com dados pessoais ficaram de fora' : '') + '.']); }
       if (aprende) estado.mem.aprenderPergunta(t, docs);
       return r;
     } catch (e) {
