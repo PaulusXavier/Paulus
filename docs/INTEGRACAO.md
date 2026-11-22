@@ -259,3 +259,9 @@ if (r.tipo === 'geo') {   // r.tipoGeo: 'coordenadas' | 'perto' | 'distancia' | 
 - Passar dado de família em `fichas`.
 - Inserir a resposta com `innerHTML`.
 - Registrar ação que apaga ou altera dado sem `confirmar: true`.
+
+## Abrir vários apps e fechar o app (v0.23)
+- **Vários de uma vez:** "abrir o Argo e o Anona", "abra argo, anona e toth". O Paulus só executa se **todas** as partes forem rótulos de ações registradas, nenhuma pedir `confirmar` e não sobrar palavra estranha na frase; senão, nada é executado.
+- **Fechar:** ação registrada com `fechar: true` responde só a "fechar / feche / encerrar / sair" ("fechar o aplicativo"). "Abrir o aplicativo" nunca dispara. Sem ação de fechar registrada, a frase segue o fluxo normal (cálculo, IA).
+- **Limite do navegador:** `window.close()` só fecha o app instalado (PWA) ou abas abertas por script. Em aba comum, o console avisa que o navegador não permite.
+- No console, as ações registradas são: abrir Argo, Anona, Toth, Umbrella, Grafia, Verbus e Vita em nova aba; fechar o aplicativo; abrir anotações, voz, modo voz, modo foco; nova conversa; salvar a conversa. Teste: `tests/acoes-abrir-fechar.test.mjs`.
