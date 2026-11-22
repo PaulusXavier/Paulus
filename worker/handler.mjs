@@ -33,7 +33,7 @@
 import { firebaseLigado, verificarFirebase } from './firebase.mjs';
 import { loginLigado, entrar, criarSessao, verificarSessao, tokenDoPedido, criarFreio, normalizarUsuario, MAX_SENHA, MAX_USUARIO } from './auth.mjs';
 import { temDadoPessoal, temIdentificacaoPessoal, limparMarcacao } from '../shared/pii.mjs';
-import { normalizar, criarIndice, buscarPergunta, fonteDe, K_PADRAO } from '../shared/busca.mjs';
+import { normalizar, criarIndice, buscarFontes, fonteDe, K_PADRAO } from '../shared/busca.mjs';
 import { numerosCitaveis } from '../shared/verificacao.mjs';
 import { detectarCrise } from '../shared/crise.mjs';
 import { idiomaDoPedido, paraBusca, instrucaoDeIdioma, avisoPessoalNoIdioma } from '../shared/idioma.mjs';
@@ -422,14 +422,16 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       sobreSi = modo !== 'refinamento' && modo !== 'continuar' && modo !== 'porque' && modo !== 'contestacao' && (ehPerguntaSobreSi(pergunta) || (modo === 'seguimento' && temasDaPergunta(pergunta).length > 0 && conversaSobreSi(hist)));
       const rota = sobreSi ? [] : trechosDaRota(indice, consulta);
       const k = trechosParaOPedido(modo, pergunta, K_PADRAO);
+      // buscarFontes (shared/busca.mjs) escolhe QUAIS trechos valem para esta pergunta: artigo pedido primeiro, fonte fraca fora, aderência marcada.
+      const opcoesBusca = { k: k, preferir: preferir, modo: modo, temDiretorio: temFichas || temPanorama };
       achados = sobreSi ? [] : rota.length
-        ? combinarComBusca(rota, buscarPergunta(indice, consulta, { k: k, preferir: preferir }))
-        : buscarPergunta(indice, consulta, { k: k, preferir: preferir });
+        ? combinarComBusca(rota, buscarFontes(indice, consulta, opcoesBusca))
+        : buscarFontes(indice, consulta, opcoesBusca);
       // Várias perguntas na mesma mensagem: cada uma ganha a sua busca (até 3 trechos novos no total), senão só a primeira teria fonte.
       if (!sobreSi && !rota.length && partes.length >= 2) {
-        for (const parte of partes.slice(0, 3)) if (achados.length < k + 3) achados = completarAchados(achados, buscarPergunta(indice, parte, { k: 2 })).achados;
+        for (const parte of partes.slice(0, 3)) if (achados.length < k + 3) achados = completarAchados(achados, buscarFontes(indice, parte, { k: 2 })).achados;
       }
-      fontes = achados.map(function (a) { return fonteDe(a.trecho); });
+      fontes = achados.map(function (a) { return fonteDe(a.trecho, a); });
       tema = !sobreSi && (rota.length > 0 || /suicid|ideacao|autolesao|automutil/.test(normalizar(consulta)));
       // Habilidades (roteiros de trabalho): só quando a pergunta combina. Em tema de suicídio a resposta é só cuidado e rede, sem roteiro.
       // Seguimento e ajuste herdam o assunto da pergunta anterior ("deixe mais formal" continua no ofício).
@@ -472,8 +474,8 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
             // Segunda busca: o que a primeira não cobriu e o raciocínio pediu (ex.: "benefício eventual critério renda"). Até 2 trechos novos.
             const termos = buscaDoRaciocinio(lido);
             if (termos) {
-              const extra = completarAchados(achados, buscarPergunta(indice, termos, { k: 3 }));
-              if (extra.novos) { achados = extra.achados; fontes = achados.map(function (a) { return fonteDe(a.trecho); }); }
+              const extra = completarAchados(achados, buscarFontes(indice, termos, { k: 3 }));
+              if (extra.novos) { achados = extra.achados; fontes = achados.map(function (a) { return fonteDe(a.trecho, a); }); }
             }
             lido = conferirRaciocinio(lido, achados, [fichasComoTexto(fichasRecebidas), baseAppComoTexto(corpo.baseApp), panoramaComoTexto(corpo.panorama), pergunta].concat(hist.map(function (x) { return String((x && x.texto) || ''); })));
             lido = calibrarSeguranca(lido, achados);
