@@ -35,6 +35,11 @@ FIREBASE_PROJECT_ID = "paulusia-de285"
 # RACIOCINIO = "desligado"
 # MODELO_RACIOCINIO = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 
+# Leitura de imagem (opcional): o Paulus lê foto/print anexado por um modelo de visão. Os padrões já são estes:
+# MODELO_VISAO = "@cf/meta/llama-3.2-11b-vision-instruct"
+# MODELO_VISAO_RESERVA = "@cf/meta/llama-4-scout-17b-16e-instruct"
+# VISAO = "desligado"   # recusa qualquer imagem (a foto vai à IA da Cloudflare antes do filtro de dados pessoais; veja docs/SEGURANCA.md)
+
 # Voz própria (opcional, v0.22.0): servidor de voz clonada em voz-servidor/ (veja o README de lá). Os dois valores entram como SEGREDO, não aqui:
 #   npx wrangler secret put VOZ_URL     (https://..., sem barra no fim)
 #   npx wrangler secret put VOZ_TOKEN
