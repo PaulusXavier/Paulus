@@ -45,7 +45,7 @@ export function juntar() {
 
 // Impressão digital dos arquivos que os apps baixam. Muda só quando o conteúdo muda; é o que permite atualizar sozinho (versao.json)
 // e fazer o service worker do console trocar de cache a cada publicação.
-const ARQUIVOS_VERSIONADOS = ['paulus.v1.js', 'conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'leaflet.js', 'lugares-boa-vista.json', 'login.js', 'console.js', 'index.html'];
+const ARQUIVOS_VERSIONADOS = ['paulus.v1.js', 'conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'leaflet.js', 'lugares-boa-vista.json', 'login.js', 'console.js', 'notas.js', 'index.html'];
 export function gerarVersao(saida, extra) {
   const arquivos = {};
   for (const n of ARQUIVOS_VERSIONADOS) {
@@ -90,7 +90,7 @@ export function construir() {
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'console.html'));
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'index.html')); // a raiz do site (…/Paulus/) abre o console
   // tela de login (carrega o console.js só depois de entrar) e o próprio console.js, se existir
-  for (const f of ['login.js', 'console.js']) { const o = join(RAIZ, 'console', f); if (existsSync(o)) copyFileSync(o, join(saida, f)); }
+  for (const f of ['login.js', 'console.js', 'notas.js']) { const o = join(RAIZ, 'console', f); if (existsSync(o)) copyFileSync(o, join(saida, f)); }
   // instalável (PWA): procura em console/ e, se não achar, na raiz do repositório
   for (const f of ['manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png']) {
     const origem = [join(RAIZ, 'console', f), join(RAIZ, f)].find(existsSync);
