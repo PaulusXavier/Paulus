@@ -390,6 +390,144 @@ function notasPorTermo(indice, termos, pesos, idfDe, k1, b) {
   return { score, achou };
 }
 
+// ------------------------------------------------------------------ cobertura por raridade
+function coberturaPorRaridade(d, termos, pesos, siglas, conceitos, idfDe, total, doDocumento) {
+  if (!total) return { cob: 1, ancora: true };
+  let achou = 0;
+  const creditados = new Set();
+  for (const t of termos) {
+    // o nome do documento que a pergunta cita ("Decreto 6.214") vale para todos os trechos DELE, mesmo que o texto não o repita
+    if (d.tf[t] || (doDocumento && doDocumento.has(t))) { achou += pesos.get(t) * idfDe(t); creditados.add(t); }
+  }
+  // sigla que o trecho traz só por extenso e gíria achada pelos termos técnicos contam como encontradas (como na cobertura comum)
+  for (const g of siglas) {
+    if (creditados.has(g.t)) continue;
+    let menor = Infinity;
+    for (const e of g.exp) menor = Math.min(menor, d.tf[e] || 0);
+    if (menor && menor !== Infinity) { achou += (pesos.get(g.t) || 1) * idfDe(g.t); creditados.add(g.t); }
+  }
+  for (const g of conceitos) {
+    let achados = 0;
+    for (const e of g.exp) if (d.tf[e]) achados++;
+    if (achados / g.exp.length < 0.5) continue;
+    for (const t of g.frase) if (!creditados.has(t) && pesos.has(t)) { achou += pesos.get(t) * idfDe(t); creditados.add(t); }
+  }
+  // termo âncora: o de maior peso de assunto da pergunta ("sigilo" em "como funciona o sigilo no registro?")
+  let ancora = null, melhor = -1;
+  for (const t of termos) { const v = pesos.get(t) * idfDe(t); if (v > melhor) { melhor = v; ancora = t; } }
+  return { cob: Math.min(1, achou / total), ancora: ancora === null || creditados.has(ancora) };
+}
+
+// ------------------------------------------------------------------ "art. 17 da NOB/SUAS": pedido de referência explícita
+// Quem cita o artigo e o documento quer ESSE artigo, não os trechos que mais repetem as palavras dele. O documento é reconhecido pelo
+// nome (LOAS, NOB/SUAS, PNAS, Tipificação, Constituição) ou pelo número (Lei 8.742, Decreto 6.214, Resolução CNAS 109), que a própria base traz.
+const PESO_DOC_CITADO = 1.5;
+const APELIDOS_DOCS = {
+  'loas-1993': ['loas', 'lei organica da assistencia social'],
+  'nob-suas-2012': ['nob suas', 'norma operacional basica do suas'],
+  'nob-rh-suas-anotada-2011': ['nob rh', 'nob rh suas'],
+  'pnas-2004': ['pnas', 'politica nacional de assistencia social'],
+  'tipificacao-2009': ['tipificacao', 'tipificacao nacional'],
+  'cf-1988-extratos': ['constituicao federal', 'constituicao', 'cf 88', 'cf 1988'],
+  'decreto-6214-2007': ['regulamento do bpc'],
+  'lei-14601-2023': ['lei do bolsa familia']
+};
+const RE_NUMERO_NORMA = /\b(Lei|Decreto|Resolu[cç][aã]o(?:\s+(?:CNAS\/MDS|CNAS|CFP|CNJ|CNS))?|Portaria(?:\s+Interministerial)?(?:\s+(?:MDS\/MS|MEC\/MDS|MDS|GM\/MS))?)\s+(?:n[ºo°.]*\s*)?(\d[\d.]*)/i;
+
+function normalizarRef(s) {
+  return normalizar(String(s == null ? '' : s).replace(/(\d)\.(?=\d{3}(?!\d))/g, '$1')).replace(/\b(?:n|no|num|numero)\s+(?=\d)/g, '');
+}
+
+const CACHE_DESIGNADORES = new WeakMap();
+function designadoresDosDocs(indice) {
+  let m = CACHE_DESIGNADORES.get(indice);
+  if (m) return m;
+  m = new Map();
+  for (const d of indice.docs) {
+    const c = d.c;
+    if (!c.doc || m.has(c.doc)) continue;
+    const frases = new Set((APELIDOS_DOCS[c.doc] || []).map(normalizarRef));
+    const n = RE_NUMERO_NORMA.exec(String(c.norma || '').slice(0, 140));
+    if (n) {
+      const numero = normalizarRef(n[2].replace(/\.+$/, ''));
+      const tipo = normalizarRef(n[1]);
+      if (numero) { frases.add(tipo + ' ' + numero); frases.add(tipo.split(' ')[0] + ' ' + numero); }
+    }
+    m.set(c.doc, Array.from(frases).filter(function (f) { return f.length >= 3; }));
+  }
+  CACHE_DESIGNADORES.set(indice, m);
+  return m;
+}
+
+// O índice parte "14.601" em "14" e "601"; o designador ("lei 14601") vem sem o ponto. Os dois jeitos valem.
+function tokensDoDesignador(frase) {
+  const toks = new Set(tokenizar(frase));
+  for (const t of Array.from(toks)) {
+    if (/^\d{4,}$/.test(t)) { tokenizar(t.slice(0, -3)).forEach(function (x) { toks.add(x); }); tokenizar(t.slice(-3)).forEach(function (x) { toks.add(x); }); }
+  }
+  return toks;
+}
+
+// Documentos que a pergunta nomeia: Map(id do documento -> a frase que o designou) ou null.
+export function docsDaPergunta(indice, consulta) {
+  const q = ' ' + normalizarRef(consulta) + ' ';
+  let achou = null;
+  for (const [doc, frases] of designadoresDosDocs(indice)) {
+    const f = frases.find(function (x) { return q.indexOf(' ' + x + ' ') >= 0; });
+    if (f) (achou || (achou = new Map())).set(doc, f);
+  }
+  return achou;
+}
+
+const RE_PEDIDO_ARTIGO = /\b(?:artigos?|arts?)\s+(\d{1,4})(?:\s+(?:e|a|ao)\s+(\d{1,4}))?\b/;
+const RE_REFERENCIA_ARTIGO = /^art\. (\d+)[º°o]?(-[A-Z])?(?=,|\s|$)/;
+const CACHE_ARTIGOS = new WeakMap();
+function trechosPorArtigo(indice) {
+  let m = CACHE_ARTIGOS.get(indice);
+  if (m) return m;
+  m = new Map();
+  for (const d of indice.docs) {
+    const r = RE_REFERENCIA_ARTIGO.exec(String(d.c.referencia || '').trim());
+    if (!r || r[2]) continue; // "art. 17-A" é outro artigo que não o 17
+    const chave = d.c.doc + '|' + r[1];
+    (m.get(chave) || m.set(chave, []).get(chave)).push(d.c);
+  }
+  CACHE_ARTIGOS.set(indice, m);
+  return m;
+}
+
+// { docs:Set, exatos:[resultado] } quando a pergunta pede um artigo de um documento que a base tem; senão null.
+export function referenciaExata(indice, consulta, max = 4) {
+  if (!indice || !indice.N) return null;
+  const docs = docsDaPergunta(indice, consulta);
+  if (!docs) return { docs: null, exatos: [], pediuArtigo: false };
+  const pedido = RE_PEDIDO_ARTIGO.exec(normalizarRef(consulta));
+  if (!pedido) return { docs: docs, exatos: [], pediuArtigo: false };
+  const paragrafo = /(?:§|par[aá]grafo)\s*(\d{1,2})/i.exec(String(consulta));
+  const marcaParagrafo = paragrafo ? '§ ' + paragrafo[1] : '';
+  // "art. 17, XV" (algarismo romano em maiúscula logo depois do artigo) ou "art. 17 inciso xv"
+  const inciso = /\binciso\s+([ivxlcdm]{1,6})\b/i.exec(String(consulta)) || /\bart[^\d]{0,8}\d+[º°o]?\s*,?\s*([IVXLCDM]{1,6})\b/.exec(String(consulta));
+  const marcaInciso = inciso ? ', ' + inciso[1].toUpperCase() : '';
+  const artigos = pedido[2] && Number(pedido[2]) - Number(pedido[1]) <= 1 ? [pedido[1], pedido[2]] : [pedido[1]];
+  const porArtigo = trechosPorArtigo(indice);
+  const exatos = [];
+  for (const art of artigos) {
+    for (const doc of docs.keys()) {
+      const lista = (porArtigo.get(doc + '|' + art) || []).slice();
+      const peso = function (t) {
+        const ref = String(t.referencia || '');
+        if (/^art\. \d+[º°o]?(?:, caput)?$/.test(ref.trim())) return 0;      // o próprio artigo (caput) vem primeiro
+        if (marcaParagrafo && ref.indexOf(marcaParagrafo) >= 0) return 1;       // o parágrafo pedido, logo depois
+        if (marcaInciso && (ref.endsWith(marcaInciso) || ref.indexOf(marcaInciso + ',') >= 0)) return 1; // ou o inciso pedido
+        return 2;                                                                // incisos e demais parágrafos, na ordem da norma
+      };
+      lista.map(function (t, i) { return { t: t, i: i, p: peso(t) }; }).sort(function (a, b) { return a.p - b.p || a.i - b.i; })
+        .forEach(function (x) { exatos.push({ trecho: x.t, score: 99, cobertura: 1, coberturaIdf: 1, ancora: true, ordem: 99 - exatos.length * 0.01, exata: true }); });
+    }
+  }
+  return { docs: docs, exatos: exatos.slice(0, max), pediuArtigo: true };
+}
+
 export function buscar(indice, consulta, { k = 3, minScore = 1.2, minCobertura = 0.5, preferir = null } = {}) {
   if (!indice || !indice.N) return [];
   const { pesos, siglas } = termosDaConsulta(consulta);
@@ -422,6 +560,12 @@ export function buscar(indice, consulta, { k = 3, minScore = 1.2, minCobertura =
   // Nota dos termos da pergunta de todos os trechos de uma vez, andando só pelas listas de ocorrência (em vez de perguntar a cada trecho
   // candidato, termo por termo, se o termo está lá). Cada trecho soma os termos na mesma ordem de antes, então a nota sai idêntica.
   const previa = notasPorTermo(indice, termos, pesos, idfDe, k1, b);
+  // Cobertura por RARIDADE: o termo raro da pergunta ("sigilo") diz mais sobre o assunto do que o comum ("funciona", "registro").
+  // A cobertura comum conta quantos termos o trecho tem; esta conta quanto do "peso de assunto" da pergunta ele cobre.
+  let pesoIdfTotal = 0;
+  for (const t of termos) pesoIdfTotal += pesos.get(t) * idfDe(t);
+  const docsCitados = docsDaPergunta(indice, consulta);
+  const tokensDoDoc = docsCitados ? new Map(Array.from(docsCitados, function (e) { return [e[0], tokensDoDesignador(e[1])]; })) : null;
   for (const i of candidatos(indice, termos, conceitos)) {
     const d = indice.docs[i];
     let score = 0, achou = 0;
@@ -464,11 +608,13 @@ export function buscar(indice, consulta, { k = 3, minScore = 1.2, minCobertura =
     const cobertura = Math.min(1, achou / pesoTotal);
     if (score >= minScore && cobertura >= minCobertura) {
       let ordem = score * (PESO_TIPO[d.c.tipo || 'norma'] || 1) * fatorPreferido(preferir, d.c.doc) * fatorLocal(d.c, municipiosPergunta, querDado, querCenso) * fatorPista(d.c.doc, consultaNorm);
+      if (docsCitados && docsCitados.has(d.c.doc)) ordem *= PESO_DOC_CITADO;
       if (expansoesDefinicao.length) {
         const inicio = normalizar(String(d.c.texto).slice(0, 220));
         if (expansoesDefinicao.some(function (e) { return defineASigla(inicio, e); })) ordem *= PESO_DEFINICAO;
       }
-      res.push({ trecho: d.c, score, cobertura, ordem });
+      const rar = coberturaPorRaridade(d, termos, pesos, siglas, conceitos, idfDe, pesoIdfTotal, tokensDoDoc && tokensDoDoc.get(d.c.doc) || null);
+      res.push({ trecho: d.c, score, cobertura, coberturaIdf: rar.cob, ancora: rar.ancora, ordem });
     }
   }
   res.sort((x, y) => y.ordem - x.ordem);
@@ -505,9 +651,11 @@ export function consultaComContexto(pergunta, historico) {
 
 // Como a fonte aparece para a pessoa (e como o Worker a devolve). "tipo" só vai quando NÃO é norma
 // (orientação técnica e material de apoio não obrigam, e o app precisa poder dizer isso).
-export function fonteDe(trecho) {
+export function fonteDe(trecho, achado) {
   const f = { documento: trecho.titulo || trecho.doc, norma: trecho.norma, ano: trecho.ano, referencia: trecho.referencia };
   if (trecho.tipo && trecho.tipo !== 'norma') f.tipo = trecho.tipo;
+  // aderencia (só quando a seleção a calculou): o quanto o trecho responde ESTA pergunta (alta, media, baixa)
+  if (achado && achado.aderencia) f.aderencia = achado.aderencia;
   return f;
 }
 
@@ -543,4 +691,75 @@ export function buscarPergunta(indice, consulta, opcoes = {}) {
   // sobrou vaga (lados repetidos): completa com a busca da pergunta inteira
   if (saida.length < k) for (const r of buscar(indice, consulta, opcoes)) if (saida.length < k && !vistos.has(r.trecho)) { vistos.add(r.trecho); saida.push(r); }
   return saida;
+}
+
+// ------------------------------------------------------------------ seleção das fontes
+// buscarPergunta traz os "k melhores" por nota, mesmo quando só o primeiro responde: o resto é ruído que vai para a IA (que pode citá-lo)
+// e para a pessoa (que lê "Fonte:" de algo que nada tem a ver com a pergunta). buscarFontes escolhe QUAIS trechos valem, em quatro passos:
+//   1. pergunta que cita artigo e documento ("art. 17 da NOB/SUAS"): o artigo pedido vem primeiro, e só ele (e o documento citado) completa as vagas;
+//   2. descarta o trecho que cobre pouco do que a pergunta tem de raro (cobertura por raridade) ou que está muito abaixo do melhor;
+//   3. tira repetição (a mesma página em "parte 1" e "parte 2");
+//   4. marca a aderência de cada trecho à pergunta (alta, media, baixa), para a IA e o rodapé saberem o quanto confiar.
+// Só ENCOLHE ou reordena o que buscarPergunta já traria (a exceção é o artigo pedido por nome, que entra mesmo sem bater palavras).
+export const MIN_COBERTURA_RARIDADE = 0.33;
+export const CORTE_RELATIVO = 0.45;
+const PISO_COBERTURA_CONTAGEM = 0.35;
+
+function chaveDeRepeticao(t) {
+  return (t.doc || '') + '|' + String(t.referencia || '').replace(/\s*\(parte \d+(?: de \d+)?\)/g, '').trim();
+}
+
+// opcoes: { k, preferir, modo, temDiretorio } (modo 'consulta' com diretório do app: a pergunta é de unidade, e norma só entra se for forte).
+export function buscarFontes(indice, consulta, opcoes = {}) {
+  if (!indice || !indice.N) return [];
+  const k = Math.max(1, opcoes.k || K_PADRAO);
+  const deUnidade = opcoes.modo === 'consulta' && opcoes.temDiretorio === true;
+  const alvo = deUnidade ? Math.min(k, 3) : k;
+  const ref = referenciaExata(indice, consulta, alvo);
+  const lados = ladosDaComparacao(consulta);
+  // Pergunta longa dilui a cobertura por contagem ("posso dar cesta básica para família que recebe bolsa família?" perdia o decreto dos benefícios
+  // eventuais): aqui o piso por contagem é mais baixo, e quem decide são a cobertura por raridade, o termo âncora e a distância do melhor.
+  const bruto = buscarPergunta(indice, consulta, { k: alvo + 4, preferir: opcoes.preferir || null, minCobertura: PISO_COBERTURA_CONTAGEM });
+  // Termo âncora: se algum trecho traz o termo mais característico da pergunta, os que não o trazem ficam de fora.
+  const comAncora = bruto.filter(function (r) { return r.ancora; });
+  const pool = comAncora.length ? comAncora : bruto;
+  const maxOrdem = pool.reduce(function (m, r) { return Math.max(m, r.ordem); }, 0);
+  const corte = deUnidade ? 0.7 : CORTE_RELATIVO;
+  let lista = pool.filter(function (r) {
+    if (r.coberturaIdf < MIN_COBERTURA_RARIDADE) return false;
+    if (!lados && r.ordem < maxOrdem * corte) return false; // na comparação cada lado tem o seu melhor: a régua do melhor geral não vale
+    return true;
+  });
+  const rotular = function (r, maximo) {
+    const rel = maximo > 0 ? r.ordem / maximo : 1;
+    r.aderencia = r.exata || (rel >= 0.7 && r.coberturaIdf >= 0.75) ? 'alta' : (rel >= 0.45 && r.coberturaIdf >= 0.5) ? 'media' : 'baixa';
+    return r;
+  };
+  let saida;
+  if (ref && ref.exatos.length) {
+    // O artigo pedido, e só depois o que a busca achou DENTRO do documento citado.
+    saida = ref.exatos.slice();
+    if (saida.length < 2) for (const r of lista) if (ref.docs.has(r.trecho.doc) && r.aderencia !== 'baixa') saida.push(r);
+  } else if (ref && ref.pediuArtigo) {
+    // Pediu um artigo de um documento que a base tem, mas esse artigo não está na base (ex.: art. 5 da CF, que só tem extratos): nada de
+    // trecho de outro documento fingindo ser resposta. O que for do documento citado vai como aproximação, marcado de aderência baixa.
+    saida = lista.filter(function (r) { return ref.docs.has(r.trecho.doc); }).slice(0, 2).map(function (r) { r.limiteDeAderencia = 'baixa'; return r; });
+  } else {
+    saida = lista;
+  }
+  const vistos = new Set();
+  const unicos = [];
+  for (const r of saida) {
+    const chave = chaveDeRepeticao(r.trecho);
+    if (vistos.has(chave) || vistos.has(r.trecho)) continue;
+    vistos.add(chave); vistos.add(r.trecho);
+    unicos.push(r);
+  }
+  const maxFinal = unicos.reduce(function (m, r) { return Math.max(m, r.exata ? 0 : r.ordem); }, 0);
+  unicos.forEach(function (r) { rotular(r, maxFinal); if (r.limiteDeAderencia) r.aderencia = r.limiteDeAderencia; });
+  // Com ao menos duas fontes que respondem de verdade, as de aderência baixa saem. Sem isso (a base não tem o assunto), ficam no máximo 3,
+  // marcadas como baixa: a IA e a pessoa sabem que é o mais próximo, não uma resposta.
+  const boas = unicos.filter(function (r) { return r.aderencia !== 'baixa'; });
+  const final = boas.length >= 2 ? boas : unicos.slice(0, Math.max(boas.length, Math.min(alvo, 3)));
+  return final.slice(0, alvo);
 }
