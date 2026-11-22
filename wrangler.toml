@@ -1,0 +1,49 @@
+# Publicação pelo terminal:  npx wrangler deploy
+# (pelo painel da Cloudflare também funciona; veja docs/DEPLOY.md)
+name = "paulus-ia"
+main = "worker/index.mjs"
+compatibility_date = "2025-01-01"
+
+# Gera knowledge/conhecimento.json, indice.json, worker-base.json e habilidades.json (nenhum fica no Git) antes de cada publicação.
+# As duas etapas são necessárias: o worker/index.mjs importa os quatro arquivos.
+[build]
+command = "node scripts/build-knowledge.mjs && node scripts/build-habilidades.mjs"
+
+[ai]
+binding = "AI"
+
+[vars]
+# Endereços dos apps que podem usar o Paulus, separados por vírgula, SEM barra no fim.
+# É só o "site" (esquema + domínio), sem o caminho: https://paulusxavier.github.io
+ALLOWED_ORIGINS = "https://paulusxavier.github.io"
+# Login pelo Firebase (opcional; vale para o console e para todos os apps que usam o mesmo projeto Firebase).
+# Com FIREBASE_PROJECT_ID o Worker só responde a quem mandar um ID token do Firebase (Authorization: Bearer ...). Veja docs/DEPLOY.md.
+FIREBASE_PROJECT_ID = "paulusia-de285"
+# Quem pode entrar (opcional; sem as listas, qualquer conta do projeto entra, então DESLIGUE o cadastro livre no Firebase):
+# FIREBASE_EMAILS = "paulo@exemplo.org,ana@exemplo.org"
+# FIREBASE_DOMINIOS = "prefeitura.exemplo.gov.br"
+
+# Modelos (opcionais; os padrões já são estes):
+# O Paulus usa o modelo grande, que raciocina e segue bem as regras. Ele gasta mais da cota gratuita diária da
+# Cloudflare; quando a cota acaba (ou o modelo falha), o Worker passa sozinho para o modelo pequeno.
+# MODELO = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+# MODELO_RESERVA = "@cf/meta/llama-3.1-8b-instruct"
+# Passo que reescreve a pergunta antes de responder (padrão: o mesmo MODELO):
+# MODELO_INTERPRETE = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+# Não há chave de API: o Workers AI usa a sua própria conta Cloudflare.
+# Passo de raciocínio (perguntas de análise): uma chamada a mais, só nessas perguntas. "desligado" pula o passo e poupa cota.
+# RACIOCINIO = "desligado"
+# MODELO_RACIOCINIO = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+
+# Voz própria (opcional, v0.22.0): servidor de voz clonada em voz-servidor/ (veja o README de lá). Os dois valores entram como SEGREDO, não aqui:
+#   npx wrangler secret put VOZ_URL     (https://..., sem barra no fim)
+#   npx wrangler secret put VOZ_TOKEN
+# Sem VOZ_URL a rota /voz responde 404 e o console fala com a voz do navegador.
+
+# Limite de pedidos GLOBAL por IP (recomendado): o contador em memória do Worker vale só por instância, então um abuso espalhado passa por ele.
+# Descomente e CONFIRA a sintaxe na documentação atual da Cloudflare ("Workers Rate Limiting binding"); o handler usa env.LIMITADOR se existir.
+# [[unsafe.bindings]]
+# name = "LIMITADOR"
+# type = "ratelimit"
+# namespace_id = "1001"
+# simple = { limit = 16, period = 60 }
