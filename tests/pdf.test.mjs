@@ -170,3 +170,29 @@ test('pdf: habilidade ensina como pedir e é escolhida para perguntas sobre edit
   assert.equal(esc.length, 1);
   assert.equal(escolherHabilidades([h], 'o que é o CRAS?', [], 'anona').length, 0);
 });
+
+test('pdf: limpar dados ocultos apaga título, autor e programa', async () => {
+  const d = await PDFDocument.create(); d.addPage([595, 842]); d.setTitle('Sigilo'); d.setAuthor('Maria'); d.setProducer('Word');
+  const r = await R('limpar os dados ocultos do pdf', [{ nome: 'a.pdf', bytes: new Uint8Array(await d.save()) }]);
+  assert.equal(r.ok, true, r.texto);
+  const o = await PDFDocument.load(r.arquivos[0].bytes, { updateMetadata: false });
+  assert.equal(o.getTitle() || '', ''); assert.equal(o.getAuthor() || '', ''); assert.equal(o.getProducer() || '', '');
+});
+
+test('pdf: o que não faz aponta para a Central de PDF do Argo', async () => {
+  const a = { nome: 'a.pdf', bytes: await pdfComPaginas(2) };
+  for (const [t, re] of [['comprimir o pdf', /Central de PDF/], ['colocar senha no pdf', /Proteger PDF/], ['converter o pdf para word', /PDF → Word/]]) {
+    const r = await R(t, [a]); assert.equal(r.ok, false, t); assert.match(r.texto, re, t);
+  }
+});
+
+test('habilidades da Central de PDF: cada função é escolhida pelo pedido certo', async () => {
+  const { readdirSync } = await import('node:fs');
+  const lista = readdirSync(new URL('../habilidades/', import.meta.url)).filter(f => f.startsWith('pdf-central-'))
+    .map(f => lerHabilidade(readFileSync(new URL('../habilidades/' + f, import.meta.url), 'utf8'), f));
+  assert.ok(lista.length >= 20);
+  for (const [p, id] of [['como reduzir o tamanho do pdf?', 'pdf-central-reduzir'], ['como remover senha do pdf', 'pdf-central-remover-senha'], ['pdf para word perde formatacao?', 'pdf-central-pdf-word'], ['como limpar dados ocultos do pdf', 'pdf-central-dados-ocultos'], ['o que tem na central de pdf', 'pdf-central-visao-geral']]) {
+    const esc = escolherHabilidades(lista, p, [], 'argo').map(h => h.id);
+    assert.ok(esc.includes(id), p + ' -> ' + esc.join(','));
+  }
+});
