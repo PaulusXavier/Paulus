@@ -50,7 +50,7 @@ import { montarMensagens, montarMensagensSaudacao, preferenciasValidas, fichasCo
 import { montarMensagensInterpretacao, lerInterpretacao } from './interpretar.mjs';
 import { pareceProblemaDeCalculo, temNumeroPorExtenso } from '../shared/calculo.mjs';
 import { contasDoPedido } from '../shared/calculo-mais.mjs';
-import { pedeAnalise, montarMensagensRaciocinio, lerRaciocinio, raciocinioComoTexto, buscaDoRaciocinio, completarAchados, conferirRaciocinio, calibrarSeguranca, tipoDeAnalise, disseSemAnalise, montarMensagensReformatar } from './raciocinar.mjs';
+import { pedeAnalise, montarMensagensRaciocinio, lerRaciocinio, raciocinioComoTexto, buscaDoRaciocinio, completarAchados, conferirRaciocinio, calibrarSeguranca, tipoDeAnalise, disseSemAnalise, montarMensagensReformatar, limparPensamento } from './raciocinar.mjs';
 import { tratarVoz } from './voz.mjs';
 import { imagemSaneada, lerImagem, sanearLeitura, CORPO_MAX_COM_IMAGEM } from './visao.mjs';
 import { montarMensagensPlano, lerPlano, executarPlano, calculosDiretos, numerosAbonados, valoresDosCalculos, mesclarValores } from './planejar.mjs';
@@ -82,7 +82,17 @@ function extrairTexto(saida) {
   if (typeof saida === 'string') return saida.trim();
   if (typeof saida.response === 'string') return saida.response.trim();
   const msg = saida.choices && saida.choices[0] && saida.choices[0].message;
-  return msg && typeof msg.content === 'string' ? msg.content.trim() : '';
+  if (msg && typeof msg.content === 'string' && msg.content.trim()) return msg.content.trim();
+  // Modelos de raciocínio (ex.: gpt-oss) podem devolver uma lista "output" com itens de pensamento e de mensagem: só a mensagem vale.
+  if (Array.isArray(saida.output)) {
+    const partes = [];
+    saida.output.forEach(function (item) {
+      if (!item || item.type !== 'message' || !Array.isArray(item.content)) return;
+      item.content.forEach(function (c) { if (c && typeof c.text === 'string') partes.push(c.text); });
+    });
+    if (partes.length) return partes.join('').trim();
+  }
+  return '';
 }
 
 function extrairPedaco(ev) {
@@ -500,12 +510,13 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
         try {
           tipoAnalise = tipoDeAnalise(pergunta, hist);
           const mensagensRac = montarMensagensRaciocinio({ app: app, historico: hist, pergunta: pergunta, achados: achados, fichas: fichasRecebidas, baseApp: corpo.baseApp, habilidades: habilidades, panorama: corpo.panorama, tipo: tipoAnalise, partes: partes, modo: modo });
-          const ajusteRac = { modelo: env.MODELO_RACIOCINIO, max_tokens: 620, temperature: 0.2 };
-          let textoRac = extrairTexto(await chamarIA(env, mensagensRac, false, ajusteRac));
+          // 1000 tokens: o caderno PENSAR e as 11 linhas cabem sem cortar o fim (SEGURANCA). Modelo que pensa em voz alta (<think>) tem o pensamento removido antes da leitura.
+          const ajusteRac = { modelo: env.MODELO_RACIOCINIO, max_tokens: 1000, temperature: 0.2 };
+          let textoRac = limparPensamento(extrairTexto(await chamarIA(env, mensagensRac, false, ajusteRac)));
           let lido = lerRaciocinio(textoRac);
           // Fora do formato (e não foi "SEM ANALISE"): uma segunda tentativa, só pedindo as linhas rotuladas.
           if (!lido && textoRac && !disseSemAnalise(textoRac)) {
-            textoRac = extrairTexto(await chamarIA(env, montarMensagensReformatar(mensagensRac, textoRac), false, Object.assign({}, ajusteRac, { temperature: 0 })));
+            textoRac = limparPensamento(extrairTexto(await chamarIA(env, montarMensagensReformatar(mensagensRac, textoRac), false, Object.assign({}, ajusteRac, { temperature: 0 }))));
             lido = lerRaciocinio(textoRac);
           }
           if (lido) {
@@ -573,6 +584,8 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       // quem prefere respostas curtas (memória do aparelho) recebe um teto menor.
       ajuste = perfilDaIA({ quantitativo: quantitativo, modo: modo, tema: tema, comTextoPronto: habilidades.some(function (h) { return h.texto; }), pref: tema ? null : pref, partes: partesDaMsg.length });
       if (sobreSi) ajuste.temperature = Math.min(ajuste.temperature != null ? ajuste.temperature : 0.4, 0.3);
+      // Com o esqueleto de análise pronto, a resposta final só precisa redigi-lo com fidelidade: menos criatividade, menos desvio da conclusão.
+      if (raciocinio) ajuste.temperature = Math.min(ajuste.temperature != null ? ajuste.temperature : 0.4, 0.3);
       if (modo === 'saudacao') { ajuste.modelo = env.MODELO_RESERVA || MODELO_RESERVA_PADRAO; ajuste.reserva = env.MODELO || MODELO_PADRAO; }
       saida = await chamarIA(env, mensagens, querStream, ajuste);
     } catch (e) {
