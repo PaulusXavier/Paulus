@@ -27,6 +27,7 @@
     "ano": 2026,
     "tipo": "apoio",
     "pacote": "psicologia",
+    "worker": "nao",
     "revisao": "pendente",
     "trechos": 121,
     "caracteres": 17652
@@ -84,7 +85,7 @@
     "pacote": "psicologia",
     "revisao": "pendente",
     "trechos": 5,
-    "caracteres": 2627
+    "caracteres": 2849
   },
   {
     "doc": "argo-enderecos-diretorio",
@@ -328,6 +329,7 @@
     "ano": 2021,
     "tipo": "referencia",
     "pacote": "psicologia",
+    "worker": "nao",
     "revisao": "pendente",
     "trechos": 460,
     "caracteres": 285825
@@ -339,6 +341,7 @@
     "ano": 2025,
     "tipo": "referencia",
     "pacote": "psicologia",
+    "worker": "nao",
     "revisao": "pendente",
     "trechos": 434,
     "caracteres": 261621
