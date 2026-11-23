@@ -5,6 +5,7 @@ norma: CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) junt
 ano: 2025
 tipo: referencia
 pacote: psicologia
+worker: nao
 revisao: pendente
 ---
 
