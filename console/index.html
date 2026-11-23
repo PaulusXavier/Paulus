@@ -207,6 +207,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--a);outline-offset:2
 /* ---------- boot ---------- */
 #boot{position:fixed;inset:0;z-index:20;pointer-events:none;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 40%,#0c2a3dee,#02070cf5);transition:opacity .55s ease}
 #boot.fim{opacity:0}
+#boot[hidden]{display:none}
 #boot .bx{font:11px/1.9 var(--mono);letter-spacing:.16em;color:#4fb6c7;min-width:min(340px,86vw);text-transform:uppercase}
 #boot .bx b{display:block;color:var(--c);font:700 15px var(--hud);letter-spacing:.4em;margin-bottom:8px;text-shadow:0 0 14px #37e6ff99}
 #boot .bx span{display:block;opacity:0;animation:hin .35s ease forwards}
@@ -778,6 +779,155 @@ body.claro:not(.lock) .mapa{border-color:var(--bd2)}
 }
 .m td,.m th{word-break:normal;overflow-wrap:normal}
 body.claro:not(.lock) .cmd,body.claro:not(.lock) .cmd span{color:var(--mut)}
+
+/* =====================================================================
+   v5 · ACABAMENTO: um sistema só de superfícies, cantos e espaços.
+   O núcleo continua sendo a única peça de destaque. O resto ganha
+   profundidade (camadas), ritmo e rótulos em frase normal.
+   Só CSS: nenhum id, classe ou texto mudou, então o JS, o tema claro e o
+   modo foco seguem como estavam.
+   ===================================================================== */
+:root{
+  --r1:8px;--r2:12px;--r3:16px;            /* cantos: pequeno, médio, grande */
+  --panel:#081c26;--panel2:#0e2938;         /* duas camadas de superfície, levemente azuladas */
+  --lift:0 1px 0 #ffffff0d inset,0 10px 28px #00000055;
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+html{scrollbar-color:#37e6ff44 transparent}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:#37e6ff33;border-radius:8px}
+::-webkit-scrollbar-thumb:hover{background:#37e6ff66}
+
+/* ---------- cabeçalho: barra de vidro com filete de luz ---------- */
+header{background:linear-gradient(#030b11f7,#030b11d9 66%,#030b1100);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+header::after{opacity:.5;bottom:4px}
+.brand{font:700 15px var(--hud);letter-spacing:.16em}
+.brand small{font:500 11px var(--hud);letter-spacing:.06em;margin-left:10px;padding:1px 8px;border:1px solid var(--bd2);border-radius:999px;color:var(--mut);vertical-align:1px}
+.sline{width:fit-content;gap:8px;padding:2px 10px 2px 8px;border-radius:999px;background:#37e6ff12;border:1px solid var(--bd);font:600 11.5px var(--hud);letter-spacing:.04em}
+.hb{width:38px;height:38px;min-width:38px;min-height:38px!important;border-radius:var(--r2);background:var(--panel);border-color:var(--bd);color:var(--c2)}
+.hb:hover{background:var(--panel2);border-color:var(--c);box-shadow:none}
+.hb.on,.hb[aria-pressed=true]{background:var(--c);color:#02121a;border-color:var(--c)}
+.hr{gap:6px}
+
+/* ---------- painéis laterais: camada própria, valores como etiquetas ---------- */
+.rail{gap:12px}
+.pn{border-radius:var(--r3);padding:14px 16px;background:linear-gradient(180deg,var(--panel2),var(--panel) 60%);box-shadow:var(--lift)}
+.pt{font:700 13px var(--hud);letter-spacing:.02em;color:var(--t);margin-bottom:12px}
+.pt::after{background:var(--bd)}
+.kv{gap:2px}
+.kv div{min-height:30px;align-items:center;padding:0 2px;border-bottom:1px solid #37e6ff12;font:12.5px var(--hud);letter-spacing:0}
+.kv div:last-child{border-bottom:0}
+.kv dt{color:var(--mut);font:600 11px var(--hud);letter-spacing:.07em}
+.kv dd{font:600 11px var(--hud);letter-spacing:.06em;color:var(--c2);padding:2px 10px;border-radius:999px;background:#37e6ff14;max-width:62%}
+.kv dd.ok{color:var(--ok);background:#6ee7a81a}
+.kv dd.av{color:var(--a);background:#ffb3471a}
+.kv dd.er{color:var(--red);background:#ff6b5e1f}
+.cmd{gap:8px;font:12.5px var(--hud)}
+.cmd li{min-height:26px}
+kbd{border-radius:6px;padding:1px 7px;font:600 11px var(--mono);box-shadow:0 1px 0 #37e6ff33}
+#spk{height:52px;gap:3px;margin-top:14px;border-top:1px solid #37e6ff1c}
+#spk i{border-radius:3px 3px 0 0}
+
+/* ---------- conversa: mais respiro, filete que se apaga ---------- */
+#log{gap:26px;padding:16px 4px 18px}
+.m.p{border-left:0;padding:2px 0 2px 20px;position:relative}
+.m.p::before{display:block;content:"";position:absolute;left:0;top:2px;bottom:2px;width:2px;border-radius:2px;background:linear-gradient(180deg,var(--c),#37e6ff00)}
+.m.p.alerta::before{display:none}
+.m.p.alerta{padding:16px 18px;border-radius:var(--r2)}
+.m h3,.m h4{margin-top:20px}
+.m p{margin-bottom:14px}
+.mc{line-height:1.72}
+.u{border-radius:var(--r3) var(--r3) 4px var(--r3);background:linear-gradient(180deg,#123a50,#0d2d3f);border:1px solid var(--bd2);border-right:1px solid var(--bd2);padding:10px 16px;box-shadow:0 6px 18px #0004}
+.u::after{display:none}
+.cb,.tw,.src,.mapa,.destino{border-radius:var(--r2)}
+.cb pre{line-height:1.6}
+.mh{margin-bottom:10px}
+.mh .k{padding:2px 9px;border:1px solid currentColor;border-radius:999px;font-size:11px;letter-spacing:.03em;opacity:.95}
+.ac .bi{border-radius:var(--r2)}
+.ac .bi.so{width:38px}
+
+/* ---------- boas-vindas: título forte, sugestões como cartões ---------- */
+.hi{gap:8px}
+.hi .ey{padding:3px 12px;border:1px solid var(--bd);border-radius:999px;background:#6ee7a812;letter-spacing:.06em;font-size:12px}
+.hi h2{font-size:clamp(30px,8vw,46px);font-weight:300;letter-spacing:.01em;line-height:1.08}
+.hi p{font-size:16px;line-height:1.55;max-width:46ch;margin:4px 0 16px}
+.sg{gap:10px}
+.hi .ch{border-radius:var(--r2);padding:12px 16px;min-height:54px;background:linear-gradient(180deg,var(--panel2),var(--panel));box-shadow:var(--lift);font-size:15px;transition:border-color .2s,background .2s,transform .2s var(--ease)}
+.hi .ch:hover{transform:translateY(-1px);border-color:var(--c)}
+.hi .ch i{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;border:1px solid var(--bd2);background:#37e6ff12;font:700 13px var(--hud)}
+.hi .dt{font-size:12.5px;letter-spacing:.04em}
+
+/* ---------- barra de entrada: flutua sobre um degradê, sem cortar o texto ---------- */
+#bar{gap:8px}
+#bar::before{content:"";position:absolute;left:-16px;right:-16px;top:-34px;bottom:-14px;z-index:-1;pointer-events:none;background:linear-gradient(#030a1000,var(--bg) 42%)}
+#row{gap:8px;align-items:flex-end}
+.qw{border-radius:var(--r3);background:var(--panel);box-shadow:var(--lift);border-color:var(--bd2)}
+.qw:focus-within{border-color:var(--c);box-shadow:0 0 0 3px #37e6ff26,var(--lift)}
+.qw::before{padding:12px 0 0 15px;opacity:.9}
+#q{padding:13px 14px 13px 10px;line-height:1.5;height:48px}
+#at,#mic{width:48px;height:48px;border-radius:var(--r2);background:var(--panel);border-color:var(--bd2);box-shadow:var(--lift)}
+#at:hover,#mic:hover{background:var(--panel2);border-color:var(--c)}
+#go{height:48px;min-width:104px;font:700 15px var(--hud);letter-spacing:.04em;text-transform:none}
+#go:active{transform:translateY(1px)}
+#tb button{border-radius:999px;min-height:34px;padding:0 14px;font:600 12.5px var(--hud)}
+#dn{z-index:5;font:600 12px var(--hud);letter-spacing:.02em;text-transform:none;border:1px solid var(--bd2);padding:0 16px;min-height:34px;border-radius:999px;box-shadow:var(--lift)}
+#pi,#pv{border-radius:var(--r1)}
+#cap{z-index:5}
+
+/* ---------- painéis flutuantes: voz, aparência, anotações, menu ---------- */
+#vp,#apn,#np,#mnp,#sl{border-radius:var(--r3);background:linear-gradient(180deg,var(--panel2),var(--panel));box-shadow:0 18px 50px #000c,0 1px 0 #ffffff0d inset;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+#sl div{padding:10px 16px}
+#sl div.sel,#sl div:hover{background:#37e6ff14}
+#apn .seg,#vp select,#np .ni{border-radius:var(--r2)}
+#np .ni-l{min-height:48px}
+#np .nk{border-radius:50%;border:1.5px solid var(--bd2)}
+#np .feito .nk{border-color:var(--ok)}
+
+/* ---------- login: cartão limpo, botão com o mesmo chanfro do Enviar ---------- */
+#lgform{border-radius:var(--r3);padding:24px 22px 20px;gap:16px;background:linear-gradient(180deg,var(--panel2),var(--panel));box-shadow:0 24px 70px #000b,0 1px 0 #ffffff0d inset}
+.lt{font:700 14px var(--hud);letter-spacing:.26em}
+.lb{border-radius:var(--r2);background:#03121b;border-color:var(--bd2)}
+.lb input{padding:14px 14px}
+#lgb{min-height:50px;font:700 16px var(--hud);letter-spacing:.04em}
+#lgv{border-radius:var(--r1);font:600 12px var(--hud)}
+
+/* ---------- celular ---------- */
+@media(max-width:520px){
+  .brand{font-size:13px;letter-spacing:.14em}
+  .sline{font-size:11px;padding:1px 8px 1px 6px}
+  .hb{width:40px;height:40px;min-width:40px}
+  #log{gap:22px}
+  .m.p{padding-left:16px}
+  .u{max-width:92%}
+  #go{min-width:84px;font-size:14px}
+  #at,#mic{width:46px;height:46px}
+  #q,#go{height:46px}
+  .hi h2{font-size:clamp(28px,9vw,36px)}
+}
+@media(min-width:1180px){
+  .pn{padding:16px 18px}
+  #bar::before{left:-40px;right:-40px}
+}
+
+/* ---------- tema claro: mesma estrutura, sombras suaves em vez de brilho ---------- */
+body.claro:not(.lock){--lift:0 1px 0 #fff inset,0 6px 20px #0b2a3a1f}
+body.claro:not(.lock) header{background:linear-gradient(#eef5f8f7,#eef5f8d9 66%,#eef5f800)}
+body.claro:not(.lock) .pn,body.claro:not(.lock) .qw,body.claro:not(.lock) #at,body.claro:not(.lock) #mic,body.claro:not(.lock) .hi .ch{background:var(--panel)}
+body.claro:not(.lock) .u{background:linear-gradient(180deg,#e3f0f5,#d6e9f0)}
+body.claro:not(.lock) .kv div{border-bottom-color:#0b7a911f}
+body.claro:not(.lock) .kv dd{background:#0b7a9114}
+body.claro:not(.lock) .kv dd.ok{background:#17794a18}
+body.claro:not(.lock) .kv dd.av{background:#a85a0018}
+body.claro:not(.lock) .kv dd.er{background:#c0392b18}
+body.claro:not(.lock) #bar::before{background:linear-gradient(#eef5f800,var(--bg) 42%)}
+body.claro:not(.lock) .sline{background:#0b7a9112}
+body.claro:not(.lock) .m.p::before{background:linear-gradient(180deg,var(--c),#0b7a9100)}
+body.claro:not(.lock) .hb.on,body.claro:not(.lock) .hb[aria-pressed=true]{color:#fff}
+
+/* modo foco: sem painéis, a leitura ocupa o centro */
+body.foco .pn{box-shadow:none}
+body.foco #bar::before{background:linear-gradient(#030a1000,var(--bg) 42%)}
+@media(prefers-reduced-motion:reduce){.hi .ch{transition:none}}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
 <svg id="hx" aria-hidden="true" focusable="false"><defs><pattern id="hxp" width="56" height="97" patternUnits="userSpaceOnUse" patternTransform="scale(.9)"><path d="M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z M28 62 L28 95 M54 47 L82 62 M2 47 L-26 62" fill="none" stroke="currentColor" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#hxp)"/></svg>
