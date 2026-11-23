@@ -33,6 +33,7 @@ import { respostaDeGeo, geoTipoDePedido, geoLerCoordenadas, geoFormatarCoordenad
 import { respostaDeTerritorioCT, territoriosCT } from '../shared/territorio-ct.mjs';
 import { respostaDeDistritoPolicial, distritosPoliciais } from '../shared/distrito-policial.mjs';
 import { respostaDeSaudeMentalTerritorio, territoriosSaudeMental } from '../shared/saude-mental-territorio.mjs';
+import { respostaDeEquipeCras, equipeCrasCristiana } from '../shared/equipe-cras-cristiana.mjs';
 import { revisarTexto, respostaDeRevisao } from '../shared/revisao-texto.mjs';
 import { respostaDePdf, lerPedidoDePdf, editarPdf, listaPaginasPdf, resolverPaginasPdf } from '../shared/pdf.mjs';
 import { lerPedidoDeCentral, instrucaoDeCentral, textoDeCentral } from '../shared/pdf-central.mjs';
@@ -852,6 +853,11 @@ async function perguntar(texto, opcoes) {
     const sm = respostaDeSaudeMentalTerritorio(t);
     if (sm) return { tipo: 'saude-mental-territorio', tipoSaude: sm.tipoSaude, texto: sm.texto, fontes: [], avisos: ['Baseado nas listas do Argo SUAS; a disponibilidade atual de profissional/agenda deve ser confirmada com a unidade.'], pergunta: '', docs: [] };
   }
+  // Equipe técnica do CRAS Cristiana Vicente Nunes e o território dividido por técnico(a): diretório local do Argo, sem IA/rede.
+  if (!o.semGeo) {
+    const eq = respostaDeEquipeCras(t);
+    if (eq) return { tipo: 'equipe-cras', tipoEquipe: eq.tipoEquipe, texto: eq.texto, fontes: [], avisos: ['Divisão por técnico(a) do diretório do Argo SUAS (só existe para o CRAS Cristiana Vicente Nunes); confirme com a unidade, pois a equipe pode mudar.'], pergunta: '', docs: [] };
+  }
   // Circunscrições dos Distritos Policiais: diretório local do Argo, sem IA/rede e sem inferência por proximidade.
   if (!o.semGeo) {
     const dp = respostaDeDistritoPolicial(t);
@@ -957,6 +963,7 @@ const Paulus = { init, perguntar, rota: { ler: lerPedidoDeRota, responder: respo
   territorioCT: { responder: respostaDeTerritorioCT, lista: territoriosCT },
   distritosPoliciais: { responder: respostaDeDistritoPolicial, lista: distritosPoliciais },
   saudeMentalTerritorio: { responder: respostaDeSaudeMentalTerritorio, dados: territoriosSaudeMental },
+  equipeCras: { responder: respostaDeEquipeCras, dados: equipeCrasCristiana },
   geo: { responder: respostaDeGeo, tipo: geoTipoDePedido, coordenadas: geoLerCoordenadas, formatar: geoFormatarCoordenadas, endereco: geoNormalizarEndereco, montarEndereco: geoMontarEndereco, perto: function (centro, opcoes, o) { return geoPerto(centro, geoFontes(opcoes || {}), o); }, distanciaKm: geoDistanciaKm, links: geoLinksDeRota, gpx: geoParaGpx, kml: geoParaKml },
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
