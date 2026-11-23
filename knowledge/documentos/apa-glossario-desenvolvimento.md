@@ -9,7 +9,7 @@ revisao: pendente
 ---
 
 <!--
-Material de estudo para entender termos em inglês e explicar com palavras próprias. Verbetes de S a Z (por exemplo estereótipo, estigma, trauma, zona de desenvolvimento proximal) não entraram porque o texto enviado do dicionário termina na letra S.
+Material de estudo para entender termos em inglês e explicar com palavras próprias. Letras S a Z estão em apa-glossario-s-z.
 -->
 
 ## developmental psychology (psicologia do desenvolvimento)
