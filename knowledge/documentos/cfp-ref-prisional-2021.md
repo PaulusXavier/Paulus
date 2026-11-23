@@ -5,6 +5,7 @@ norma: CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) no S
 ano: 2021
 tipo: referencia
 pacote: psicologia
+worker: nao
 revisao: pendente
 ---
 
