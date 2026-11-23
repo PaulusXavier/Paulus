@@ -154,3 +154,54 @@ test('worker: BUSCA do raciocínio traz trechos novos para a resposta final', as
   const final = chamadas[chamadas.length - 1].messages;
   assert.match(final[final.length - 1].content, /Benefícios eventuais/);
 });
+
+test('lerRaciocinio: PENSAR é o caderno de rascunho; fica fora do texto que vai para a resposta, mas aceita mais espaço', () => {
+  const longo = 'perguntado: x → norma: y → aplicação: z '.repeat(18);
+  const r = lerRaciocinio('FATOS: mãe\nFONTE: nada nas fontes\nPENSAR: ' + longo + '\nCAMINHO: acolher\nSEGURANCA: media');
+  assert.ok(r);
+  assert.ok(r.campos.PENSAR.length > 460 && r.campos.PENSAR.length <= 900);
+  assert.doesNotMatch(r.texto, /PENSAR|perguntado/);
+  assert.match(r.texto, /CAMINHO: acolher/);
+});
+
+test('limparPensamento: tira <think> fechado, aberto e fechamento solto, sem mexer em texto normal', async () => {
+  const { limparPensamento } = await import('../worker/raciocinar.mjs');
+  assert.equal(limparPensamento('<think>FATOS: falso\nCAMINHO: falso</think>\nFATOS: certo\nCAMINHO: ok'), 'FATOS: certo\nCAMINHO: ok');
+  assert.equal(limparPensamento('pensando...\n</think>\nFATOS: certo'), 'FATOS: certo');
+  assert.equal(limparPensamento('<think>cortado por max_tokens'), '');
+  assert.equal(limparPensamento('FATOS: a\nCAMINHO: b'), 'FATOS: a\nCAMINHO: b');
+  const r = lerRaciocinio(limparPensamento('<think>CAMINHO: errado\nFATOS: errado</think>\nFATOS: a\nCAMINHO: b'));
+  assert.equal(r.campos.CAMINHO, 'b');
+});
+
+test('pedeAnalise: recusa da família, "e agora?", "como faço" e relato longo pedem análise; definição curta não', () => {
+  assert.equal(pedeAnalise('a família não aceita o acompanhamento do PAIF, e agora o que a equipe pode fazer?', 'normal'), true);
+  assert.equal(pedeAnalise('o pai recusou a visita domiciliar duas vezes, como faço para continuar o vínculo?', 'normal'), true);
+  assert.equal(pedeAnalise('a família chegou ao CRAS com a mãe, dois filhos pequenos, o pai desempregado há meses, aluguel atrasado, sem cesta básica há semanas e com uma criança faltando à escola por causa da distância', 'normal'), true);
+  assert.equal(pedeAnalise('o que é o serviço de convivência?', 'normal'), false);
+});
+
+test('worker: o passo de raciocínio tem espaço (1000 tokens), pede PENSAR e a resposta final fica mais firme (temperatura ≤ 0,3)', async () => {
+  const { env, chamadas } = ambiente();
+  const m = criarManipulador({ base, apps: APPS });
+  await m(pedido({ app: 'umbrella', pergunta: 'uma mãe com três filhos perdeu o benefício, devo registrar como visita ou como acolhida?', stream: false }), env);
+  assert.equal(chamadas[0].params.max_tokens, 1000);
+  assert.match(chamadas[0].params.messages[0].content, /PENSAR:/);
+  assert.ok(chamadas[1].params.temperature <= 0.3);
+});
+
+test('worker: modelo que devolve <think> no passo de raciocínio ainda alimenta a resposta final', async () => {
+  const chamadas = [];
+  const env = { ALLOWED_ORIGINS: ORIGEM, AI: { async run(modelo, params) {
+    chamadas.push(params);
+    const sistema = (params.messages || []).filter(m => m.role === 'system').map(m => m.content).join('\n');
+    if (/módulo de RACIOCÍNIO/.test(sistema)) return { choices: [{ message: { content: '<think>CAMINHO: falso</think>\nFATOS: mãe\nFONTE: nada nas fontes\nCAMINHO: acolher e registrar como acolhida\nSEGURANCA: media' } }] };
+    return { response: 'Resposta final.' };
+  } } };
+  const m = criarManipulador({ base, apps: APPS });
+  const r = await m(pedido({ app: 'umbrella', pergunta: 'uma mãe com três filhos perdeu o benefício, devo registrar como visita ou como acolhida?', stream: false }), env);
+  assert.equal(r.status, 200);
+  const final = chamadas[chamadas.length - 1].messages;
+  assert.match(final[final.length - 1].content, /<raciocinio>[\s\S]*registrar como acolhida/);
+  assert.doesNotMatch(final[final.length - 1].content, /falso/);
+});
