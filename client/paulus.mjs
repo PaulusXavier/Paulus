@@ -30,6 +30,7 @@ import { respostaDoPedido } from '../shared/calculo-mais.mjs';
 import { respostaDeRota, lerPedidoDeRota } from '../shared/rota.mjs';
 import { respostaDeModelo, lerPedidoDeModelo, urlDoModelo, MODELOS_3D } from '../shared/modelos.mjs';
 import { respostaDeGeo, geoTipoDePedido, geoLerCoordenadas, geoFormatarCoordenadas, geoNormalizarEndereco, geoMontarEndereco, geoPerto, geoFontes, geoLinksDeRota, geoParaGpx, geoParaKml, geoDistanciaKm } from '../shared/geo.mjs';
+import { respostaDeTerritorioCT, territoriosCT } from '../shared/territorio-ct.mjs';
 import { revisarTexto, respostaDeRevisao } from '../shared/revisao-texto.mjs';
 import { respostaDePdf, lerPedidoDePdf, editarPdf, listaPaginasPdf, resolverPaginasPdf } from '../shared/pdf.mjs';
 import { lerPedidoDeCentral, instrucaoDeCentral, textoDeCentral } from '../shared/pdf-central.mjs';
@@ -844,6 +845,11 @@ async function perguntar(texto, opcoes) {
     if (rota) return rota;
   }
 
+  // Territórios dos Conselhos Tutelares de Boa Vista: diretório local do Argo, sem IA/rede e sem inferir por CRAS.
+  if (!o.semGeo) {
+    const ct = respostaDeTerritorioCT(t);
+    if (ct) return { tipo: 'territorio-ct', tipoTerritorio: ct.tipoTerritorio, texto: ct.texto, fontes: [], avisos: ['Consulta local baseada no diretório do Argo SUAS; confirme limites e encaminhamentos com o Conselho Tutelar.'], pergunta: '', docs: [] };
+  }
   // Coordenadas, "perto de", distância e bairro de lugares públicos: o programa responde com o que o app passou, sem chutar.
   if (!o.semGeo) {
     const tg = geoTipoDePedido(t);
@@ -936,6 +942,7 @@ const Paulus = { init, perguntar, rota: { ler: lerPedidoDeRota, responder: respo
   // Modelos 3D didáticos (v0.20.0; mapa de Roraima v0.21.0): ler(texto) -> pedido ou null; responder(texto) -> resultado ou null; catalogo; url(modelo); baixar(modelo)
   modelos: { ler: lerPedidoDeModelo, responder: respostaDeModelo, catalogo: MODELOS_3D, url: function (m) { return urlDoModelo(m, cfg.modelosUrl); }, baixar: modeloBaixar },
   // Geografia no aparelho (v0.16.0): responder(texto, { pontos, lugares, bairros, ruas, aparelho }) -> resultado ou null; coordenadas/formatar/endereco/perto/distancia/gpx/kml para o app usar direto.
+  territorioCT: { responder: respostaDeTerritorioCT, lista: territoriosCT },
   geo: { responder: respostaDeGeo, tipo: geoTipoDePedido, coordenadas: geoLerCoordenadas, formatar: geoFormatarCoordenadas, endereco: geoNormalizarEndereco, montarEndereco: geoMontarEndereco, perto: function (centro, opcoes, o) { return geoPerto(centro, geoFontes(opcoes || {}), o); }, distanciaKm: geoDistanciaKm, links: geoLinksDeRota, gpx: geoParaGpx, kml: geoParaKml },
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
