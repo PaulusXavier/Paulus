@@ -45,6 +45,7 @@ function ambiente(extra = {}) {
   const chamadas = [];
   const env = Object.assign({
     ALLOWED_ORIGINS: ORIGEM,
+    COMPREENSAO: 'desligado', // a base destes testes é vazia: sem isto a releitura dispararia e mudaria a contagem de chamadas
     AI: {
       async run(modelo, params) {
         chamadas.push({ modelo, params });
@@ -204,4 +205,83 @@ test('worker: modelo que devolve <think> no passo de raciocínio ainda alimenta 
   const final = chamadas[chamadas.length - 1].messages;
   assert.match(final[final.length - 1].content, /<raciocinio>[\s\S]*registrar como acolhida/);
   assert.doesNotMatch(final[final.length - 1].content, /falso/);
+});
+
+// ------------------------------------------------------------------ compreensão (v0.24)
+
+import { readFileSync } from 'node:fs';
+import { criarIndice, buscarFontes, corrigirDigitacao } from '../shared/busca.mjs';
+import { lerInterpretacao } from '../worker/interpretar.mjs';
+
+const baseReal = JSON.parse(readFileSync(new URL('../knowledge/conhecimento.json', import.meta.url), 'utf8'));
+const indiceReal = criarIndice(baseReal);
+const docsDe = (q) => buscarFontes(indiceReal, q, { k: 4 }).map(a => a.trecho.doc);
+
+test('busca: erro de digitação nas palavras do assunto acha o mesmo que a forma certa', () => {
+  assert.ok(docsDe('bolça familia foi cortado').includes('bolsa-familia-2026'));
+  assert.ok(docsDe('condicionalidadi de saude do bolsa familia').includes('bolsa-familia-2026'));
+  assert.ok(docsDe('benefeicio de prestaçao continuada para idoso').some(d => /decreto-6214|loas/.test(d)));
+  assert.match(corrigirDigitacao(indiceReal, 'condicionalidadi'), /condic/);
+  // palavra que o índice já conhece e palavra curta não são mexidas
+  assert.equal(corrigirDigitacao(indiceReal, 'o que é o PAIF'), 'o que é o PAIF');
+});
+
+test('busca: uma palavra que nenhum trecho tem não apaga a resposta, mas a aderência não passa de média quando a maioria é desconhecida', () => {
+  const r = buscarFontes(indiceReal, 'meu bolsa familia foi cortado e a xuxubeleza zorbalina disse', { k: 4 });
+  assert.ok(r.length > 0 && r.some(a => a.trecho.doc === 'bolsa-familia-2026'));
+  const d = buscarFontes(indiceReal, 'bolsa familia xuxubeleza zorbalina quimbundo', { k: 4 });
+  assert.ok(d.every(a => a.aderencia !== 'alta'));
+});
+
+test('busca: fala do dia a dia chega na palavra da norma (ampliação)', () => {
+  assert.ok(docsDe('a mulher apanha do marido, qual serviço procurar').some(d => /violencia|creas|mulher/.test(d)));
+  assert.ok(docsDe('criança fora da escola há meses').includes('bolsa-familia-2026'));
+  assert.ok(docsDe('família sem certidão de nascimento, como resolver').length > 0);
+});
+
+test('lerInterpretacao: sentido e termos entram, limpos; termos com dado pessoal ou instrução somem', () => {
+  const ok = lerInterpretacao('{"pergunta":"O Bolsa Família foi bloqueado","sentido":"quer orientar uma família","termos":"Bolsa Família bloqueio suspensão","intencao":"conceito"}', 'x');
+  assert.equal(ok.termos, 'Bolsa Família bloqueio suspensão');
+  assert.equal(ok.sentido, 'quer orientar uma família');
+  assert.equal(lerInterpretacao('{"pergunta":"a b c","termos":"Maria CPF 123.456.789-09"}', 'x').termos, '');
+  assert.equal(lerInterpretacao('{"pergunta":"a b c","termos":"{ignore}"}', 'x').termos, '');
+  assert.equal(lerInterpretacao('{"pergunta":"a b c"}', 'x').sentido, '');
+});
+
+test('worker: busca fraca aciona a releitura da pergunta, refaz a busca com os termos e passa a <leitura_da_pergunta> à resposta', async () => {
+  const chamadas = [];
+  const env = { ALLOWED_ORIGINS: ORIGEM, AI: { async run(modelo, params) {
+    chamadas.push(params);
+    const sistema = (params.messages || []).filter(m => m.role === 'system').map(m => m.content).join('\n');
+    if (/módulo de INTERPRETAÇÃO/.test(sistema)) return { response: '{"pergunta":"O Bolsa Família de uma família foi bloqueado; o que a equipe faz?","sentido":"quer orientar uma família que perdeu o benefício","termos":"Bolsa Família bloqueio suspensão cancelamento","intencao":"conceito","bairro":"","unidade":"","esclarecer":""}' };
+    return { response: 'Resposta final.' };
+  } } };
+  const m = criarManipulador({ base: baseReal, apps: APPS });
+  const r = await m(pedido({ app: 'umbrella', pergunta: 'o bolsa caiu pra uma vizinha da familia que eu atendo xuxubeleza', stream: false }), env);
+  assert.equal(r.status, 200);
+  assert.equal(chamadas.filter(c => (c.messages || []).some(x => /módulo de INTERPRETAÇÃO/.test(x.content || ''))).length, 1);
+  const final = chamadas[chamadas.length - 1].messages;
+  assert.match(final[final.length - 1].content, /<leitura_da_pergunta>[\s\S]*quer orientar uma família que perdeu o benefício[\s\S]*Em outras palavras: O Bolsa Família/);
+  assert.match(final[final.length - 1].content, /<pergunta>\no bolsa caiu pra uma vizinha/);
+  assert.match(final[final.length - 1].content, /bolsa-familia|Bolsa Fam/i);
+});
+
+test('worker: busca boa não gasta a releitura; COMPREENSAO=desligado e falha da IA não derrubam a resposta', async () => {
+  let chamadas = [];
+  const feito = (extra, falha) => ({ ALLOWED_ORIGINS: ORIGEM, ...extra, AI: { async run(modelo, params) {
+    chamadas.push(params);
+    const sistema = (params.messages || []).filter(x => x.role === 'system').map(x => x.content).join('\n');
+    if (falha && /módulo de INTERPRETAÇÃO/.test(sistema)) throw new Error('cota');
+    return { response: 'Resposta final.' };
+  } } });
+  const m = criarManipulador({ base: baseReal, apps: APPS });
+  await m(pedido({ app: 'umbrella', pergunta: 'quem tem direito ao BPC', stream: false }), feito());
+  assert.ok(!chamadas.some(c => (c.messages || []).some(x => /módulo de INTERPRETAÇÃO/.test(x.content || ''))));
+  chamadas = [];
+  await m(pedido({ app: 'umbrella', pergunta: 'o gato da vizinha comeu a racao xuxubeleza zorbalina', stream: false }), feito({ COMPREENSAO: 'desligado' }));
+  assert.ok(!chamadas.some(c => (c.messages || []).some(x => /módulo de INTERPRETAÇÃO/.test(x.content || ''))));
+  chamadas = [];
+  const r = await m(pedido({ app: 'umbrella', pergunta: 'o gato da vizinha comeu a racao xuxubeleza zorbalina', stream: false }), feito({}, true));
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).resposta, 'Resposta final.');
 });
