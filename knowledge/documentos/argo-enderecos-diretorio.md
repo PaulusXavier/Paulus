@@ -1,7 +1,7 @@
 ---
 doc: argo-enderecos-diretorio
 titulo: Diretório de endereços do Argo SUAS
-norma: Diretório de equipamentos e serviços do app Argo SUAS (js/data.js e UNITS_CRAS_CREAS), copiado em 2026-11-21. Não é norma nem cadastro oficial: é o diretório mantido pela equipe do Argo, e endereço, telefone e horário mudam. Confirme com a unidade antes de encaminhar uma pessoa.
+norma: Diretório de equipamentos e serviços do app Argo SUAS (js/data.js e UNITS_CRAS_CREAS), copiado em 2026-11-23. Não é norma nem cadastro oficial: é o diretório mantido pela equipe do Argo, e endereço, telefone e horário mudam. Confirme com a unidade antes de encaminhar uma pessoa.
 ano: 2026
 tipo: apoio
 revisao: pendente
@@ -44,6 +44,33 @@ CREAS Centro. Endereço: Av. Mário Homem de Melo, 514 - Centro, Boa Vista-RR. T
 
 ## CREAS e acolhimento de Boa Vista — endereço e território — Abrigo Infantil Pedra Pintada
 Abrigo Infantil Pedra Pintada. Endereço: R. Interna, 182 - Centenário, Boa Vista-RR. Telefone: Atendimento Direto. Coordenada: 2.796161, -60.703623. Público: Crianças de até 12 anos incompleto em situação de vulnerabilidade social.
+
+## Equipe técnica do CRAS Cristiana Vicente Nunes — território por técnico(a)
+Divisão do território do CRAS Cristiana Vicente Nunes (Rua Santo Agostinho, 193 - Centenário, Boa Vista-RR) por técnico(a) de referência, conforme o Argo. Fernanda Gomes (Psicóloga): Buritis e Caimbé. Cléo Sousa (Assistente Social): Liberdade e Pricumã. Bárbara Parente (Assistente Social): Tancredo Neves, Cambará e Olímpico. Susy Andrade (Pedagoga): Centenário e Nova Canaã. Paloma de Assis (Assistente Social): Cinturão Verde e Jóquei Clube. Rafaela Garcia (Assistente Social): Asa Branca. Bairros na cobertura fixa do CRAS: 13 de Setembro, Asa Branca, Buritis, Caimbé, Cambará, Centenário, Cinturão Verde, Jóquei Clube, Liberdade, Marechal Rondon, Nova Canaã, Olímpico, Pricumã, Araceli Souto Maior, Tancredo Neves. Bairros da cobertura sem técnico fixo cadastrado (Marechal Rondon) devem ser confirmados com a unidade.
+
+## Equipe volante do CRAS Cristiana Vicente Nunes — atendimento itinerante
+Responsável por levar serviços (PAIF, CadÚnico) a áreas de difícil acesso e populações dispersas. Equipe volante: Keomara Teles (Assistente Social, Atendimento Itinerante); Danilo Braga (Psicólogo, Atendimento Itinerante); Paulo Xavier (Psicólogo, Atendimento Itinerante). Cobertura itinerante: Professora Araceli Souto Maior, 13 de Setembro e Ocupação Nova Vida. Só existe divisão por técnico(a) para este CRAS: nos demais, o diretório não traz a equipe por bairro e não se deve inventar nome.
+
+## Técnico(a) de referência no CRAS Cristiana — Fernanda Gomes
+Fernanda Gomes é Psicóloga do CRAS Cristiana Vicente Nunes e a referência técnica dos bairros: Buritis e Caimbé.
+
+## Técnico(a) de referência no CRAS Cristiana — Cléo Sousa
+Cléo Sousa é Assistente Social do CRAS Cristiana Vicente Nunes e a referência técnica dos bairros: Liberdade e Pricumã.
+
+## Técnico(a) de referência no CRAS Cristiana — Bárbara Parente
+Bárbara Parente é Assistente Social do CRAS Cristiana Vicente Nunes e a referência técnica dos bairros: Tancredo Neves, Cambará e Olímpico.
+
+## Técnico(a) de referência no CRAS Cristiana — Susy Andrade
+Susy Andrade é Pedagoga do CRAS Cristiana Vicente Nunes e a referência técnica dos bairros: Centenário e Nova Canaã.
+
+## Técnico(a) de referência no CRAS Cristiana — Paloma de Assis
+Paloma de Assis é Assistente Social do CRAS Cristiana Vicente Nunes e a referência técnica dos bairros: Cinturão Verde e Jóquei Clube.
+
+## Técnico(a) de referência no CRAS Cristiana — Rafaela Garcia
+Rafaela Garcia é Assistente Social do CRAS Cristiana Vicente Nunes e a referência técnica dos bairros: Asa Branca.
+
+## UBS de Boa Vista com atendimento psicológico — por macroárea e bairro
+UBS com psicólogo(a) segundo o Argo: Macroárea 1 (bairros: Cidade Satélite, Murilo Teixeira (Cid. Satélite IV), Piscicultura, Santa Tereza, Jardim Caranã, União): UBS Dr. Hélio Macedo — Rua Joca Farias, 2199 - Jardim Caranã, Boa Vista-RR, 69313-600 | UBS Prof. Mariano de Andrade — Av. Deco Fonteles, 264 - Caranã, Boa Vista-RR. Macroárea 2 (bairros: Aeroporto, Jardim Floresta, Caranã, Cauamé, Said Salomão): UBS Olenka Macellaro — Av. Mário Homem de Melo, 5075 - Caimbé, Boa Vista-RR, 69312-155 | UBS Edna Diniz — Rua Francisco Cândido, 177 - Aeroporto, Boa Vista-RR. Macroárea 3 (bairros: 31 de Março, São Francisco, Nossa Sra. Aparecida, Bairro dos Estados, Paraviana, Cacari, São Vicente, Calungá, Canarinho, Centro, São Pedro, Mecejana): UBS Dra. Sandra Maria — R. Maj. Carlos Mardel, 466 - Trinta e Um de Março, Boa Vista-RR, 69305-290 | UBS Dr. Silvio Botelho — Av. Minas Gerais, 512 - Paraviana, Boa Vista-RR | UBS Mecejana — R. Pavão, 195 - Mecejana, Boa Vista-RR, 69304-451. Macroárea 4 (bairros: Dr. Sílvio Leite, Jardim Primavera, Alvorada, Equatorial, Laura Moreira (Conj. Cidadão)): UBS Aygara Motta — R. José Lacerda, 256 - Cidade Satélite, Boa Vista-RR | UBS Dr. Silvio Leite — R. Vicente Tavares de Melo, 615 - Nova Canaã, Boa Vista-RR | UBS Jorge André Gurjão — R. CC 24, 341 - Laura Moreira, Boa Vista-RR, 69318-115. Macroárea 5 (bairros: Asa Branca, Cambará, Nova Canaã, Olímpico, Jóquei Clube, Prof. Aracelis, Tancredo Neves, Caimbé): UBS Asa Branca — R. Francisco Custódio de Andrade, 505 - Asa Branca, Boa Vista-RR, 69312-258. Macroárea 6 (bairros: 13 de Setembro, Buritis, Centenário, Cinturão Verde, Liberdade, Pricumã): UBS Buritis — R. Raimundo Figueiras, 661 - Buritis, Boa Vista-RR, 69309-221. Macroárea 7 (bairros: Jardim Tropical, Senador Hélio Campos, Pintolândia, Dr. Sílvio Botelho, Santa Luzia): UBS Santa Luzia — Av. Abel Monteiro Reis, 1786 - Pintolândia, Boa Vista-RR, 69316-398 | UBS Sayonara — Av. Raimundo Rodrigues Coelho, 2280 - Dr. Silvio Botelho, Boa Vista-RR, 69316-762. Informação de campo (vale para o bairro da própria UBS; confirmar agenda): UBS Bernardo Alem — R. Josemar Batista de Souza, 1200 - Cidade Satélite (Conj. Vila Jardim), Boa Vista-RR. A macroárea 8 (Nova Cidade, Operário, Dr. Airton Rocha, Governador Aquilino Mota Duarte, Raiar do Sol, Bela Vista, São Bento) não tem UBS com atendimento psicológico identificada no cadastro; não indicar outra UBS por proximidade. UBS de bairro sem psicólogo (Pricumã, Liberdade, 13 de Setembro, Cinturão Verde, Centenário, Santa Tereza) fica referenciada à UBS da macroárea. Confirme agenda e disponibilidade com a unidade.
 
 ## Lista de endereços — Hospitais
 5 em "Hospitais". Hospital da Criança Santo Antônio: Av. das Guianas, 1645 - Treze de Setembro, Boa Vista-RR, 69308-160 | Hospital Coronel Mota: R. Coronel Pinto, 636 - Centro, Boa Vista-RR, 69301-081 | Hospital Cosme e Silva: R. Delman Veras, S/N - Pintolândia, Boa Vista-RR | Hospital Universitário: Av. Nazaré Filgueiras, 2096 - Dr. Silvio Botelho, Boa Vista-RR, 69314-550 | Hospital Materno Infantil N. Sra. de Nazareth: Av. Santos Dumont, 1321 - Aparecida, Boa Vista-RR
