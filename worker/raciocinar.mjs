@@ -8,6 +8,7 @@
 //   FONTE: o que <normas>, <fichas>, <base_do_app> ou <roteiros> dizem sobre isso (ou "nada nas fontes")
 //   EXCECAO: a exceção ou o caso-limite mais provável
 //   FALTA: dado que mudaria a conclusão
+//   PENSAR: caderno de rascunho (perguntado → regra → aplicação → o que contraria → teste), escrito ANTES de CAMINHO; não vai para a resposta
 //   CAMINHO: a conclusão provisória e os passos, na ordem
 //   ALTERNATIVA: o outro caminho razoável e o que ele custa ou deixa de cobrir
 //   RISCO: o cuidado ético ou legal que a equipe não pode perder (sigilo, consentimento, exposição, registro)
@@ -33,9 +34,11 @@ import { dataDeHoje, normasComoTexto, baseAppComoTexto, fichasComoTexto, habilid
 
 const MAX_NORMAS = 5000;
 const MAX_HAB = 3000;
-const MAX_CAMPO = 420;
-export const MAX_RACIOCINIO = 1600;
-const ROTULOS = ['FATOS', 'FONTE', 'EXCECAO', 'FALTA', 'CAMINHO', 'ALTERNATIVA', 'RISCO', 'CONTRAPONTO', 'PERGUNTA', 'BUSCA', 'SEGURANCA'];
+const MAX_CAMPO = 460;
+// PENSAR é o caderno de rascunho: o modelo raciocina ali, passo a passo, ANTES de escrever CAMINHO. Tem mais espaço e não vai para a resposta.
+const MAX_PENSAR = 900;
+export const MAX_RACIOCINIO = 1700;
+const ROTULOS = ['FATOS', 'FONTE', 'EXCECAO', 'FALTA', 'PENSAR', 'CAMINHO', 'ALTERNATIVA', 'RISCO', 'CONTRAPONTO', 'PERGUNTA', 'BUSCA', 'SEGURANCA'];
 // Campos opcionais: "nenhum", "nenhuma que valha" e parecidos significam que não há o que dizer, e o campo some.
 const OPCIONAIS = ['ALTERNATIVA', 'RISCO', 'CONTRAPONTO', 'PERGUNTA', 'BUSCA'];
 const RE_VAZIO = /^(?:nenhum[ao]?|nada|n[aã]o h[aá]|sem)\b/i;
@@ -43,7 +46,7 @@ const RE_VAZIO = /^(?:nenhum[ao]?|nada|n[aã]o h[aá]|sem)\b/i;
 const CAMPOS_DO_TEXTO = ['FATOS', 'FONTE', 'EXCECAO', 'FALTA', 'CAMINHO', 'ALTERNATIVA', 'RISCO', 'CONTRAPONTO', 'PERGUNTA', 'SEGURANCA'];
 export const MAX_TRECHOS_NOVOS = 2;
 
-const RE_ANALISE = /\b(posso|devo|deve|pode|podem|preciso|precisa|tem direito|tenho direito|cabe|e obrigatorio|e permitido|e possivel|caso|situacao|familia que|mae que|pai que|idoso que|crianca que|adolescente que|o que fazer|o que eu faco|como proceder|como conduzir|como abordar|como lidar|qual o melhor|melhor caminho|qual caminho|vale a pena|diferenca entre|compar|elegivel|enquadra|se enquadr|e se |ou devo|ou posso|devo ou|dilema|duvida etica|sigilo|quebrar|notificar|denunciar|encaminhar ou|acompanhar ou|atender ou)\b/;
+const RE_ANALISE = /\b(posso|devo|deve|pode|podem|preciso|precisa|tem direito|tenho direito|cabe|e obrigatorio|e permitido|e possivel|caso|situacao|familia que|mae que|pai que|idoso que|crianca que|adolescente que|o que fazer|o que eu faco|como proceder|como conduzir|como abordar|como lidar|qual o melhor|melhor caminho|qual caminho|vale a pena|diferenca entre|compar|elegivel|enquadra|se enquadr|e se |ou devo|ou posso|devo ou|dilema|duvida etica|sigilo|quebrar|notificar|denunciar|encaminhar ou|acompanhar ou|atender ou|e agora|nao aceita|nao aceitou|nao aceitam|recusou|recusa|nao quer|nao concorda|nao comparece|nao compareceu|deixou de|como faco|como fazer|qual a melhor forma|melhor forma|estou em duvida|nao sei se|sera que|faz sentido|esta certo|esta correto|o que voce acha|o que acha|na pratica|como priorizar|o que priorizar|por onde comecar|por onde comeco)\b/;
 const RE_CONSULTA_SIMPLES = /^(?:qual|quais|onde|quem|que horas|quando)\b.{0,50}\?*$/;
 
 // Pergunta que pede análise (e não só um dado). Só olha o texto; o modo vem de classificarPedido.
@@ -62,7 +65,8 @@ export function pedeAnalise(pergunta, modo, historico) {
   // "Posso registrar isso como visita?" tem só 5 palavras e é pergunta de decisão; as demais precisam de 7.
   if (palavras < (/\b(posso|devo|preciso)\b/.test(n) && palavras >= 5 ? 5 : 7)) return false;
   if (RE_CONSULTA_SIMPLES.test(n) && !/\b(posso|devo|pode|caso|situacao)\b/.test(n)) return false;
-  return RE_ANALISE.test(n) || palavras >= 40;
+  // Um relato longo já é um caso para pensar junto, mesmo sem palavra-chave de decisão.
+  return RE_ANALISE.test(n) || palavras >= 28;
 }
 
 // ------------------------------------------------------------------ tipo da análise
@@ -142,12 +146,13 @@ export function calibrarSeguranca(r, achados) {
 
 const SISTEMA = `Você é o módulo de RACIOCÍNIO do Paulus, copiloto de IA de apps do SUAS. Você NÃO responde ao(à) profissional: monta, em silêncio, o esqueleto de análise que o Paulus vai usar para responder bem.
 
-FORMATO (somente linhas rotuladas, sem texto antes nem depois, sem markdown, uma linha por rótulo, cada uma com no máximo duas frases curtas)
+FORMATO (somente linhas rotuladas, sem texto antes nem depois, sem markdown, uma linha por rótulo, cada uma com no máximo duas frases curtas, exceto PENSAR)
 FATOS: o que a pessoa disse, nas palavras dela, sem acrescentar nada
 FONTE: o que <normas>, <fichas>, <base_do_app> e <roteiros> dizem sobre isso, citando o documento e a referência como aparecem; se nada sustenta, escreva "nada nas fontes"
 EXCECAO: a exceção ou o caso-limite mais provável que poderia mudar a conclusão
 FALTA: o dado que mudaria a conclusão (ou "nada que mude")
-CAMINHO: a conclusão provisória e os passos, na ordem em que a equipe consegue fazer
+PENSAR: seu caderno de rascunho, até 5 frases curtas encadeadas por "→", ANTES de concluir: 1) o que foi PERGUNTADO (uma frase, separado do que foi só contado); 2) a regra da fonte que se aplica; 3) aplicação ao caso; 4) o que contraria essa aplicação; 5) teste: "e se o contrário fosse verdade?" e "e se a família recusar?". Aqui você pode pensar em voz alta e se corrigir; este campo não vai para a resposta.
+CAMINHO: a conclusão provisória e os passos, na ordem em que a equipe consegue fazer; precisa decorrer de PENSAR e responder ao que foi PERGUNTADO
 ALTERNATIVA: o outro caminho razoável e o que ele custa ou deixa de cobrir (ou "nenhuma que valha")
 RISCO: o cuidado ético ou legal que a equipe não pode perder (sigilo, consentimento, exposição da família, registro que pode virar prova)
 CONTRAPONTO: o melhor argumento a favor do caminho que você NÃO escolheu (só em dilema ou comparação; nos outros tipos, "nenhum")
@@ -161,6 +166,11 @@ COMO PENSAR
 - Endereço, telefone, valor, prazo, artigo e número de norma só entram se estiverem nas fontes. Nunca invente. Se a fonte não cobre, diga "nada nas fontes" e raciocine só como boa prática profissional, dizendo que é leitura e não norma.
 - Pense como quem trabalha com famílias no território: escuta qualificada, direitos, vínculos, rede, contrarreferência, sigilo e registro ético. Sem diagnóstico, sem classificar o risco de uma pessoa real e sem parecer: a decisão é da equipe.
 - Teste a sua conclusão: pergunte "e se o contrário fosse verdade?" e "o que a equipe faria se a família recusasse?". Se a conclusão não resiste, mude CAMINHO e baixe SEGURANCA.
+- Responda ao que foi PERGUNTADO, não ao assunto em volta. Pergunta de sim ou não: a conclusão começa com "sim", "não" ou "depende de X", e o "depende" diz de quê e para qual lado cada resposta vai. Mensagem com várias perguntas: uma conclusão para cada, na ordem.
+- Três níveis de peso, que não se misturam: o que a norma OBRIGA ou PROÍBE, o que a orientação técnica RECOMENDA e o que a prática local DEFINE (o que depende do município, do equipamento ou da equipe). Diga em qual nível está cada parte de CAMINHO.
+- Silêncio da fonte não é permissão nem proibição: "nada nas fontes" significa que você só tem boa prática profissional, e CAMINHO deve dizer isso e baixar SEGURANCA.
+- Quando houver dado que você não tem e que muda a conclusão (renda, idade, composição, quem pediu, se a pessoa sabe), nomeie-o em FALTA e dê a conclusão para cada lado ("se X, ...; se Y, ..."), em vez de escolher um lado em silêncio.
+- Releia CAMINHO antes de fechar: cada passo precisa de FATOS, de uma fonte ou de uma boa prática dita como tal. Passo sem apoio sai.
 - Ordem de peso: o que a pessoa disse e a conversa, depois lei ou decreto de <normas>, depois orientação técnica, depois a sua leitura profissional. Em conflito entre fontes, a mais alta vence; diga o conflito em FONTE.
 - Participação em serviço é voluntária; nunca proponha condicionar benefício a comparecer ao PAIF.
 
@@ -172,6 +182,7 @@ FATOS: mãe com três filhos, benefício interrompido, quer cesta básica; a dú
 FONTE: nada nas fontes sobre critério local de cesta; benefícios eventuais são regulados pelo município, conforme <normas>.
 EXCECAO: se a interrupção veio de descumprimento de condicionalidade, ela tem prioridade no atendimento do SUAS.
 FALTA: qual a lei municipal de benefícios eventuais e se há visita agendada.
+PENSAR: perguntado: pode pedir cesta e como registrar → norma: benefício eventual é municipal, sem critério local nas fontes → aplicação: o atendimento já aconteceu como acolhida, não como visita → contra: se houve visita agendada, registra-se visita → teste: se ela recusar visita, o registro de acolhida continua certo.
 CAMINHO: acolher, conferir a regra municipal do benefício eventual e registrar o atendimento como é de fato (acolhida), sem chamar de visita o que não foi visita.
 ALTERNATIVA: agendar visita domiciliar para conhecer a situação, com consentimento; custa tempo e só vale se a família aceitar.
 RISCO: registro que vira prova: descrever fatos, sem rótulo, e não expor os filhos.
@@ -186,9 +197,10 @@ function limpar(texto, max) {
 
 function transcricao(historico) {
   if (!Array.isArray(historico)) return '';
-  return historico.slice(-4).map(function (h) {
+  // Um caso contado aos poucos precisa chegar inteiro: 6 turnos, com mais espaço para o que a pessoa contou.
+  return historico.slice(-6).map(function (h) {
     const quem = h && h.papel === 'usuario' ? 'Profissional' : (h && h.papel ? 'Paulus' : '');
-    const t = limpar(h && h.texto, quem === 'Paulus' ? 500 : 300);
+    const t = limpar(h && h.texto, quem === 'Paulus' ? 500 : 520);
     return quem && t ? quem + ': ' + t : '';
   }).filter(Boolean).join('\n');
 }
@@ -229,12 +241,22 @@ export function lerRaciocinio(textoIA) {
     if (!m) return;
     const rotulo = normalizar(m[1]).toUpperCase();
     if (ROTULOS.indexOf(rotulo) < 0 || campos[rotulo]) return;
-    const v = limpar(m[2], MAX_CAMPO);
+    const v = limpar(m[2], rotulo === 'PENSAR' ? MAX_PENSAR : MAX_CAMPO);
     if (v && !(OPCIONAIS.indexOf(rotulo) >= 0 && RE_VAZIO.test(v))) campos[rotulo] = v;
   });
   if ((sem && !Object.keys(campos).length) || !campos.CAMINHO || !(campos.FATOS || campos.FONTE)) return null;
   const texto = CAMPOS_DO_TEXTO.filter(function (r) { return campos[r]; }).map(function (r) { return r + ': ' + campos[r]; }).join('\n').slice(0, MAX_RACIOCINIO);
   return { campos: campos, texto: texto };
+}
+
+// Modelos que "pensam em voz alta" (DeepSeek-R1, QwQ, gpt-oss) devolvem o pensamento antes da resposta, dentro de <think>...</think>.
+// Esse texto não é o formato pedido e pode ter rótulos falsos; sai antes da leitura. Bloco aberto e não fechado (corte por max_tokens) sai até o fim.
+export function limparPensamento(texto) {
+  return String(texto == null ? '' : texto)
+    .replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, '')
+    .replace(/<(think|thinking|reasoning)>[\s\S]*$/i, '')
+    .replace(/^[\s\S]*?<\/(think|thinking|reasoning)>/i, '')
+    .trim();
 }
 
 // A IA disse que não há o que analisar (não vale tentar de novo).
@@ -246,7 +268,7 @@ export function disseSemAnalise(textoIA) {
 export function montarMensagensReformatar(mensagens, textoIA) {
   return (Array.isArray(mensagens) ? mensagens : []).concat([
     { role: 'assistant', content: limpar(textoIA, 1500) },
-    { role: 'user', content: 'Seu formato não foi lido. Responda de novo SOMENTE com as linhas rotuladas (FATOS, FONTE, EXCECAO, FALTA, CAMINHO, ALTERNATIVA, RISCO, CONTRAPONTO, PERGUNTA, BUSCA, SEGURANCA), uma por linha, sem texto antes nem depois e sem markdown. Se a mensagem não pede análise, devolva apenas: SEM ANALISE' }
+    { role: 'user', content: 'Seu formato não foi lido. Responda de novo SOMENTE com as linhas rotuladas (FATOS, FONTE, EXCECAO, FALTA, PENSAR, CAMINHO, ALTERNATIVA, RISCO, CONTRAPONTO, PERGUNTA, BUSCA, SEGURANCA), uma por linha, sem texto antes nem depois e sem markdown. Se a mensagem não pede análise, devolva apenas: SEM ANALISE' }
   ]);
 }
 
