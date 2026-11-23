@@ -120,71 +120,127 @@
   function rolar(forca) { if (forca || perto()) log.scrollTop = log.scrollHeight; }
   function ajustarBarra() { document.documentElement.style.setProperty('--bar', ($('bar').offsetHeight + 24) + 'px'); }
 
-  // ------------------------------------------------------------ Markdown seguro
+  // ------------------------------------------------------------ Markdown seguro (v2)
+  // Entende: títulos, negrito, itálico, ~~riscado~~, `código`, links, citação (>), linha (---), listas aninhadas
+  // (com número inicial e tarefas [ ]/[x]), tabelas com alinhamento e blocos de código com a linguagem.
+  // Enquanto a resposta ainda chega (parcial), segura o que ainda está incompleto (linha de tabela cortada,
+  // ** ou ` sem fechar) para o texto não "piscar" com símbolos soltos.
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  function svgEl(tag, at) { var e = document.createElementNS(SVGNS, tag); Object.keys(at || {}).forEach(function (k) { e.setAttribute(k, at[k]); }); return e; }
+  // ícones de traço (24×24); cada "|" separa um caminho
+  var ICO = {
+    copiar: 'M9 9h11v11H9z|M5 15V6a2 2 0 0 1 2-2h9',
+    certo: 'M5 12.5l4.5 4.5L19 7.5',
+    util: 'M7 11v9H4v-9z|M7 11l3.6-6.6A2 2 0 0 1 14 5.4V9h5.2a1.6 1.6 0 0 1 1.6 1.9l-1.2 6.4A2 2 0 0 1 17.7 19H7',
+    naoutil: 'M17 13V4h3v9z|M17 13l-3.6 6.6A2 2 0 0 1 10 18.6V15H4.8a1.6 1.6 0 0 1-1.6-1.9l1.2-6.4A2 2 0 0 1 6.3 5H17',
+    refazer: 'M20 11a8 8 0 1 0-2.4 5.7|M20 4.5V11h-6.5',
+    curto: 'M5 8h14|M5 16h8',
+    longo: 'M5 6h14|M5 12h14|M5 18h9',
+    ouvir: 'M4 9v6h4l5 4V5L8 9z|M16.5 9a4 4 0 0 1 0 6',
+    fonte: 'M6 3h9l4 4v14H6z|M14 3v5h5|M9 13h7M9 17h7',
+    seta: 'M9 6l6 6-6 6',
+    aviso: 'M12 4l9 16H3z|M12 10v4M12 17.5v.5',
+    mais: 'M5 12h.01M12 12h.01M19 12h.01'
+  };
+  function ico(nome) {
+    var s = svgEl('svg', { viewBox: '0 0 24 24', class: 'ic', 'aria-hidden': 'true', focusable: 'false' });
+    String(ICO[nome] || '').split('|').forEach(function (d) { s.appendChild(svgEl('path', { d: d })); });
+    return s;
+  }
   function seguro(url) { return /^(https?:\/\/|mailto:)/i.test(url); }
+  var RE_INLINE = /(`[^`\n]+`)|(\*\*[^\n]+?\*\*)|(~~[^~\n]+~~)|(\*[^*\s][^*\n]*\*)|(\[[^\]\n]+\]\([^)\s]+\))|(https?:\/\/[^\s<)]+)/g;
   function inline(pai, txt) {
-    var re = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*\s][^*]*\*)|(\[[^\]]+\]\([^)\s]+\))|(https?:\/\/[^\s<)]+)/g;
-    var ult = 0, m;
+    var re = new RegExp(RE_INLINE.source, 'g'), ult = 0, m;
     while ((m = re.exec(txt))) {
       if (m.index > ult) pai.appendChild(document.createTextNode(txt.slice(ult, m.index)));
       var s = m[0];
       if (m[1]) pai.appendChild(h('code', { text: s.slice(1, -1) }));
-      else if (m[2]) pai.appendChild(h('strong', { text: s.slice(2, -2) }));
-      else if (m[3]) pai.appendChild(h('em', { text: s.slice(1, -1) }));
-      else if (m[4]) {
+      else if (m[2]) { var st2 = h('strong'); inline(st2, s.slice(2, -2)); pai.appendChild(st2); }
+      else if (m[3]) { var dl = h('del'); inline(dl, s.slice(2, -2)); pai.appendChild(dl); }
+      else if (m[4]) { var em = h('em'); inline(em, s.slice(1, -1)); pai.appendChild(em); }
+      else if (m[5]) {
         var mm = /\[([^\]]+)\]\(([^)\s]+)\)/.exec(s);
         if (seguro(mm[2])) pai.appendChild(h('a', { href: mm[2], target: '_blank', rel: 'noopener noreferrer', text: mm[1] }));
         else pai.appendChild(document.createTextNode(mm[1]));
-      } else pai.appendChild(h('a', { href: s, target: '_blank', rel: 'noopener noreferrer', text: s }));
+      } else {
+        var fim = /[.,;:!?]+$/.exec(s), url = fim ? s.slice(0, fim.index) : s;
+        pai.appendChild(h('a', { href: url, target: '_blank', rel: 'noopener noreferrer', text: url }));
+        if (fim) pai.appendChild(document.createTextNode(fim[0]));
+      }
       ult = m.index + s.length;
     }
     if (ult < txt.length) pai.appendChild(document.createTextNode(txt.slice(ult)));
   }
-  function bloco(cod) {
-    var pre = h('pre'); pre.textContent = cod;
-    var b = btn('Copiar', function () { copiar(cod, b); });
-    return h('div', { class: 'cb' }, [pre, b]);
-  }
   function copiar(texto, botao) {
-    var ok = function () { if (botao) { var o = botao.textContent; botao.textContent = 'Copiado'; setTimeout(function () { botao.textContent = o; }, 1200); } };
+    var lb = botao && (botao.querySelector && botao.querySelector('.bl') || botao);
+    var ok = function () { if (lb) { var o = lb.textContent; lb.textContent = 'Copiado'; if (botao.classList) botao.classList.add('feito'); setTimeout(function () { lb.textContent = o; if (botao.classList) botao.classList.remove('feito'); }, 1400); } };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(texto).then(ok, function () {});
     else { var t = h('textarea'); t.value = texto; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); ok(); } catch (e) { /* segue */ } t.remove(); }
   }
-  function tabela(linhas) {
-    var cel = function (l) { return l.replace(/^\||\|$/g, '').split('|').map(function (c) { return c.trim(); }); };
-    var t = h('table'), cab = cel(linhas[0]);
-    var tr = h('tr'); cab.forEach(function (c) { var th = h('th'); inline(th, c); tr.appendChild(th); }); t.appendChild(h('thead', {}, [tr]));
-    var tbd = h('tbody');
-    linhas.slice(2).forEach(function (l) { var r = h('tr'); cel(l).forEach(function (c) { var td = h('td'); inline(td, c); r.appendChild(td); }); tbd.appendChild(r); });
-    t.appendChild(tbd);
-    return h('div', { class: 'tw' }, [t]);
+  function bloco(cod, lang) {
+    var pre = h('pre'); pre.textContent = cod;
+    var b = h('button', { type: 'button', class: 'cp', title: 'Copiar o código' }, [ico('copiar'), h('span', { class: 'bl', text: 'Copiar' })]);
+    b.addEventListener('click', function () { copiar(cod, b); });
+    return h('div', { class: 'cb' }, [h('div', { class: 'cbh' }, [h('span', { class: 'cl', text: lang || 'código' }), b]), pre]);
   }
-  function markdown(texto) {
-    var raiz = document.createDocumentFragment();
-    var ls = String(texto || '').replace(/\r\n?/g, '\n').split('\n'), i = 0;
+  function tabela(linhas) {
+    var cel = function (l) { return l.trim().replace(/^\||\|$/g, '').split('|').map(function (c) { return c.trim(); }); };
+    var t = h('table'), cab = cel(linhas[0]);
+    var al = cel(linhas[1]).map(function (c) { return /^:-+:$/.test(c) ? 'center' : /-:$/.test(c) ? 'right' : ''; });
+    var tr = h('tr'); cab.forEach(function (c, k) { var th = h('th'); if (al[k]) th.style.textAlign = al[k]; inline(th, c); tr.appendChild(th); }); t.appendChild(h('thead', {}, [tr]));
+    var tbd = h('tbody');
+    linhas.slice(2).forEach(function (l) { var r = h('tr'); cel(l).forEach(function (c, k) { var td = h('td'); if (al[k]) td.style.textAlign = al[k]; inline(td, c); r.appendChild(td); }); tbd.appendChild(r); });
+    t.appendChild(tbd);
+    return h('div', { class: 'tw', tabindex: '0', role: 'region', 'aria-label': 'Tabela' }, [t]);
+  }
+  var RE_ITEM = /^(\s*)([-*•+]|\d+[.)])\s+(.*)$/;
+  var RE_QUEBRA = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
+  function recuo(s) { return s.replace(/\t/g, '    ').length; }
+  function lista(ls, i) {
+    var m0 = RE_ITEM.exec(ls[i]), base = recuo(m0[1]), ord = /\d/.test(m0[2]);
+    var el = h(ord ? 'ol' : 'ul'), ultimo = null;
+    if (ord) { var n0 = parseInt(m0[2], 10); if (n0 > 1) el.setAttribute('start', String(n0)); }
+    while (i < ls.length) {
+      var m = RE_ITEM.exec(ls[i]);
+      if (!m || RE_QUEBRA.test(ls[i])) break;
+      var ind = recuo(m[1]);
+      if (ind < base) break;
+      if (ind > base + 1 && ultimo) { var sub = lista(ls, i); ultimo.appendChild(sub.el); i = sub.i; continue; }
+      if (/\d/.test(m[2]) !== ord) break;
+      var li = h('li'), txt = m[3], tk = /^\[( |x|X)\]\s+(.*)$/.exec(txt);
+      if (tk) { li.className = 'tk'; li.appendChild(h('span', { class: 'cx' + (tk[1] !== ' ' ? ' ok' : ''), role: 'img', 'aria-label': tk[1] !== ' ' ? 'feito' : 'a fazer' })); txt = tk[2]; }
+      inline(li, txt); el.appendChild(li); ultimo = li; i++;
+      while (i < ls.length && ls[i].trim() && !RE_ITEM.test(ls[i]) && recuo(ls[i]) > base) { li.appendChild(h('br')); inline(li, ls[i].trim()); i++; }
+      var j = i; while (j < ls.length && !ls[j].trim()) j++;
+      if (j > i && j < ls.length && RE_ITEM.test(ls[j]) && !RE_QUEBRA.test(ls[j]) && recuo(RE_ITEM.exec(ls[j])[1]) >= base) i = j;
+    }
+    return { el: el, i: i };
+  }
+  function blocos(ls) {
+    var raiz = document.createDocumentFragment(), i = 0;
     while (i < ls.length) {
       var l = ls[i], m;
-      if (/^```/.test(l)) {
-        var cod = []; i++;
-        while (i < ls.length && !/^```/.test(ls[i])) cod.push(ls[i++]);
-        i++; raiz.appendChild(bloco(cod.join('\n'))); continue;
+      if ((m = /^\s{0,3}(```|~~~)\s*([\w+#.-]*)/.exec(l))) {
+        var cod = [], cerca = m[1], lang = m[2]; i++;
+        while (i < ls.length && ls[i].trim().indexOf(cerca) !== 0) cod.push(ls[i++]);
+        i++; raiz.appendChild(bloco(cod.join('\n'), lang)); continue;
       }
       if (!l.trim()) { i++; continue; }
-      if ((m = /^(#{1,4})\s+(.*)$/.exec(l))) { var hh = h(m[1].length <= 2 ? 'h3' : 'h4'); inline(hh, m[2]); raiz.appendChild(hh); i++; continue; }
-      if (/^\|.*\|\s*$/.test(l) && i + 1 < ls.length && /^\|?\s*:?-{2,}/.test(ls[i + 1])) {
+      if (RE_QUEBRA.test(l)) { raiz.appendChild(h('hr')); i++; continue; }
+      if ((m = /^(#{1,4})\s+(.*)$/.exec(l))) { var hh = h(m[1].length <= 2 ? 'h3' : 'h4'); inline(hh, m[2].replace(/\s+#+\s*$/, '')); raiz.appendChild(hh); i++; continue; }
+      if (/^\s{0,3}>/.test(l)) {
+        var q2 = [];
+        while (i < ls.length && /^\s{0,3}>/.test(ls[i])) q2.push(ls[i++].replace(/^\s{0,3}>\s?/, ''));
+        var bq = h('blockquote'); bq.appendChild(blocos(q2)); raiz.appendChild(bq); continue;
+      }
+      if (/^\s*\|.*\|?\s*$/.test(l) && /^\s*\|/.test(l) && i + 1 < ls.length && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(ls[i + 1])) {
         var tl = [l, ls[i + 1]]; i += 2;
-        while (i < ls.length && /^\|.*\|\s*$/.test(ls[i])) tl.push(ls[i++]);
+        while (i < ls.length && /^\s*\|/.test(ls[i])) tl.push(ls[i++]);
         raiz.appendChild(tabela(tl)); continue;
       }
-      if (/^\s*[-*•]\s+/.test(l) || /^\s*\d+[.)]\s+/.test(l)) {
-        var ord = /^\s*\d+[.)]\s+/.test(l), lista = h(ord ? 'ol' : 'ul');
-        while (i < ls.length && (ord ? /^\s*\d+[.)]\s+/ : /^\s*[-*•]\s+/).test(ls[i])) {
-          var li = h('li'); inline(li, ls[i].replace(ord ? /^\s*\d+[.)]\s+/ : /^\s*[-*•]\s+/, '')); lista.appendChild(li); i++;
-        }
-        raiz.appendChild(lista); continue;
-      }
+      if (RE_ITEM.test(l)) { var r = lista(ls, i); raiz.appendChild(r.el); i = r.i; continue; }
       var par = [];
-      while (i < ls.length && ls[i].trim() && !/^(```|#{1,4}\s|\s*[-*•]\s|\s*\d+[.)]\s|\|)/.test(ls[i])) par.push(ls[i++]);
+      while (i < ls.length && ls[i].trim() && !/^(\s{0,3}(```|~~~)|#{1,4}\s|\s*[-*•+]\s|\s*\d+[.)]\s|\s*\||\s{0,3}>)/.test(ls[i]) && !RE_QUEBRA.test(ls[i])) par.push(ls[i++]);
       if (!par.length) { par.push(ls[i++]); }
       var p = h('p');
       par.forEach(function (x, k) { if (k) p.appendChild(h('br')); inline(p, x); });
@@ -192,7 +248,31 @@
     }
     return raiz;
   }
-  function pintar(el, texto) { el.textContent = ''; el.appendChild(markdown(texto)); }
+  // Texto ainda chegando: tira a linha de tabela cortada e fecha ** e ` abertos só na exibição.
+  function segurarParcial(ls) {
+    var f = ls.slice(), dentro = false, k;
+    for (k = 0; k < f.length; k++) if (/^\s{0,3}(```|~~~)/.test(f[k])) dentro = !dentro;
+    if (dentro) return f;                               // dentro de um bloco de código tudo vale
+    var n = f.length;
+    while (n && !f[n - 1].trim()) n--;
+    f.length = n;
+    if (!n) return f;
+    var u = f[n - 1];
+    if (/^\s*\|/.test(u)) {
+      var ini = n - 1; while (ini > 0 && /^\s*\|/.test(f[ini - 1])) ini--;
+      if (n - ini < 2) { f.length = ini; return f; }     // só o cabeçalho, sem a linha de traços
+      if (!/\|\s*$/.test(u)) f.length = n - 1;            // última linha cortada
+      return f;
+    }
+    if (((u.match(/\*\*/g) || []).length) % 2) f[n - 1] = u + '**';
+    else if (((u.replace(/\*\*/g, '').match(/`/g) || []).length) % 2) f[n - 1] = u + '`';
+    return f;
+  }
+  function markdown(texto, parcial) {
+    var ls = String(texto || '').replace(/\r\n?/g, '\n').split('\n');
+    return blocos(parcial ? segurarParcial(ls) : ls);
+  }
+  function pintar(el, texto, parcial) { el.textContent = ''; el.appendChild(markdown(texto, parcial)); }
 
   // ------------------------------------------------------------ mensagens
   function limparBoasVindas() { var o = log.querySelector('.hi'); if (o) o.remove(); document.body.classList.remove('vazio'); }
@@ -320,32 +400,58 @@
 
   // ------------------------------------------------------------ respostas
   function rodape(r) {
-    var partes = [];
-    var ROTULO = { referencia: 'orientação técnica', apoio: 'material de apoio' };
+    var ROTULO = { referencia: 'orientação técnica', apoio: 'material de apoio' }, fontes = [], avisos = (r.avisos || []).filter(Boolean);
     (r.fontes || []).forEach(function (f) {
-      var t = [f.documento, f.norma, f.ano, f.referencia].filter(Boolean).join(' · ');
-      if (!t) return;
-      var tipo = ROTULO[f.tipo] ? ' [' + ROTULO[f.tipo] + ']' : '';
-      var base = f.usada === false ? 'Também consultada: ' : 'Fonte: ';
-      partes.push({ txt: base + t + tipo + (f.aderencia === 'baixa' ? ' (aproximada)' : ''), apagada: f.usada === false });
+      var titulo = f.documento || f.norma || '';
+      if (!titulo) return;
+      var sub = [f.documento ? f.norma : '', f.ano, f.referencia].filter(Boolean).join(' · ');
+      fontes.push({ titulo: titulo, sub: sub, tipo: ROTULO[f.tipo] || '', aprox: f.aderencia === 'baixa', usada: f.usada !== false });
     });
-    (r.avisos || []).forEach(function (a) { partes.push({ txt: a }); });
-    if (!partes.length) return null;
-    var f = h('div', { class: 'f' });
-    partes.forEach(function (p) { f.appendChild(h('div', { text: p.txt, style: p.apagada ? 'opacity:.6' : '' })); });
-    return f;
-  }
-  function acoes(x, r, texto) {
-    var ac = h('div', { class: 'ac' });
-    ac.appendChild(btn('Copiar', function (e) { copiar(r.texto || '', e.target); try { P.avaliar(r, 'copiou'); } catch (er) { /* segue */ } }));
-    if (r.tipo === 'ia' || r.tipo === 'norma') {
-      ac.appendChild(btn('Útil', function () { try { P.avaliar(r, 'bom'); } catch (e) { /* segue */ } aviso('Anotado.'); }, 'Resposta boa'));
-      ac.appendChild(btn('Não útil', function () { try { P.avaliar(r, 'ruim'); } catch (e) { /* segue */ } aviso('Anotado.'); }, 'Resposta ruim'));
-      if (ultimoPedido) { var perg = ultimoPedido; ac.appendChild(btn('Refazer', function () { enviar(perg); }, 'Perguntar de novo')); }
-      ac.appendChild(btn('Mais curto', function () { try { P.avaliar(r, 'mais_curto'); } catch (e) { /* segue */ } enviar('responda de forma mais curta'); }));
-      ac.appendChild(btn('Mais detalhe', function () { try { P.avaliar(r, 'mais_detalhe'); } catch (e) { /* segue */ } enviar('explique com mais detalhe'); }));
+    if (!fontes.length && !avisos.length) return null;
+    var caixa = h('div', { class: 'rd' });
+    if (fontes.length) {
+      var usadas = fontes.filter(function (x) { return x.usada; }), outras = fontes.filter(function (x) { return !x.usada; });
+      var det = h('details', { class: 'src' });
+      var resumo = (usadas.length || fontes.length) + (usadas.length === 1 ? ' fonte' : ' fontes') + (usadas.length && outras.length ? ' · +' + outras.length + ' consultada' + (outras.length > 1 ? 's' : '') : '');
+      if (!usadas.length) resumo = outras.length + (outras.length === 1 ? ' fonte consultada' : ' fontes consultadas');
+      det.appendChild(h('summary', {}, [ico('fonte'), h('span', { class: 'sn', text: resumo }), h('span', { class: 'sc2', 'aria-hidden': 'true' }, [ico('seta')])]));
+      var ol = h('ol', { class: 'sl' });
+      usadas.concat(outras).forEach(function (f) {
+        var li = h('li', { class: f.usada ? '' : 'ap' }, [h('span', { class: 'st', text: f.titulo })]);
+        var tags = h('span', { class: 'sg' });
+        if (f.tipo) tags.appendChild(h('span', { class: 'tg', text: f.tipo }));
+        if (f.aprox) tags.appendChild(h('span', { class: 'tg av', text: 'aproximada' }));
+        if (!f.usada) tags.appendChild(h('span', { class: 'tg', text: 'só consultada' }));
+        if (tags.childNodes.length) li.appendChild(tags);
+        if (f.sub) li.appendChild(h('span', { class: 'sr', text: f.sub }));
+        ol.appendChild(li);
+      });
+      det.appendChild(ol); caixa.appendChild(det);
     }
-    if (ENDPOINT && window.speechSynthesis) ac.appendChild(btn('Ouvir', function () { falar(r.texto || '', 'tudo'); }, 'Ouvir'));
+    avisos.forEach(function (a) { caixa.appendChild(h('div', { class: 'av' }, [ico('aviso'), h('span', { text: a })])); });
+    return caixa;
+  }
+  function bi(rotulo, icone, fn, titulo, soIcone) {
+    var b = h('button', { type: 'button', class: 'bi' + (soIcone ? ' so' : ''), title: titulo || rotulo, 'aria-label': titulo || rotulo, on: { click: fn } }, [ico(icone), h('span', { class: 'bl', text: rotulo })]);
+    return b;
+  }
+  function acoes(x, r) {
+    var ac = h('div', { class: 'ac ar', role: 'group', 'aria-label': 'Ações da resposta' });
+    ac.appendChild(bi('Copiar', 'copiar', function (e) { copiar(r.texto || '', e.currentTarget); try { P.avaliar(r, 'copiou'); } catch (er) { /* segue */ } }, 'Copiar a resposta'));
+    if (ENDPOINT && window.speechSynthesis) ac.appendChild(bi('Ouvir', 'ouvir', function () { falar(r.texto || '', 'tudo'); }, 'Ouvir a resposta', true));
+    if (r.tipo === 'ia' || r.tipo === 'norma') {
+      var bUtil, bNao, voto = function (v, esse, outro) {
+        try { P.avaliar(r, v); } catch (e) { /* segue */ }
+        esse.setAttribute('aria-pressed', 'true'); esse.classList.add('voto'); esse.disabled = true; outro.disabled = true; aviso('Anotado neste aparelho.');
+      };
+      bUtil = bi('Útil', 'util', function () { voto('bom', bUtil, bNao); }, 'Resposta útil', true); bUtil.setAttribute('aria-pressed', 'false');
+      bNao = bi('Não útil', 'naoutil', function () { voto('ruim', bNao, bUtil); }, 'Resposta não útil', true); bNao.setAttribute('aria-pressed', 'false');
+      ac.appendChild(bUtil); ac.appendChild(bNao);
+      ac.appendChild(h('span', { class: 'sep', 'aria-hidden': 'true' }));
+      if (ultimoPedido) { var perg = ultimoPedido; ac.appendChild(bi('Refazer', 'refazer', function () { enviar(perg); }, 'Perguntar de novo')); }
+      ac.appendChild(bi('Mais curto', 'curto', function () { try { P.avaliar(r, 'mais_curto'); } catch (e) { /* segue */ } enviar('responda de forma mais curta'); }, 'Pedir uma resposta mais curta'));
+      ac.appendChild(bi('Mais detalhe', 'longo', function () { try { P.avaliar(r, 'mais_detalhe'); } catch (e) { /* segue */ } enviar('explique com mais detalhe'); }, 'Pedir mais detalhe'));
+    }
     x.m.appendChild(ac);
   }
   function baixarTexto(nome, conteudo, tipo) {
@@ -414,12 +520,13 @@
     if (r.tipo === 'acao_desconhecida' && r.opcoesAcoes && r.opcoesAcoes.length) {
       var ao = h('div', { class: 'ac' }); r.opcoesAcoes.forEach(function (o) { ao.appendChild(btn(o.rotulo, function () { r.aprender(o.id); aviso('Aprendi.'); })); }); x.m.appendChild(ao);
     }
+    if (r.tipo !== 'bloqueio' && r.tipo !== 'erro') acoes(x, r);
     var rp = rodape(r); if (rp) x.m.appendChild(rp);
     if (r.habilidades && r.habilidades.length) x.m.appendChild(h('div', { class: 'f', text: 'Habilidades usadas: ' + r.habilidades.join(', ') }));
     if (r.sugestoes && r.sugestoes.length) {
-      var sg = h('div', { class: 'ac' }); r.sugestoes.slice(0, 3).forEach(function (s) { sg.appendChild(h('button', { type: 'button', class: 'ch', text: s, on: { click: function () { enviar(s); } } })); }); x.m.appendChild(sg);
+      var sg = h('div', { class: 'sug', role: 'group', 'aria-label': 'Continuar a conversa' }, [h('span', { class: 'sgl', text: 'Continuar' })]);
+      r.sugestoes.slice(0, 3).forEach(function (s) { sg.appendChild(h('button', { type: 'button', class: 'sgb', on: { click: function () { enviar(s); } } }, [ico('seta'), h('span', { text: s })])); }); x.m.appendChild(sg);
     }
-    if (r.tipo !== 'bloqueio' && r.tipo !== 'erro') acoes(x, r);
   }
 
   // ------------------------------------------------------------ mapa (Leaflet + OpenStreetMap, carregado só quando há mapa)
@@ -554,6 +661,7 @@
   // ------------------------------------------------------------ envio
   function mudarBotao(enviando) {
     go.textContent = enviando ? 'Parar' : 'Enviar'; go.classList.toggle('stop', enviando);
+    log.setAttribute('aria-busy', enviando ? 'true' : 'false');
     ocupado = enviando; estadoUI(enviando ? 'busy' : (gravando ? 'listen' : 'idle'));
   }
   // Respostas que não vieram em fluxo (norma, revisão, idioma, memória) também "são digitadas", em ~1 s.
@@ -565,7 +673,7 @@
       (function f() {
         if (!vivo() || !x.m.isConnected) { resolve(); return; }
         i = Math.min(texto.length, i + passo);
-        pintar(x.corpo, texto.slice(0, i)); rolar();
+        pintar(x.corpo, texto.slice(0, i), i < texto.length); rolar();
         if (i >= texto.length) { resolve(); return; }
         setTimeout(f, 22);
       })();
@@ -589,7 +697,7 @@
     var DI = window.PaulusDocs, soFoto = !!(DI && DI.ehImagem && anexos.length && anexos.every(DI.ehImagem));
     if (!texto) texto = soFoto ? 'Descreva esta imagem e diga o que nela é útil para o meu trabalho.' : 'o que posso fazer com este arquivo?';
     var arqs = anexos.slice(), nomes = arqs.map(function (a) { return a.name; });
-    anexos = []; renderAnexos(); q.value = ''; autoAltura(); sl.hidden = true;
+    anexos = []; renderAnexos(); q.value = ''; autoAltura(); sl.hidden = true; if (pv) pv.textContent = '';
     if (vozPendente) legenda(texto, false); else legenda('');
     msgUsuario(texto, nomes);
     if (!arqs.length && pedidoDeMapa(texto)) { vozPendente = false; mostrarMapaBV(); return; }
@@ -615,7 +723,7 @@
       if (d && d.texto) { docAtivo = d; renderAnexos(); }
       return P.perguntar(texto, {
       arquivos: querPdf ? arqs : docArqs, documento: querPdf ? null : docAtivo, imagem: foto && foto.dados ? foto : undefined,
-      onToken: function (_p, tudo) { if (!vivo()) return; fimPensando(x); legenda(''); x.streamed = true; x.corpo.classList.add('dig'); pintar(x.corpo, tudo); rolar(); }
+      onToken: function (_p, tudo) { if (!vivo()) return; fimPensando(x); legenda(''); x.streamed = true; x.corpo.classList.add('dig'); pintar(x.corpo, tudo, true); rolar(); }
     }); }).then(function (r) {
       if (!vivo()) return;
       // Foto lida: o texto que o Paulus tirou dela fica "em uso" e as próximas perguntas seguem como documento anexado (a foto não sobe de novo).
@@ -928,6 +1036,92 @@
     P.registrarAcao({ id: 'salvar-conversa', titulo: 'Salvar a conversa', rotulos: ['salvar a conversa', 'exportar a conversa', 'baixar a conversa'], executar: clicar('ex') });
   })();
 
+  // ------------------------------------------------------------ aparência (tema e tamanho do texto) e menu do cabeçalho no celular
+  // Tudo fica só neste aparelho (localStorage). "Automático" segue o tema do sistema.
+  var apn = null;
+  function painelAparencia(abrir) {
+    if (!apn) montarAparencia();
+    var mostrar = typeof abrir === 'boolean' ? abrir : apn.hidden;
+    if (mostrar && vp && !vp.hidden) painelVoz(false);
+    apn.hidden = !mostrar;
+    var b = $('ap'); if (b) { b.setAttribute('aria-expanded', String(mostrar)); b.classList.toggle('on', mostrar); }
+    if (mostrar) { var s = apn.querySelector('[aria-checked="true"]'); if (s) s.focus(); }
+  }
+  var TEMAS = ['auto', 'escuro', 'claro'], TAMS = ['p', 'm', 'g', 'gg'];
+  var mqClaro = window.matchMedia ? matchMedia('(prefers-color-scheme: light)') : null;
+  var tema = lerLS('paulus.tema'); if (TEMAS.indexOf(tema) < 0) tema = 'auto';
+  var tam = lerLS('paulus.tam'); if (TAMS.indexOf(tam) < 0) tam = 'm';
+  function temaEfetivo() { return tema === 'auto' ? (mqClaro && mqClaro.matches ? 'claro' : 'escuro') : tema; }
+  function aplicarAparencia() {
+    var e = temaEfetivo();
+    document.body.classList.toggle('claro', e === 'claro');
+    document.documentElement.setAttribute('data-tam', tam);
+    var mt = document.querySelector('meta[name="theme-color"]'); if (mt) mt.setAttribute('content', e === 'claro' ? '#eef5f8' : '#02070c');
+    if (apn) Array.prototype.forEach.call(apn.querySelectorAll('[data-g]'), function (b) { var on = (b.getAttribute('data-g') === 'tema' ? tema : tam) === b.getAttribute('data-v'); b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1; });
+  }
+  function montarAparencia() {
+    apn = document.createElement('div'); apn.id = 'apn'; apn.hidden = true; apn.setAttribute('role', 'dialog'); apn.setAttribute('aria-label', 'Aparência');
+    function el(tag, txt, pai, cls) { var e = document.createElement(tag); if (txt) e.textContent = txt; if (cls) e.className = cls; if (pai) pai.appendChild(e); return e; }
+    el('h2', 'Aparência', apn);
+    function grupo(titulo, id, itens, valorAtual, aoMudar) {
+      el('p', titulo, apn, 'ag');
+      var g = el('div', '', apn, 'seg'); g.setAttribute('role', 'radiogroup'); g.setAttribute('aria-label', titulo);
+      itens.forEach(function (it) {
+        var b = el('button', it[1], g); b.type = 'button'; b.setAttribute('role', 'radio'); b.setAttribute('data-g', id); b.setAttribute('data-v', it[0]); if (it[2]) { b.setAttribute('aria-label', it[2]); b.title = it[2]; if (it[3]) b.style.fontSize = it[3]; }
+        b.addEventListener('click', function () { aoMudar(it[0]); });
+        b.addEventListener('keydown', function (ev) {
+          var k = ev.key, ir = k === 'ArrowRight' || k === 'ArrowDown' ? 1 : k === 'ArrowLeft' || k === 'ArrowUp' ? -1 : 0; if (!ir) return;
+          ev.preventDefault(); var bs = g.querySelectorAll('button'), i = Array.prototype.indexOf.call(bs, b), n = bs[(i + ir + bs.length) % bs.length]; n.focus(); n.click();
+        });
+      });
+    }
+    grupo('Tema', 'tema', [['auto', 'Automático', 'Seguir o tema do aparelho'], ['escuro', 'Escuro'], ['claro', 'Claro']], tema, function (v) { tema = v; gravarLS('paulus.tema', v); aplicarAparencia(); });
+    grupo('Tamanho do texto', 'tam', [['p', 'A', 'Texto pequeno', '12px'], ['m', 'A', 'Texto médio', '15px'], ['g', 'A', 'Texto grande', '18px'], ['gg', 'A', 'Texto muito grande', '22px']], tam, function (v) { tam = v; gravarLS('paulus.tam', v); aplicarAparencia(); });
+    el('p', 'Efeitos', apn, 'ag');
+    var fx = el('button', '', apn, 'tg-fx'); fx.type = 'button'; fx.setAttribute('role', 'switch');
+    var fxl = el('span', 'Modo foco (sem painéis nem animações de fundo)', fx), fxk = el('i', '', fx); fxk.setAttribute('aria-hidden', 'true');
+    function marcarFx() { var on = document.body.classList.contains('foco'); fx.setAttribute('aria-checked', String(on)); }
+    fx.addEventListener('click', function () { var b = $('fo'); if (b) b.click(); marcarFx(); });
+    new MutationObserver(marcarFx).observe(document.body, { attributes: true, attributeFilter: ['class'] }); marcarFx();
+    el('p', 'Fica só neste aparelho. Atalho do modo foco: Ctrl+Shift+F.', apn, 'vn');
+    document.body.appendChild(apn);
+    aplicarAparencia();
+  }
+  aplicarAparencia();
+  if (mqClaro) { var mudouTema = function () { if (tema === 'auto') aplicarAparencia(); }; if (mqClaro.addEventListener) mqClaro.addEventListener('change', mudouTema); else if (mqClaro.addListener) mqClaro.addListener(mudouTema); }
+  (function () {
+    var bAp = $('ap'); if (bAp) bAp.addEventListener('click', function (e) { e.stopPropagation(); painelAparencia(); });
+    document.addEventListener('click', function (e) { if (apn && !apn.hidden && !apn.contains(e.target) && !(bAp && bAp.contains(e.target))) painelAparencia(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && apn && !apn.hidden) { painelAparencia(false); if (bAp && bAp.offsetParent) bAp.focus(); } });
+    P.registrarAcao && P.registrarAcao({ id: 'painel-aparencia', titulo: 'Aparência', rotulos: ['aparencia', 'aparência', 'tema', 'tema claro', 'tema escuro', 'tamanho do texto'], executar: function () { painelAparencia(true); } });
+  })();
+
+  // Celular: só "nova conversa", "modo voz" e "mais" ficam no cabeçalho; o resto vai para um menu (os mesmos botões, mudados de lugar).
+  (function () {
+    var MN = $('mn'), hrx = document.querySelector('header .hr'); if (!MN || !hrx || !window.matchMedia) return;
+    var menu = document.createElement('div'); menu.id = 'mnp'; menu.hidden = true; menu.setAttribute('role', 'group'); menu.setAttribute('aria-label', 'Mais opções'); document.body.appendChild(menu);
+    var ORDEM = ['ins', 'sair', 'ex', 'fo', 'nv', 'nt', 'jv', 'ap', 'vc', 'vz'], FICA = { nv: 1, jv: 1 }, ROT = { ins: 'Instalar o app', sair: 'Sair da conta', ex: 'Salvar a conversa', fo: 'Modo foco', nt: 'Anotações e compras', ap: 'Aparência', vc: 'Escolher a voz', vz: 'Ler respostas em voz alta' };
+    var mm = matchMedia('(max-width:640px)');
+    function fecharMenu() { menu.hidden = true; MN.setAttribute('aria-expanded', 'false'); MN.classList.remove('on'); }
+    function ajustar() {
+      var cel = mm.matches; MN.hidden = !cel;
+      ORDEM.forEach(function (id) {
+        var b = $(id); if (!b) return;
+        if (cel && !FICA[id]) { b.setAttribute('data-r', ROT[id]); menu.appendChild(b); } else { b.removeAttribute('data-r'); hrx.insertBefore(b, MN); }
+      });
+      if (!cel) fecharMenu();
+    }
+    MN.addEventListener('click', function (e) {
+      e.stopPropagation(); var abrir = menu.hidden; menu.hidden = !abrir; MN.setAttribute('aria-expanded', String(abrir)); MN.classList.toggle('on', abrir);
+      if (abrir) { var p = menu.querySelector('button:not([hidden])'); if (p) p.focus(); }
+    });
+    menu.addEventListener('click', function () { setTimeout(fecharMenu, 0); }, true);
+    document.addEventListener('click', function (e) { if (!menu.hidden && !menu.contains(e.target) && !MN.contains(e.target)) fecharMenu(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) { fecharMenu(); MN.focus(); } });
+    if (mm.addEventListener) mm.addEventListener('change', ajustar); else if (mm.addListener) mm.addListener(ajustar);
+    ajustar();
+  })();
+
   // modo foco: esconde painéis e efeitos de fundo; a escolha fica neste aparelho
   (function () {
     var bt = $('fo'); if (!bt) return;
@@ -954,7 +1148,19 @@
 
   // ------------------------------------------------------------ entrada
   function autoAltura() { q.style.height = 'auto'; q.style.height = Math.min(q.scrollHeight, 160) + 'px'; ajustarBarra(); }
-  q.addEventListener('input', function () { autoAltura(); selSl = 0; abrirSl(); if (nucleo) nucleo.impulso(); });
+  // Aviso enquanto digita: usa o mesmo detector que barra o envio à IA (nada sai do aparelho).
+  var pv = $('pv'), tPii = 0;
+  function dicaPessoal() {
+    clearTimeout(tPii);
+    tPii = setTimeout(function () {
+      if (!pv) return;
+      var tem = false, v = q.value;
+      try { tem = v.length > 4 && !!(P.temDadoPessoal && P.temDadoPessoal(v)) && !(P.detectarCrise && P.detectarCrise(v)); } catch (e) { tem = false; }
+      if (tem && !pv.firstChild) { pv.appendChild(ico('aviso')); pv.appendChild(h('span', { text: 'Parece haver nome, documento, telefone ou endereço de pessoa atendida. Para a IA, tire antes: pedidos com esses dados são barrados.' })); ajustarBarra(); }
+      else if (!tem && pv.firstChild) { pv.textContent = ''; ajustarBarra(); }
+    }, 220);
+  }
+  q.addEventListener('input', function () { autoAltura(); selSl = 0; abrirSl(); if (nucleo) nucleo.impulso(); dicaPessoal(); });
   q.addEventListener('keydown', function (e) {
     // seta para cima com o campo vazio: traz a última pergunta para editar
     if (e.key === 'ArrowUp' && !q.value && ultimoPedido && sl.hidden) { e.preventDefault(); q.value = ultimoPedido; autoAltura(); return; }
