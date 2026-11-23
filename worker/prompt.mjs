@@ -109,6 +109,9 @@ AUTONOMIA: O QUE VEM DE FONTE E O QUE VEM DO SEU RACIOCÍNIO
 
 COMO PENSAR ANTES DE RESPONDER (em silêncio; não escreva este raciocínio)
 - Descubra o que a pessoa quer resolver de verdade (encaminhar, entender uma regra, achar uma unidade, orientar uma família, escrever um registro), mesmo que a pergunta venha curta, informal, com erro de digitação ou sem o nome da coisa.
+- Leia pelo SENTIDO, não pela palavra solta. Fala do dia a dia vale como termo técnico: "o bolsa" e "auxílio Brasil" são o Bolsa Família; "cad único" e "o cadastro" são o CadÚnico; "o posto" é a UBS; "abrigo" é acolhimento institucional; "benefício do idoso" é o BPC; "cesta básica" é benefício eventual. Abreviação de chat, erro de digitação, ditado por voz com palavra trocada e português misturado com espanhol venezuelano são lidos pelo que a pessoa quis dizer. Palavra com dois sentidos ("benefício", "atendimento"): escolha pelo assunto e pela conversa.
+- Pergunte-se quem tem o problema e o que a pessoa quer que mude: "a mãe não aceita" é da família, "não sei o que registrar" é do(a) profissional. Negação e condição ("sem renda", "se ela recusar", "mesmo sem documento") mudam a resposta: não as perca.
+- Quando a sua leitura difere das palavras literais, ou a pergunta pode ter dois sentidos, diga a leitura em meia frase no começo ("Entendi que você fala do BPC, e não do Bolsa Família:") e responda. Se <leitura_da_pergunta> existir, é só uma pista; confira com o que a pessoa escreveu.
 - Se a mensagem junta vários pedidos ("qual o CRAS, o telefone e o que levar?"), responda todos, na ordem em que foram feitos.
 - Resolva "ele", "lá", "esse bairro", "e o horário?" pela CONVERSA INTEIRA antes de buscar nas fichas e nas normas: as mensagens acima, <conversa_anterior> (perguntas mais antigas) e <estado_da_conversa> (unidade, bairro, município e assunto já firmados). Tudo o que a pessoa já disse vale: nunca peça de novo bairro, unidade, público ou assunto que já apareceram. Se ela citar algo novo, o novo vale e o antigo sai.
 - Cruze <fichas> (onde, telefone, horário) com <normas> (o que a regra diz) e com o MAPA DO SUAS (para onde encaminhar). Uma boa resposta liga as três coisas quando a pergunta pede.
@@ -477,7 +480,7 @@ export function preferenciasComoTexto(pref) {
 }
 
 // dieta (opcional): { geo, pdf, apps, enxuto } vindo de shared/escopo.mjs; sem ela o texto fixo vai inteiro, como antes.
-export function montarMensagens({ documento = '', imagem = '', app, pagina, historico, estado = null, fichas, panorama, baseApp, acoes, achados, pergunta, suicidio = true, habilidades = [], preferencias = null, modo = 'normal', semPerguntar = false, calculos = null, quantitativo = false, raciocinio = '', tipoAnalise = '', voce = '', partes = [], dieta = null, idiomaExtra = '' }) {
+export function montarMensagens({ documento = '', imagem = '', app, pagina, historico, estado = null, fichas, panorama, baseApp, acoes, achados, pergunta, suicidio = true, habilidades = [], preferencias = null, modo = 'normal', semPerguntar = false, calculos = null, quantitativo = false, raciocinio = '', tipoAnalise = '', voce = '', partes = [], dieta = null, idiomaExtra = '', leitura = '' }) {
   const pan = panoramaComoTexto(panorama);
   const temFichas = fichasComoTexto(fichas).length > 0;
   const refinando = modo === 'refinamento' && !suicidio;
@@ -488,6 +491,8 @@ export function montarMensagens({ documento = '', imagem = '', app, pagina, hist
   const comCalculo = !suicidio && !sobreAUltima && (quantitativo || !!textoCalculos);
   const textoRaciocinio = suicidio || sobreAUltima ? '' : String(raciocinio || '');
   const base = suicidio ? '' : baseAppComoTexto(baseApp);
+  // Releitura da pergunta feita por um passo anterior (worker/interpretar.mjs): só uma pista do que a pessoa quis dizer; a <pergunta> manda.
+  const textoLeitura = suicidio || sobreAUltima ? '' : limparMarcacao(String(leitura || '')).replace(/\s+/g, ' ').trim().slice(0, 420);
   // Ficha de si mesmo: já vem montada pelo Worker (shared/autoconhecimento.mjs) e passa por limpeza como todo texto de dentro de <...>.
   const textoVoce = suicidio || sobreAUltima ? '' : limparMarcacao(String(voce || '')).trim();
   // A conversa inteira conta: o que já foi firmado (estado) e as perguntas de antes da janela do histórico.
@@ -506,6 +511,7 @@ export function montarMensagens({ documento = '', imagem = '', app, pagina, hist
     '<normas>\n' + (achados.length ? normasComoTexto(achados) : '(nenhum trecho de norma encontrado para esta pergunta)') + '\n</normas>\n\n' +
     (textoCalculos ? '<calculos>\n' + textoCalculos + '\n</calculos>\n\n' : '') +
     (textoRaciocinio ? '<raciocinio>\n' + textoRaciocinio + '\n</raciocinio>\n\n' : '') +
+    (textoLeitura ? '<leitura_da_pergunta>\nReleitura automática, só como pista do que a pessoa quis dizer (pode errar; vale o que ela escreveu e a conversa): ' + textoLeitura + '\n</leitura_da_pergunta>\n\n' : '') +
     '<pergunta>\n' + pergunta + '\n</pergunta>';
   return [
     { role: 'system', content: montarSistema(app, pagina, suicidio, habilidades, { comUnidades: temFichas || !!pan || !!base, modo: modo, partes: partes, comGeo: !dieta || dieta.geo, comPdf: !dieta || dieta.pdf, comOutrosApps: !dieta || dieta.apps, comCenso: !dieta || trazDadoLocal(achados), enxuto: !!(dieta && dieta.enxuto) }) + (comCalculo ? '\n\n' + BLOCO_CALCULO : '') + (textoRaciocinio ? '\n\n' + BLOCO_RACIOCINIO + (tipoAnalise ? '\nFORMA DESTA RESPOSTA (' + tipoAnalise + '): ' + formaDaResposta(tipoAnalise) : '') : '') + (textoVoce ? '\n\n' + BLOCO_VOCE : '') + (listaAcoes && !sobreAUltima ? '\n\n' + BLOCO_ACOES : '') + (preferenciasComoTexto(preferencias) ? '\n\n' + preferenciasComoTexto(preferencias) : '') + (semPerguntar && !suicidio ? '\n\n' + BLOCO_SEM_PERGUNTAR : '') + (idiomaExtra ? '\n' + idiomaExtra : '') },
