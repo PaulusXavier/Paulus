@@ -51,6 +51,14 @@ function carregarUnidades() {
   return ctx.__U;
 }
 
+function carregarEquipe() {
+  try {
+    const src = readFileSync(join(pastaArgo, 'js', 'equipe-cras-cristiana.js'), 'utf8') + '\n;globalThis.__E = EQUIPE_CRAS_CRISTIANA;';
+    const ctx = {}; vm.createContext(ctx); vm.runInContext(src, ctx);
+    return JSON.parse(JSON.stringify(ctx.__E));
+  } catch { return null; }
+}
+
 // ---- limpeza de texto ----------------------------------------------------------------------------------------------------------
 const limpar = (t) => String(t == null ? '' : t)
   .replace(/<br\s*\/?>/gi, ' ')
@@ -140,6 +148,43 @@ for (const [tipo, lista] of [['CRAS', UNIDADES.cras], ['CREAS e acolhimento', UN
       (tipo === 'CRAS' || /CREAS/.test(u.name) ? 'Bairros e comunidades que atende: ' : 'Público: ') + fmtBairros(u.bairros) + (/[.!?]$/.test(fmtBairros(u.bairros)) ? '' : '.')];
     linhas.push('## ' + referenciaUnica(tipo + ' de Boa Vista — endereço e território — ' + u.name, u.name));
     linhas.push(t.join(' '));
+    linhas.push('');
+  }
+}
+
+// Equipe técnica do CRAS Cristiana e território por técnico(a)
+const EQUIPE = carregarEquipe();
+if (EQUIPE && EQUIPE.fixedTeam) {
+  linhas.push('## Equipe técnica do CRAS Cristiana Vicente Nunes — território por técnico(a)');
+  linhas.push('Divisão do território do CRAS Cristiana Vicente Nunes (Rua Santo Agostinho, 193 - Centenário, Boa Vista-RR) por técnico(a) de referência, conforme o Argo. ' +
+    EQUIPE.fixedTeam.map((t) => t.name + ' (' + t.role + '): ' + t.bairros + '.').join(' ') +
+    ' Bairros na cobertura fixa do CRAS: ' + EQUIPE.fixedCoverage.join(', ') + '. Bairros da cobertura sem técnico fixo cadastrado (Marechal Rondon) devem ser confirmados com a unidade.');
+  linhas.push('');
+  linhas.push('## Equipe volante do CRAS Cristiana Vicente Nunes — atendimento itinerante');
+  linhas.push(limpar(EQUIPE.volanteDesc) + ' Equipe volante: ' + EQUIPE.volanteTeam.map((t) => t.name + ' (' + t.role + ', ' + t.note + ')').join('; ') + '. Cobertura itinerante: ' + limpar(EQUIPE.volanteCoverage) + ' Só existe divisão por técnico(a) para este CRAS: nos demais, o diretório não traz a equipe por bairro e não se deve inventar nome.');
+  linhas.push('');
+  for (const t of EQUIPE.fixedTeam) {
+    linhas.push('## Técnico(a) de referência no CRAS Cristiana — ' + t.name);
+    linhas.push(t.name + ' é ' + t.role + ' do CRAS Cristiana Vicente Nunes e a referência técnica dos bairros: ' + t.bairros + '.');
+    linhas.push('');
+  }
+}
+
+// UBS de Boa Vista com atendimento psicológico, por macroárea
+{
+  const plano = (h) => limpar(h);
+  const psi = DATA.filter((d) => /^ubs-/.test(d.id || '') && /Boa Vista/.test(d.address || '') && /atendimento psicol[oó]gico|psic[oó]logo\(a\) pr[oó]prio/i.test(plano((d.desc || '') + ' ' + (d.services || ''))) && !/⚠️/.test(d.desc || ''));
+  const porMacro = new Map();
+  for (const d of psi) {
+    const m = plano(d.desc).match(/Bairros de abrang[eê]ncia \(Macro[aá]rea (\d+)\):\s*(.+?)\.?\s*$/i);
+    const chave = m ? 'Macroárea ' + m[1] + ' (bairros: ' + m[2] + ')' : 'Informação de campo (vale para o bairro da própria UBS; confirmar agenda)';
+    if (!porMacro.has(chave)) porMacro.set(chave, []);
+    porMacro.get(chave).push(limpar(d.name) + ' — ' + limpar(d.address));
+  }
+  if (porMacro.size) {
+    linhas.push('## UBS de Boa Vista com atendimento psicológico — por macroárea e bairro');
+    linhas.push('UBS com psicólogo(a) segundo o Argo: ' + Array.from(porMacro.entries()).map(([k, v]) => k + ': ' + v.join(' | ')).join('. ') +
+      '. A macroárea 8 (Nova Cidade, Operário, Dr. Airton Rocha, Governador Aquilino Mota Duarte, Raiar do Sol, Bela Vista, São Bento) não tem UBS com atendimento psicológico identificada no cadastro; não indicar outra UBS por proximidade. UBS de bairro sem psicólogo (Pricumã, Liberdade, 13 de Setembro, Cinturão Verde, Centenário, Santa Tereza) fica referenciada à UBS da macroárea. Confirme agenda e disponibilidade com a unidade.');
     linhas.push('');
   }
 }
