@@ -31,18 +31,34 @@ const UBS=[
  {name:'UBS Santa Luzia',macro:7,address:'Av. Abel Monteiro Reis, 1786 - Pintolândia, Boa Vista-RR, 69316-398',phone:'Não consta'},
  {name:'UBS Sayonara',macro:7,address:'Av. Raimundo Rodrigues Coelho, 2280 - Dr. Silvio Botelho, Boa Vista-RR, 69316-762',phone:'Não consta'}
 ];
+// UBS com psicólogo(a) próprio(a) por informação de campo no Argo (sem lista de abrangência por macroárea): vale só para o bairro onde fica.
+const UBS_CAMPO=[
+ {name:'UBS Bernardo Alem (UBS Vila Jardim)',bairros:['Cidade Satélite','Vila Jardim'],address:'R. Josemar Batista de Souza, 1200 - Cidade Satélite (Conj. Vila Jardim), Boa Vista-RR',phone:'Não consta'}
+];
+// Outras grafias de bairro que o Argo usa: nome canônico (da lista de macroáreas, ou fora dela).
+const APELIDOS_BAIRRO={'araceli souto maior':'Professora Aracelis Souto Maior','aracelis souto maior':'Professora Aracelis Souto Maior','professora araceli souto maior':'Professora Aracelis Souto Maior','vila jardim':'Vila Jardim'};
 const normSaudeMental=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\b(doutor|doutora|dr|dra)\b/g,'dr').replace(/\b(bairro|conjunto|loteamento)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
-const acharBairro=n=>Object.values(MACRO).flat().find(b=>new RegExp(`\\b${normSaudeMental(b).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`).test(n));
+const reBairroSM=b=>new RegExp(`\\b${normSaudeMental(b).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`);
+const acharBairro=n=>Object.values(MACRO).flat().find(b=>reBairroSM(b).test(n))||Object.entries(APELIDOS_BAIRRO).find(([a])=>reBairroSM(a).test(n))?.[1];
+const campoDoBairroSM=b=>UBS_CAMPO.filter(u=>u.bairros.some(x=>normSaudeMental(x)===normSaudeMental(b)));
+function apresentarCampoSM(b){return campoDoBairroSM(b).map(u=>`• ${u.name} — ${u.address} · telefone: ${u.phone} (informação de campo no Argo: a unidade passou a ter psicólogo(a) próprio(a); confirme se há atendimento e agenda)`).join('\n');}
 function apresentarUBS(m){return UBS.filter(u=>u.macro===m).map(u=>`• ${u.name} — ${u.address} · telefone: ${u.phone}`).join('\n');}
 function apresentarCaps(bairro){const m=Object.entries(MACRO).find(([,bs])=>bs.some(b=>normSaudeMental(b)===normSaudeMental(bairro)))?.[0];if(!m)return null;return CAPS.filter(c=>c.areas.includes(Number(m))).map(c=>`• ${c.name} — ${c.address} · ${c.phone} · ${c.hours}. ${c.note}`).join('\n');}
 export function respostaDeSaudeMentalTerritorio(texto){
  const n=normSaudeMental(texto); const pedeCaps=/\bcaps\b|centro de atencao psicossocial/.test(n); const pedeUbs=/\bubs\b/.test(n); const pedePsi=/psicolog|psicoterapia|saude mental/.test(n);
  if(!pedeCaps&&!pedeUbs&&!pedePsi)return null;
+ if(!pedeCaps&&!pedeUbs&&/\bcras\b|tecnic|equipe|referencia tecnica|divisao territorial/.test(n))return null;
  const bairro=acharBairro(n);
  const pedidoTerritorial = /\b(bairro|bairros|territorio|macroarea|abrangencia|atende|cobre|referencia)\b/.test(n);
  if(!bairro && !pedidoTerritorial)return null;
  if(pedeCaps){if(bairro){const resp=apresentarCaps(bairro);return resp?{tipoSaude:'caps',texto:`Para o bairro ${bairro}, o diretório do Argo indica estas referências CAPS:\n${resp}\n\nA referência varia conforme o tipo de cuidado; confirme o acesso e o acolhimento diretamente com o serviço.`}:{tipoSaude:'nao-consta',texto:`Não encontrei macroárea cadastrada para ${bairro} nas listas CAPS do Argo. Confirme com a rede municipal/estadual.`};}const lista=CAPS.map(c=>`• ${c.name} — macroáreas ${c.areas.join(', ')}; ${c.address} · ${c.phone}`).join('\n');return {tipoSaude:'caps',texto:`CAPS de Boa Vista cadastrados no Argo:\n${lista}\nInforme o bairro para identificar a referência territorial.`};}
- if(pedeUbs||pedePsi){if(!bairro)return {tipoSaude:'ubs-psicologia',texto:'Diga o bairro de Boa Vista para eu procurar, nas listas do Argo, a UBS com atendimento psicológico que cobre a macroárea.'};const m=Number(Object.keys(MACRO).find(k=>MACRO[k].some(b=>normSaudeMental(b)===normSaudeMental(bairro))));const unidades=apresentarUBS(m);if(unidades)return {tipoSaude:'ubs-psicologia',texto:`Para ${bairro} (Macroárea ${m}), o Argo lista estas UBS com atendimento psicológico e cobertura da macroárea:\n${unidades}\n\nA lista não confirma agenda ou disponibilidade atual de profissional; ligue antes de encaminhar.`};if(m===8)return {tipoSaude:'nao-consta',texto:`${bairro} consta na Macroárea 8, mas o cadastro do Argo consultado não identifica uma UBS com atendimento psicológico para essa macroárea. Não vou indicar outra UBS por proximidade; confirme com a rede municipal.`};return {tipoSaude:'nao-consta',texto:`Não achei ${bairro} nas listas de UBS com atendimento psicológico do Argo. Confirme com a rede municipal, sem inferir pela proximidade.`};}
+ if(pedeUbs||pedePsi){if(!bairro)return {tipoSaude:'ubs-psicologia',texto:'Diga o bairro de Boa Vista para eu procurar, nas listas do Argo, a UBS com atendimento psicológico que cobre a macroárea.'};
+  const mk=Object.keys(MACRO).find(k=>MACRO[k].some(b=>normSaudeMental(b)===normSaudeMental(bairro)));const m=mk?Number(mk):null;
+  const unidades=m?apresentarUBS(m):'';const campo=apresentarCampoSM(bairro);
+  const aviso='\n\nA lista não confirma agenda ou disponibilidade atual de profissional; ligue antes de encaminhar.';
+  if(unidades||campo)return {tipoSaude:'ubs-psicologia',texto:`Para ${bairro}${m?` (Macroárea ${m})`:''}, o Argo lista estas UBS com atendimento psicológico:\n${[unidades,campo].filter(Boolean).join('\n')}${aviso}`};
+  if(m===8)return {tipoSaude:'nao-consta',texto:`${bairro} consta na Macroárea 8, mas o cadastro do Argo consultado não identifica uma UBS com atendimento psicológico para essa macroárea. Não vou indicar outra UBS por proximidade; confirme com a rede municipal.`};
+  return {tipoSaude:'nao-consta',texto:`Não achei ${bairro} nas listas de UBS com atendimento psicológico do Argo. Confirme com a rede municipal, sem inferir pela proximidade.`};}
  return null;
 }
-export const territoriosSaudeMental={caps:CAPS,macroareas:MACRO,ubs:UBS};
+export const territoriosSaudeMental={caps:CAPS,macroareas:MACRO,ubs:UBS,ubsCampo:UBS_CAMPO};
