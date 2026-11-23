@@ -233,7 +233,7 @@ test('interpretar: devolve a pergunta reescrita com a conversa, sem buscar nem r
   }), env);
   assert.equal(r.status, 200);
   const j = await r.json();
-  assert.deepEqual(j.interpretacao, { pergunta: 'Qual o horário do CRAS Cauamé?', intencao: 'diretorio', bairro: '', unidade: '', esclarecer: '' });
+  assert.deepEqual(j.interpretacao, { pergunta: 'Qual o horário do CRAS Cauamé?', sentido: '', termos: '', intencao: 'diretorio', bairro: '', unidade: '', esclarecer: '' });
   assert.equal(chamadas.length, 1);
   assert.equal(chamadas[0].params.stream, false);
   assert.equal(chamadas[0].params.temperature, 0);
