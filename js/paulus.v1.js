@@ -4272,6 +4272,98 @@ function cmxPorcentagem(n) {
   return null;
 }
 
+// ------------------------------------------------------------------ acréscimo e desconto em %
+
+// "acrescentar 10% a 1.621", "aumentar 1.621 em 10%", "descontar 15% de 200", "reduzir 200 em 15%".
+// Só com o verbo de comando, para não disputar com "aumentou de 1.500 para 1.621" (variação) nem com "com 15% de desconto".
+function cmxAcrescimo(n) {
+  const SOBE = '(?:acrescent\\w*|aument\\w*|adicion\\w*|reajust\\w*|some|somar|soma)';
+  const DESCE = '(?:descont\\w*|reduz\\w*|diminu\\w*|abat\\w*|tire|tirar|tira)';
+  const PC = '\\s*(?:%|por\\s*cento|porcento)';
+  let m, sobe = null, p, v;
+  if ((m = new RegExp('\\b' + SOBE + '\\s+(' + CMX_NUM + ')' + PC + '\\s+(?:a|ao|de|sobre|em|no|na)\\s+(' + CMX_NUM + ')').exec(n))) { sobe = true; p = cmxNum(m[1]); v = cmxNum(m[2]); }
+  else if ((m = new RegExp('\\b' + SOBE + '\\s+(' + CMX_NUM + ')\\s+(?:em|com)\\s+(' + CMX_NUM + ')' + PC).exec(n))) { sobe = true; v = cmxNum(m[1]); p = cmxNum(m[2]); }
+  else if ((m = new RegExp('\\b' + DESCE + '\\s+(' + CMX_NUM + ')' + PC + '\\s+(?:a|ao|de|sobre|em|no|na)\\s+(' + CMX_NUM + ')').exec(n))) { sobe = false; p = cmxNum(m[1]); v = cmxNum(m[2]); }
+  else if ((m = new RegExp('\\b' + DESCE + '\\s+(' + CMX_NUM + ')\\s+(?:em|com)\\s+(' + CMX_NUM + ')' + PC).exec(n))) { sobe = false; v = cmxNum(m[1]); p = cmxNum(m[2]); }
+  if (sobe === null || !isFinite(p) || !isFinite(v)) return null;
+  const d = v * p / 100, r = sobe ? v + d : v - d;
+  return [cmxItem(sobe ? 'valor com acréscimo' : 'valor com desconto', cmxF(v) + (sobe ? ' + ' : ' − ') + cmxF(p) + '% (' + cmxF(d) + ')', r, cmxF(r))];
+}
+
+// ------------------------------------------------------------------ valor por extenso (reais e centavos)
+
+const CMX_UN = ['zero', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez', 'onze', 'doze', 'treze', 'catorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+const CMX_DEZ = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+const CMX_CEN = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+const CMX_ESC = [['', ''], ['mil', 'mil'], ['milhão', 'milhões'], ['bilhão', 'bilhões']];
+
+function cmxAte999(n) {
+  if (n === 100) return 'cem';
+  const c = Math.floor(n / 100), r = n % 100, p = [];
+  if (c) p.push(CMX_CEN[c]);
+  if (r) p.push(r < 20 ? CMX_UN[r] : CMX_DEZ[Math.floor(r / 10)] + (r % 10 ? ' e ' + CMX_UN[r % 10] : ''));
+  return p.join(' e ');
+}
+
+function cmxInteiroExtenso(n) {
+  if (n === 0) return 'zero';
+  const g = []; let x = n;
+  while (x > 0) { g.push(x % 1000); x = Math.floor(x / 1000); }
+  const partes = []; let ultimo = 0;
+  for (let i = g.length - 1; i >= 0; i--) {
+    if (!g[i]) continue;
+    ultimo = g[i];
+    if (i === 1) partes.push(g[i] === 1 ? 'mil' : cmxAte999(g[i]) + ' mil');
+    else if (i >= 2) partes.push(cmxAte999(g[i]) + ' ' + CMX_ESC[i][g[i] === 1 ? 0 : 1]);
+    else partes.push(cmxAte999(g[i]));
+  }
+  if (partes.length === 1) return partes[0];
+  const fim = partes.pop();
+  // "mil e duzentos", "um milhão e um", mas "mil trezentos e vinte"
+  return partes.join(' ') + (ultimo < 100 || ultimo % 100 === 0 ? ' e ' : ' ') + fim;
+}
+
+// Valor em reais por extenso. '' para zero ou inválido; null se passa de R$ 999 bilhões. Mesma regra do cartão "Valor por extenso" do Argo.
+function valorPorExtenso(valor) {
+  const cents = Math.round(Number(valor) * 100);
+  if (!isFinite(cents) || cents <= 0) return '';
+  const reais = Math.floor(cents / 100), cts = cents % 100, out = [];
+  if (reais > 999999999999) return null;
+  if (reais) {
+    const de = reais >= 1000000 && reais % 1000000 === 0;
+    out.push(cmxInteiroExtenso(reais) + (de ? ' de ' : ' ') + (reais === 1 ? 'real' : 'reais'));
+  }
+  if (cts) out.push(cmxInteiroExtenso(cts) + (cts === 1 ? ' centavo' : ' centavos'));
+  return out.join(' e ');
+}
+
+// Dinheiro escrito à mão: "1.621,50", "1621,5", "1621.50" (ponto com 1 ou 2 casas é decimal; ponto de milhar tem 3).
+function cmxDinheiro(s) {
+  let t = String(s).replace(/[^\d.,]/g, '');
+  if (!/\d/.test(t)) return NaN;
+  if (t.indexOf(',') > -1) t = t.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+  const v = parseFloat(t);
+  return isFinite(v) ? v : NaN;
+}
+
+function cmxExtenso(n) {
+  if (!/\bpor\s+extenso\b|\bextenso\b/.test(n)) return null;
+  const m = /\d[\d.]*(?:,\d+)?/.exec(n);
+  if (!m) return null;
+  const v = cmxDinheiro(m[0]);
+  if (!isFinite(v)) return null;
+  if (v <= 0) return [cmxErro('Digite um valor maior que zero.')];
+  const t = valorPorExtenso(v);
+  if (t === null) return [cmxErro('Valor grande demais: o máximo é R$ 999 bilhões.')];
+  if (!t) return [cmxErro('Valor menor que um centavo.')];
+  const arred = Math.round(v * 100) / 100;
+  const nota = Math.abs(v * 100 - Math.round(v * 100)) > 1e-6 ? ' (valor arredondado para centavos)' : '';
+  const fixo = arred.toFixed(2).split('.');
+  const dinheiro = 'R$ ' + fixo[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + fixo[1];
+  return [cmxItem('valor por extenso', '', arred, dinheiro + ' (' + t + ')' + nota)];
+}
+
 // ------------------------------------------------------------------ regra de três, rateio, per capita
 
 function cmxRegraDeTres(n) {
@@ -4810,7 +4902,7 @@ function cmxEstatistica(n) {
 
 // ------------------------------------------------------------------ painel de regras
 
-const CMX_REGRAS = [cmxRegraDeTres, cmxRateio, cmxPerCapita, cmxFrequencia, cmxImc, cmxTaxa, cmxEstatistica, cmxEquacao, cmxFinanceiro, cmxHoras, cmxViagem, cmxNumerico, cmxGeometria, cmxPorcentagem, cmxConversao];
+const CMX_REGRAS = [cmxExtenso, cmxAcrescimo, cmxRegraDeTres, cmxRateio, cmxPerCapita, cmxFrequencia, cmxImc, cmxTaxa, cmxEstatistica, cmxEquacao, cmxFinanceiro, cmxHoras, cmxViagem, cmxNumerico, cmxGeometria, cmxPorcentagem, cmxConversao];
 
 // Resolve pedidos "de cálculo pronto". Devolve null se nenhuma regra reconhece a mensagem.
 function resolverEspecial(texto) {
@@ -4856,6 +4948,122 @@ function respostaDoPedido(texto, opc) {
   });
   return { texto: itens.map(linhaDeItem).join('\n'), itens: itens, sensivel: !!r.sensivel, origem: r.origem };
 }
+
+// ---- shared/territorio-ct.mjs ----
+// Consulta local dos territórios dos Conselhos Tutelares de Boa Vista, espelhados do diretório do Argo SUAS.
+// Sem IA, sem rede e sem inferir pelo CRAS ou por bairros vizinhos.
+const CTS = [
+  { id: 'I', address: 'R. Bento Brasil, 835 - Centro, Boa Vista-RR', phone: '(95) 98410-4003', hours: '08:00 às 18:00 (Plantão 24h)', bairros: ['Aeroporto','Cauamé','Calungá','Liberdade','Jardim Floresta','Pricumã','13 de Setembro','São Vicente','Centro','São Pedro','Aparecida','Canarinho','Paraviana','Caçari','Bairro dos Estados','31 de Março','São Francisco','Mecejana','Monte Cristo','Said Salomão','Áreas Indígenas'] },
+  { id: 'II', address: 'R. Dico Viêira, 1497 - Caimbé, Boa Vista-RR', phone: '(95) 98403-7780', hours: '08:00 às 18:00 (Plantão 24h)', bairros: ['Jardim Caranã','Caranã','Tancredo Neves','Caimbé','Asa Branca','Buritis','Jóquei Clube','União','Cinturão Verde','Centenário','Araceli','São Bento','Raiar do Sol','Bela Vista','Operário','Nova Cidade','Brigadeiro','Distrito Industrial','Pérola'] },
+  { id: 'III', address: 'R. Pedro Aldemar Bantim, 1337 - Silvio Botelho, Boa Vista-RR', phone: '(95) 98411-6943', hours: '08:00 às 18:00 (Plantão 24h)', bairros: ['Cidade Satélite','Piscicultura','Jardim Primavera','Santa Tereza','Dr. Silvio Botelho','Dr. Silvio Leite','Alvorada','Pintolândia','Jardim Olímpico','Hélio Campos','Equatorial','Santa Luzia','Nova Canaã','Cambará','Cruviana','Laura Moreira'] }
+];
+const normCT = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\b(doutor|doutora|dr|dra)\b/g,'dr').replace(/\b(bairro|conjunto)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
+function linhaCT(ct) { return `Conselho Tutelar ${ct.id} — ${ct.address} · ${ct.phone} · ${ct.hours}`; }
+function respostaDeTerritorioCT(texto) {
+  const n = normCT(texto);
+  if (!/(conselh(?:o|os)(?:\s+tutelar(?:es)?)?|\bct\b|territorio.{0,20}conselh|conselh.{0,20}territorio)/.test(n)) return null;
+  const escolhidos = CTS.filter(ct => new RegExp(`\\b(?:conselho tutelar|ct)\\s*(?:territorio\\s*)?(?:n\\s*|numero\\s*)?(?:${ct.id.toLowerCase()}|${ct.id === 'I' ? '1|primeiro' : ct.id === 'II' ? '2|segundo' : '3|terceiro'})\\b`).test(n));
+  const pedidoLista = /\b(quais|lista|listar|bairros|territorios|divididos|divisao)\b/.test(n);
+  const linhas = [];
+  if (pedidoLista && escolhidos.length) {
+    for (const ct of escolhidos) linhas.push(`Conselho Tutelar ${ct.id} (${ct.bairros.length} bairros): ${ct.bairros.join('; ')}.\n• ${linhaCT(ct)}`);
+    return { tipoTerritorio: 'conselho', texto: linhas.join('\n\n') + '\nLista do diretório do Argo SUAS; confirme por telefone, especialmente em bairros extensos ou de divisa.' };
+  }
+  if (/\b(quantos|numero|existem)\b/.test(n) && /conselh/.test(n)) return { tipoTerritorio: 'geral', texto: `Boa Vista tem ${CTS.length} Conselhos Tutelares.\n${CTS.map(linhaCT).join('\n')}` };
+  if (/\b(telefone|fone|contato)\b/.test(n) && escolhidos.length) return { tipoTerritorio: 'contato', texto: escolhidos.map(linhaCT).join('\n') };
+  const hits = [];
+  for (const ct of CTS) for (const bairro of ct.bairros) {
+    const b = normCT(bairro);
+    if (b && new RegExp(`\\b${b.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`).test(n)) hits.push({ct,bairro});
+  }
+  const unique = [...new Map(hits.map(x => [x.ct.id, x])).values()];
+  if (unique.length) return { tipoTerritorio: 'bairro', texto: unique.map(x => `O bairro ${x.bairro} consta no território do Conselho Tutelar ${x.ct.id}.\n• ${linhaCT(x.ct)}`).join('\n\n') + '\nLista do diretório do Argo SUAS (não é mapa oficial de limites); bairros grandes ou de divisa podem ter ruas em outro território. Confirme por telefone antes de encaminhar.' };
+  if (escolhidos.length) return { tipoTerritorio: 'conselho', texto: escolhidos.map(ct => `Conselho Tutelar ${ct.id}: ${ct.bairros.join('; ')}.\n• ${linhaCT(ct)}`).join('\n\n') };
+  return { tipoTerritorio: 'nao-consta', texto: `Não identifiquei esse bairro nas listas de território dos Conselhos Tutelares do Argo SUAS. Não vou deduzir pelo CRAS ou por bairro vizinho. Confirme por telefone: ${CTS.map(ct => `Conselho Tutelar ${ct.id} ${ct.phone}`).join(' · ')}.` };
+}
+const territoriosCT = CTS.map(ct => ({ ...ct, bairros: [...ct.bairros] }));
+
+// ---- shared/distrito-policial.mjs ----
+// Consulta local às circunscrições dos Distritos Policiais de Boa Vista, espelhadas do diretório do Argo SUAS.
+// Não substitui orientação policial; sem IA, sem rede e sem inferir por proximidade.
+const DPS = [
+ { id:'1º', bairros:['05 de Outubro (Parque Caçari)','Calungá','Caçari','Canarinho','Centro','Dos Estados','Mecejana','Nova Planalto','Nossa Senhora da Aparecida','Paraviana','São Francisco','São Pedro','São Vicente','13 de Setembro','31 de Março'], address:'Rua Pedro Rodrigues, nº 462, esquina com a Av. Terêncio Lima, Centro, Boa Vista-RR, CEP 69301-180', phones:'Cartório: (95) 98414-8712; Plantão: (95) 98414-9218' },
+ { id:'2º', bairros:['Asa Branca','Aeroporto','Buritis','Caimbé','Cambará','Centenário','Cinturão Verde','Jardim Floresta','Jardim Olímpico','Jardim Tropical','Jóquei Clube','Liberdade','Pricumã','Tancredo Neves'], address:'Rua Pedro Rodrigues, nº 462, esquina com a Av. Terêncio Lima, Centro, Boa Vista-RR (endereço provisório, mesmo prédio do 1º DP)', phones:'Cartório: (95) 98414-9366; Plantão: (95) 99154-5464' },
+ { id:'3º', bairros:['Cauamé','Caranã','Cidade Satélite','Jardim Caranã','Loteamento João de Barro','Monte das Oliveiras','Piscicultura','Pedra Pintada','Santa Tereza','Said Salomão','União','Vila Jardim'], address:'Avenida São Sebastião, 2568, esquina com a Rua América Sarmento, Tancredo Neves, Boa Vista-RR, CEP 69313-492', phones:'Cartório: (95) 98414-9868; Plantão: (95) 98415-4857' },
+ { id:'4º', bairros:['Alvorada','Doutor Sílvio Botelho','Doutor Sílvio Leite','Equatorial','Nova Canaã','Pintolândia','Santa Luzia','Senador Hélio Campos'], address:'Avenida São Sebastião, 2568, esquina com a Rua América Sarmento, Tancredo Neves, Boa Vista-RR, CEP 69313-492 (endereço provisório, mesmo prédio do 3º DP)', phones:'Cartório: (95) 98400-0128; Plantão: (95) 98413-5582' },
+ { id:'5º', bairros:['Bela Vista','Doutor Airton Rocha','Governador Aquilino Mota Duarte (Distrito Industrial)','Laura Moreira','Loteamento Pérola do Rio Branco','Marechal Rondon','Nova Cidade','Operário','Professora Aracelis Souto Maior','Raiar do Sol','São Bento','Área rural de Boa Vista a partir da faixa esquerda da RR-205 até os limites com Alto Alegre, Mucajaí e Cantá'], address:'R. Parque Industrial, S/N - Gov. Aquilino Mota Duarte (Distrito Industrial), Boa Vista-RR – CEP 69.308-050', phones:'Cartório: (95) 98400-0498; Plantão: (95) 98413-6414' }
+];
+const normDP = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\b(doutor|doutora|dr|dra)\b/g,'dr').replace(/\b(bairro|conjunto)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
+const linhaDP = dp => `${dp.id} Distrito Policial — ${dp.address} · ${dp.phones} · Segunda a sexta, 07:30 às 19:30`;
+const rxEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+function respostaDeDistritoPolicial(texto) {
+ const n=normDP(texto);
+ if (!/(distrito policial|\bdp\b|delegacia|plantao|flagrante)/.test(n)) return null;
+ const escolhidos=DPS.filter(dp=>new RegExp(`\\b(?:${dp.id[0]}|${dp.id[0]}º|${dp.id[0]}o)\\s*(?:distrito policial|dp)\\b|\\b(?:distrito policial|dp)\\s*(?:n\\s*)?${dp.id[0]}\\b`).test(n));
+ const lista=/\b(quais|lista|listar|bairros|circunscricao|territorios|divisao)\b/.test(n);
+ if (/\b(quantos|numero|existem)\b/.test(n) && /distrito policial|\bdp\b/.test(n)) return {tipoTerritorio:'geral',texto:`Boa Vista tem ${DPS.length} Distritos Policiais com circunscrições territoriais no diretório do Argo.\n${DPS.map(linhaDP).join('\n')}`};
+ if (/\b(telefone|fone|contato)\b/.test(n) && escolhidos.length) return {tipoTerritorio:'contato',texto:escolhidos.map(linhaDP).join('\n')};
+ if (lista && escolhidos.length) return {tipoTerritorio:'distrito',texto:escolhidos.map(dp=>`${dp.id} Distrito Policial (${dp.bairros.length} localidades): ${dp.bairros.join('; ')}.\n• ${linhaDP(dp)}`).join('\n\n')+'\nCircunscrições conforme o diretório do Argo SUAS; confirme com a Polícia Civil se houver dúvida.'};
+ if (/\b(area rural|zona rural)\b/.test(n) && !escolhidos.length) return {tipoTerritorio:'bairro',texto:`A área rural de Boa Vista (faixa esquerda da RR-205 até os limites com Alto Alegre, Mucajaí e Cantá) consta na circunscrição do 5º Distrito Policial.\n• ${linhaDP(DPS[4])}\nConfirme a circunscrição com a Polícia Civil.`};
+ const hits=[];
+ for(const dp of DPS) for(const bairro of dp.bairros){const b=normDP(bairro); if(b && new RegExp(`\\b${rxEsc(b)}\\b`).test(n)) hits.push({dp,bairro});}
+ const unique=[...new Map(hits.map(x=>[x.dp.id,x])).values()];
+ if(unique.length) return {tipoTerritorio:'bairro',texto:unique.map(x=>`A localidade ${x.bairro} consta na circunscrição do ${x.dp.id} Distrito Policial.\n• ${linhaDP(x.dp)}`).join('\n\n')+'\nLista do diretório do Argo SUAS; confirme com a Polícia Civil, especialmente para endereços em limites de bairros.'};
+ if(escolhidos.length) return {tipoTerritorio:'distrito',texto:escolhidos.map(dp=>`${dp.id} Distrito Policial: ${dp.bairros.join('; ')}.\n• ${linhaDP(dp)}`).join('\n\n')};
+ if(/\b(plantao|flagrante|24 horas|24h)\b/.test(n)) return {tipoTerritorio:'plantao',texto:'O diretório do Argo informa que a Central de Flagrantes atende 24 horas, no endereço R. Parque Industrial, S/N - Gov. Aquilino Mota Duarte, Boa Vista-RR. Telefones: Cartório (95) 98400-2606; Plantão (95) 98400-2659. Em emergência imediata, ligue 190.'};
+ return {tipoTerritorio:'nao-consta',texto:'Não identifiquei essa localidade nas circunscrições dos Distritos Policiais listadas no Argo SUAS. Não vou deduzir pelo distrito vizinho. Confirme com a Polícia Civil de Boa Vista.'};
+}
+const distritosPoliciais=DPS.map(dp=>({...dp,bairros:[...dp.bairros]}));
+
+// ---- shared/saude-mental-territorio.mjs ----
+// Territórios CAPS e cobertura psicológica em UBS de Boa Vista, espelhados das listas explícitas do Argo SUAS.
+// Não inventa cobertura: a macroárea 8 não tem UBS com atendimento psicológico identificada no cadastro consultado.
+const MACRO = {
+  1:['Cidade Satélite','Murilo Teixeira','Piscicultura','Santa Tereza','Jardim Caranã','União'],
+  2:['Aeroporto','Jardim Floresta','Caranã','Cauamé','Said Salomão'],
+  3:['31 de Março','São Francisco','Nossa Senhora da Aparecida','Bairro dos Estados','Paraviana','Caçari','São Vicente','Calungá','Canarinho','Centro','São Pedro','Mecejana'],
+  4:['Dr. Sílvio Leite','Jardim Primavera','Alvorada','Equatorial','Laura Moreira'],
+  5:['Asa Branca','Cambará','Nova Canaã','Olímpico','Jóquei Clube','Professora Aracelis Souto Maior','Tancredo Neves','Caimbé'],
+  6:['13 de Setembro','Buritis','Centenário','Cinturão Verde','Liberdade','Pricumã'],
+  7:['Jardim Tropical','Senador Hélio Campos','Pintolândia','Dr. Sílvio Botelho','Santa Luzia'],
+  8:['Nova Cidade','Operário','Dr. Airton Rocha','Governador Aquilino Mota Duarte','Raiar do Sol','Bela Vista','São Bento']
+};
+const CAPS=[
+ {name:'CAPS II',address:'R. Pavão, 295 - Mecejana, Boa Vista-RR',phone:'(95) 3624-2384',areas:[1,2,3,6],hours:'Segunda a sexta, 08:00 às 18:00 (pode se estender a um 3º turno até 21h)',note:'Saúde mental; atende crianças a partir de 4 anos. Boa Vista não tem CAPS infantil (CAPS i).'},
+ {name:'CAPS III',address:'Av. Cap. Ene Garcês, 497 - Centro, Boa Vista-RR',phone:'(95) 98404-4219',areas:[4,5,7,8],hours:'Porta aberta diurna; acolhimento noturno para pacientes já em acompanhamento',note:'Voltado a pessoas com transtornos mentais graves e persistentes; o acolhimento noturno não equivale a pronto-socorro psiquiátrico.'},
+ {name:'CAPS AD III',address:'R. José Bonifácio, 630 - Aparecida, Boa Vista-RR',phone:'(95) 98407-2238',areas:[1,2,3,4,5,6,7,8],hours:'Funcionamento 24h; acolhimento noturno com até 12 leitos de observação/monitoramento',note:'Atenção psicossocial relacionada a necessidades decorrentes do uso de álcool e outras drogas; novos acolhimentos costumam ser diurnos.'}
+];
+const UBS=[
+ {name:'UBS Dr. Hélio Macedo',macro:1,address:'Rua Joca Farias, 2199 - Jardim Caranã, Boa Vista-RR, 69313-600',phone:'(95) 3625-9550'},
+ {name:'UBS Prof. Mariano de Andrade',macro:1,address:'Av. Deco Fonteles, 264 - Caranã, Boa Vista-RR',phone:'Não consta'},
+ {name:'UBS Olenka Macellaro',macro:2,address:'Av. Mário Homem de Melo, 5075 - Caimbé, Boa Vista-RR, 69312-155',phone:'Não consta'},
+ {name:'UBS Edna Diniz',macro:2,address:'Rua Francisco Cândido, 177 - Aeroporto, Boa Vista-RR',phone:'(95) 3623-3962'},
+ {name:'UBS Dra. Sandra Maria',macro:3,address:'R. Maj. Carlos Mardel, 466 - Trinta e Um de Março, Boa Vista-RR, 69305-290',phone:'Não consta'},
+ {name:'UBS Dr. Silvio Botelho',macro:3,address:'Av. Minas Gerais, 512 - Paraviana, Boa Vista-RR',phone:'Não consta'},
+ {name:'UBS Mecejana',macro:3,address:'R. Pavão, 195 - Mecejana, Boa Vista-RR, 69304-451',phone:'Não consta'},
+ {name:'UBS Aygara Motta',macro:4,address:'R. José Lacerda, 256 - Cidade Satélite, Boa Vista-RR',phone:'Não consta'},
+ {name:'UBS Dr. Silvio Leite',macro:4,address:'R. Vicente Tavares de Melo, 615 - Nova Canaã, Boa Vista-RR',phone:'Não consta'},
+ {name:'UBS Jorge André Gurjão',macro:4,address:'R. CC 24, 341 - Laura Moreira, Boa Vista-RR, 69318-115',phone:'Não consta'},
+ {name:'UBS Asa Branca',macro:5,address:'R. Francisco Custódio de Andrade, 505 - Asa Branca, Boa Vista-RR, 69312-258',phone:'Não consta'},
+ {name:'UBS Buritis',macro:6,address:'R. Raimundo Figueiras, 661 - Buritis, Boa Vista-RR, 69309-221',phone:'Não consta'},
+ {name:'UBS Santa Luzia',macro:7,address:'Av. Abel Monteiro Reis, 1786 - Pintolândia, Boa Vista-RR, 69316-398',phone:'Não consta'},
+ {name:'UBS Sayonara',macro:7,address:'Av. Raimundo Rodrigues Coelho, 2280 - Dr. Silvio Botelho, Boa Vista-RR, 69316-762',phone:'Não consta'}
+];
+const normSaudeMental=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\b(doutor|doutora|dr|dra)\b/g,'dr').replace(/\b(bairro|conjunto|loteamento)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
+const acharBairro=n=>Object.values(MACRO).flat().find(b=>new RegExp(`\\b${normSaudeMental(b).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`).test(n));
+function apresentarUBS(m){return UBS.filter(u=>u.macro===m).map(u=>`• ${u.name} — ${u.address} · telefone: ${u.phone}`).join('\n');}
+function apresentarCaps(bairro){const m=Object.entries(MACRO).find(([,bs])=>bs.some(b=>normSaudeMental(b)===normSaudeMental(bairro)))?.[0];if(!m)return null;return CAPS.filter(c=>c.areas.includes(Number(m))).map(c=>`• ${c.name} — ${c.address} · ${c.phone} · ${c.hours}. ${c.note}`).join('\n');}
+function respostaDeSaudeMentalTerritorio(texto){
+ const n=normSaudeMental(texto); const pedeCaps=/\bcaps\b|centro de atencao psicossocial/.test(n); const pedeUbs=/\bubs\b/.test(n); const pedePsi=/psicolog|psicoterapia|saude mental/.test(n);
+ if(!pedeCaps&&!pedeUbs&&!pedePsi)return null;
+ const bairro=acharBairro(n);
+ const pedidoTerritorial = /\b(bairro|bairros|territorio|macroarea|abrangencia|atende|cobre|referencia)\b/.test(n);
+ if(!bairro && !pedidoTerritorial)return null;
+ if(pedeCaps){if(bairro){const resp=apresentarCaps(bairro);return resp?{tipoSaude:'caps',texto:`Para o bairro ${bairro}, o diretório do Argo indica estas referências CAPS:\n${resp}\n\nA referência varia conforme o tipo de cuidado; confirme o acesso e o acolhimento diretamente com o serviço.`}:{tipoSaude:'nao-consta',texto:`Não encontrei macroárea cadastrada para ${bairro} nas listas CAPS do Argo. Confirme com a rede municipal/estadual.`};}const lista=CAPS.map(c=>`• ${c.name} — macroáreas ${c.areas.join(', ')}; ${c.address} · ${c.phone}`).join('\n');return {tipoSaude:'caps',texto:`CAPS de Boa Vista cadastrados no Argo:\n${lista}\nInforme o bairro para identificar a referência territorial.`};}
+ if(pedeUbs||pedePsi){if(!bairro)return {tipoSaude:'ubs-psicologia',texto:'Diga o bairro de Boa Vista para eu procurar, nas listas do Argo, a UBS com atendimento psicológico que cobre a macroárea.'};const m=Number(Object.keys(MACRO).find(k=>MACRO[k].some(b=>normSaudeMental(b)===normSaudeMental(bairro))));const unidades=apresentarUBS(m);if(unidades)return {tipoSaude:'ubs-psicologia',texto:`Para ${bairro} (Macroárea ${m}), o Argo lista estas UBS com atendimento psicológico e cobertura da macroárea:\n${unidades}\n\nA lista não confirma agenda ou disponibilidade atual de profissional; ligue antes de encaminhar.`};if(m===8)return {tipoSaude:'nao-consta',texto:`${bairro} consta na Macroárea 8, mas o cadastro do Argo consultado não identifica uma UBS com atendimento psicológico para essa macroárea. Não vou indicar outra UBS por proximidade; confirme com a rede municipal.`};return {tipoSaude:'nao-consta',texto:`Não achei ${bairro} nas listas de UBS com atendimento psicológico do Argo. Confirme com a rede municipal, sem inferir pela proximidade.`};}
+ return null;
+}
+const territoriosSaudeMental={caps:CAPS,macroareas:MACRO,ubs:UBS};
 
 // ---- shared/geo.mjs ----
 // Geografia do Paulus: coordenadas, endereço no padrão, "perto de", distância, bairro, links de mapa, GPX e KML.
@@ -7877,6 +8085,298 @@ async function respostaDePdf(texto, arquivos, opcoes) {
   return r;
 }
 
+// ---- shared/pdf-central.mjs ----
+// Central de PDF no Paulus: lê o pedido em português e diz QUAIS ferramentas da Central de PDF do Argo SUAS devem agir, em que ordem e com que
+// opções (reduzir, recortar margens, dados ocultos, extrair texto, PDF → Word/JPG, senha, tarja, assinatura, organizar, unir, Word → PDF, fotos → PDF).
+//
+// Lógica pura (sem DOM, sem rede, sem IA): o PDF nunca passa por aqui. Quem executa é o app que tem a Central (Argo SUAS); nos outros apps o Paulus
+// entende, explica e aponta o caminho. É o MESMO leitor do mascote do Argo (js/argo-pdf-central.js): se mudar um, mude o outro e rode os dois testes.
+//
+//   lerPedidoDeCentral(texto, { temArquivo })  -> null | { etapas, avisos, recusas }
+//       etapas  [{ ferramenta, modo, rotulo, opcoes, pos, resumo }]   modo 'auto' (roda sozinha) | 'abrir' (depende da pessoa)
+//       recusas [{ codigo, texto }]   o que a Central não faz (quebrar senha, OCR, assinatura digital, achar página em branco)
+//   instrucaoDeCentral(etapa, temArquivo)      -> o que a pessoa faz a seguir, nas ferramentas 'abrir'
+//   textoDeCentral(central, { temArquivo, comCentral }) -> texto pronto para a resposta do Paulus
+// Pergunta de explicação ("como reduzir o tamanho de um pdf?") devolve null: segue para a IA e as habilidades pdf-central-*.
+// Senha NUNCA é lida do texto. Sem lookbehind e sem BigInt de propósito (Safari/iOS antigos).
+
+
+// minúsculas, sem acento, setas viram "para", pontuação vira espaço (a "?" fica para reconhecer pergunta)
+function pcNorm(s) {
+  var t = String(s == null ? '' : s).toLowerCase();
+  try { t = t.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch (e) { /* sem normalize */ }
+  return t.replace(/→|⇒|⇄|->|=>/g, ' para ').replace(/[^a-z0-9?.,\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function pcNum(s) { var v = Number(String(s).replace(',', '.')); return isFinite(v) ? v : null; }
+
+// ---------------------------------------------------------------- ferramentas
+var PC_ROTULO = {
+  Compress: 'Reduzir tamanho', Crop: 'Recortar margens', Meta: 'Limpar dados ocultos', Text: 'Extrair texto',
+  PdfWord: 'PDF → Word', PdfJpg: 'PDF → JPG', Unlock: 'Remover senha', Protect: 'Proteger com senha',
+  Edit: 'Editar e assinar', Organize: 'Organizar', Merge: 'Unir', WordPdf: 'Word → PDF', JpgPdf: 'Fotos → PDF (Digitalizar)'
+};
+var PC_AUTO = { Compress: 1, Crop: 1, Meta: 1, Text: 1, PdfWord: 1, PdfJpg: 1 };
+
+var PC_TEXTOS = {
+  'quebrar-senha': 'Não quebro, não adivinho e não recupero senha de PDF: isso seria abrir um arquivo que não é seu, e o app não tem como fazer. ' +
+    'Se você **sabe** a senha, a ferramenta **Remover senha** (Central de PDF) gera uma cópia que abre sem senha; você digita a senha no campo dela. ' +
+    'Se a senha foi esquecida, não há como recuperar: peça uma cópia nova a quem gerou ou enviou o arquivo.',
+  'ocr': 'A Central de PDF não faz OCR (reconhecer o texto de um documento escaneado). **Extrair texto** só copia o texto de PDF que tem texto selecionável; ' +
+    'página escaneada é uma foto e não tem texto para copiar. Para ter o texto, refaça o arquivo a partir do original (Word, Verbus) ou digite.',
+  'paginas-branco': 'Ainda não sei achar páginas em branco sozinho. Em **Organizar** (Central de PDF) você vê todas as miniaturas e tira, gira ou duplica as páginas; ' +
+    'ou diga quais páginas excluir, por exemplo: "excluir as páginas 3 e 7".',
+  'assinatura-digital': 'Assinatura digital com certificado (ICP-Brasil, gov.br) eu não faço. Em **Editar e assinar** dá para colocar a imagem de uma assinatura escaneada ou desenhada ' +
+    'na página, mas é só uma imagem e não tem a validade de um certificado digital.'
+};
+
+// ---------------------------------------------------------------- leitura
+var PC_RE_PERGUNTA = /^(como|o que|oque|qual|quais|por ?que|porque|quando|onde|quem|existe|ha|o app|o argo)\b/;
+
+function pcFalaDePdf(n, temArquivo) {
+  return /\bpdfs?\b/.test(n) || /\b(paginas?|miniaturas?)\b/.test(n) || !!temArquivo;
+}
+
+function pcOpcoesCompress(n) {
+  var o = { nivel: 'media', modo: 'texto' };
+  if (/\b(maxim\w*|o maximo|menor possivel|bem pequeno|bem leve|ao maximo)\b/.test(n)) o.nivel = 'maxima';
+  else if (/\b(boa qualidade|alta qualidade|sem perder qualidade|qualidade alta|nitid\w*|pouco)\b/.test(n)) o.nivel = 'alta';
+  if (/\b(paginas? (como|em|viram?|virar) imag(?:em|ens)|como imag(?:em|ens)|rasteriz\w*|modo imag(?:em|ens))\b/.test(n)) { o.modo = 'imagem'; if (o.nivel === 'media' && /\bmaxim/.test(n)) o.nivel = 'maxima'; }
+  var m = /\b(?:ate|menos de|abaixo de|no maximo|maximo de|limite de|caber em|menor que|para)\s+(\d+(?:[.,]\d+)?)\s*(mb|megas?|megabytes?|m|kb|kbs|k)\b/.exec(n);
+  if (m) {
+    var v = pcNum(m[1]);
+    if (v) o.alvoMB = /^k/.test(m[2]) ? Math.max(0.01, Math.round(v / 1024 * 100) / 100) : v;
+  }
+  return o;
+}
+
+function pcOpcoesCrop(n) {
+  var pad = /\b(?:folga|sobra|deixando|deixe|margem de seguranca)\s+(?:de\s+|uma\s+|um\s+)*(\d+(?:[.,]\d+)?)\s*mm\b/.exec(n);
+  if (pad && pcNum(pad[1]) != null) return { modo: 'auto', pad: Math.min(50, pcNum(pad[1])) };
+  var MM = function (v, un) { return /^c/.test(un) ? v * 10 : v; };
+  var lados = { t: null, b: null, l: null, r: null };
+  var re = /(\d+(?:[.,]\d+)?)\s*(mm|milimetros?|cm|centimetros?)\s*(?:dos|das|nos|nas|de|do|da|em|na|no)?\s*(cima|topo|parte de cima|parte superior|superior|baixo|rodape|parte de baixo|inferior|esquerd\w*|direit\w*|lados?|laterais)?/g;
+  var m, achou = false, sozinho = null;
+  while ((m = re.exec(n))) {
+    var v = pcNum(m[1]); if (v == null) continue;
+    v = MM(v, m[2]); achou = true;
+    var lado = m[3] || '';
+    if (/cima|topo|superior/.test(lado)) lados.t = v;
+    else if (/baixo|rodape|inferior/.test(lado)) lados.b = v;
+    else if (/esquerd/.test(lado)) lados.l = v;
+    else if (/direit/.test(lado)) lados.r = v;
+    else if (/lado|lateral/.test(lado)) { lados.l = v; lados.r = v; }
+    else sozinho = v;
+  }
+  // "em cima 10 mm" (lado antes do número)
+  var re2 = /\b(cima|topo|baixo|rodape|esquerd\w*|direit\w*)\s*(?:de|com|:)?\s*(\d+(?:[.,]\d+)?)\s*(mm|cm)\b/g;
+  while ((m = re2.exec(n))) {
+    var w = MM(pcNum(m[2]), m[3]); achou = true;
+    if (/cima|topo/.test(m[1])) lados.t = w; else if (/baixo|rodape/.test(m[1])) lados.b = w; else if (/esquerd/.test(m[1])) lados.l = w; else lados.r = w;
+  }
+  if (!achou) {
+    var o = { modo: 'auto', pad: 6 };
+    var p = /\b(?:folga|sobra|deixando|deixe|margem de)\s+(?:de\s+)?(\d+(?:[.,]\d+)?)\s*mm\b/.exec(n);
+    if (p && pcNum(p[1]) != null) o.pad = Math.min(50, pcNum(p[1]));
+    return o;
+  }
+  var algum = lados.t != null || lados.b != null || lados.l != null || lados.r != null;
+  if (!algum && sozinho != null) lados = { t: sozinho, b: sozinho, l: sozinho, r: sozinho };
+  else if (sozinho != null) { ['t', 'b', 'l', 'r'].forEach(function (k) { if (lados[k] == null) lados[k] = 0; }); }
+  ['t', 'b', 'l', 'r'].forEach(function (k) { lados[k] = Math.min(200, Math.max(0, lados[k] == null ? 0 : lados[k])); });
+  return { modo: 'manual', t: lados.t, b: lados.b, l: lados.l, r: lados.r };
+}
+
+// Qual ferramenta de "Editar e assinar" o pedido quer ('' = só abrir o editor)
+function pcLerEdit(n) {
+  if (/\btarj\w*|\b(cobrir|cubra|cobre|esconder|escondam|ocultar|tapar|censurar)\b.{0,40}\b(nome|cpf|rg|nis|dados?|informacao|informacoes|trecho|numero|endereco|telefone)\b|\bapagar\b.{0,20}\b(nome|cpf)\b.{0,20}\bpdf\b/.test(n)) return { ferramenta: 'cover' };
+  if (/\b(edit\w*|alter\w*|mud\w*|troc\w*|corrig\w*|reescrev\w*)\b.{0,25}\b(texto|palavra|frase|nome|valor)\b.{0,30}\b(do pdf|no pdf|ja existe|existente|que esta)\b|\beditar (o )?texto do pdf\b/.test(n)) return { ferramenta: 'edittext' };
+  if (/\b(assin\w*|rubric\w*)\b/.test(n) && !/assinatura digital|certificado/.test(n)) return { ferramenta: 'img', assinatura: true };
+  if (/\b(preench\w*|complet\w*)\b.{0,25}\b(formulario|campos?|ficha)\b/.test(n)) return { ferramenta: 'form' };
+  if (/\b(sublinh\w*)\b/.test(n)) return { ferramenta: 'hl', realce: 'under' };
+  if (/\b(riscad\w*|risque|riscar um trecho|tachar|taxar)\b/.test(n)) return { ferramenta: 'hl', realce: 'strike' };
+  if (/\b(realc\w*|destac\w*|grifar|grife|marca texto|marcatexto|marcar o trecho|marcar trecho)\b/.test(n)) return { ferramenta: 'hl', realce: 'hl' };
+  if (/\b(desenh\w*|rabisc\w*|caneta)\b/.test(n)) return { ferramenta: 'pen' };
+  if (/\bcarimb\w*\b/.test(n)) return { ferramenta: 'stamp' };
+  if (/\b(colocar|coloque|inserir|insira|adicionar|adicione|por|poe|ponha)\b.{0,20}\b(imagem|foto|logo|logotipo|figura)\b/.test(n)) return { ferramenta: 'img' };
+  if (/\b(escrev\w*|digit\w*|adicion\w*|inser\w*|colocar|coloque)\b.{0,20}\btexto\b/.test(n)) return { ferramenta: 'text' };
+  if (/\b(edit\w*)\b.{0,15}\bpdf\b|\bpdf\b.{0,15}\b(para|pra) edit\w*/.test(n)) return { ferramenta: '' };
+  return null;
+}
+
+// ordem: [chave, regex de reconhecimento]. Cada uma casa no máximo uma vez; a posição do primeiro acerto decide a ordem das etapas.
+var PC_REGRAS = [
+  ['Compress', /\b(reduz\w*|comprim\w*|diminu\w*|compact\w*|aliger\w*|emagrec\w*|encolh\w*|enxug\w*)\b.{0,40}\b(tamanho|peso|pdf|pdfs|arquivo|mb|megas?|kb)\b|\b(deixa\w*|faca\w*|fazer|tornar|torne|ficar)\b.{0,25}\b(mais )?(leve|pequeno|menor)\b|\b(pdf|arquivo)\b.{0,15}\b(muito |bem )?(grande|pesado)\b.{0,25}\b(reduz\w*|diminu\w*|comprim\w*|enviar|mandar|caber)\b|\bca(?:ber|be|iba|ibam)\b.{0,25}\b(\d+ ?(mb|megas?)|limite|sistema|email)\b/],
+  ['Crop', /\b(recort\w*|cort\w*|apar\w*|refil\w*|tir\w*|remov\w*|elimin\w*|diminu\w*|reduz\w*|limp\w*)\b.{0,50}\b(margens?|bordas?|bordinhas?|beiradas?|espaco em branco|espacos em branco)\b|\b(margens?|bordas?)\b.{0,20}\b(brancas?|em branco|sobrando)\b|\bdesperdicio de papel\b/],
+  ['Meta', /\b(dados ocultos|dados escondidos|metadados?|informacoes ocultas|propriedades do (pdf|arquivo|documento))\b|\b(remov\w*|tir\w*|apag\w*|limp\w*|elimin\w*|anonimiz\w*)\b.{0,25}\b(autor|nome do autor|programa que criou)\b/],
+  ['Text', /\b(extrair|extraia|extrai|copiar|copie|pegar|pegue|salvar|exportar|converter|transformar|passar|tirar|tire)\b.{0,25}\btexto\b.{0,25}\b(pdf|txt|arquivo)?|\bpdf\b.{0,10}\b(para|em|pra)\b.{0,6}\b(txt|texto)\b|\btexto d[oe]\b.{0,10}\bpdf\b.{0,15}\b(txt|arquivo)\b/],
+  ['PdfWord', /\bpdf\b.{0,12}\b(para|em|pra)\b.{0,8}\b(word|docx|doc)\b|\b(converter|transformar|passar|salvar|gerar|exportar|mudar)\b.{0,25}\bpdf\b.{0,15}\b(word|docx)\b|\beditar\b.{0,15}\bpdf\b.{0,10}\bno word\b/],
+  ['WordPdf', /\b(word|docx|doc)\b.{0,12}\b(para|em|pra)\b.{0,8}\bpdf\b|\b(converter|transformar|passar|salvar|gerar|exportar|mudar)\b.{0,25}\b(word|docx|documento do word)\b.{0,15}\bpdf\b/],
+  ['PdfJpg', /\bpdf\b.{0,12}\b(para|em|pra)\b.{0,8}\b(jpg|jpeg|png|imag(?:em|ens)|fotos?)\b|\b(converter|transformar|salvar|exportar|gerar|extrair)\b.{0,25}\bpaginas?\b.{0,20}\b(jpg|jpeg|png|imag(?:em|ens)|fotos?)\b/],
+  ['JpgPdf', /\b(digitalizar|digitalize|digitalizando|escanear|escaneie|escaneando|scanear)\b|\b(fotos?|imag(?:em|ens)|jpg|jpeg|png|prints?|capturas? de tela)\b.{0,25}\b(em|para|pra|num|no)\b.{0,8}\bpdf\b|\b(transformar|converter|montar|criar|fazer|gerar)\b.{0,25}\b(fotos?|imag(?:em|ens))\b.{0,25}\bpdf\b|\bcamera\b.{0,15}\bpdf\b/],
+  ['Merge', /\b(unir|une|unifique|unificar|juntar|junte|mesclar|mescle|combinar|combine)\b.{0,25}\b(pdfs|arquivos|documentos|dois|duas|tres|varios|varias)\b|\bpdfs\b.{0,12}\b(em um|num|em so|em so um)\b/],
+  ['Organize', /\b(organizar|organize|reorganizar|reorganize|reordenar|reordene|ordenar|reposicionar|mover|duplicar|duplique)\b.{0,25}\b(paginas?|folhas?)\b|\bminiaturas?\b|\bpaginas?\b.{0,25}\b(arrastando|arrastar|miniaturas?)\b/],
+  ['Unlock', /\b(remov\w*|tir\w*|desbloque\w*|destrav\w*|desproteg\w*|libera\w*|abrir sem|retir\w*)\b.{0,30}\bsenha\b|\b(desbloque\w*|destrav\w*|desproteg\w*)\b.{0,20}\bpdf\b|\b(abrir|ler|editar|usar|mexer)\b.{0,20}\bpdf\b.{0,20}\b(com senha|protegido|travado|bloqueado)\b/],
+  ['Protect', /\b(colocar|coloque|por|ponha|poe|criar|crie|definir|defina|adicionar|adicione|proteger|proteja|criptografar|criptografe|cifrar|cifre|trancar|tranque|travar|trave|bloquear|bloqueie)\b.{0,30}\b(senha|cadeado)\b|\b(proteger|proteja|criptografar|criptografe|cifrar|cifre)\b.{0,20}\b(pdf|arquivo|documento)\b/],
+  ['Edit', null]   // pcLerEdit
+];
+
+function pcResumoDe(chave, o) {
+  switch (chave) {
+    case 'Compress':
+      return o.modo === 'imagem'
+        ? 'reduzir o tamanho com as páginas como imagem (o texto deixa de poder ser copiado)'
+        : 'reduzir o tamanho do arquivo mantendo o texto' + (o.alvoMB ? ' (meta: até ' + String(o.alvoMB).replace('.', ',') + ' MB)' : '');
+    case 'Crop':
+      return o.modo === 'manual'
+        ? 'recortar as margens (em cima ' + o.t + ' mm, embaixo ' + o.b + ' mm, esquerda ' + o.l + ' mm, direita ' + o.r + ' mm)'
+        : 'recortar automaticamente as bordas em branco (folga de ' + o.pad + ' mm)';
+    case 'Meta': return 'apagar título, autor, assunto, palavras-chave e o programa que criou o arquivo';
+    case 'Text': return 'copiar o texto do PDF para um arquivo .txt';
+    case 'PdfWord': return 'converter o PDF em um documento Word (.docx)';
+    case 'PdfJpg': return 'converter cada página do PDF em uma imagem JPG';
+    case 'Unlock': return 'gerar uma cópia do PDF que abre sem senha (você digita a senha)';
+    case 'Protect': return 'colocar senha no PDF (aba Criptografia)';
+    case 'Organize': return 'reorganizar as páginas pelas miniaturas';
+    case 'Merge': return 'unir PDFs e fotos em um só arquivo';
+    case 'WordPdf': return 'converter um Word (.docx) em PDF';
+    case 'JpgPdf': return 'montar um PDF a partir de fotos';
+    case 'Edit':
+      if (o.ferramenta === 'cover') return 'cobrir um trecho com tarja';
+      if (o.ferramenta === 'edittext') return 'reescrever um texto que já existe no PDF';
+      if (o.ferramenta === 'img') return o.assinatura ? 'colocar uma assinatura na página' : 'colocar uma imagem na página';
+      if (o.ferramenta === 'form') return 'preencher os campos de formulário';
+      if (o.ferramenta === 'hl') return o.realce === 'under' ? 'sublinhar um trecho' : (o.realce === 'strike' ? 'riscar um trecho' : 'realçar um trecho');
+      if (o.ferramenta === 'pen') return 'desenhar à mão livre na página';
+      if (o.ferramenta === 'stamp') return 'colocar um carimbo na página';
+      if (o.ferramenta === 'text') return 'escrever um texto na página';
+      return 'editar o PDF';
+  }
+  return PC_ROTULO[chave] || chave;
+}
+
+function lerPedidoDeCentral(texto, opts) {
+  var temArquivo = !!(opts && opts.temArquivo);
+  var cru = String(texto == null ? '' : texto);
+  if (!cru.trim() || cru.length > 400) return null;
+  var n = pcNorm(cru);
+  if (PC_RE_PERGUNTA.test(n)) return null;   // pergunta de explicação: segue para o manual do app
+
+  var recusas = [];
+  function recusa(codigo) { if (!recusas.some(function (r) { return r.codigo === codigo; })) recusas.push({ codigo: codigo, texto: PC_TEXTOS[codigo] }); }
+
+  var ctx = pcFalaDePdf(n, temArquivo);
+  if (/\b(quebr\w*|descobr\w*|recuper\w*|adivinh\w*|hackear|hackeie|crackear|forcar|burlar|furar)\b.{0,30}\bsenha\b|\besquec\w*\b.{0,20}\bsenha\b|\bsenha\b.{0,25}\b(esquecid\w*|perdid\w*)\b/.test(n) && (ctx || /\bsenha\b/.test(n))) recusa('quebrar-senha');
+  if (/\bocr\b|\breconhec\w*\b.{0,15}\btexto\b|\b(pdf|documento|pagina)s? (escaneado|digitalizado)s?\b.{0,40}\b(texto|pesquis\w*|copiar|editar|ler)\b|\b(texto|ler)\b.{0,25}\b(foto|imagem|escaneado|digitalizado)\b.{0,15}\bpdf\b/.test(n)) recusa('ocr');
+  if (ctx && /\b(paginas?|folhas?)\b.{0,6}\b(em branco|vazias?|brancas?)\b|\b(em branco|vazias?)\b.{0,10}\bpaginas?\b/.test(n) && /\b(remov\w*|exclu\w*|apag\w*|tir\w*|delet\w*|elimin\w*|achar|encontr\w*|detect\w*|ident\w*)\b/.test(n)) recusa('paginas-branco');
+  if (/\bassinatura digital\b|\bassinar digitalmente\b|\bcertificado digital\b|\bicp ?brasil\b|\bgov ?br\b.{0,20}\bassin\w*/.test(n)) recusa('assinatura-digital');
+
+  var etapas = [], jaTem = {};
+  var forte = ctx || /\b(recort\w*|apar\w*|refil\w*)\b.{0,20}\b(margens?|bordas?)\b/.test(n) || /\b(word|docx|jpg|jpeg|png|fotos?|imag(?:em|ens)|digitalizar|escanear|scanear|senha|txt)\b/.test(n);
+  if (forte) {
+    PC_REGRAS.forEach(function (r) {
+      var chave = r[0], achou = null, o = {};
+      if (chave === 'Edit') {
+        if (!ctx || jaTem.Edit) return;
+        var e = pcLerEdit(n);
+        if (!e) return;
+        // "assinar" só vale com contexto de PDF; "assinatura digital" já virou recusa
+        var pe = n.search(/\b(tarj\w*|cobr\w*|cubr\w*|escond\w*|ocult\w*|tapar|censur\w*|assin\w*|rubric\w*|preench\w*|complet\w*|sublinh\w*|riscad\w*|risque|tachar|taxar|realc\w*|destac\w*|grif\w*|marca texto|marcatexto|desenh\w*|rabisc\w*|caneta|carimb\w*|edit\w*|escrev\w*|digit\w*|inser\w*|adicion\w*|colocar|coloque|reescrev\w*|alter\w*|corrig\w*|troc\w*)\b/);
+        achou = { index: Math.max(0, pe) }; o = e;
+      } else {
+        var m = r[1].exec(n);
+        if (!m) return;
+        achou = m;
+      }
+      if (jaTem[chave]) return;
+      if (chave === 'Compress' && (/\btamanho d[aoe]s? (fonte|letra|texto|tela|janela|icone)\b/.test(n) || (!/\bpdfs?\b/.test(n) && /\btamanho d[aoe]s? (foto|imag(?:em|ens))\b/.test(n)))) return;
+      if (chave === 'Compress' && !ctx && !/\b(arquivo|tamanho|peso|mb|megas?)\b/.test(n)) return;
+      if (chave === 'Unlock' && recusas.some(function (x) { return x.codigo === 'quebrar-senha'; })) return;
+      if (chave === 'Protect' && jaTem.Unlock) return;
+      if (chave === 'PdfJpg' && jaTem.Compress) return;           // "reduzir com as páginas como imagem" não é converter em JPG
+      if (chave === 'Merge' && jaTem.JpgPdf) return;
+      if (chave === 'Text' && recusas.some(function (x) { return x.codigo === 'ocr'; }) && !/\b(extrair|extraia|copiar|copie)\b/.test(n)) return;
+      if (chave === 'Crop') o = pcOpcoesCrop(n);
+      else if (chave === 'Compress') o = pcOpcoesCompress(n);
+      jaTem[chave] = true;
+      etapas.push({
+        ferramenta: chave, modo: PC_AUTO[chave] ? 'auto' : 'abrir',
+        rotulo: chave === 'Edit' && o.ferramenta === 'cover' ? 'Editar e assinar (Tarja)' : PC_ROTULO[chave],
+        opcoes: o, pos: achou.index || 0, resumo: pcResumoDe(chave, o)
+      });
+    });
+  }
+  // Reduzir e Recortar são parentes ("tirar margens e reduzir"): a ordem é a da frase.
+  etapas.sort(function (a, b) { return a.pos - b.pos; });
+
+  if (!etapas.length && !recusas.length) return null;
+
+  var avisos = [];
+  var abrir = etapas.filter(function (e) { return e.modo === 'abrir'; });
+  var autos = etapas.filter(function (e) { return e.modo === 'auto'; });
+  if (abrir.length > 1) {
+    avisos.push('Deixo pronta só uma ferramenta por vez: **' + abrir[0].rotulo + '**. Quando terminar, peça "' + abrir.slice(1).map(function (e) { return e.resumo; }).join('" e "') + '".');
+    etapas = etapas.filter(function (e) { return e.modo === 'auto' || e === abrir[0]; });
+  }
+  if (abrir.length && autos.some(function (a) { return a.pos > abrir[0].pos; })) {
+    avisos.push('Faço primeiro o que é automático (' + autos.map(function (a) { return a.resumo; }).join('; ') + ') e deixo **' + abrir[0].rotulo + '** pronta em seguida, para você terminar.');
+  }
+  var comp = autos.filter(function (a) { return a.ferramenta === 'Compress' && a.opcoes.modo === 'imagem'; })[0];
+  if (comp) avisos.push('No modo "páginas como imagem" o arquivo fica menor, mas o texto deixa de poder ser copiado ou pesquisado.');
+  if (autos.some(function (a) { return a.ferramenta === 'Crop' && a.opcoes.modo === 'manual'; })) {
+    avisos.push('O recorte manual corta a mesma medida de todas as páginas: confira o resultado antes de usar.');
+  }
+  return { etapas: etapas, avisos: avisos, recusas: recusas };
+}
+
+// O que a pessoa faz a seguir, nas ferramentas deixadas prontas.
+function instrucaoDeCentral(e, temArquivo) {
+  var o = (e && e.opcoes) || {};
+  switch (e && e.ferramenta) {
+    case 'Unlock':
+      return (temArquivo ? 'O PDF já está na ferramenta. ' : 'Escolha o PDF na ferramenta. ') +
+        'Digite a senha de abrir no campo e toque em **Remover senha e baixar**. A senha nunca passa pelo chat. ' +
+        'É preciso saber a senha: o app não adivinha nem quebra senhas. PDF que abre sem senha mas bloqueia copiar ou imprimir funciona sem digitar nada.';
+    case 'Protect':
+      return 'Escolha o PDF (ou vários, ou uma pasta), digite a senha nos dois campos e baixe a cópia protegida. **Anote a senha**: sem ela não há como recuperar o arquivo. A senha você digita no campo; ela nunca passa pelo chat.';
+    case 'Edit':
+      if (o.ferramenta === 'cover') return (temArquivo ? '' : 'Abra o PDF na ferramenta. ') + 'Escolhi **Tarja**: arraste sobre o trecho que quer cobrir. Atenção: a tarja só esconde, o texto de baixo continua no arquivo e dá para copiá-lo. Para sigilo de verdade, depois use **Reduzir tamanho** no modo "Páginas como imagem" e confira tentando selecionar o texto.';
+      if (o.ferramenta === 'edittext') return (temArquivo ? '' : 'Abra o PDF na ferramenta. ') + 'Escolhi **Editar texto**: toque no texto que já existe na página e reescreva. Depois toque em **Baixar PDF editado**.';
+      if (o.ferramenta === 'img') return (temArquivo ? '' : 'Abra o PDF na ferramenta. ') + 'Toque em **Escolher imagem...** (a foto da assinatura, de preferência com fundo branco), depois toque na página onde ela deve ficar. É só uma imagem: não tem validade de assinatura digital.';
+      if (o.ferramenta === 'hl') return (temArquivo ? '' : 'Abra o PDF na ferramenta. ') + 'Arraste sobre o trecho na página. Depois baixe o PDF editado.';
+      if (o.ferramenta === 'form') return (temArquivo ? '' : 'Abra o PDF na ferramenta. ') + 'Preencha os campos direto na página. Depois baixe o PDF editado.';
+      return (temArquivo ? '' : 'Abra o PDF na ferramenta. ') + 'Escolhi a ferramenta certa na barra: marque na página o que quer fazer. Depois toque em **Baixar PDF editado**.';
+    case 'Organize':
+      return 'As miniaturas aparecem na ferramenta: arraste para reordenar e use os botões de cada página para girar, duplicar ou excluir. Depois baixe o PDF.';
+    case 'Merge':
+      return 'Escolha os PDFs e fotos (até 20 arquivos, 50 MB no total), ajuste a ordem arrastando e baixe o arquivo unido.';
+    case 'WordPdf':
+      return 'Escolha o arquivo .docx na ferramenta; o PDF é gerado e baixado no seu aparelho.';
+    case 'JpgPdf':
+      return 'Tire fotos ou escolha as imagens, ajuste a ordem e, se quiser, o filtro de digitalização (preto e branco, contraste) e o corte. Depois toque em **Gerar PDF**.';
+  }
+  return 'Siga os passos da ferramenta na tela.';
+}
+
+// Texto da resposta. comCentral = o app tem a Central de PDF (Argo SUAS); sem ela, o Paulus explica e aponta o caminho.
+function textoDeCentral(central, o) {
+  const op = o || {};
+  if (!central) return '';
+  const partes = [];
+  (central.recusas || []).forEach(function (r) { partes.push(r.texto); });
+  const etapas = central.etapas || [];
+  if (etapas.length) {
+    const lista = etapas.map(function (e) { return '- **' + e.rotulo + '**: ' + e.resumo + '.'; }).join('\n');
+    partes.push((op.comCentral
+      ? 'Faço isso pela **Central de PDF**, direto no aparelho, sem enviar o arquivo a servidor nem à IA:\n\n'
+      : 'Isso é feito pela **Central de PDF do Argo SUAS**, direto no aparelho, sem enviar o arquivo a servidor nem à IA. Este app não tem essa ferramenta; no Argo SUAS peça o mesmo pedido ou abra a Central de PDF:\n\n') + lista);
+    etapas.filter(function (e) { return e.modo === 'abrir'; }).forEach(function (e) {
+      partes.push('**' + e.rotulo + ':** ' + instrucaoDeCentral(e, !!op.temArquivo));
+    });
+  }
+  (central.avisos || []).forEach(function (a) { partes.push(a); });
+  return partes.join('\n\n');
+}
+
 // ---- shared/visitas.mjs ----
 // Ordem de visita domiciliar, no aparelho: sem IA, sem rede, sem coordenadas.
 //
@@ -8615,9 +9115,32 @@ function flDatasEHoras(t) {
   return t;
 }
 
+
+// Números que a voz lê como quantia ou como "menos": documento, telefone, CEP, fração, unidade, temperatura, e-mail.
+function flDigitos(s) {
+  const d = String(s).replace(/\D/g, '');
+  return (d.match(/\d{1,3}/g) || []).map(function (g) { return g.split('').join(' '); }).join(', ');
+}
+const FL_FRACOES = { '1/2': 'meio', '1/3': 'um terço', '2/3': 'dois terços', '1/4': 'um quarto', '3/4': 'três quartos', '1/5': 'um quinto', '2/5': 'dois quintos', '1/10': 'um décimo' };
+const FL_UNIDADES = { km: ['quilômetro', 'quilômetros'], kg: ['quilo', 'quilos'], cm: ['centímetro', 'centímetros'], mm: ['milímetro', 'milímetros'], ml: ['mililitro', 'mililitros'], 'm²': ['metro quadrado', 'metros quadrados'], m: ['metro', 'metros'] };
+function flNumerosEspeciais(t) {
+  t = t.replace(/([\w.+-]+)@([\w-]+(?:\.[\w-]+)+)/g, function (m, a, b) { return a.replace(/\./g, ' ponto ') + ' arroba ' + b.replace(/\./g, ' ponto '); });
+  t = t.replace(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g, flDigitos);                                   // CPF
+  t = t.replace(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/g, flDigitos);                           // CNPJ
+  t = t.replace(/\b(\d{5})-(\d{3})\b/g, function (m, a, b) { return a.split('').join(' ') + ', ' + b.split('').join(' '); });   // CEP
+  t = t.replace(/\b(\d{4,5})-(\d{4})\b/g, '$1, $2');                                           // telefone: o hífen não vira "menos"
+  t = t.replace(/\b\d{9,14}\b/g, flDigitos);                                                   // NIS, cartão, protocolo
+  t = t.replace(/(\d+(?:,\d+)?)\s*°\s*([CF])\b/g, function (m, n, e) { return n + ' graus ' + (e === 'C' ? 'Celsius' : 'Fahrenheit'); });
+  t = t.replace(/\b(\d{1,2})\/(\d{1,2})\b(?![\/\d])/g, function (m, a, b) { return FL_FRACOES[a + '/' + b] || m; });
+  t = t.replace(/(\d+(?:,\d+)?)\s?(km|kg|cm|mm|ml|m²|m)(?![\wà-úÀ-Ú²])/g, function (m, n, u) { return n + ' ' + FL_UNIDADES[u][n === '1' ? 0 : 1]; });
+  t = t.replace(/\bseg\.\s+a\s+sex(\.?)/gi, 'segunda a sexta$1').replace(/\bseg\.\s+a\s+s[áa]b(\.?)/gi, 'segunda a sábado$1');
+  return t;
+}
+
 // Abreviações, símbolos e números que a voz lê errado ou não lê.
 function flSimbolos(t) {
   t = flDinheiro(t);
+  t = flNumerosEspeciais(t);
   t = flDatasEHoras(t);
   t = t.replace(/(\d+(?:,\d+)?)\s*%/g, '$1 por cento').replace(/%/g, ' por cento ');
   t = t.replace(/(\d{1,2})\s*ª/g, function (m, n) { return flOrdinal(n, true); });
@@ -8638,11 +9161,54 @@ function flSimbolos(t) {
   t = t.replace(/\be\/ou\b/gi, 'e ou');
   t = t.replace(/(\d)\/(\d{4})\b/g, '$1 de $2');
   t = t.replace(/\b([A-Z]{2,})\/([A-Z]{2,})\b/g, '$1 e $2').replace(/\s*\/\s*/g, ' ou ');
-  t = t.replace(/\s+[—–-]\s+/g, ', ').replace(/[—–]/g, ', ').replace(/\s*[→➜➔]\s*/g, ', ').replace(/\s*-+>\s*/g, ', ');
+  t = t.replace(/\s+(?:[—–-]|-{2,})\s+/g, ', ').replace(/[—–]/g, ', ').replace(/\s*[→➜➔]\s*/g, ', ').replace(/\s*-+>\s*/g, ', ');
   t = t.replace(/\s*[·•]\s*/g, ', ').replace(/&/g, ' e ').replace(/\s\+\s/g, ' mais ').replace(/\s=\s/g, ' igual a ');
   // siglas letra por letra: as da lista e qualquer sigla curta sem vogal (BV, RR, SCFV)
   t = t.replace(/\b[A-Z]{2,5}\b/g, function (s) { return FL_SOLETRA[s] || !/[AEIOU]/.test(s) ? flSoletrar(s) : s; });
   return t;
+}
+
+
+// ---------------------------------------------------------------- pronúncia (o que o leitor erra, e o que o Paulus aprende)
+// Palavras que o leitor de voz costuma errar, escritas como se fala. Só trocam a palavra inteira (sem acento nem caixa).
+const FL_PRONUNCIA = {
+  pix: 'píks', whatsapp: 'uótsapi', 'wi-fi': 'uai fai', wifi: 'uai fai', email: 'imeil', 'e-mail': 'imeil', online: 'ônlaine', site: 'sáite',
+  app: 'épi', apps: 'épis', pdf: 'pê dê éfe', gov: 'gôv', br: 'bê érre', cnpj: 'cê ene pê jota'
+};
+// Siglas que se leem como palavra: só valem escritas em MAIÚSCULAS ("suas" minúsculo é o pronome, não o SUAS).
+const FL_PRON_SIGLA = { SUAS: 'súas', PAIF: 'páif', PAEFI: 'paéfi', LOAS: 'lôas', CAPS: 'cáps', SINE: 'síni', PETI: 'péti' };
+function flSemAcento(s) { return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+
+// Normaliza um dicionário aprendido ({ palavra: comoFala }); descarta o que for vazio, enorme ou com símbolo estranho.
+function falaDicionario(dic) {
+  const saida = {};
+  if (dic && typeof dic === 'object') {
+    Object.keys(dic).slice(0, 200).forEach(function (k) {
+      const chave = flSemAcento(k).trim(), valor = String(dic[k] == null ? '' : dic[k]).replace(/\s+/g, ' ').trim();
+      if (chave && chave.length <= 40 && valor && valor.length <= 60 && !/[<>{}\\]/.test(valor)) saida[chave] = valor;
+    });
+  }
+  return saida;
+}
+
+// Ensina uma palavra: devolve o dicionário novo (o original não muda). comoFala vazio apaga a palavra.
+function falaAprender(dic, palavra, comoFala) {
+  const novo = falaDicionario(dic), chave = flSemAcento(palavra).trim();
+  if (!chave || chave.length > 40) return novo;
+  const v = String(comoFala == null ? '' : comoFala).replace(/\s+/g, ' ').trim();
+  if (!v) delete novo[chave]; else if (v.length <= 60 && !/[<>{}\\]/.test(v)) novo[chave] = v;
+  return falaDicionario(novo);
+}
+
+function flAplicarPronuncia(t, dic) {
+  const aprendido = falaDicionario(dic);
+  return t.replace(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ-]*/g, function (w) {
+    const k = flSemAcento(w);
+    if (Object.prototype.hasOwnProperty.call(aprendido, k)) return aprendido[k];
+    if (Object.prototype.hasOwnProperty.call(FL_PRON_SIGLA, w)) return FL_PRON_SIGLA[w];
+    if (Object.prototype.hasOwnProperty.call(FL_PRONUNCIA, k)) return FL_PRONUNCIA[k];
+    return w;
+  });
 }
 
 // ---------------------------------------------------------------- Markdown -> frases
@@ -8665,7 +9231,7 @@ function flLimpar(t) {
   return t.replace(/\s+/g, ' ').replace(/^[\s.,;:]+/, '').trim();
 }
 
-function falaTexto(bruto) {
+function falaTexto(bruto, opc) {
   let t = String(bruto == null ? '' : bruto).replace(/\r/g, '').slice(0, 12000);
   t = t.replace(/```[\s\S]*?(?:```|$)/g, '\n').replace(/~~~[\s\S]*?(?:~~~|$)/g, '\n');
   t = t.replace(/<(script|style)[\s\S]*?<\/\1\s*>/gi, ' ').replace(/<\/?[a-zA-Z][^>\n]{0,200}>/g, ' ');
@@ -8694,7 +9260,8 @@ function falaTexto(bruto) {
     if (fecha && !/[.!?…:;]$/.test(x)) x += '.';
     saida += (saida ? ' ' : '') + x;
   });
-  return flLimpar(flSimbolos(saida));
+  const pronto = flLimpar(flSimbolos(saida));
+  return (opc && opc.pronuncia === false) ? pronto : flAplicarPronuncia(pronto, opc && opc.dicionario);
 }
 
 // ---------------------------------------------------------------- trechos
@@ -8737,7 +9304,7 @@ function falaDividir(texto, opc) {
 // Leitura automática: respostas longas viram as primeiras frases + aviso de que o resto está na tela (o botão Ouvir lê tudo).
 function falaResumir(bruto, opc) {
   const o = opc || {}, nFrases = o.frases || 4, maxChars = o.chars || 500;
-  const t = falaTexto(bruto);
+  const t = falaTexto(bruto, o);
   const frases = flFrases(t);
   if (frases.length <= nFrases + 1 && t.length <= maxChars * 1.25) return t;
   const ficam = [];
@@ -8748,6 +9315,38 @@ function falaResumir(bruto, opc) {
     n += frases[i].length + 1;
   }
   return ficam.join(' ') + ' O restante está na tela.';
+}
+
+// ---------------------------------------------------------------- prosódia: tom, ritmo e pausa de cada trecho
+// Devolve [{ t, tom, taxa, pausa }]: tom e taxa são multiplicadores (1 = como o usuário configurou); pausa é em milissegundos
+// e vale DEPOIS do trecho. Pergunta sobe um pouco o tom; aviso (atenção, cuidado) vai mais devagar; fim de parágrafo respira mais;
+// o último trecho desacelera, como quem conclui.
+function falaTrechos(texto, opc) {
+  const o = opc || {};
+  const max = o.max || 240, minimo = o.minimo || 16;
+  const partes = [];
+  let seguro = '';
+  flFrases(texto).forEach(function (frase) {
+    (frase.length > max ? flQuebrar(frase, max) : [frase]).forEach(function (p) {
+      if (seguro) { p = seguro + ' ' + p; seguro = ''; }
+      if (p.length < minimo && !/[?!]$/.test(p)) seguro = p; else partes.push(p);   // frase curtíssima gruda na seguinte
+    });
+  });
+  if (seguro) { if (partes.length) partes[partes.length - 1] += ' ' + seguro; else partes.push(seguro); }
+  return partes.map(function (t, i) {
+    const fim = (t.match(/[.!?…:;,]+$/) || [''])[0].slice(-1);
+    let tom = 1, taxa = 1, pausa = 120;
+    if (fim === '?') { tom = 1.07; pausa = 260; }
+    else if (fim === '!') { tom = 1.04; taxa = 1.03; pausa = 220; }
+    else if (fim === ':') { pausa = 320; taxa = 0.97; }
+    else if (fim === ';') { pausa = 200; }
+    else if (fim === ',') { pausa = 70; }
+    else if (fim === '.' || fim === '…') { pausa = 180; }
+    if (/^(aten[cç][ãa]o|cuidado|importante|urgente|alerta)\b/i.test(t)) { taxa *= 0.94; tom *= 0.97; pausa = Math.max(pausa, 300); }
+    if (/\b\d[\d., ]{6,}\b/.test(t)) taxa *= 0.93;   // número longo (telefone, protocolo): mais devagar para dar para anotar
+    if (i === partes.length - 1) { taxa *= 0.97; pausa = 0; }
+    return { t: t, tom: Math.round(tom * 100) / 100, taxa: Math.round(taxa * 100) / 100, pausa: pausa };
+  });
 }
 
 // ---- client/skins.mjs ----
@@ -9246,6 +9845,10 @@ function memEhSensivel(texto) { return MEM_RE_SENSIVEL.test(normalizar(texto)); 
 
 
 
+
+
+
+
 const AVISO_PESSOAL = 'Para proteger as famílias, não consigo analisar mensagens com nome, documento, telefone ou endereço residencial. Reescreva a pergunta sem identificar ninguém.';
 
 // Igual ao limite do Worker (worker/prompt.mjs). Antes eram 5 aqui, e o Argo mandava até 10 (lista de bairros, "liste todos").
@@ -9257,6 +9860,7 @@ const PADRAO = {
   endpoint: '',            // endereço do Worker; vazio = IA desligada
   maxPergunta: 1200,
   modelosUrl: '',          // pasta dos modelos 3D didáticos (padrão: modelos/, ao lado da página); o arquivo só é baixado quando a pessoa clica
+  centralPdf: false,       // true no app que TEM a Central de PDF (Argo SUAS): o texto diz "faço pela Central"; nos outros, "no Argo SUAS peça..."
   pdfLibUrl: '',           // onde está o pdf-lib.min.js (padrão: na mesma pasta do paulus.v1.js); carregado só no primeiro pedido de PDF
   cidade: '',              // 'Boa Vista, RR': acrescentada ao nome nos links de rota feitos só com texto
   maxHistorico: 10,        // últimas mensagens (5 trocas) que vão inteiras à IA; as perguntas mais antigas vão num resumo curto (shared/conversa.mjs)
@@ -9553,7 +10157,7 @@ function lerSSE(resp, ganchos, controle) {
   return new Promise(function (resolve, reject) {
     const leitor = resp.body.getReader();
     const dec = new TextDecoder();
-    let buf = '', acumulado = '', fontes = [], habilidades = [], citaveis = null, recebeu = false, fim = false;
+    let buf = '', acumulado = '', fontes = [], habilidades = [], citaveis = null, imagem = null, recebeu = false, fim = false;
     function ler() {
       leitor.read().then(function (r) {
         controle.tique();
@@ -9572,6 +10176,7 @@ function lerSSE(resp, ganchos, controle) {
           if (Array.isArray(ev.fontes)) { fontes = ev.fontes; if (ganchos.onFontes) ganchos.onFontes(fontes); }
           if (Array.isArray(ev.habilidades)) { habilidades = ev.habilidades.map(String).slice(0, 3); if (ganchos.onHabilidades) ganchos.onHabilidades(habilidades); }
           if (ev.citaveis && typeof ev.citaveis === 'object') citaveis = ev.citaveis;
+          if (ev.imagem && typeof ev.imagem === 'object') imagem = ev.imagem;
           if (typeof ev.t === 'string') {
             recebeu = true;
             acumulado += ev.t;
@@ -9580,12 +10185,24 @@ function lerSSE(resp, ganchos, controle) {
           }
         }
         if (fim) {
-          if (!recebeu) reject(new Error('Resposta vazia.')); else resolve({ texto: acumulado, fontes: fontes, habilidades: habilidades, citaveis: citaveis });
+          if (!recebeu) reject(new Error('Resposta vazia.')); else resolve({ texto: acumulado, fontes: fontes, habilidades: habilidades, citaveis: citaveis, imagem: imagem });
         } else ler();
       }).catch(reject);
     }
     ler();
   });
+}
+
+// Imagem que o app manda ler: data URI JPEG, PNG ou WebP, já reduzida (console/docs.js). O Worker confere de novo (assinatura do arquivo e tamanho).
+const IMAGEM_MAX_ENVIO = 1200000;
+function imagemValida(img) {
+  return !!img && typeof img === 'object' && typeof img.dados === 'string' && img.dados.length <= IMAGEM_MAX_ENVIO && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(img.dados);
+}
+
+// Leitura da imagem que o Worker devolve ({ nome, texto, perdidos }): o app a mantém "em uso" e as próximas perguntas seguem como documento anexado.
+function imagemLidaSaneada(l) {
+  if (!l || typeof l !== 'object' || typeof l.texto !== 'string' || !l.texto.trim()) return null;
+  return { nome: String(l.nome || 'imagem').replace(/[\r\n\t]+/g, ' ').slice(0, 120), texto: l.texto.slice(0, 8000), perdidos: Math.max(0, Math.min(999, Number(l.perdidos) || 0)) };
 }
 
 async function pedirIA(texto, opcoes) {
@@ -9606,6 +10223,8 @@ async function pedirIA(texto, opcoes) {
     historico: historicoParaEnvio(opcoes.historico, (function (h) { return ehRefinamento(texto, h) || !!pedidoSobreResposta(texto, h); })(Array.isArray(opcoes.historico) ? opcoes.historico : estado.historico)),
     fichas: fichas,
     documento: documento ? { nome: documento.nome, trechos: documento.trechos } : undefined,
+    // Foto já reduzida no aparelho (console/docs.js): o Worker a lê com um modelo de visão e só o texto lido, sem dado pessoal, segue adiante.
+    imagem: imagemValida(opcoes.imagem) ? { nome: String(opcoes.imagem.nome || 'imagem').slice(0, 120), dados: opcoes.imagem.dados } : undefined,
     stream: true
   };
   // O que a conversa já firmou (unidade, bairro, município, assunto), montado pelo app. Só campos fechados e curtos.
@@ -9669,7 +10288,7 @@ async function pedirIA(texto, opcoes) {
     } else {
       const j = await resp.json();
       if (!j || typeof j.resposta !== 'string' || !j.resposta) throw new Error(j && j.erro ? String(j.erro) : 'Resposta vazia.');
-      saida = { texto: j.resposta, fontes: Array.isArray(j.fontes) ? j.fontes : [], habilidades: Array.isArray(j.habilidades) ? j.habilidades.map(String).slice(0, 3) : [], citaveis: j.citaveis && typeof j.citaveis === 'object' ? j.citaveis : null };
+      saida = { texto: j.resposta, fontes: Array.isArray(j.fontes) ? j.fontes : [], habilidades: Array.isArray(j.habilidades) ? j.habilidades.map(String).slice(0, 3) : [], citaveis: j.citaveis && typeof j.citaveis === 'object' ? j.citaveis : null, imagem: j.imagem && typeof j.imagem === 'object' ? j.imagem : null };
       if (opcoes.onToken) opcoes.onToken(saida.texto, ocultarControles(saida.texto));
     }
     const partes = separarControles(saida.texto, acoes.map(function (a) { return a.id; }));
@@ -9679,6 +10298,8 @@ async function pedirIA(texto, opcoes) {
       return { id: a.id, rotulo: a.rotulo, confirmar: a.confirmar, executar: a.executar };
     });
     const avisos = ['Resposta gerada por IA. Confira antes de usar em atendimento.'];
+    const lida = imagemLidaSaneada(saida.imagem);
+    if (lida) avisos.push('Imagem "' + lida.nome + '": lida por um programa de visão, que pode errar letras e números. Confira no original.' + (lida.perdidos ? ' ' + lida.perdidos + ' linha(s) com dados pessoais ficaram de fora da leitura.' : ''));
     if (telefonesDesconhecidos(saida.texto, fichas).length) {
       avisos.push('A IA citou um telefone que não consta no diretório. Confirme com a unidade antes de passar adiante.');
     }
@@ -9688,7 +10309,7 @@ async function pedirIA(texto, opcoes) {
     if (semFonte.length) {
       avisos.push('A IA citou ' + semFonte.slice(0, 3).join(', ') + ', que não aparece nas normas consultadas. Confira no texto oficial antes de usar.');
     }
-    return { tipo: 'ia', texto: saida.texto, fontes: marcarFontesUsadas(saida.texto, saida.fontes), sugestoes: partes.sugestoes, acoes: propostas, avisos: avisos, habilidades: saida.habilidades || [], geradoPorIA: true };
+    return { tipo: 'ia', texto: saida.texto, fontes: marcarFontesUsadas(saida.texto, saida.fontes), sugestoes: partes.sugestoes, acoes: propostas, avisos: avisos, habilidades: saida.habilidades || [], geradoPorIA: true, imagemLida: imagemLidaSaneada(saida.imagem) };
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -9823,10 +10444,24 @@ function pdfBaixar(arquivo) {
 }
 
 // Pedido de edição de PDF ("juntar", "remover a página 2", "preencher o campo X com Y"): feito no aparelho, sem IA e sem rede para o arquivo.
+function respostaDeCentral(t, central, temArq, o) {
+  const comCentral = !!cfg.centralPdf;
+  if (!Array.isArray(o.historico)) {
+    estado.historico.push({ papel: 'usuario', texto: '[pedido para a Central de PDF, lido no aparelho]' }, { papel: 'paulus', texto: '[resposta sobre a Central de PDF, feita no aparelho]' });
+    estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
+  }
+  return { tipo: 'pdf', ok: !!(central.etapas && central.etapas.length), texto: textoDeCentral(central, { temArquivo: temArq, comCentral: comCentral }), arquivos: [], precisaArquivo: false, campos: [], naoSuporta: [], central: central, avisos: [], fontes: [], pergunta: '', docs: [] };
+}
 // Nada do pedido entra no histórico que vai à IA (pode ter nome e dado de família): fica só uma marca neutra.
 async function tratarPdf(t, o) {
   const arquivos = Array.isArray(o.arquivos) ? o.arquivos : [];
-  if (!lerPedidoDePdf(t, { temArquivo: arquivos.length > 0 })) return null;
+  const temArq = arquivos.length > 0;
+  const proprio = lerPedidoDePdf(t, { temArquivo: temArq });
+  // Reduzir, recortar, dados ocultos, texto, PDF ↔ Word/JPG, senha, tarja, assinatura...: quem faz é a Central de PDF do app (Argo SUAS).
+  // O Paulus só entende o pedido e responde com o que a Central fará (ou aponta o caminho); o arquivo não é lido nem enviado.
+  const central = lerPedidoDeCentral(t, { temArquivo: temArq });
+  if (central && !(proprio && (proprio.operacoes || []).length)) return respostaDeCentral(t, central, temArq, o);
+  if (!proprio) return null;
   let r = null;
   try {
     const lidos = await pdfLerArquivos(arquivos);
@@ -9938,7 +10573,11 @@ function respostaDeCalculo(t, o, conta) {
 }
 
 async function perguntar(texto, opcoes) {
-  const o = opcoes || {};
+  let o = opcoes || {};
+  // Com imagem anexada o pedido é "olhe esta foto": nenhum atalho local (PDF, conta, idioma, rota, busca...) responde no lugar da leitura.
+  // O socorro e o filtro de dado pessoal continuam valendo sobre o texto da pergunta.
+  const comImagem = imagemValida(o.imagem);
+  if (comImagem) o = Object.assign({}, o, { semPdf: true, semGeo: true, semRevisao: true, semCalculo: true, semEspanhol: true, semAcoes: true, semModelos: true, semRota: true, arquivos: [] });
   const t = String(texto == null ? '' : texto).replace(/\s+/g, ' ').trim().slice(0, cfg.maxPergunta);
   if (!t) return { tipo: 'erro', texto: 'Escreva uma pergunta.' };
 
@@ -10014,6 +10653,21 @@ async function perguntar(texto, opcoes) {
     if (rota) return rota;
   }
 
+  // Referências territoriais de CAPS e UBS com psicólogo, conforme macroáreas explícitas do Argo.
+  if (!o.semGeo) {
+    const sm = respostaDeSaudeMentalTerritorio(t);
+    if (sm) return { tipo: 'saude-mental-territorio', tipoSaude: sm.tipoSaude, texto: sm.texto, fontes: [], avisos: ['Baseado nas listas do Argo SUAS; a disponibilidade atual de profissional/agenda deve ser confirmada com a unidade.'], pergunta: '', docs: [] };
+  }
+  // Circunscrições dos Distritos Policiais: diretório local do Argo, sem IA/rede e sem inferência por proximidade.
+  if (!o.semGeo) {
+    const dp = respostaDeDistritoPolicial(t);
+    if (dp) return { tipo: 'territorio-dp', tipoTerritorio: dp.tipoTerritorio, texto: dp.texto, fontes: [], avisos: ['Consulta baseada no diretório do Argo SUAS; confirme a circunscrição com a Polícia Civil.'], pergunta: '', docs: [] };
+  }
+  // Territórios dos Conselhos Tutelares de Boa Vista: diretório local do Argo, sem IA/rede e sem inferir por CRAS.
+  if (!o.semGeo) {
+    const ct = respostaDeTerritorioCT(t);
+    if (ct) return { tipo: 'territorio-ct', tipoTerritorio: ct.tipoTerritorio, texto: ct.texto, fontes: [], avisos: ['Consulta local baseada no diretório do Argo SUAS; confirme limites e encaminhamentos com o Conselho Tutelar.'], pergunta: '', docs: [] };
+  }
   // Coordenadas, "perto de", distância e bairro de lugares públicos: o programa responde com o que o app passou, sem chutar.
   if (!o.semGeo) {
     const tg = geoTipoDePedido(t);
@@ -10033,6 +10687,7 @@ async function perguntar(texto, opcoes) {
   const docs = achados.map(function (a) { return a.trecho.doc; }).filter(function (d, i, l) { return d && l.indexOf(d) === i; });
 
   let motivo = '';
+  if (comImagem && !iaLigada()) return { tipo: 'erro', texto: 'Para ler a imagem preciso da IA, que não está ligada agora (sem internet ou sem login).' };
   if (iaLigada()) {
     try {
       const r = await pedirIA(t, o);
@@ -10050,6 +10705,8 @@ async function perguntar(texto, opcoes) {
       if (o.sinal && o.sinal.aborted) return { tipo: 'erro', texto: 'Interrompido.' };
       // Limite de perguntas: a norma offline não resolve e o motivo importa (é só esperar).
       if (e && e.status === 429) return { tipo: 'erro', texto: e.motivo || 'Muitas perguntas seguidas. Aguarde um minuto.', limite: true };
+      // Foto que não foi lida: um trecho de norma no lugar dela não responderia o que a pessoa quis saber.
+      if (comImagem) return { tipo: 'erro', texto: (e && e.motivo) || 'Não consegui ler a imagem agora. Tente de novo em instantes.' };
       motivo = (e && e.motivo) || '';
       /* senão, cai para a base offline */
     }
@@ -10103,11 +10760,14 @@ const Paulus = { init, perguntar, rota: { ler: lerPedidoDeRota, responder: respo
   // Modelos 3D didáticos (v0.20.0; mapa de Roraima v0.21.0): ler(texto) -> pedido ou null; responder(texto) -> resultado ou null; catalogo; url(modelo); baixar(modelo)
   modelos: { ler: lerPedidoDeModelo, responder: respostaDeModelo, catalogo: MODELOS_3D, url: function (m) { return urlDoModelo(m, cfg.modelosUrl); }, baixar: modeloBaixar },
   // Geografia no aparelho (v0.16.0): responder(texto, { pontos, lugares, bairros, ruas, aparelho }) -> resultado ou null; coordenadas/formatar/endereco/perto/distancia/gpx/kml para o app usar direto.
+  territorioCT: { responder: respostaDeTerritorioCT, lista: territoriosCT },
+  distritosPoliciais: { responder: respostaDeDistritoPolicial, lista: distritosPoliciais },
+  saudeMentalTerritorio: { responder: respostaDeSaudeMentalTerritorio, dados: territoriosSaudeMental },
   geo: { responder: respostaDeGeo, tipo: geoTipoDePedido, coordenadas: geoLerCoordenadas, formatar: geoFormatarCoordenadas, endereco: geoNormalizarEndereco, montarEndereco: geoMontarEndereco, perto: function (centro, opcoes, o) { return geoPerto(centro, geoFontes(opcoes || {}), o); }, distanciaKm: geoDistanciaKm, links: geoLinksDeRota, gpx: geoParaGpx, kml: geoParaKml },
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
-  pdf: { ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
+  pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
-  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.22.0',
+  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.23.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
