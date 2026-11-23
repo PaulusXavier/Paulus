@@ -7,7 +7,8 @@
 //
 // Pedido:   POST { modo: 'interpretar', app, pergunta, historico:[{papel,texto}] }
 //           estado (opcional): { unidade, bairro, municipio, assunto, intencao } o que a conversa já firmou (shared/conversa.mjs)
-// Resposta: { interpretacao: { pergunta, intencao, bairro, unidade, esclarecer } | null }
+// Resposta: { interpretacao: { pergunta, sentido, termos, intencao, bairro, unidade, esclarecer } | null }
+//   sentido: o que a pessoa quer resolver, em uma frase; termos: as palavras técnicas que a norma usaria para o que ela disse no dia a dia
 
 import { temDadoPessoal, limparMarcacao } from '../shared/pii.mjs';
 import { dataDeHoje } from './prompt.mjs';
@@ -26,10 +27,20 @@ const SISTEMA = `Você é o módulo de INTERPRETAÇÃO do Paulus, copiloto de IA
 
 CAMPOS
 - "pergunta": a última mensagem reescrita como uma pergunta COMPLETA e AUTÔNOMA, em português do Brasil, que se entenda sem ler a conversa. Troque o que está subentendido pelo que a conversa já disse ("e o horário?" depois de falar do CRAS Cauamé vira "Qual o horário do CRAS Cauamé?"; "lá" e "esse bairro" viram o nome). Corrija erro de digitação óbvio. Mantenha nomes de bairros e unidades como a pessoa escreveu. Se a mensagem já está clara, devolva igual. No máximo 200 caracteres.
+- "sentido": em uma frase curta, o que a pessoa realmente quer resolver, a necessidade por trás das palavras ("quer saber se a família perde o benefício ao mudar de bairro"). Só o que a mensagem e a conversa permitem concluir; sem palpite. Ou "".
+- "termos": de 2 a 6 palavras técnicas que uma norma ou um guia do SUAS usaria para o que a pessoa disse em linguagem do dia a dia (ex.: "cesta básica" -> "benefício eventual segurança alimentar"; "o bolsa caiu" -> "Bolsa Família bloqueio suspensão cancelamento"; "abrigo" -> "acolhimento institucional"; "ficou sem documento" -> "documentação civil certidão"). Sem nome de pessoa, sem número de documento. Ou "".
 - "intencao": uma destas: ubs_psicologo, territorio, diretorio, contagem, cid, conceito, norma, navegar, agenda, saudacao, fora_do_escopo, outro.
 - "bairro": o bairro citado ou subentendido (só o nome), ou "".
 - "unidade": a unidade ou serviço citado ou subentendido (ex.: "CRAS Cauamé"), ou "".
 - "esclarecer": uma pergunta curta de esclarecimento. É o ÚLTIMO recurso: só use se faltar um dado que não aparece na mensagem, nem em <estado>, nem em <conversa>, nem em <antes>, e SOMENTE para estes dois casos: (a) a pessoa quer saber qual serviço atende ou onde há psicólogo e não há bairro em lugar nenhum; (b) pede telefone, endereço ou horário e não há unidade em lugar nenhum. Para qualquer outra intenção (conceito, norma, cid, contagem, outro), "" sempre: o app responde com a premissa mais provável. Na dúvida, "".
+
+COMO ENTENDER AS PALAVRAS (pense no sentido, não na palavra solta)
+- Fale do dia a dia vale como termo técnico: "o bolsa", "auxílio Brasil" e "o dinheiro do governo" são Bolsa Família; "cad único" e "o cadastro" são CadÚnico; "o posto" é a UBS; "abrigo" é acolhimento institucional; "o conselho" costuma ser o Conselho Tutelar; "benefício do idoso" é o BPC; "CT", "BF", "MP", "ESF" são siglas locais.
+- Abreviação de chat ("vc", "pq", "tbm", "q", "oq", "cmg") e erro de digitação ou de ditado por voz ("bolça", "benefisio", "condicionalidadi", palavras trocadas por outra que soa igual) são lidos pelo que a pessoa quis dizer; a reescrita sai com a forma correta.
+- Português misturado com espanhol venezuelano ("ayuda", "cédula", "planilla", "la señora no tiene cupo") é lido pelo sentido; a reescrita sai em português.
+- Palavra com dois sentidos: escolha pelo contexto (a conversa, o app, o assunto). "Benefício" é BPC ou Bolsa Família conforme o assunto; "cadastro" é CadÚnico no SUAS; "atendimento" pode ser o da equipe ou o da família. Se não dá para escolher, mantenha a palavra da pessoa e não decida por ela.
+- Preste atenção em negação, condição e quem tem o problema: "a família NÃO aceita", "se ela recusar", "sem renda", "quando o pai não comparece" mudam a pergunta; o problema é da família ou da pessoa atendida, e quem pergunta é o(a) profissional.
+- A reescrita preserva o sentido: não acrescente fato, bairro, unidade, valor ou norma que a pessoa não disse.
 
 USE A CONVERSA INTEIRA
 - <estado> traz o que já foi firmado antes (unidade, bairro, município, assunto) e <antes> traz as perguntas mais antigas. A mensagem que não diz o bairro, a unidade ou o assunto herda do <estado> e da <conversa>. Nunca peça de novo o que já foi dito.
@@ -57,14 +68,16 @@ REGRAS
 - Responda SOMENTE o objeto JSON.
 
 EXEMPLOS
-Mensagem: "tem psicólogo no posto do caimbé?" → {"pergunta":"Qual UBS tem psicólogo no bairro Caimbé?","intencao":"ubs_psicologo","bairro":"Caimbé","unidade":"","esclarecer":""}
-Conversa: o Argo falou do CRAS Cauamé. Mensagem: "e o horário?" → {"pergunta":"Qual o horário do CRAS Cauamé?","intencao":"diretorio","bairro":"","unidade":"CRAS Cauamé","esclarecer":""}
-Estado: bairro Caimbé. Mensagem: "e o CREAS?" → {"pergunta":"Qual CREAS atende o bairro Caimbé?","intencao":"territorio","bairro":"Caimbé","unidade":"","esclarecer":""}
-Estado: nenhum. Conversa: nenhuma. Mensagem: "qual o telefone?" → {"pergunta":"Qual o telefone?","intencao":"diretorio","bairro":"","unidade":"","esclarecer":"De qual unidade você quer o telefone?"}
-Mensagem: "como funciona o acompanhamento do PAIF?" → {"pergunta":"Como funciona o acompanhamento familiar do PAIF?","intencao":"conceito","bairro":"","unidade":"","esclarecer":""}
-Mensagem: "a família mora no 13 de setembro, onde ela faz terapia pelo SUS?" → {"pergunta":"Qual UBS tem psicólogo no bairro 13 de Setembro?","intencao":"ubs_psicologo","bairro":"13 de Setembro","unidade":"","esclarecer":""}
-Mensagem: "quem tem direito ao bpc" → {"pergunta":"Quem tem direito ao BPC?","intencao":"conceito","bairro":"","unidade":"","esclarecer":""}
-Mensagem: "obrigado!" → {"pergunta":"obrigado!","intencao":"saudacao","bairro":"","unidade":"","esclarecer":""}`;
+Mensagem: "tem psicólogo no posto do caimbé?" → {"pergunta":"Qual UBS tem psicólogo no bairro Caimbé?","sentido":"quer encaminhar alguém a atendimento psicológico pela UBS do Caimbé","termos":"psicólogo UBS saúde mental","intencao":"ubs_psicologo","bairro":"Caimbé","unidade":"","esclarecer":""}
+Conversa: o Argo falou do CRAS Cauamé. Mensagem: "e o horário?" → {"pergunta":"Qual o horário do CRAS Cauamé?","sentido":"quer saber quando o CRAS Cauamé funciona","termos":"","intencao":"diretorio","bairro":"","unidade":"CRAS Cauamé","esclarecer":""}
+Estado: bairro Caimbé. Mensagem: "e o CREAS?" → {"pergunta":"Qual CREAS atende o bairro Caimbé?","sentido":"quer saber qual CREAS cobre o Caimbé","termos":"","intencao":"territorio","bairro":"Caimbé","unidade":"","esclarecer":""}
+Estado: nenhum. Conversa: nenhuma. Mensagem: "qual o telefone?" → {"pergunta":"Qual o telefone?","sentido":"","termos":"","intencao":"diretorio","bairro":"","unidade":"","esclarecer":"De qual unidade você quer o telefone?"}
+Mensagem: "como funciona o acompanhamento do PAIF?" → {"pergunta":"Como funciona o acompanhamento familiar do PAIF?","sentido":"quer entender como o PAIF acompanha as famílias","termos":"PAIF acompanhamento familiar","intencao":"conceito","bairro":"","unidade":"","esclarecer":""}
+Mensagem: "a família mora no 13 de setembro, onde ela faz terapia pelo SUS?" → {"pergunta":"Qual UBS tem psicólogo no bairro 13 de Setembro?","sentido":"quer encaminhar a família para atendimento psicológico gratuito perto de casa","termos":"psicólogo UBS saúde mental","intencao":"ubs_psicologo","bairro":"13 de Setembro","unidade":"","esclarecer":""}
+Mensagem: "quem tem direito ao bpc" → {"pergunta":"Quem tem direito ao BPC?","sentido":"quer saber o critério de acesso ao BPC","termos":"benefício prestação continuada idoso deficiência renda","intencao":"conceito","bairro":"","unidade":"","esclarecer":""}
+Mensagem: "o bolsa caiu pra uma vizinha da família q eu atendo, oq faço?" → {"pergunta":"O Bolsa Família de uma família foi bloqueado ou cancelado; o que a equipe faz?","sentido":"quer saber como orientar uma família que perdeu o Bolsa Família","termos":"Bolsa Família bloqueio suspensão cancelamento repercussão","intencao":"conceito","bairro":"","unidade":"","esclarecer":""}
+Mensagem: "tem familia sem certidao q n quer ir no cartorio, como lidar?" → {"pergunta":"Como orientar uma família sem certidão de nascimento que não quer ir ao cartório?","sentido":"quer saber como lidar com a resistência da família em tirar a documentação civil","termos":"documentação civil certidão nascimento cartório gratuidade","intencao":"outro","bairro":"","unidade":"","esclarecer":""}
+Mensagem: "obrigado!" → {"pergunta":"obrigado!","sentido":"","termos":"","intencao":"saudacao","bairro":"","unidade":"","esclarecer":""}`;
 
 function limpar(texto, max) {
   return limparMarcacao(String(texto == null ? '' : texto)).replace(/\s+/g, ' ').trim().slice(0, max);
@@ -157,5 +170,12 @@ export function lerInterpretacao(textoIA, perguntaOriginal, contexto = {}) {
   if (intencao === 'saudacao' || intencao === 'agenda') esclarecer = '';
   if (esclarecer && !deveEsclarecer({ esclarecer, intencao, bairro, unidade, estado: contexto.estado, historico: contexto.historico })) esclarecer = '';
 
-  return { pergunta, intencao, bairro, unidade, esclarecer };
+  // sentido e termos só servem à busca e à resposta: texto simples, curto, sem dado pessoal e sem marcação que pareça instrução.
+  let sentido = limpar(obj.sentido, 200);
+  if (temDadoPessoal(sentido) || /[<>{}]/.test(sentido)) sentido = '';
+  let termos = limpar(obj.termos, 120);
+  if (temDadoPessoal(termos) || /[<>{}]/.test(termos) || !/^[\p{L}\p{N} .,'\-/()]*$/u.test(termos)) termos = '';
+  if (termos.split(/\s+/).filter(Boolean).length > 10) termos = termos.split(/\s+/).slice(0, 10).join(' ');
+
+  return { pergunta, sentido, termos, intencao, bairro, unidade, esclarecer };
 }
