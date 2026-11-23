@@ -5169,6 +5169,9 @@ const reBairroSM=b=>new RegExp(`\\b${normSaudeMental(b).replace(/[.*+?^${}()|[\]
 const acharBairro=n=>Object.values(MACRO).flat().find(b=>reBairroSM(b).test(n))||Object.entries(APELIDOS_BAIRRO).find(([a])=>reBairroSM(a).test(n))?.[1];
 const campoDoBairroSM=b=>UBS_CAMPO.filter(u=>u.bairros.some(x=>normSaudeMental(x)===normSaudeMental(b)));
 function apresentarCampoSM(b){return campoDoBairroSM(b).map(u=>`• ${u.name} — ${u.address} · telefone: ${u.phone} (informação de campo no Argo: a unidade passou a ter psicólogo(a) próprio(a); confirme se há atendimento e agenda)`).join('\n');}
+function listarTodasUBS(){const bl=Object.entries(MACRO).map(([m,bs])=>{const us=UBS.filter(u=>u.macro===Number(m));return `Macroárea ${m} — bairros: ${bs.join(', ')}\n${us.length?us.map(u=>`   • ${u.name} — ${u.address}`).join('\n'):'   • sem UBS com atendimento psicológico identificada no cadastro do Argo (não indicar outra por proximidade)'}`;}).join('\n\n');
+ const campo=UBS_CAMPO.map(u=>`• ${u.name} — ${u.address} (informação de campo; bairros: ${u.bairros.join(', ')}; confirme agenda)`).join('\n');
+ return `UBS com atendimento psicológico por bairro (Boa Vista), segundo o Argo:\n\n${bl}\n\nAlém das macroáreas:\n${campo}\n\nA lista não confirma agenda ou disponibilidade atual de profissional; ligue antes de encaminhar.`;}
 function apresentarUBS(m){return UBS.filter(u=>u.macro===m).map(u=>`• ${u.name} — ${u.address} · telefone: ${u.phone}`).join('\n');}
 function apresentarCaps(bairro){const m=Object.entries(MACRO).find(([,bs])=>bs.some(b=>normSaudeMental(b)===normSaudeMental(bairro)))?.[0];if(!m)return null;return CAPS.filter(c=>c.areas.includes(Number(m))).map(c=>`• ${c.name} — ${c.address} · ${c.phone} · ${c.hours}. ${c.note}`).join('\n');}
 function respostaDeSaudeMentalTerritorio(texto){
@@ -5176,6 +5179,7 @@ function respostaDeSaudeMentalTerritorio(texto){
  if(!pedeCaps&&!pedeUbs&&!pedePsi)return null;
  if(!pedeCaps&&!pedeUbs&&/\bcras\b|tecnic|equipe|referencia tecnica|divisao territorial/.test(n))return null;
  const bairro=acharBairro(n);
+ if(!bairro&&!pedeCaps&&(pedeUbs||pedePsi)&&/\b(cada|todos|todas|todo|lista|listar|quais|divisao|dividid[oa]s?)\b/.test(n)&&/\b(bairro|bairros|territorio|macroarea|macroareas|ubs)\b/.test(n))return {tipoSaude:'ubs-psicologia-lista',texto:listarTodasUBS()};
  const pedidoTerritorial = /\b(bairro|bairros|territorio|macroarea|abrangencia|atende|cobre|referencia)\b/.test(n);
  if(!bairro && !pedidoTerritorial)return null;
  if(pedeCaps){if(bairro){const resp=apresentarCaps(bairro);return resp?{tipoSaude:'caps',texto:`Para o bairro ${bairro}, o diretório do Argo indica estas referências CAPS:\n${resp}\n\nA referência varia conforme o tipo de cuidado; confirme o acesso e o acolhimento diretamente com o serviço.`}:{tipoSaude:'nao-consta',texto:`Não encontrei macroárea cadastrada para ${bairro} nas listas CAPS do Argo. Confirme com a rede municipal/estadual.`};}const lista=CAPS.map(c=>`• ${c.name} — macroáreas ${c.areas.join(', ')}; ${c.address} · ${c.phone}`).join('\n');return {tipoSaude:'caps',texto:`CAPS de Boa Vista cadastrados no Argo:\n${lista}\nInforme o bairro para identificar a referência territorial.`};}
