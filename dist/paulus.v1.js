@@ -1818,7 +1818,8 @@ function detectarCrise(texto, jaCorrigido) {
 
 const STOP = new Set(('a o as os um uma uns umas de do da dos das em no na nos nas por para com sem sobre e ou que se ao aos ' +
   'qual quais como quem onde quando ser sao foi ha pelo pela pelos pelas seu sua seus suas ele ela eles elas isso essa esse este esta ' +
-  'meu minha eu voce nos eh mais muito sao tem ter pode podem deve devem fazer faz quanto quanta quantos quantas fica ficam').split(' '));
+  'meu minha eu voce nos eh mais muito sao tem ter pode podem deve devem fazer faz quanto quanta quantos quantas fica ficam ' +
+  'pra pro pras pros ta tava vc vcs pq tbm tb ne ai').split(' '));
 
 // Siglas comuns viram também a forma por extenso (a base costuma escrever por extenso).
 const SIGLAS = {
@@ -1861,7 +1862,14 @@ const SIGLAS = {
   tsft: ['trabalho', 'social', 'familias', 'territorios'],
   rma: ['relatorio', 'mensal', 'atendimentos'],
   gpte: ['grupos', 'populacionais', 'tradicionais', 'especificos'],
-  spsbd: ['servico', 'protecao', 'social', 'basica', 'domicilio']
+  spsbd: ['servico', 'protecao', 'social', 'basica', 'domicilio'],
+  ct: ['conselho', 'tutelar'],
+  bf: ['bolsa', 'familia'],
+  mp: ['ministerio', 'publico'],
+  esf: ['estrategia', 'saude', 'familia'],
+  inss: ['instituto', 'nacional', 'seguro', 'social'],
+  ubs: ['unidade', 'basica', 'saude'],
+  mse: ['medida', 'socioeducativa']
 };
 
 // Quantos trechos da base vão para a IA e para a resposta offline.
@@ -2104,9 +2112,43 @@ const CONCEITOS = [
   { re: /\b(?:desempregad[oa]s?|desemprego|sem emprego|sem trabalho|sem renda)\b/, exp: ['trabalho', 'renda', 'inclusao', 'produtiva'] },
   { re: /\b(?:briga em casa|brigas em casa|briga de familia|conflito familiar|conflitos familiares|familia brigando)\b/, exp: ['conflito', 'familiar', 'vinculos', 'familia'] },
   { re: /\b(?:menina gravida|gravidez na adolescencia|adolescente gravida|gravidez precoce)\b/, exp: ['gravidez', 'adolescencia', 'adolescente'] },
-  { re: /\b(?:crianca trabalhando|menor trabalhando|trabalho de crianca|criancas trabalhando)\b/, exp: ['trabalho', 'infantil', 'erradicacao'] }
+  { re: /\b(?:crianca trabalhando|menor trabalhando|trabalho de crianca|criancas trabalhando)\b/, exp: ['trabalho', 'infantil', 'erradicacao'] },
+  // Fala do dia a dia -> palavra da norma (ampliação). Cada linha liga o que a pessoa diz ao que o documento escreve.
+  { re: /\b(?:o bolsa|bolsa caiu|auxilio brasil|auxilio do governo|dinheiro do governo|bolsa da mae)\b/, exp: ['programa', 'bolsa', 'familia', 'transferencia', 'renda'] },
+  { re: /\b(?:beneficio do idoso|beneficio da pessoa com deficiencia|aposentadoria do governo|salario do governo|um salario minimo do governo|idos[oa] sem renda)\b/, exp: ['beneficio', 'prestacao', 'continuada', 'idosa', 'deficiencia'] },
+  { re: /\b(?:cad unico|cad\.? unico|cadastro desatualizado|atualizar o cadastro|cadastro vencido|cadastrar a familia|fazer o cadastro|numero do nis|\bnis\b)\b/, exp: ['cadastro', 'unico', 'atualizacao', 'cadastral'] },
+  { re: /\b(?:violencia domestica|marido bate|companheiro bate|mulher apanha|maria da penha|marido agride|ameaca de morte|ameacada de morte)\b/, exp: ['violencia', 'mulher', 'domestica', 'protecao'] },
+  { re: /\b(?:abuso sexual|abusad[oa]s?|estupro|estuprad[oa]s?|violencia sexual|importunacao|mexe com a (?:crianca|menina|filha|sobrinha))\b/, exp: ['violencia', 'sexual', 'crianca', 'adolescente', 'protecao'] },
+  { re: /\b(?:denunciar|denuncia|disque 100|disque cem|ligar 100)\b/, exp: ['denuncia', 'conselho', 'tutelar', 'violacao', 'direitos'] },
+  { re: /\b(?:fora da escola|evasao|largou a escola|parou de estudar|nao vai (?:a|para a|pra) escola|faltando aula|faltas na escola|infrequencia|infrequente)\b/, exp: ['frequencia', 'escolar', 'condicionalidade', 'educacao'] },
+  { re: /\b(?:abrigo|abrigad[oa]s?|casa de passagem|casa lar|orfanato|institucionalizad\w+)\b/, exp: ['acolhimento', 'institucional', 'servico', 'protecao', 'especial'] },
+  { re: /\b(?:ansiedade|ansios[oa]s?|depressao|deprimid[oa]s?|panico|sem animo|choro facil|nervos[oa]s?)\b/, exp: ['saude', 'mental', 'sofrimento', 'psiquico', 'atencao'] },
+  { re: /\b(?:terapia|psicoterapia|psicologo do posto|psicologo no sus|atendimento psicologico)\b/, exp: ['atendimento', 'psicologico', 'saude', 'mental', 'rede'] },
+  { re: /\b(?:idos[oa] sozinh[oa]|mora sozinh[oa]|isolad[oa]|sem ninguem|sem familia)\b/, exp: ['pessoa', 'idosa', 'isolamento', 'vinculos', 'convivencia'] },
+  { re: /\b(?:grupo de idosos|grupo de convivencia|atividades? para idosos|atividades? para criancas|projeto social)\b/, exp: ['servico', 'convivencia', 'fortalecimento', 'vinculos'] },
+  { re: /\b(?:sem documentos?|sem certidao|nao tem certidao|registro de nascimento|sem rg|sem cpf|segunda via)\b/, exp: ['documentacao', 'civil', 'certidao', 'nascimento', 'registro'] },
+  { re: /\b(?:tarifa social|conta de luz|desconto na luz|luz mais barata)\b/, exp: ['tarifa', 'social', 'energia', 'eletrica'] },
+  { re: /\b(?:passe livre|isencao de tarifa|carteira do idoso|carteira de gratuidade)\b/, exp: ['gratuidade', 'transporte', 'idoso', 'passe'] },
+  { re: /\b(?:curso profissionalizante|qualificacao profissional|vaga de emprego|procurar emprego|arrumar emprego)\b/, exp: ['inclusao', 'produtiva', 'trabalho', 'qualificacao'] },
+  { re: /\b(?:enchente|alagamento|desabrigad[oa]s?|casa caiu|perdeu tudo|incendio na casa|desastre)\b/, exp: ['emergencia', 'calamidade', 'desastre', 'beneficio', 'eventual', 'protecao'] },
+  { re: /\b(?:deixa a crianca sozinha|crianca sozinha em casa|nao cuida|descuid\w+|sem cuidado|negligenc\w+)\b/, exp: ['negligencia', 'abandono', 'protecao', 'crianca'] },
+  { re: /\b(?:ir na casa|visitar a familia|visita na casa|ir ate a casa)\b/, exp: ['visita', 'domiciliar', 'familia'] },
+  { re: /\b(?:zona rural|comunidade distante|interior do estado|longe da cidade|aldeia distante)\b/, exp: ['equipe', 'volante', 'itinerante', 'territorio'] }
 ];
 const PESO_CONCEITO = 0.6;
+
+// Erro de digitação nas palavras que ativam as gírias acima ("bolça", "benefisio", "violensia"): uma letra errada e a gíria não era reconhecida.
+// Só para essa detecção (a busca por raiz tem o seu próprio conserto, em corrigirDigitacao): a palavra a uma letra de distância de uma destas vira ela.
+const PALAVRAS_DO_TRABALHO = ['bolsa', 'beneficio', 'auxilio', 'cortaram', 'cortado', 'suspenso', 'bloqueado', 'cadastro', 'familia', 'violencia',
+  'crianca', 'criancas', 'escola', 'idoso', 'idosa', 'certidao', 'denuncia', 'denunciar', 'morador', 'deficiente', 'desempregado', 'aluguel',
+  'funeral', 'abrigo', 'ansiedade', 'depressao', 'terapia', 'psicologo', 'enchente', 'abandono', 'negligencia', 'abusada', 'estupro', 'marido'];
+function corrigirPalavrasDoTrabalho(consultaNorm) {
+  return consultaNorm.split(' ').map(function (t) {
+    if (t.length < 5 || PALAVRAS_DO_TRABALHO.indexOf(t) >= 0) return t;
+    const achadas = PALAVRAS_DO_TRABALHO.filter(function (w) { return w[0] === t[0] && umaLetraDeDiferenca(t, w); });
+    return achadas.length === 1 ? achadas[0] : t;
+  }).join(' ');
+}
 
 function conceitosDaConsulta(consultaNorm) {
   const saida = [];
@@ -2346,17 +2388,30 @@ function referenciaExata(indice, consulta, max = 4) {
 function buscar(indice, consulta, { k = 3, minScore = 1.2, minCobertura = 0.5, preferir = null } = {}) {
   if (!indice || !indice.N) return [];
   const { pesos, siglas } = termosDaConsulta(consulta);
+  const consultaNorm = corrigirPalavrasDoTrabalho(normalizar(consulta));
+  const conceitos = conceitosDaConsulta(consultaNorm);
+  // Palavra que NENHUM trecho da base tem ("vizinha", "caiu", um erro de digitação sem conserto) não ajuda a achar nada e, por ser a mais "rara",
+  // derrubava a cobertura de todos os trechos: uma palavra solta apagava a resposta. Ela sai da conta, desde que sobre ao menos uma palavra
+  // conhecida; sigla, número e gíria do trabalho (CONCEITOS) ficam. Se mais da metade das palavras saiu, a aderência não passa de "média".
+  const poupadas = new Set();
+  siglas.forEach(function (g) { poupadas.add(g.t); });
+  conceitos.forEach(function (g) { g.frase.forEach(function (t) { poupadas.add(t); }); });
+  const total = pesos.size;
+  const desconhecidas = Array.from(pesos.keys()).filter(function (t) { return !indice.df[t] && !poupadas.has(t) && !/\d/.test(t); });
+  let tetoAderencia = null;
+  if (desconhecidas.length && desconhecidas.length < total) {
+    desconhecidas.forEach(function (t) { pesos.delete(t); });
+    if (desconhecidas.length * 2 >= total) tetoAderencia = 'media';
+  }
   const termos = Array.from(pesos.keys());
   if (!termos.length) return [];
   let pesoTotal = 0;
   for (const p of pesos.values()) pesoTotal += p;
   const k1 = 1.4, b = 0.75;
   // Pergunta de definição com sigla: formas por extenso (palavras normalizadas) cujo trecho de definição ganha prioridade.
-  const consultaNorm = normalizar(consulta);
   const expansoesDefinicao = RE_PERGUNTA_DEFINICAO.test(consultaNorm)
     ? consultaNorm.split(' ').filter(function (t) { return SIGLAS[t] && !STOP.has(t); }).map(function (t) { return SIGLAS[t]; })
     : [];
-  const conceitos = conceitosDaConsulta(consultaNorm);
   const municipiosPergunta = municipiosEm(consultaNorm);
   const querDado = RE_QUER_DADO_LOCAL.test(consultaNorm);
   const querCenso = RE_QUER_CENSO.test(consultaNorm);
@@ -2429,7 +2484,7 @@ function buscar(indice, consulta, { k = 3, minScore = 1.2, minCobertura = 0.5, p
         if (expansoesDefinicao.some(function (e) { return defineASigla(inicio, e); })) ordem *= PESO_DEFINICAO;
       }
       const rar = coberturaPorRaridade(d, termos, pesos, siglas, conceitos, idfDe, pesoIdfTotal, tokensDoDoc && tokensDoDoc.get(d.c.doc) || null);
-      res.push({ trecho: d.c, score, cobertura, coberturaIdf: rar.cob, ancora: rar.ancora, ordem });
+      res.push({ trecho: d.c, score, cobertura, coberturaIdf: rar.cob, ancora: rar.ancora, ordem, tetoAderencia });
     }
   }
   res.sort((x, y) => y.ordem - x.ordem);
@@ -2524,9 +2579,59 @@ function chaveDeRepeticao(t) {
   return (t.doc || '') + '|' + String(t.referencia || '').replace(/\s*\(parte \d+(?: de \d+)?\)/g, '').trim();
 }
 
+// ------------------------------------------------------------------ erro de digitação
+// "bolça familia", "condicionalidadi", "cadastro unico" com letra trocada: a palavra não existe no índice e a busca a ignora, perdendo o assunto.
+// Para cada palavra que o índice não conhece, procura no vocabulário uma raiz a UMA letra de distância (troca, falta, sobra ou duas letras
+// invertidas), com a mesma letra inicial, e ACRESCENTA a palavra corrigida à consulta (a original fica, então nome de bairro ou de unidade que
+// a base não tem não se perde). Palavra curta, número e palavra que o índice já conhece não são mexidas.
+const CACHE_VOCAB = new WeakMap();
+
+function vocabularioDe(indice) {
+  let v = CACHE_VOCAB.get(indice);
+  if (!v) {
+    v = Object.keys(indice.df).filter(function (t) { return t.length >= 4 && indice.df[t] >= 2 && raiz(t) === t; });
+    CACHE_VOCAB.set(indice, v);
+  }
+  return v;
+}
+
+// Distância de edição igual a 1 (troca, inserção, remoção ou duas letras vizinhas invertidas).
+function umaLetraDeDiferenca(a, b) {
+  if (a === b) return false;
+  const la = a.length, lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  let i = 0;
+  while (i < la && i < lb && a[i] === b[i]) i++;
+  if (la === lb) {
+    if (a.slice(i + 1) === b.slice(i + 1)) return true;                                  // uma letra trocada
+    return i + 1 < la && a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2); // duas invertidas
+  }
+  return la > lb ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1);         // uma sobra ou uma falta
+}
+
+function corrigirDigitacao(indice, consulta) {
+  if (!indice || !indice.df || !consulta) return consulta;
+  const achadas = [];
+  const vistas = new Set();
+  for (const t of normalizar(consulta).split(' ')) {
+    if (t.length < 5 || /\d/.test(t) || STOP.has(t) || SIGLAS[t] || vistas.has(t)) continue;
+    vistas.add(t);
+    const r = raiz(t);
+    if (r.length < 4 || indice.df[r]) continue;
+    let melhor = null;
+    for (const cand of vocabularioDe(indice)) {
+      if (cand[0] !== r[0] || !umaLetraDeDiferenca(r, cand)) continue;
+      if (!melhor || indice.df[cand] > indice.df[melhor]) melhor = cand;
+    }
+    if (melhor) achadas.push(melhor);
+  }
+  return achadas.length ? consulta + ' ' + achadas.join(' ') : consulta;
+}
+
 // opcoes: { k, preferir, modo, temDiretorio } (modo 'consulta' com diretório do app: a pergunta é de unidade, e norma só entra se for forte).
 function buscarFontes(indice, consulta, opcoes = {}) {
   if (!indice || !indice.N) return [];
+  consulta = corrigirDigitacao(indice, consulta);
   const k = Math.max(1, opcoes.k || K_PADRAO);
   const deUnidade = opcoes.modo === 'consulta' && opcoes.temDiretorio === true;
   const alvo = deUnidade ? Math.min(k, 3) : k;
@@ -2571,7 +2676,11 @@ function buscarFontes(indice, consulta, opcoes = {}) {
     unicos.push(r);
   }
   const maxFinal = unicos.reduce(function (m, r) { return Math.max(m, r.exata ? 0 : r.ordem); }, 0);
-  unicos.forEach(function (r) { rotular(r, maxFinal); if (r.limiteDeAderencia) r.aderencia = r.limiteDeAderencia; });
+  unicos.forEach(function (r) {
+    rotular(r, maxFinal);
+    if (r.limiteDeAderencia) r.aderencia = r.limiteDeAderencia;
+    else if (r.tetoAderencia === 'media' && r.aderencia === 'alta') r.aderencia = 'media'; // muita palavra da pergunta a base não conhece
+  });
   // Com ao menos duas fontes que respondem de verdade, as de aderência baixa saem. Sem isso (a base não tem o assunto), ficam no máximo 3,
   // marcadas como baixa: a IA e a pessoa sabem que é o mais próximo, não uma resposta.
   const boas = unicos.filter(function (r) { return r.aderencia !== 'baixa'; });
@@ -4957,28 +5066,28 @@ const CTS = [
   { id: 'II', address: 'R. Dico Viêira, 1497 - Caimbé, Boa Vista-RR', phone: '(95) 98403-7780', hours: '08:00 às 18:00 (Plantão 24h)', bairros: ['Jardim Caranã','Caranã','Tancredo Neves','Caimbé','Asa Branca','Buritis','Jóquei Clube','União','Cinturão Verde','Centenário','Araceli','São Bento','Raiar do Sol','Bela Vista','Operário','Nova Cidade','Brigadeiro','Distrito Industrial','Pérola'] },
   { id: 'III', address: 'R. Pedro Aldemar Bantim, 1337 - Silvio Botelho, Boa Vista-RR', phone: '(95) 98411-6943', hours: '08:00 às 18:00 (Plantão 24h)', bairros: ['Cidade Satélite','Piscicultura','Jardim Primavera','Santa Tereza','Dr. Silvio Botelho','Dr. Silvio Leite','Alvorada','Pintolândia','Jardim Olímpico','Hélio Campos','Equatorial','Santa Luzia','Nova Canaã','Cambará','Cruviana','Laura Moreira'] }
 ];
-const normTerritorioCT = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\b(doutor|doutora|dr|dra)\b/g,'dr').replace(/\b(bairro|conjunto)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
-function linhaConselhoTutelar(ct) { return `Conselho Tutelar ${ct.id} — ${ct.address} · ${ct.phone} · ${ct.hours}`; }
+const normCT = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\b(doutor|doutora|dr|dra)\b/g,'dr').replace(/\b(bairro|conjunto)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
+function linhaCT(ct) { return `Conselho Tutelar ${ct.id} — ${ct.address} · ${ct.phone} · ${ct.hours}`; }
 function respostaDeTerritorioCT(texto) {
-  const n = normTerritorioCT(texto);
+  const n = normCT(texto);
   if (!/(conselh(?:o|os)(?:\s+tutelar(?:es)?)?|\bct\b|territorio.{0,20}conselh|conselh.{0,20}territorio)/.test(n)) return null;
   const escolhidos = CTS.filter(ct => new RegExp(`\\b(?:conselho tutelar|ct)\\s*(?:territorio\\s*)?(?:n\\s*|numero\\s*)?(?:${ct.id.toLowerCase()}|${ct.id === 'I' ? '1|primeiro' : ct.id === 'II' ? '2|segundo' : '3|terceiro'})\\b`).test(n));
   const pedidoLista = /\b(quais|lista|listar|bairros|territorios|divididos|divisao)\b/.test(n);
   const linhas = [];
   if (pedidoLista && escolhidos.length) {
-    for (const ct of escolhidos) linhas.push(`Conselho Tutelar ${ct.id} (${ct.bairros.length} bairros): ${ct.bairros.join('; ')}.\n• ${linhaConselhoTutelar(ct)}`);
+    for (const ct of escolhidos) linhas.push(`Conselho Tutelar ${ct.id} (${ct.bairros.length} bairros): ${ct.bairros.join('; ')}.\n• ${linhaCT(ct)}`);
     return { tipoTerritorio: 'conselho', texto: linhas.join('\n\n') + '\nLista do diretório do Argo SUAS; confirme por telefone, especialmente em bairros extensos ou de divisa.' };
   }
-  if (/\b(quantos|numero|existem)\b/.test(n) && /conselh/.test(n)) return { tipoTerritorio: 'geral', texto: `Boa Vista tem ${CTS.length} Conselhos Tutelares.\n${CTS.map(linhaConselhoTutelar).join('\n')}` };
-  if (/\b(telefone|fone|contato)\b/.test(n) && escolhidos.length) return { tipoTerritorio: 'contato', texto: escolhidos.map(linhaConselhoTutelar).join('\n') };
+  if (/\b(quantos|numero|existem)\b/.test(n) && /conselh/.test(n)) return { tipoTerritorio: 'geral', texto: `Boa Vista tem ${CTS.length} Conselhos Tutelares.\n${CTS.map(linhaCT).join('\n')}` };
+  if (/\b(telefone|fone|contato)\b/.test(n) && escolhidos.length) return { tipoTerritorio: 'contato', texto: escolhidos.map(linhaCT).join('\n') };
   const hits = [];
   for (const ct of CTS) for (const bairro of ct.bairros) {
-    const b = normTerritorioCT(bairro);
+    const b = normCT(bairro);
     if (b && new RegExp(`\\b${b.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`).test(n)) hits.push({ct,bairro});
   }
   const unique = [...new Map(hits.map(x => [x.ct.id, x])).values()];
-  if (unique.length) return { tipoTerritorio: 'bairro', texto: unique.map(x => `O bairro ${x.bairro} consta no território do Conselho Tutelar ${x.ct.id}.\n• ${linhaConselhoTutelar(x.ct)}`).join('\n\n') + '\nLista do diretório do Argo SUAS (não é mapa oficial de limites); bairros grandes ou de divisa podem ter ruas em outro território. Confirme por telefone antes de encaminhar.' };
-  if (escolhidos.length) return { tipoTerritorio: 'conselho', texto: escolhidos.map(ct => `Conselho Tutelar ${ct.id}: ${ct.bairros.join('; ')}.\n• ${linhaConselhoTutelar(ct)}`).join('\n\n') };
+  if (unique.length) return { tipoTerritorio: 'bairro', texto: unique.map(x => `O bairro ${x.bairro} consta no território do Conselho Tutelar ${x.ct.id}.\n• ${linhaCT(x.ct)}`).join('\n\n') + '\nLista do diretório do Argo SUAS (não é mapa oficial de limites); bairros grandes ou de divisa podem ter ruas em outro território. Confirme por telefone antes de encaminhar.' };
+  if (escolhidos.length) return { tipoTerritorio: 'conselho', texto: escolhidos.map(ct => `Conselho Tutelar ${ct.id}: ${ct.bairros.join('; ')}.\n• ${linhaCT(ct)}`).join('\n\n') };
   return { tipoTerritorio: 'nao-consta', texto: `Não identifiquei esse bairro nas listas de território dos Conselhos Tutelares do Argo SUAS. Não vou deduzir pelo CRAS ou por bairro vizinho. Confirme por telefone: ${CTS.map(ct => `Conselho Tutelar ${ct.id} ${ct.phone}`).join(' · ')}.` };
 }
 const territoriosCT = CTS.map(ct => ({ ...ct, bairros: [...ct.bairros] }));
@@ -4993,23 +5102,23 @@ const DPS = [
  { id:'4º', bairros:['Alvorada','Doutor Sílvio Botelho','Doutor Sílvio Leite','Equatorial','Nova Canaã','Pintolândia','Santa Luzia','Senador Hélio Campos'], address:'Avenida São Sebastião, 2568, esquina com a Rua América Sarmento, Tancredo Neves, Boa Vista-RR, CEP 69313-492 (endereço provisório, mesmo prédio do 3º DP)', phones:'Cartório: (95) 98400-0128; Plantão: (95) 98413-5582' },
  { id:'5º', bairros:['Bela Vista','Doutor Airton Rocha','Governador Aquilino Mota Duarte (Distrito Industrial)','Laura Moreira','Loteamento Pérola do Rio Branco','Marechal Rondon','Nova Cidade','Operário','Professora Aracelis Souto Maior','Raiar do Sol','São Bento','Área rural de Boa Vista a partir da faixa esquerda da RR-205 até os limites com Alto Alegre, Mucajaí e Cantá'], address:'R. Parque Industrial, S/N - Gov. Aquilino Mota Duarte (Distrito Industrial), Boa Vista-RR – CEP 69.308-050', phones:'Cartório: (95) 98400-0498; Plantão: (95) 98413-6414' }
 ];
-const normDistritoPolicial = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\b(doutor|doutora|dr|dra)\b/g,'dr').replace(/\b(bairro|conjunto)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
-const linhaDistritoPolicial = dp => `${dp.id} Distrito Policial — ${dp.address} · ${dp.phones} · Segunda a sexta, 07:30 às 19:30`;
+const normDP = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\b(doutor|doutora|dr|dra)\b/g,'dr').replace(/\b(bairro|conjunto)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
+const linhaDP = dp => `${dp.id} Distrito Policial — ${dp.address} · ${dp.phones} · Segunda a sexta, 07:30 às 19:30`;
 const rxEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 function respostaDeDistritoPolicial(texto) {
- const n=normDistritoPolicial(texto);
+ const n=normDP(texto);
  if (!/(distrito policial|\bdp\b|delegacia|plantao|flagrante)/.test(n)) return null;
  const escolhidos=DPS.filter(dp=>new RegExp(`\\b(?:${dp.id[0]}|${dp.id[0]}º|${dp.id[0]}o)\\s*(?:distrito policial|dp)\\b|\\b(?:distrito policial|dp)\\s*(?:n\\s*)?${dp.id[0]}\\b`).test(n));
  const lista=/\b(quais|lista|listar|bairros|circunscricao|territorios|divisao)\b/.test(n);
- if (/\b(quantos|numero|existem)\b/.test(n) && /distrito policial|\bdp\b/.test(n)) return {tipoTerritorio:'geral',texto:`Boa Vista tem ${DPS.length} Distritos Policiais com circunscrições territoriais no diretório do Argo.\n${DPS.map(linhaDistritoPolicial).join('\n')}`};
- if (/\b(telefone|fone|contato)\b/.test(n) && escolhidos.length) return {tipoTerritorio:'contato',texto:escolhidos.map(linhaDistritoPolicial).join('\n')};
- if (lista && escolhidos.length) return {tipoTerritorio:'distrito',texto:escolhidos.map(dp=>`${dp.id} Distrito Policial (${dp.bairros.length} localidades): ${dp.bairros.join('; ')}.\n• ${linhaDistritoPolicial(dp)}`).join('\n\n')+'\nCircunscrições conforme o diretório do Argo SUAS; confirme com a Polícia Civil se houver dúvida.'};
- if (/\b(area rural|zona rural)\b/.test(n) && !escolhidos.length) return {tipoTerritorio:'bairro',texto:`A área rural de Boa Vista (faixa esquerda da RR-205 até os limites com Alto Alegre, Mucajaí e Cantá) consta na circunscrição do 5º Distrito Policial.\n• ${linhaDistritoPolicial(DPS[4])}\nConfirme a circunscrição com a Polícia Civil.`};
+ if (/\b(quantos|numero|existem)\b/.test(n) && /distrito policial|\bdp\b/.test(n)) return {tipoTerritorio:'geral',texto:`Boa Vista tem ${DPS.length} Distritos Policiais com circunscrições territoriais no diretório do Argo.\n${DPS.map(linhaDP).join('\n')}`};
+ if (/\b(telefone|fone|contato)\b/.test(n) && escolhidos.length) return {tipoTerritorio:'contato',texto:escolhidos.map(linhaDP).join('\n')};
+ if (lista && escolhidos.length) return {tipoTerritorio:'distrito',texto:escolhidos.map(dp=>`${dp.id} Distrito Policial (${dp.bairros.length} localidades): ${dp.bairros.join('; ')}.\n• ${linhaDP(dp)}`).join('\n\n')+'\nCircunscrições conforme o diretório do Argo SUAS; confirme com a Polícia Civil se houver dúvida.'};
+ if (/\b(area rural|zona rural)\b/.test(n) && !escolhidos.length) return {tipoTerritorio:'bairro',texto:`A área rural de Boa Vista (faixa esquerda da RR-205 até os limites com Alto Alegre, Mucajaí e Cantá) consta na circunscrição do 5º Distrito Policial.\n• ${linhaDP(DPS[4])}\nConfirme a circunscrição com a Polícia Civil.`};
  const hits=[];
- for(const dp of DPS) for(const bairro of dp.bairros){const b=normDistritoPolicial(bairro); if(b && new RegExp(`\\b${rxEsc(b)}\\b`).test(n)) hits.push({dp,bairro});}
+ for(const dp of DPS) for(const bairro of dp.bairros){const b=normDP(bairro); if(b && new RegExp(`\\b${rxEsc(b)}\\b`).test(n)) hits.push({dp,bairro});}
  const unique=[...new Map(hits.map(x=>[x.dp.id,x])).values()];
- if(unique.length) return {tipoTerritorio:'bairro',texto:unique.map(x=>`A localidade ${x.bairro} consta na circunscrição do ${x.dp.id} Distrito Policial.\n• ${linhaDistritoPolicial(x.dp)}`).join('\n\n')+'\nLista do diretório do Argo SUAS; confirme com a Polícia Civil, especialmente para endereços em limites de bairros.'};
- if(escolhidos.length) return {tipoTerritorio:'distrito',texto:escolhidos.map(dp=>`${dp.id} Distrito Policial: ${dp.bairros.join('; ')}.\n• ${linhaDistritoPolicial(dp)}`).join('\n\n')};
+ if(unique.length) return {tipoTerritorio:'bairro',texto:unique.map(x=>`A localidade ${x.bairro} consta na circunscrição do ${x.dp.id} Distrito Policial.\n• ${linhaDP(x.dp)}`).join('\n\n')+'\nLista do diretório do Argo SUAS; confirme com a Polícia Civil, especialmente para endereços em limites de bairros.'};
+ if(escolhidos.length) return {tipoTerritorio:'distrito',texto:escolhidos.map(dp=>`${dp.id} Distrito Policial: ${dp.bairros.join('; ')}.\n• ${linhaDP(dp)}`).join('\n\n')};
  if(/\b(plantao|flagrante|24 horas|24h)\b/.test(n)) return {tipoTerritorio:'plantao',texto:'O diretório do Argo informa que a Central de Flagrantes atende 24 horas, no endereço R. Parque Industrial, S/N - Gov. Aquilino Mota Duarte, Boa Vista-RR. Telefones: Cartório (95) 98400-2606; Plantão (95) 98400-2659. Em emergência imediata, ligue 190.'};
  return {tipoTerritorio:'nao-consta',texto:'Não identifiquei essa localidade nas circunscrições dos Distritos Policiais listadas no Argo SUAS. Não vou deduzir pelo distrito vizinho. Confirme com a Polícia Civil de Boa Vista.'};
 }
@@ -5049,21 +5158,165 @@ const UBS=[
  {name:'UBS Santa Luzia',macro:7,address:'Av. Abel Monteiro Reis, 1786 - Pintolândia, Boa Vista-RR, 69316-398',phone:'Não consta'},
  {name:'UBS Sayonara',macro:7,address:'Av. Raimundo Rodrigues Coelho, 2280 - Dr. Silvio Botelho, Boa Vista-RR, 69316-762',phone:'Não consta'}
 ];
+// UBS com psicólogo(a) próprio(a) por informação de campo no Argo (sem lista de abrangência por macroárea): vale só para o bairro onde fica.
+const UBS_CAMPO=[
+ {name:'UBS Bernardo Alem (UBS Vila Jardim)',bairros:['Cidade Satélite','Vila Jardim'],address:'R. Josemar Batista de Souza, 1200 - Cidade Satélite (Conj. Vila Jardim), Boa Vista-RR',phone:'Não consta'}
+];
+// Outras grafias de bairro que o Argo usa: nome canônico (da lista de macroáreas, ou fora dela).
+const APELIDOS_BAIRRO={'araceli souto maior':'Professora Aracelis Souto Maior','aracelis souto maior':'Professora Aracelis Souto Maior','professora araceli souto maior':'Professora Aracelis Souto Maior','vila jardim':'Vila Jardim'};
 const normSaudeMental=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\b(doutor|doutora|dr|dra)\b/g,'dr').replace(/\b(bairro|conjunto|loteamento)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
-const acharBairro=n=>Object.values(MACRO).flat().find(b=>new RegExp(`\\b${normSaudeMental(b).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`).test(n));
+const reBairroSM=b=>new RegExp(`\\b${normSaudeMental(b).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`);
+const acharBairro=n=>Object.values(MACRO).flat().find(b=>reBairroSM(b).test(n))||Object.entries(APELIDOS_BAIRRO).find(([a])=>reBairroSM(a).test(n))?.[1];
+const campoDoBairroSM=b=>UBS_CAMPO.filter(u=>u.bairros.some(x=>normSaudeMental(x)===normSaudeMental(b)));
+function apresentarCampoSM(b){return campoDoBairroSM(b).map(u=>`• ${u.name} — ${u.address} · telefone: ${u.phone} (informação de campo no Argo: a unidade passou a ter psicólogo(a) próprio(a); confirme se há atendimento e agenda)`).join('\n');}
 function apresentarUBS(m){return UBS.filter(u=>u.macro===m).map(u=>`• ${u.name} — ${u.address} · telefone: ${u.phone}`).join('\n');}
 function apresentarCaps(bairro){const m=Object.entries(MACRO).find(([,bs])=>bs.some(b=>normSaudeMental(b)===normSaudeMental(bairro)))?.[0];if(!m)return null;return CAPS.filter(c=>c.areas.includes(Number(m))).map(c=>`• ${c.name} — ${c.address} · ${c.phone} · ${c.hours}. ${c.note}`).join('\n');}
 function respostaDeSaudeMentalTerritorio(texto){
  const n=normSaudeMental(texto); const pedeCaps=/\bcaps\b|centro de atencao psicossocial/.test(n); const pedeUbs=/\bubs\b/.test(n); const pedePsi=/psicolog|psicoterapia|saude mental/.test(n);
  if(!pedeCaps&&!pedeUbs&&!pedePsi)return null;
+ if(!pedeCaps&&!pedeUbs&&/\bcras\b|tecnic|equipe|referencia tecnica|divisao territorial/.test(n))return null;
  const bairro=acharBairro(n);
  const pedidoTerritorial = /\b(bairro|bairros|territorio|macroarea|abrangencia|atende|cobre|referencia)\b/.test(n);
  if(!bairro && !pedidoTerritorial)return null;
  if(pedeCaps){if(bairro){const resp=apresentarCaps(bairro);return resp?{tipoSaude:'caps',texto:`Para o bairro ${bairro}, o diretório do Argo indica estas referências CAPS:\n${resp}\n\nA referência varia conforme o tipo de cuidado; confirme o acesso e o acolhimento diretamente com o serviço.`}:{tipoSaude:'nao-consta',texto:`Não encontrei macroárea cadastrada para ${bairro} nas listas CAPS do Argo. Confirme com a rede municipal/estadual.`};}const lista=CAPS.map(c=>`• ${c.name} — macroáreas ${c.areas.join(', ')}; ${c.address} · ${c.phone}`).join('\n');return {tipoSaude:'caps',texto:`CAPS de Boa Vista cadastrados no Argo:\n${lista}\nInforme o bairro para identificar a referência territorial.`};}
- if(pedeUbs||pedePsi){if(!bairro)return {tipoSaude:'ubs-psicologia',texto:'Diga o bairro de Boa Vista para eu procurar, nas listas do Argo, a UBS com atendimento psicológico que cobre a macroárea.'};const m=Number(Object.keys(MACRO).find(k=>MACRO[k].some(b=>normSaudeMental(b)===normSaudeMental(bairro))));const unidades=apresentarUBS(m);if(unidades)return {tipoSaude:'ubs-psicologia',texto:`Para ${bairro} (Macroárea ${m}), o Argo lista estas UBS com atendimento psicológico e cobertura da macroárea:\n${unidades}\n\nA lista não confirma agenda ou disponibilidade atual de profissional; ligue antes de encaminhar.`};if(m===8)return {tipoSaude:'nao-consta',texto:`${bairro} consta na Macroárea 8, mas o cadastro do Argo consultado não identifica uma UBS com atendimento psicológico para essa macroárea. Não vou indicar outra UBS por proximidade; confirme com a rede municipal.`};return {tipoSaude:'nao-consta',texto:`Não achei ${bairro} nas listas de UBS com atendimento psicológico do Argo. Confirme com a rede municipal, sem inferir pela proximidade.`};}
+ if(pedeUbs||pedePsi){if(!bairro)return {tipoSaude:'ubs-psicologia',texto:'Diga o bairro de Boa Vista para eu procurar, nas listas do Argo, a UBS com atendimento psicológico que cobre a macroárea.'};
+  const mk=Object.keys(MACRO).find(k=>MACRO[k].some(b=>normSaudeMental(b)===normSaudeMental(bairro)));const m=mk?Number(mk):null;
+  const unidades=m?apresentarUBS(m):'';const campo=apresentarCampoSM(bairro);
+  const aviso='\n\nA lista não confirma agenda ou disponibilidade atual de profissional; ligue antes de encaminhar.';
+  if(unidades||campo)return {tipoSaude:'ubs-psicologia',texto:`Para ${bairro}${m?` (Macroárea ${m})`:''}, o Argo lista estas UBS com atendimento psicológico:\n${[unidades,campo].filter(Boolean).join('\n')}${aviso}`};
+  if(m===8)return {tipoSaude:'nao-consta',texto:`${bairro} consta na Macroárea 8, mas o cadastro do Argo consultado não identifica uma UBS com atendimento psicológico para essa macroárea. Não vou indicar outra UBS por proximidade; confirme com a rede municipal.`};
+  return {tipoSaude:'nao-consta',texto:`Não achei ${bairro} nas listas de UBS com atendimento psicológico do Argo. Confirme com a rede municipal, sem inferir pela proximidade.`};}
  return null;
 }
-const territoriosSaudeMental={caps:CAPS,macroareas:MACRO,ubs:UBS};
+const territoriosSaudeMental={caps:CAPS,macroareas:MACRO,ubs:UBS,ubsCampo:UBS_CAMPO};
+
+// ---- shared/equipe-cras-cristiana.mjs ----
+// Equipe técnica do CRAS Cristiana Vicente Nunes (Boa Vista) e a divisão do território por técnico(a),
+// espelhadas de js/equipe-cras-cristiana.js do Argo SUAS (fonte única de dados do Argo).
+// Sem IA e sem rede. Só existe dado deste CRAS: para os demais, diz que o diretório não traz a equipe por bairro.
+// Para atualizar: edite o Argo e copie EQ_CRAS abaixo (ou rode `npm run importar:enderecos-argo`, que gera o documento de apoio).
+const EQ_CRAS = {
+  unidade: 'CRAS Cristiana Vicente Nunes',
+  fixedTeam: [
+    { name: 'Fernanda Gomes', role: 'Psicóloga', bairros: 'Buritis e Caimbé' },
+    { name: 'Cléo Sousa', role: 'Assistente Social', bairros: 'Liberdade e Pricumã' },
+    { name: 'Bárbara Parente', role: 'Assistente Social', bairros: 'Tancredo Neves, Cambará e Olímpico' },
+    { name: 'Susy Andrade', role: 'Pedagoga', bairros: 'Centenário e Nova Canaã' },
+    { name: 'Paloma de Assis', role: 'Assistente Social', bairros: 'Cinturão Verde e Jóquei Clube' },
+    { name: 'Rafaela Garcia', role: 'Assistente Social', bairros: 'Asa Branca' }
+  ],
+  fixedCoverage: ['13 de Setembro', 'Asa Branca', 'Buritis', 'Caimbé', 'Cambará', 'Centenário', 'Cinturão Verde', 'Jóquei Clube', 'Liberdade', 'Marechal Rondon', 'Nova Canaã', 'Olímpico', 'Pricumã', 'Araceli Souto Maior', 'Tancredo Neves'],
+  volanteTeam: [
+    { name: 'Keomara Teles', role: 'Assistente Social', note: 'Atendimento Itinerante' },
+    { name: 'Danilo Braga', role: 'Psicólogo', note: 'Atendimento Itinerante' },
+    { name: 'Paulo Xavier', role: 'Psicólogo', note: 'Atendimento Itinerante' }
+  ],
+  volanteDesc: 'Responsável por levar serviços (PAIF, CadÚnico) a áreas de difícil acesso e populações dispersas.',
+  volanteCoverage: ['Araceli Souto Maior', '13 de Setembro', 'Ocupação Nova Vida']
+};
+// Grafias que o povo usa para o mesmo bairro.
+const EQ_APELIDOS = { 'Araceli Souto Maior': ['professora araceli souto maior', 'professora aracelis souto maior', 'aracelis souto maior', 'araceli souto maior', 'aracelis', 'araceli'] };
+const eqNorm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\b(doutor|doutora|dr|dra)\b/g, 'dr').replace(/\b(bairro|conjunto|loteamento)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+const eqEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const eqTem = (n, termo) => new RegExp(`(?:^| )${eqEsc(eqNorm(termo))}(?: |$)`).test(n);
+const eqFmt = x => `${x.name} (${x.role})`;
+const eqLista = s => s.split(/,\s*|\s+e\s+/).map(x => x.trim()).filter(Boolean);
+
+// Todos os bairros que o módulo reconhece, do nome mais longo ao mais curto.
+const EQ_NOMES = (() => {
+  const base = new Map();
+  const add = (rotulo, termo) => { const k = eqNorm(termo); if (k && !base.has(k)) base.set(k, rotulo); };
+  const rotulos = new Set([...EQ_CRAS.fixedCoverage, ...EQ_CRAS.volanteCoverage, ...EQ_CRAS.fixedTeam.flatMap(t => eqLista(t.bairros))]);
+  for (const r of rotulos) { add(r, r); for (const a of EQ_APELIDOS[r] || []) add(r, a); }
+  return [...base.entries()].sort((a, b) => b[0].length - a[0].length);
+})();
+function eqBairrosCitados(n) {
+  const usados = []; const achados = new Map(); const padded = ` ${n} `;
+  for (const [k, rotulo] of EQ_NOMES) {
+    const at = padded.indexOf(` ${k} `); if (at < 0) continue;
+    const ini = at, fim = at + k.length + 2;
+    if (usados.some(u => ini < u[1] && fim > u[0])) continue;
+    usados.push([ini, fim]); achados.set(rotulo, true);
+  }
+  return [...achados.keys()];
+}
+
+const RADICAL = { psicologo: ['psicolog', 'psicólogo(a)'], assistente: ['assistente', 'assistente social'], pedagogo: ['pedagog', 'pedagogo(a)'] };
+function eqLinhaBairro(bairro, pedido) {
+  const fixos = EQ_CRAS.fixedTeam.filter(t => eqLista(t.bairros).some(b => b === bairro));
+  const volante = EQ_CRAS.volanteCoverage.includes(bairro);
+  const cobre = EQ_CRAS.fixedCoverage.includes(bairro);
+  const partes = [];
+  if (fixos.length) {
+    partes.push(`Bairro ${bairro}: técnico(a) de referência no ${EQ_CRAS.unidade}: ${fixos.map(eqFmt).join(' e ')}.`);
+    const falta = pedido ? RADICAL[pedido] : null;
+    if (falta && !fixos.some(x => eqNorm(x.role).startsWith(falta[0]))) partes.push(`Não consta ${falta[1]} de referência fixo para esse bairro no diretório do Argo.`);
+  } else if (volante) {
+    partes.push(`Bairro ${bairro}: não há técnico(a) fixo cadastrado no ${EQ_CRAS.unidade}; o atendimento itinerante (PAIF e CadÚnico) é feito pela equipe volante: ${EQ_CRAS.volanteTeam.map(eqFmt).join(', ')}.`);
+  } else if (cobre) {
+    partes.push(`Bairro ${bairro}: consta na cobertura do ${EQ_CRAS.unidade}, mas o diretório do Argo não traz técnico(a) de referência para ele. Confirme com a unidade.`);
+  }
+  if (fixos.length && volante) partes.push(`O bairro também recebe o atendimento itinerante (PAIF e CadÚnico) da equipe volante: ${EQ_CRAS.volanteTeam.map(eqFmt).join(', ')}.`);
+  return partes.join(' ');
+}
+function eqTextoCompleto() {
+  const fixa = EQ_CRAS.fixedTeam.map(t => `• ${t.name} (${t.role}) — ${t.bairros}`).join('\n');
+  const vol = EQ_CRAS.volanteTeam.map(t => `• ${t.name} (${t.role}) — ${t.note}`).join('\n');
+  return `Equipe técnica do ${EQ_CRAS.unidade}, por território:\n${fixa}\n\nEquipe volante (atendimento itinerante; ${EQ_CRAS.volanteDesc.replace(/\.$/, '')}), que cobre ${EQ_CRAS.volanteCoverage.join(', ')}:\n${vol}\n\nBairros na cobertura fixa do CRAS: ${EQ_CRAS.fixedCoverage.join(', ')}.`;
+}
+
+const EQ_RE_TECNICO = /\b(tecnico|tecnica|tecnicos|tecnicas|psicolog[oa]s?|assistentes? soci(?:al|ais)|pedagog[oa]s?|referencia tecnica|equipe tecnica|equipe volante|volante|itinerante|divisao territorial|divisao do territorio)\b/;
+const EQ_RE_CRISTIANA = /\bcras cristiana\b|\bcristiana vicente\b|\bcras do centenario\b|\bcras centenario\b/;
+const EQ_RE_UBS_CAPS = /\bubs\b|\bcaps\b|posto de saude|unidade basica|centro de atencao psicossocial/;
+
+function respostaDeEquipeCras(texto) {
+  const n = eqNorm(texto);
+  if (!n || EQ_RE_UBS_CAPS.test(n)) return null;
+  const citouCras = EQ_RE_CRISTIANA.test(n);
+  const outroCras = /\bcras\b/.test(n.replace(EQ_RE_CRISTIANA, ' '));
+  const nomeTecnico = EQ_CRAS.fixedTeam.concat(EQ_CRAS.volanteTeam).find(t => eqTem(n, t.name) || (eqNorm(t.name).split(' ').length > 1 && eqTem(n, eqNorm(t.name).split(' ')[0]) && EQ_RE_TECNICO.test(n)));
+  const pedeTecnico = EQ_RE_TECNICO.test(n) || (citouCras && /\b(quem|atende|atendem|referencia|responsavel|cobre|territorio)\b/.test(n));
+  if (!pedeTecnico && !nomeTecnico) return null;
+  const bairros = eqBairrosCitados(n);
+  const pedido = /\bpsicolog/.test(n) ? 'psicologo' : /\bassistentes? soci(?:al|ais)\b/.test(n) ? 'assistente' : /\bpedagog/.test(n) ? 'pedagogo' : null;
+  const pedeVolante = /\b(volante|itinerante)\b/.test(n);
+  const pedeLista = /\b(quais|lista|listar|equipe|divisao|divisoes|todos|todas|dividido|dividida|divididos)\b/.test(n);
+
+  // pergunta por uma pessoa da equipe: "Fernanda atende quais bairros?"
+  if (nomeTecnico && !bairros.length) {
+    if (nomeTecnico.bairros) return { tipoEquipe: 'tecnico', texto: `${eqFmt(nomeTecnico)} é referência no ${EQ_CRAS.unidade} para: ${nomeTecnico.bairros}.` };
+    return { tipoEquipe: 'volante', texto: `${eqFmt(nomeTecnico)} integra a equipe volante (${nomeTecnico.note}) do ${EQ_CRAS.unidade}, que cobre ${EQ_CRAS.volanteCoverage.join(', ')}. ${EQ_CRAS.volanteDesc}` };
+  }
+  if (bairros.length) {
+    // outro CRAS citado e nenhum o Cristiana: não há dado de equipe
+    if (outroCras && !citouCras) return { tipoEquipe: 'nao-consta', texto: `O diretório do Argo só traz a divisão da equipe técnica por bairro do ${EQ_CRAS.unidade}. Para outro CRAS, confirme o(a) técnico(a) de referência diretamente com a unidade.` };
+    const linhas = bairros.map(b => eqLinhaBairro(b, pedido)).filter(Boolean);
+    if (linhas.length) return { tipoEquipe: 'bairro', texto: linhas.join('\n') + '\nDivisão do diretório do Argo SUAS; confirme com o CRAS antes de encaminhar, porque a equipe pode mudar.' };
+  }
+  if (pedeVolante) return { tipoEquipe: 'volante', texto: `Equipe volante do ${EQ_CRAS.unidade} (atendimento itinerante em ${EQ_CRAS.volanteCoverage.join(', ')}): ${EQ_CRAS.volanteTeam.map(eqFmt).join(', ')}. ${EQ_CRAS.volanteDesc}` };
+  if (citouCras && (pedeLista || pedido)) {
+    if (pedido) {
+      const fixos = EQ_CRAS.fixedTeam.filter(t => eqNorm(t.role).startsWith(RADICAL[pedido][0]));
+      const vol = EQ_CRAS.volanteTeam.filter(t => eqNorm(t.role).startsWith(RADICAL[pedido][0]));
+      const l = [...fixos.map(t => `• ${t.name} (${t.role}) — ${t.bairros}`), ...vol.map(t => `• ${t.name} (${t.role}) — equipe volante`)];
+      if (l.length) return { tipoEquipe: 'funcao', texto: `No ${EQ_CRAS.unidade}:\n${l.join('\n')}` };
+    }
+    return { tipoEquipe: 'equipe', texto: eqTextoCompleto() };
+  }
+  if (citouCras && !bairros.length) return { tipoEquipe: 'equipe', texto: eqTextoCompleto() };
+  // "quem é o técnico do bairro?" sem bairro nem CRAS: pede o bairro
+  if (!citouCras && !outroCras && /\b(meu|minha|moro|bairro|qual|quem)\b/.test(n) && !pedeLista) return { tipoEquipe: 'pergunta', texto: `Diga o bairro para eu procurar o(a) técnico(a) de referência. O diretório do Argo traz essa divisão só para o ${EQ_CRAS.unidade}.` };
+  if (!citouCras && !outroCras && pedeLista && /\b(equipe|divisao|territorial)\b/.test(n) && /\b(cras|tecnica|tecnicos|tecnico|territorial)\b/.test(n)) return { tipoEquipe: 'equipe', texto: eqTextoCompleto() };
+  return null;
+}
+const equipeCrasCristiana = {
+  unidade: EQ_CRAS.unidade,
+  fixedTeam: EQ_CRAS.fixedTeam.map(t => ({ ...t })),
+  fixedCoverage: [...EQ_CRAS.fixedCoverage],
+  volanteTeam: EQ_CRAS.volanteTeam.map(t => ({ ...t })),
+  volanteDesc: EQ_CRAS.volanteDesc,
+  volanteCoverage: [...EQ_CRAS.volanteCoverage]
+};
 
 // ---- shared/geo.mjs ----
 // Geografia do Paulus: coordenadas, endereço no padrão, "perto de", distância, bairro, links de mapa, GPX e KML.
@@ -9849,6 +10102,7 @@ function memEhSensivel(texto) { return MEM_RE_SENSIVEL.test(normalizar(texto)); 
 
 
 
+
 const AVISO_PESSOAL = 'Para proteger as famílias, não consigo analisar mensagens com nome, documento, telefone ou endereço residencial. Reescreva a pergunta sem identificar ninguém.';
 
 // Igual ao limite do Worker (worker/prompt.mjs). Antes eram 5 aqui, e o Argo mandava até 10 (lista de bairros, "liste todos").
@@ -10658,6 +10912,11 @@ async function perguntar(texto, opcoes) {
     const sm = respostaDeSaudeMentalTerritorio(t);
     if (sm) return { tipo: 'saude-mental-territorio', tipoSaude: sm.tipoSaude, texto: sm.texto, fontes: [], avisos: ['Baseado nas listas do Argo SUAS; a disponibilidade atual de profissional/agenda deve ser confirmada com a unidade.'], pergunta: '', docs: [] };
   }
+  // Equipe técnica do CRAS Cristiana Vicente Nunes e o território dividido por técnico(a): diretório local do Argo, sem IA/rede.
+  if (!o.semGeo) {
+    const eq = respostaDeEquipeCras(t);
+    if (eq) return { tipo: 'equipe-cras', tipoEquipe: eq.tipoEquipe, texto: eq.texto, fontes: [], avisos: ['Divisão por técnico(a) do diretório do Argo SUAS (só existe para o CRAS Cristiana Vicente Nunes); confirme com a unidade, pois a equipe pode mudar.'], pergunta: '', docs: [] };
+  }
   // Circunscrições dos Distritos Policiais: diretório local do Argo, sem IA/rede e sem inferência por proximidade.
   if (!o.semGeo) {
     const dp = respostaDeDistritoPolicial(t);
@@ -10763,6 +11022,7 @@ const Paulus = { init, perguntar, rota: { ler: lerPedidoDeRota, responder: respo
   territorioCT: { responder: respostaDeTerritorioCT, lista: territoriosCT },
   distritosPoliciais: { responder: respostaDeDistritoPolicial, lista: distritosPoliciais },
   saudeMentalTerritorio: { responder: respostaDeSaudeMentalTerritorio, dados: territoriosSaudeMental },
+  equipeCras: { responder: respostaDeEquipeCras, dados: equipeCrasCristiana },
   geo: { responder: respostaDeGeo, tipo: geoTipoDePedido, coordenadas: geoLerCoordenadas, formatar: geoFormatarCoordenadas, endereco: geoNormalizarEndereco, montarEndereco: geoMontarEndereco, perto: function (centro, opcoes, o) { return geoPerto(centro, geoFontes(opcoes || {}), o); }, distanciaKm: geoDistanciaKm, links: geoLinksDeRota, gpx: geoParaGpx, kml: geoParaKml },
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
