@@ -5,6 +5,7 @@ norma: Síntese própria, em português, de verbetes do APA Dictionary of Psycho
 ano: 2026
 tipo: apoio
 pacote: psicologia
+worker: nao
 revisao: pendente
 ---
 
