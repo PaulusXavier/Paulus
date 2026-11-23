@@ -3,7 +3,8 @@
 
 const STOP = new Set(('a o as os um uma uns umas de do da dos das em no na nos nas por para com sem sobre e ou que se ao aos ' +
   'qual quais como quem onde quando ser sao foi ha pelo pela pelos pelas seu sua seus suas ele ela eles elas isso essa esse este esta ' +
-  'meu minha eu voce nos eh mais muito sao tem ter pode podem deve devem fazer faz quanto quanta quantos quantas fica ficam').split(' '));
+  'meu minha eu voce nos eh mais muito sao tem ter pode podem deve devem fazer faz quanto quanta quantos quantas fica ficam ' +
+  'pra pro pras pros ta tava vc vcs pq tbm tb ne ai').split(' '));
 
 // Siglas comuns viram também a forma por extenso (a base costuma escrever por extenso).
 export const SIGLAS = {
@@ -46,7 +47,14 @@ export const SIGLAS = {
   tsft: ['trabalho', 'social', 'familias', 'territorios'],
   rma: ['relatorio', 'mensal', 'atendimentos'],
   gpte: ['grupos', 'populacionais', 'tradicionais', 'especificos'],
-  spsbd: ['servico', 'protecao', 'social', 'basica', 'domicilio']
+  spsbd: ['servico', 'protecao', 'social', 'basica', 'domicilio'],
+  ct: ['conselho', 'tutelar'],
+  bf: ['bolsa', 'familia'],
+  mp: ['ministerio', 'publico'],
+  esf: ['estrategia', 'saude', 'familia'],
+  inss: ['instituto', 'nacional', 'seguro', 'social'],
+  ubs: ['unidade', 'basica', 'saude'],
+  mse: ['medida', 'socioeducativa']
 };
 
 // Quantos trechos da base vão para a IA e para a resposta offline.
@@ -289,9 +297,43 @@ const CONCEITOS = [
   { re: /\b(?:desempregad[oa]s?|desemprego|sem emprego|sem trabalho|sem renda)\b/, exp: ['trabalho', 'renda', 'inclusao', 'produtiva'] },
   { re: /\b(?:briga em casa|brigas em casa|briga de familia|conflito familiar|conflitos familiares|familia brigando)\b/, exp: ['conflito', 'familiar', 'vinculos', 'familia'] },
   { re: /\b(?:menina gravida|gravidez na adolescencia|adolescente gravida|gravidez precoce)\b/, exp: ['gravidez', 'adolescencia', 'adolescente'] },
-  { re: /\b(?:crianca trabalhando|menor trabalhando|trabalho de crianca|criancas trabalhando)\b/, exp: ['trabalho', 'infantil', 'erradicacao'] }
+  { re: /\b(?:crianca trabalhando|menor trabalhando|trabalho de crianca|criancas trabalhando)\b/, exp: ['trabalho', 'infantil', 'erradicacao'] },
+  // Fala do dia a dia -> palavra da norma (ampliação). Cada linha liga o que a pessoa diz ao que o documento escreve.
+  { re: /\b(?:o bolsa|bolsa caiu|auxilio brasil|auxilio do governo|dinheiro do governo|bolsa da mae)\b/, exp: ['programa', 'bolsa', 'familia', 'transferencia', 'renda'] },
+  { re: /\b(?:beneficio do idoso|beneficio da pessoa com deficiencia|aposentadoria do governo|salario do governo|um salario minimo do governo|idos[oa] sem renda)\b/, exp: ['beneficio', 'prestacao', 'continuada', 'idosa', 'deficiencia'] },
+  { re: /\b(?:cad unico|cad\.? unico|cadastro desatualizado|atualizar o cadastro|cadastro vencido|cadastrar a familia|fazer o cadastro|numero do nis|\bnis\b)\b/, exp: ['cadastro', 'unico', 'atualizacao', 'cadastral'] },
+  { re: /\b(?:violencia domestica|marido bate|companheiro bate|mulher apanha|maria da penha|marido agride|ameaca de morte|ameacada de morte)\b/, exp: ['violencia', 'mulher', 'domestica', 'protecao'] },
+  { re: /\b(?:abuso sexual|abusad[oa]s?|estupro|estuprad[oa]s?|violencia sexual|importunacao|mexe com a (?:crianca|menina|filha|sobrinha))\b/, exp: ['violencia', 'sexual', 'crianca', 'adolescente', 'protecao'] },
+  { re: /\b(?:denunciar|denuncia|disque 100|disque cem|ligar 100)\b/, exp: ['denuncia', 'conselho', 'tutelar', 'violacao', 'direitos'] },
+  { re: /\b(?:fora da escola|evasao|largou a escola|parou de estudar|nao vai (?:a|para a|pra) escola|faltando aula|faltas na escola|infrequencia|infrequente)\b/, exp: ['frequencia', 'escolar', 'condicionalidade', 'educacao'] },
+  { re: /\b(?:abrigo|abrigad[oa]s?|casa de passagem|casa lar|orfanato|institucionalizad\w+)\b/, exp: ['acolhimento', 'institucional', 'servico', 'protecao', 'especial'] },
+  { re: /\b(?:ansiedade|ansios[oa]s?|depressao|deprimid[oa]s?|panico|sem animo|choro facil|nervos[oa]s?)\b/, exp: ['saude', 'mental', 'sofrimento', 'psiquico', 'atencao'] },
+  { re: /\b(?:terapia|psicoterapia|psicologo do posto|psicologo no sus|atendimento psicologico)\b/, exp: ['atendimento', 'psicologico', 'saude', 'mental', 'rede'] },
+  { re: /\b(?:idos[oa] sozinh[oa]|mora sozinh[oa]|isolad[oa]|sem ninguem|sem familia)\b/, exp: ['pessoa', 'idosa', 'isolamento', 'vinculos', 'convivencia'] },
+  { re: /\b(?:grupo de idosos|grupo de convivencia|atividades? para idosos|atividades? para criancas|projeto social)\b/, exp: ['servico', 'convivencia', 'fortalecimento', 'vinculos'] },
+  { re: /\b(?:sem documentos?|sem certidao|nao tem certidao|registro de nascimento|sem rg|sem cpf|segunda via)\b/, exp: ['documentacao', 'civil', 'certidao', 'nascimento', 'registro'] },
+  { re: /\b(?:tarifa social|conta de luz|desconto na luz|luz mais barata)\b/, exp: ['tarifa', 'social', 'energia', 'eletrica'] },
+  { re: /\b(?:passe livre|isencao de tarifa|carteira do idoso|carteira de gratuidade)\b/, exp: ['gratuidade', 'transporte', 'idoso', 'passe'] },
+  { re: /\b(?:curso profissionalizante|qualificacao profissional|vaga de emprego|procurar emprego|arrumar emprego)\b/, exp: ['inclusao', 'produtiva', 'trabalho', 'qualificacao'] },
+  { re: /\b(?:enchente|alagamento|desabrigad[oa]s?|casa caiu|perdeu tudo|incendio na casa|desastre)\b/, exp: ['emergencia', 'calamidade', 'desastre', 'beneficio', 'eventual', 'protecao'] },
+  { re: /\b(?:deixa a crianca sozinha|crianca sozinha em casa|nao cuida|descuid\w+|sem cuidado|negligenc\w+)\b/, exp: ['negligencia', 'abandono', 'protecao', 'crianca'] },
+  { re: /\b(?:ir na casa|visitar a familia|visita na casa|ir ate a casa)\b/, exp: ['visita', 'domiciliar', 'familia'] },
+  { re: /\b(?:zona rural|comunidade distante|interior do estado|longe da cidade|aldeia distante)\b/, exp: ['equipe', 'volante', 'itinerante', 'territorio'] }
 ];
 const PESO_CONCEITO = 0.6;
+
+// Erro de digitação nas palavras que ativam as gírias acima ("bolça", "benefisio", "violensia"): uma letra errada e a gíria não era reconhecida.
+// Só para essa detecção (a busca por raiz tem o seu próprio conserto, em corrigirDigitacao): a palavra a uma letra de distância de uma destas vira ela.
+const PALAVRAS_DO_TRABALHO = ['bolsa', 'beneficio', 'auxilio', 'cortaram', 'cortado', 'suspenso', 'bloqueado', 'cadastro', 'familia', 'violencia',
+  'crianca', 'criancas', 'escola', 'idoso', 'idosa', 'certidao', 'denuncia', 'denunciar', 'morador', 'deficiente', 'desempregado', 'aluguel',
+  'funeral', 'abrigo', 'ansiedade', 'depressao', 'terapia', 'psicologo', 'enchente', 'abandono', 'negligencia', 'abusada', 'estupro', 'marido'];
+function corrigirPalavrasDoTrabalho(consultaNorm) {
+  return consultaNorm.split(' ').map(function (t) {
+    if (t.length < 5 || PALAVRAS_DO_TRABALHO.indexOf(t) >= 0) return t;
+    const achadas = PALAVRAS_DO_TRABALHO.filter(function (w) { return w[0] === t[0] && umaLetraDeDiferenca(t, w); });
+    return achadas.length === 1 ? achadas[0] : t;
+  }).join(' ');
+}
 
 function conceitosDaConsulta(consultaNorm) {
   const saida = [];
@@ -531,17 +573,30 @@ export function referenciaExata(indice, consulta, max = 4) {
 export function buscar(indice, consulta, { k = 3, minScore = 1.2, minCobertura = 0.5, preferir = null } = {}) {
   if (!indice || !indice.N) return [];
   const { pesos, siglas } = termosDaConsulta(consulta);
+  const consultaNorm = corrigirPalavrasDoTrabalho(normalizar(consulta));
+  const conceitos = conceitosDaConsulta(consultaNorm);
+  // Palavra que NENHUM trecho da base tem ("vizinha", "caiu", um erro de digitação sem conserto) não ajuda a achar nada e, por ser a mais "rara",
+  // derrubava a cobertura de todos os trechos: uma palavra solta apagava a resposta. Ela sai da conta, desde que sobre ao menos uma palavra
+  // conhecida; sigla, número e gíria do trabalho (CONCEITOS) ficam. Se mais da metade das palavras saiu, a aderência não passa de "média".
+  const poupadas = new Set();
+  siglas.forEach(function (g) { poupadas.add(g.t); });
+  conceitos.forEach(function (g) { g.frase.forEach(function (t) { poupadas.add(t); }); });
+  const total = pesos.size;
+  const desconhecidas = Array.from(pesos.keys()).filter(function (t) { return !indice.df[t] && !poupadas.has(t) && !/\d/.test(t); });
+  let tetoAderencia = null;
+  if (desconhecidas.length && desconhecidas.length < total) {
+    desconhecidas.forEach(function (t) { pesos.delete(t); });
+    if (desconhecidas.length * 2 >= total) tetoAderencia = 'media';
+  }
   const termos = Array.from(pesos.keys());
   if (!termos.length) return [];
   let pesoTotal = 0;
   for (const p of pesos.values()) pesoTotal += p;
   const k1 = 1.4, b = 0.75;
   // Pergunta de definição com sigla: formas por extenso (palavras normalizadas) cujo trecho de definição ganha prioridade.
-  const consultaNorm = normalizar(consulta);
   const expansoesDefinicao = RE_PERGUNTA_DEFINICAO.test(consultaNorm)
     ? consultaNorm.split(' ').filter(function (t) { return SIGLAS[t] && !STOP.has(t); }).map(function (t) { return SIGLAS[t]; })
     : [];
-  const conceitos = conceitosDaConsulta(consultaNorm);
   const municipiosPergunta = municipiosEm(consultaNorm);
   const querDado = RE_QUER_DADO_LOCAL.test(consultaNorm);
   const querCenso = RE_QUER_CENSO.test(consultaNorm);
@@ -614,7 +669,7 @@ export function buscar(indice, consulta, { k = 3, minScore = 1.2, minCobertura =
         if (expansoesDefinicao.some(function (e) { return defineASigla(inicio, e); })) ordem *= PESO_DEFINICAO;
       }
       const rar = coberturaPorRaridade(d, termos, pesos, siglas, conceitos, idfDe, pesoIdfTotal, tokensDoDoc && tokensDoDoc.get(d.c.doc) || null);
-      res.push({ trecho: d.c, score, cobertura, coberturaIdf: rar.cob, ancora: rar.ancora, ordem });
+      res.push({ trecho: d.c, score, cobertura, coberturaIdf: rar.cob, ancora: rar.ancora, ordem, tetoAderencia });
     }
   }
   res.sort((x, y) => y.ordem - x.ordem);
@@ -709,9 +764,59 @@ function chaveDeRepeticao(t) {
   return (t.doc || '') + '|' + String(t.referencia || '').replace(/\s*\(parte \d+(?: de \d+)?\)/g, '').trim();
 }
 
+// ------------------------------------------------------------------ erro de digitação
+// "bolça familia", "condicionalidadi", "cadastro unico" com letra trocada: a palavra não existe no índice e a busca a ignora, perdendo o assunto.
+// Para cada palavra que o índice não conhece, procura no vocabulário uma raiz a UMA letra de distância (troca, falta, sobra ou duas letras
+// invertidas), com a mesma letra inicial, e ACRESCENTA a palavra corrigida à consulta (a original fica, então nome de bairro ou de unidade que
+// a base não tem não se perde). Palavra curta, número e palavra que o índice já conhece não são mexidas.
+const CACHE_VOCAB = new WeakMap();
+
+function vocabularioDe(indice) {
+  let v = CACHE_VOCAB.get(indice);
+  if (!v) {
+    v = Object.keys(indice.df).filter(function (t) { return t.length >= 4 && indice.df[t] >= 2 && raiz(t) === t; });
+    CACHE_VOCAB.set(indice, v);
+  }
+  return v;
+}
+
+// Distância de edição igual a 1 (troca, inserção, remoção ou duas letras vizinhas invertidas).
+function umaLetraDeDiferenca(a, b) {
+  if (a === b) return false;
+  const la = a.length, lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  let i = 0;
+  while (i < la && i < lb && a[i] === b[i]) i++;
+  if (la === lb) {
+    if (a.slice(i + 1) === b.slice(i + 1)) return true;                                  // uma letra trocada
+    return i + 1 < la && a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2); // duas invertidas
+  }
+  return la > lb ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1);         // uma sobra ou uma falta
+}
+
+export function corrigirDigitacao(indice, consulta) {
+  if (!indice || !indice.df || !consulta) return consulta;
+  const achadas = [];
+  const vistas = new Set();
+  for (const t of normalizar(consulta).split(' ')) {
+    if (t.length < 5 || /\d/.test(t) || STOP.has(t) || SIGLAS[t] || vistas.has(t)) continue;
+    vistas.add(t);
+    const r = raiz(t);
+    if (r.length < 4 || indice.df[r]) continue;
+    let melhor = null;
+    for (const cand of vocabularioDe(indice)) {
+      if (cand[0] !== r[0] || !umaLetraDeDiferenca(r, cand)) continue;
+      if (!melhor || indice.df[cand] > indice.df[melhor]) melhor = cand;
+    }
+    if (melhor) achadas.push(melhor);
+  }
+  return achadas.length ? consulta + ' ' + achadas.join(' ') : consulta;
+}
+
 // opcoes: { k, preferir, modo, temDiretorio } (modo 'consulta' com diretório do app: a pergunta é de unidade, e norma só entra se for forte).
 export function buscarFontes(indice, consulta, opcoes = {}) {
   if (!indice || !indice.N) return [];
+  consulta = corrigirDigitacao(indice, consulta);
   const k = Math.max(1, opcoes.k || K_PADRAO);
   const deUnidade = opcoes.modo === 'consulta' && opcoes.temDiretorio === true;
   const alvo = deUnidade ? Math.min(k, 3) : k;
@@ -756,7 +861,11 @@ export function buscarFontes(indice, consulta, opcoes = {}) {
     unicos.push(r);
   }
   const maxFinal = unicos.reduce(function (m, r) { return Math.max(m, r.exata ? 0 : r.ordem); }, 0);
-  unicos.forEach(function (r) { rotular(r, maxFinal); if (r.limiteDeAderencia) r.aderencia = r.limiteDeAderencia; });
+  unicos.forEach(function (r) {
+    rotular(r, maxFinal);
+    if (r.limiteDeAderencia) r.aderencia = r.limiteDeAderencia;
+    else if (r.tetoAderencia === 'media' && r.aderencia === 'alta') r.aderencia = 'media'; // muita palavra da pergunta a base não conhece
+  });
   // Com ao menos duas fontes que respondem de verdade, as de aderência baixa saem. Sem isso (a base não tem o assunto), ficam no máximo 3,
   // marcadas como baixa: a IA e a pessoa sabem que é o mais próximo, não uma resposta.
   const boas = unicos.filter(function (r) { return r.aderencia !== 'baixa'; });
