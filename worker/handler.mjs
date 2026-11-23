@@ -452,7 +452,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     const modoBruto = classificarPedido(pergunta, hist, { temFichas: temFichas, temPanorama: temPanorama });
     const modo = (imagemLida && modoBruto === 'saudacao') ? 'normal' : modoBruto;
 
-    let idiomaExtra = '', raciocinio = '', tipoAnalise = '', achados = [], fontes = [], habilidades = [], tema = false, sobreSi = false, partesDaMsg = [], voce = '', mensagens, pref = null, calculos = null, quantitativo = false, textosDaPessoa = [];
+    let idiomaExtra = '', leitura = '', raciocinio = '', tipoAnalise = '', achados = [], fontes = [], habilidades = [], tema = false, sobreSi = false, partesDaMsg = [], voce = '', mensagens, pref = null, calculos = null, quantitativo = false, textosDaPessoa = [];
     if (modo === 'saudacao') {
       // Só cumprimento: prompt mínimo, sem busca de norma e no modelo pequeno (o grande fica de reserva). Poupa a cota gratuita.
       mensagens = montarMensagensSaudacao({ app: app, historico: hist, pergunta: pergunta, idioma: idiomaDoPedido(pergunta, hist).resposta });
@@ -480,6 +480,29 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
         for (const parte of partes.slice(0, 3)) if (achados.length < k + 3) achados = completarAchados(achados, buscarFontes(indice, parte, { k: 2 })).achados;
       }
       fontes = achados.map(function (a) { return fonteDe(a.trecho, a); });
+      // Compreensão: quando a busca por palavras não achou nada que responda (a pessoa falou "o bolsa caiu pra vizinha" e a norma escreve
+      // "bloqueio do benefício"), a IA relê a pergunta com a conversa inteira, diz o que a pessoa quer e quais palavras técnicas a norma usaria,
+      // e a busca roda de novo com isso. Só roda quando a primeira busca falhou (uma chamada a mais só nesses casos).
+      // COMPREENSAO="desligado" pula o passo. Falha ou lixo da IA: a resposta segue como antes.
+      const buscaFraca = !achados.length || achados.every(function (a) { return a.aderencia === 'baixa'; });
+      if (!sobreSi && !rota.length && buscaFraca && (modo === 'normal' || modo === 'seguimento') && String(env.COMPREENSAO || '').toLowerCase() !== 'desligado' && !contasDoPedido(pergunta, { hoje: 0 }) && !pareceProblemaDeCalculo(pergunta, hist) && normalizar(pergunta).split(' ').filter(Boolean).length >= 3) {
+        try {
+          const leit = lerInterpretacao(extrairTexto(await chamarIA(env, montarMensagensInterpretacao({ app: app, historico: hist, pergunta: pergunta, estado: estadoDaConversa }), false,
+            { modelo: env.MODELO_INTERPRETE, max_tokens: 320, temperature: 0 })), pergunta, { estado: estadoDaConversa, historico: hist });
+          if (leit) {
+            const nova = [leit.pergunta, leit.termos].filter(Boolean).join(' ').trim();
+            if (nova && normalizar(nova) !== normalizar(pergunta)) {
+              const novos = buscarFontes(indice, nova, opcoesBusca);
+              if (novos.some(function (a) { return a.aderencia !== 'baixa'; })) {
+                achados = novos;
+                fontes = achados.map(function (a) { return fonteDe(a.trecho, a); });
+              }
+            }
+            const reescrita = leit.pergunta && normalizar(leit.pergunta) !== normalizar(pergunta) ? leit.pergunta : '';
+            if (reescrita || leit.sentido) leitura = (leit.sentido ? 'O que a pessoa quer resolver: ' + leit.sentido + (/[.!?]$/.test(leit.sentido) ? '' : '.') + ' ' : '') + (reescrita ? 'Em outras palavras: ' + reescrita : '');
+          }
+        } catch (e) { /* sem a releitura a resposta segue como antes */ }
+      }
       tema = !sobreSi && (rota.length > 0 || /suicid|ideacao|autolesao|automutil/.test(normalizar(consulta)));
       // Habilidades (roteiros de trabalho): só quando a pergunta combina. Em tema de suicídio a resposta é só cuidado e rede, sem roteiro.
       // Seguimento e ajuste herdam o assunto da pergunta anterior ("deixe mais formal" continua no ofício).
@@ -540,7 +563,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       // Prompt enxuto: só os blocos opcionais que a pergunta pede (regras de mapa/rota, de PDF, visão dos outros apps) e, no pedido de ajuste
       // ("mais curto"), só o essencial para reescrever. PROMPT_ENXUTO="desligado" (wrangler.toml) volta ao texto inteiro em toda pergunta.
       const dieta = String(env.PROMPT_ENXUTO || '').toLowerCase() === 'desligado' ? null : Object.assign(escopoDaConversa(pergunta, hist), { enxuto: modo === 'refinamento' });
-      mensagens = montarMensagens({ documento: documento ? documento.texto : '',
+      mensagens = montarMensagens({ leitura: leitura, documento: documento ? documento.texto : '',
         imagem: imagemLida ? imagemLida.texto : '',
         idiomaExtra: idiomaExtra,
         dieta: dieta,
