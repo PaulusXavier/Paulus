@@ -27,12 +27,8 @@ O clipe também aceita **JPG, PNG e WebP**: cartaz, print de tela, tabela, gráf
 
 **Publicar:** publique o Worker de novo (`npx wrangler deploy`) e faça o push do site. Na primeira leitura o Worker aceita sozinho a licença da Meta do modelo Llama 3.2 Vision (exigida uma vez por conta da Cloudflare).
 
-## Para ler PDF: instalar o leitor (uma vez)
-O PDF precisa do leitor pdf.js (Mozilla, licença Apache-2.0). Baixe o pacote `pdfjs-dist` (npm ou a página de releases do pdf.js) e copie estes dois arquivos da pasta `build/` para a pasta `vendor/` do repositório, com **estes nomes**:
-- `pdf.min.mjs`
-- `pdf.worker.min.mjs`
-
-O build copia os dois para o site. Sem eles, DOCX, TXT, MD e CSV funcionam; o PDF mostra "Falta instalar o leitor de PDF".
+## Leitor de PDF (já incluído)
+O PDF usa o leitor pdf.js (Mozilla, Apache-2.0, versão *legacy* 6.2.108, que roda melhor em celulares mais antigos). Os dois arquivos já estão em `vendor/` (`pdf.min.mjs` e `pdf.worker.min.mjs`) e o build os copia para o site. Para atualizar, troque-os pelos do pacote `pdfjs-dist` (pasta `legacy/build/`), mantendo estes nomes. Se algum faltar, o build avisa e o PDF mostra "Falta instalar o leitor de PDF"; DOCX, TXT, MD e CSV continuam funcionando.
 
 ## Publicar
 1. Publique o **Worker** de novo (`npx wrangler deploy`): ele passou a aceitar o campo `documento`.
