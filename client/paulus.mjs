@@ -32,6 +32,7 @@ import { respostaDeModelo, lerPedidoDeModelo, urlDoModelo, MODELOS_3D } from '..
 import { respostaDeGeo, geoTipoDePedido, geoLerCoordenadas, geoFormatarCoordenadas, geoNormalizarEndereco, geoMontarEndereco, geoPerto, geoFontes, geoLinksDeRota, geoParaGpx, geoParaKml, geoDistanciaKm } from '../shared/geo.mjs';
 import { revisarTexto, respostaDeRevisao } from '../shared/revisao-texto.mjs';
 import { respostaDePdf, lerPedidoDePdf, editarPdf, listaPaginasPdf, resolverPaginasPdf } from '../shared/pdf.mjs';
+import { lerPedidoDeCentral, instrucaoDeCentral, textoDeCentral } from '../shared/pdf-central.mjs';
 import { ordenarVisitas, analisarEnderecoVisita, EXPLICACAO_VISITAS, ordenarComSugestao, ruasDasVisitas, aprenderVizinhanca, vizinhancaVazia, resumoVizinhanca, explicacaoDaOrdem } from '../shared/visitas.mjs';
 import { compactarHistorico, sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, soPerguntou } from '../shared/conversa.mjs';
 import { separarControles, ocultarControles, RE_ID_ACAO } from '../shared/sugestoes.mjs';
@@ -50,6 +51,7 @@ const PADRAO = {
   endpoint: '',            // endereço do Worker; vazio = IA desligada
   maxPergunta: 1200,
   modelosUrl: '',          // pasta dos modelos 3D didáticos (padrão: modelos/, ao lado da página); o arquivo só é baixado quando a pessoa clica
+  centralPdf: false,       // true no app que TEM a Central de PDF (Argo SUAS): o texto diz "faço pela Central"; nos outros, "no Argo SUAS peça..."
   pdfLibUrl: '',           // onde está o pdf-lib.min.js (padrão: na mesma pasta do paulus.v1.js); carregado só no primeiro pedido de PDF
   cidade: '',              // 'Boa Vista, RR': acrescentada ao nome nos links de rota feitos só com texto
   maxHistorico: 10,        // últimas mensagens (5 trocas) que vão inteiras à IA; as perguntas mais antigas vão num resumo curto (shared/conversa.mjs)
@@ -633,10 +635,24 @@ function pdfBaixar(arquivo) {
 }
 
 // Pedido de edição de PDF ("juntar", "remover a página 2", "preencher o campo X com Y"): feito no aparelho, sem IA e sem rede para o arquivo.
+function respostaDeCentral(t, central, temArq, o) {
+  const comCentral = !!cfg.centralPdf;
+  if (!Array.isArray(o.historico)) {
+    estado.historico.push({ papel: 'usuario', texto: '[pedido para a Central de PDF, lido no aparelho]' }, { papel: 'paulus', texto: '[resposta sobre a Central de PDF, feita no aparelho]' });
+    estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
+  }
+  return { tipo: 'pdf', ok: !!(central.etapas && central.etapas.length), texto: textoDeCentral(central, { temArquivo: temArq, comCentral: comCentral }), arquivos: [], precisaArquivo: false, campos: [], naoSuporta: [], central: central, avisos: [], fontes: [], pergunta: '', docs: [] };
+}
 // Nada do pedido entra no histórico que vai à IA (pode ter nome e dado de família): fica só uma marca neutra.
 async function tratarPdf(t, o) {
   const arquivos = Array.isArray(o.arquivos) ? o.arquivos : [];
-  if (!lerPedidoDePdf(t, { temArquivo: arquivos.length > 0 })) return null;
+  const temArq = arquivos.length > 0;
+  const proprio = lerPedidoDePdf(t, { temArquivo: temArq });
+  // Reduzir, recortar, dados ocultos, texto, PDF ↔ Word/JPG, senha, tarja, assinatura...: quem faz é a Central de PDF do app (Argo SUAS).
+  // O Paulus só entende o pedido e responde com o que a Central fará (ou aponta o caminho); o arquivo não é lido nem enviado.
+  const central = lerPedidoDeCentral(t, { temArquivo: temArq });
+  if (central && !(proprio && (proprio.operacoes || []).length)) return respostaDeCentral(t, central, temArq, o);
+  if (!proprio) return null;
   let r = null;
   try {
     const lidos = await pdfLerArquivos(arquivos);
@@ -922,7 +938,7 @@ const Paulus = { init, perguntar, rota: { ler: lerPedidoDeRota, responder: respo
   // Geografia no aparelho (v0.16.0): responder(texto, { pontos, lugares, bairros, ruas, aparelho }) -> resultado ou null; coordenadas/formatar/endereco/perto/distancia/gpx/kml para o app usar direto.
   geo: { responder: respostaDeGeo, tipo: geoTipoDePedido, coordenadas: geoLerCoordenadas, formatar: geoFormatarCoordenadas, endereco: geoNormalizarEndereco, montarEndereco: geoMontarEndereco, perto: function (centro, opcoes, o) { return geoPerto(centro, geoFontes(opcoes || {}), o); }, distanciaKm: geoDistanciaKm, links: geoLinksDeRota, gpx: geoParaGpx, kml: geoParaKml },
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
-  pdf: { ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
+  pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
   fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.23.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
