@@ -28,14 +28,18 @@ const CALC_FUNCOES = {
   mediana: 'mediana', moda: 'moda', desvio: 'desvio', desviop: 'desviop', variancia: 'variancia', variancip: 'variancip',
   amplitude: 'amplitude', produto: 'produto', contar: 'contar', percentil: 'percentil', quartil: 'quartil',
   ponderada: 'ponderada', mediageo: 'mediageo', cv: 'cv', escorez: 'escorez',
-  montante: 'montante', parcela: 'parcela', vp: 'vp'
+  montante: 'montante', parcela: 'parcela', vp: 'vp',
+  atan: 'atan', arctan: 'atan', asin: 'asin', arcsen: 'asin', acos: 'acos', arccos: 'acos', cbrt: 'cbrt', raizcubica: 'cbrt',
+  sec: 'sec', cossec: 'cossec', cotg: 'cotg', dist: 'dist', areatri: 'areatri', raizmenor: 'raizmenor', raizmaior: 'raizmaior'
 };
 const CALC_ROTULO_FUNCAO = {
   raiz: 'raiz', media: 'média', min: 'mín', max: 'máx', arred: 'arred', teto: 'teto', piso: 'piso', abs: 'abs', soma: 'soma',
   mediana: 'mediana', desvio: 'desvio padrão', desviop: 'desvio padrão (população)', variancia: 'variância', variancip: 'variância (população)',
   fatorial: 'fatorial', resto: 'resto', mdc: 'mdc', mmc: 'mmc', comb: 'combinação', perm: 'arranjo', ponderada: 'média ponderada',
   mediageo: 'média geométrica', escorez: 'escore z', cv: 'coef. de variação', seno: 'seno', cosseno: 'cosseno', tangente: 'tangente',
-  montante: 'montante', parcela: 'parcela', vp: 'valor presente', trunc: 'trunc', hipot: 'hipotenusa'
+  montante: 'montante', parcela: 'parcela', vp: 'valor presente', trunc: 'trunc', hipot: 'hipotenusa',
+  atan: 'arco tangente', asin: 'arco seno', acos: 'arco cosseno', cbrt: 'raiz cúbica', sec: 'secante', cossec: 'cossecante', cotg: 'cotangente',
+  dist: 'distância', areatri: 'área do triângulo', raizmenor: 'menor raiz', raizmaior: 'maior raiz'
 };
 // Constantes: pi sempre; "e" só na conta escrita pela IA (em texto de gente "e" é a conjunção).
 const CALC_CONSTANTES = { pi: Math.PI, e: Math.E };
@@ -392,6 +396,23 @@ function calcFuncao(f, a) {
     const x = um();
     if (Math.abs(Math.cos(rad(x))) < 1e-12) throw calcErro('tangente não existe nesse ângulo');
     return calcTrig(Math.tan(rad(x)));
+  }
+  // Matemática de prova: ângulos em graus (como seno, cosseno e tangente acima); arco-funções devolvem graus.
+  if (f === 'atan') return calcLimpar(Math.round(Math.atan(um()) * 180 / Math.PI * 1e9) / 1e9);
+  if (f === 'asin') { const x = um(); if (Math.abs(x) > 1) throw calcErro('arco seno pede número entre -1 e 1'); return calcLimpar(Math.round(Math.asin(x) * 180 / Math.PI * 1e9) / 1e9); }
+  if (f === 'acos') { const x = um(); if (Math.abs(x) > 1) throw calcErro('arco cosseno pede número entre -1 e 1'); return calcLimpar(Math.round(Math.acos(x) * 180 / Math.PI * 1e9) / 1e9); }
+  if (f === 'cbrt') return calcLimpar(Math.round(Math.cbrt(um()) * 1e10) / 1e10);
+  if (f === 'sec') { const c = Math.cos(rad(um())); if (Math.abs(c) < 1e-12) throw calcErro('secante não existe nesse ângulo'); return calcTrig(1 / c); }
+  if (f === 'cossec') { const s = Math.sin(rad(um())); if (Math.abs(s) < 1e-12) throw calcErro('cossecante não existe nesse ângulo'); return calcTrig(1 / s); }
+  if (f === 'cotg') { const s = Math.sin(rad(um())); if (Math.abs(s) < 1e-12) throw calcErro('cotangente não existe nesse ângulo'); return calcTrig(Math.cos(rad(a[0])) / s); }
+  if (f === 'dist') { if (a.length !== 4) throw calcErro('dist pede x1; y1; x2; y2'); return calcLimpar(Math.sqrt(Math.pow(a[2] - a[0], 2) + Math.pow(a[3] - a[1], 2))); }
+  if (f === 'areatri') { if (a.length !== 6) throw calcErro('areatri pede x1; y1; x2; y2; x3; y3'); return calcLimpar(Math.abs(a[0] * (a[3] - a[5]) + a[2] * (a[5] - a[1]) + a[4] * (a[1] - a[3])) / 2); }
+  if (f === 'raizmenor' || f === 'raizmaior') {
+    const t = tres(), d = t[1] * t[1] - 4 * t[0] * t[2];
+    if (t[0] === 0) throw calcErro('equação do 2º grau pede a diferente de 0');
+    if (d < 0) throw calcErro('sem raiz real (delta negativo)');
+    const r1 = (-t[1] - Math.sqrt(d)) / (2 * t[0]), r2 = (-t[1] + Math.sqrt(d)) / (2 * t[0]);
+    return calcLimpar(f === 'raizmenor' ? Math.min(r1, r2) : Math.max(r1, r2));
   }
   if (f === 'fatorial') return calcFatorial(um());
   if (f === 'resto') { const d = dois(); if (d[1] === 0) throw calcErro('divisão por zero'); return calcLimpar(d[0] - d[1] * Math.floor(d[0] / d[1])); }
