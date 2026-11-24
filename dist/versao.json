@@ -1,6 +1,6 @@
 {
  "versao": "0.23.0",
- "build": "ca999d10880b",
+ "build": "29f0b4a027a3",
  "commit": null,
  "arquivos": {
   "paulus.v1.js": {
@@ -32,8 +32,8 @@
    "bytes": 36926
   },
   "console.js": {
-   "sha256": "85fb5a5b9d568172",
-   "bytes": 104163
+   "sha256": "3e14b525b2c736a5",
+   "bytes": 107071
   },
   "notas.js": {
    "sha256": "06fc87015e78d8ff",
