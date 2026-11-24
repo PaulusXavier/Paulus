@@ -37,7 +37,7 @@ import { loginLigado, entrar, criarSessao, verificarSessao, tokenDoPedido, criar
 import { temDadoPessoal, temIdentificacaoPessoal, limparMarcacao } from '../shared/pii.mjs';
 import { docSaneado } from '../shared/documento.mjs';
 import { normalizar, criarIndice, buscarFontes, fonteDe, K_PADRAO } from '../shared/busca.mjs';
-import { numerosCitaveis } from '../shared/verificacao.mjs';
+import { numerosCitaveis, citacoesSemFonte } from '../shared/verificacao.mjs';
 import { detectarCrise } from '../shared/crise.mjs';
 import { idiomaDoPedido, paraBusca, instrucaoDeIdioma, avisoPessoalNoIdioma } from '../shared/idioma.mjs';
 import { trechosDaRota, combinarComBusca } from '../shared/suicidio.mjs';
@@ -105,18 +105,61 @@ function extrairPedaco(ev) {
   return '';
 }
 
+// Autocorreção de citações. O prompt proíbe citar artigo, lei ou valor que não esteja nas fontes, mas modelo erra, e o navegador só AVISA.
+// Quando a resposta pronta cita algo fora do que a IA leu (shared/verificacao.mjs), a IA é chamada UMA vez para reescrever sem a citação.
+// A reescrita só vale se tiver MENOS citações sem fonte, não for curta demais e não trouxer dado pessoal; senão fica a resposta original.
+// CORRECAO="desligado" (wrangler.toml) pula o passo. Falha ou demora: a resposta segue como estava (o aviso do navegador continua).
+const TEMPO_CORRECAO_MS = 9000;
+
+export function montarMensagensCorrecao(mensagens, rascunho, sem) {
+  return (Array.isArray(mensagens) ? mensagens : []).concat([
+    { role: 'assistant', content: String(rascunho || '').slice(0, 6000) },
+    { role: 'user', content: 'Conferência automática: sua resposta cita ' + sem.slice(0, 5).join(', ') + ', que NÃO aparece nas fontes que você leu (<normas>, <fichas>, <base_do_app>, <calculos> e a conversa). ' +
+      'Reescreva a resposta inteira, no mesmo tom e no mesmo formato, sem essas citações: tire o artigo, a lei ou o valor, ou diga que não consta nas fontes e que é preciso conferir o normativo vigente. ' +
+      'Não troque por outro número ou artigo de cabeça. Mantenha o resto, inclusive as linhas SUGESTÕES e AÇÕES NO APP, se houver. Responda só com o texto reescrito, sem comentar a correção.' }
+  ]);
+}
+
+// Texto corrigido, ou '' quando não há o que corrigir ou a reescrita não serve.
+// ctx: { env, mensagens, ajuste, citaveis, fontes, vistos }
+export async function corrigirCitacoes(ctx, rascunho) {
+  const { env, mensagens, ajuste, citaveis, fontes, vistos } = ctx;
+  try {
+    if (!citaveis || !rascunho || String(env.CORRECAO || '').toLowerCase() === 'desligado') return '';
+    const sem = citacoesSemFonte(rascunho, citaveis, fontes, vistos);
+    if (!sem.length) return '';
+    let temporizador;
+    const limite = new Promise(function (_, rej) { temporizador = setTimeout(function () { rej(new Error('tempo')); }, TEMPO_CORRECAO_MS); });
+    let novo;
+    try {
+      novo = extrairTexto(await Promise.race([
+        chamarIA(env, montarMensagensCorrecao(mensagens, rascunho, sem), false, { modelo: ajuste && ajuste.modelo, max_tokens: (ajuste && ajuste.max_tokens) || 900, temperature: 0 }),
+        limite
+      ]));
+    } finally { clearTimeout(temporizador); }
+    novo = limparPensamento(novo || '');
+    if (!novo || novo.length < 40 || novo.length < rascunho.length * 0.4) return '';
+    if (temDadoPessoal(novo)) return '';
+    if (citacoesSemFonte(novo, citaveis, fontes, vistos).length >= sem.length) return '';
+    // Quem tinha linha de sugestões ou de ações no rascunho não pode perdê-la na reescrita.
+    if (/SUGEST[ÕO]ES:/.test(rascunho) && !/SUGEST[ÕO]ES:/.test(novo)) return '';
+    if (/A[ÇC][ÕO]ES NO APP:/.test(rascunho) && !/A[ÇC][ÕO]ES NO APP:/.test(novo)) return '';
+    return novo;
+  } catch (e) { return ''; }
+}
+
 // Converte o fluxo do Workers AI no formato simples que o navegador lê: data: {"t":"..."}
 // recuperar (opcional): função async que devolve a resposta inteira pelo modelo de reserva. Se o fluxo do modelo principal
 // falhar ou terminar sem nenhum texto ANTES de qualquer pedaço sair, a resposta vem da reserva (a pessoa não vê erro).
 // Se o fluxo cair no meio, o texto parcial não é completado por outro modelo (viraria uma resposta emendada): vai o aviso de erro.
-function normalizarFluxo(upstream, fontes, habilidades, citaveis, recuperar, imagemLida) {
+function normalizarFluxo(upstream, fontes, habilidades, citaveis, recuperar, imagemLida, corrigir) {
   const dec = new TextDecoder();
   const enc = new TextEncoder();
   let leitor = null, cancelado = false;
   return new ReadableStream({
     async start(ctl) {
       const emitir = function (obj) { if (!cancelado) ctl.enqueue(enc.encode('data: ' + JSON.stringify(obj) + '\n\n')); };
-      let buf = '', enviou = false, falhou = false;
+      let buf = '', enviou = false, falhou = false, acumulado = '';
       const tratarLinha = function (linha) {
         const t = linha.trim();
         if (t.indexOf('data:') !== 0) return;
@@ -124,7 +167,7 @@ function normalizarFluxo(upstream, fontes, habilidades, citaveis, recuperar, ima
         if (!corpo || corpo === '[DONE]') return;
         try {
           const p = extrairPedaco(JSON.parse(corpo));
-          if (p) { enviou = true; emitir({ t: p }); }
+          if (p) { enviou = true; acumulado += p; emitir({ t: p }); }
         } catch (e) { /* linha incompleta ou de controle: ignora */ }
       };
       if (fontes.length) emitir({ fontes: fontes });
@@ -146,8 +189,13 @@ function normalizarFluxo(upstream, fontes, habilidades, citaveis, recuperar, ima
       if (!enviou && !cancelado && typeof recuperar === 'function') {
         try {
           const texto = await recuperar();
-          if (texto) { enviou = true; falhou = false; emitir({ t: texto }); }
+          if (texto) { enviou = true; falhou = false; acumulado = texto; emitir({ t: texto }); }
         } catch (e) { /* sem reserva: segue para o aviso de erro */ }
+      }
+      // Resposta inteira já na tela e com citação sem fonte: a versão corrigida substitui a primeira (o navegador troca o texto).
+      if (enviou && !falhou && !cancelado && typeof corrigir === 'function') {
+        const novo = await corrigir(acumulado);
+        if (novo) emitir({ corrigido: novo });
       }
       if (!enviou) emitir({ erro: 'Resposta vazia.' });
       else if (falhou) emitir({ erro: 'A resposta foi interrompida.' });
@@ -634,17 +682,19 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       return json({ erro: 'A IA não respondeu agora (a cota gratuita do dia pode ter acabado).' }, 502);
     }
 
+    const ctxCorrecao = { env: env, mensagens: mensagens, ajuste: ajuste, citaveis: citaveis, fontes: fontes, vistos: hist.filter(function (h) { return h && h.papel !== 'usuario'; }).map(function (h) { return String(h.texto || ''); }) };
     if (querStream && saida && typeof saida.getReader === 'function') {
       // Se o fluxo do modelo grande falhar ou vier vazio antes de sair texto, o modelo pequeno responde (sem stream) no lugar.
       const { principal, reserva } = resolverModelos(env, ajuste);
       const recuperar = reserva !== principal
         ? async function () { return extrairTexto(await env.AI.run(reserva, parametrosDaIA(mensagens, ajuste, false), OPCOES_IA)); }
         : null;
-      return sse(normalizarFluxo(saida, fontes, nomesHabilidades, citaveis, recuperar, imagemLida));
+      return sse(normalizarFluxo(saida, fontes, nomesHabilidades, citaveis, recuperar, imagemLida, function (texto) { return corrigirCitacoes(ctxCorrecao, texto); }));
     }
 
-    const resposta = extrairTexto(saida);
+    let resposta = extrairTexto(saida);
     if (!resposta) return json({ erro: 'Resposta vazia.' }, 502);
+    resposta = (await corrigirCitacoes(ctxCorrecao, resposta)) || resposta;
     return json({ resposta: resposta, fontes: fontes, habilidades: nomesHabilidades, citaveis: citaveis, imagem: imagemLida || undefined });
   }
 
