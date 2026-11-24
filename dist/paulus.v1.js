@@ -10435,6 +10435,11 @@ function lerSSE(resp, ganchos, controle) {
           if (Array.isArray(ev.habilidades)) { habilidades = ev.habilidades.map(String).slice(0, 3); if (ganchos.onHabilidades) ganchos.onHabilidades(habilidades); }
           if (ev.citaveis && typeof ev.citaveis === 'object') citaveis = ev.citaveis;
           if (ev.imagem && typeof ev.imagem === 'object') imagem = ev.imagem;
+          // Resposta reescrita pelo Worker (citação sem fonte tirada): substitui o texto já mostrado.
+          if (typeof ev.corrigido === 'string' && ev.corrigido.trim()) {
+            acumulado = ev.corrigido;
+            if (ganchos.onToken) ganchos.onToken('', ocultarControles(acumulado));
+          }
           if (typeof ev.t === 'string') {
             recebeu = true;
             acumulado += ev.t;
