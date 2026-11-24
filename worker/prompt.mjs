@@ -6,6 +6,7 @@ import { MAX_TEXTO_TRECHO } from '../shared/busca.mjs';
 import { formaDaResposta } from './raciocinar.mjs';
 import { compactarHistorico, estadoComoTexto, MENSAGENS_RECENTES } from '../shared/conversa.mjs';
 import { trazDadoLocal } from '../shared/escopo.mjs';
+import { pedidoDeDesenho } from '../shared/pedido.mjs';
 
 // Últimas mensagens que vão inteiras para o modelo. O que veio antes entra como resumo das perguntas (<conversa_anterior>).
 export const MAX_HISTORICO = MENSAGENS_RECENTES;
@@ -261,6 +262,17 @@ const BLOCO_RACIOCINIO = `ESQUELETO DE ANÁLISE (<raciocinio>)
 - Quando houver PERGUNTA e SEGURANCA não for alta, termine com essa pergunta, em uma linha e como a única, depois de ter respondido o que dá para afirmar (nunca responda só com a pergunta).
 - Quando houver ALTERNATIVA, ofereça-a em uma frase como segunda opção, com o que ela custa. Quando houver RISCO, traga o cuidado em uma frase, no ponto da resposta em que ele pesa, sem sermão.`;
 
+// Desenhos: a IA escreve SVG num bloco de código; o console limpa o SVG (só formas simples) e desenha na tela, com botões para baixar.
+export const BLOCO_DESENHO = `DESENHOS (SVG)
+- Você PODE desenhar. Quando a pessoa pedir desenho, esquema, fluxograma, diagrama, organograma, mapa mental, linha do tempo, cartaz ou ilustração, responda com UMA frase curta e, logo depois, o desenho em um bloco de código com a linguagem svg (três crases + svg, o código, três crases). O aplicativo desenha o bloco na tela e oferece baixar. Nunca diga que não consegue desenhar.
+- Comece com <svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 800 600\"> (largura 800; altura de 300 a 800). O primeiro elemento é um <rect> branco do tamanho todo (fundo).
+- Use SÓ estas tags: svg, g, defs, title, desc, path, rect, circle, ellipse, line, polyline, polygon, text, tspan, linearGradient, radialGradient, stop, marker. Proibido: script, style, image, foreignObject, a, use, link para fora, fonte externa, comentário. Cores nos atributos fill e stroke, em hexadecimal.
+- Texto em português do Brasil, com font-family=\"sans-serif\", tamanho mínimo 14, frases curtas, sempre dentro da caixa (calcule: cerca de 8 px de largura por letra em tamanho 14; quebre em várias linhas com <tspan x=\"..\" dy=\"18\">). Alinhe e espace as formas; nada sobreposto sem querer.
+- Setas de fluxograma: <line> ou <path> com marker-end=\"url(#seta)\" e o <marker id=\"seta\"> em <defs>.
+- Mantenha simples (até uns 60 elementos) e feche TODAS as tags. O código precisa ser SVG válido, ou o desenho não aparece.
+- Nunca ponha nome, CPF, NIS, endereço ou outro dado de pessoa atendida no desenho. Retrato realista ou foto não dá: ofereça um esquema simples ou um ícone.
+- Não explique o código. Depois do bloco, no máximo uma linha dizendo o que o desenho mostra e que dá para pedir ajustes (cores, textos, tamanho).`;
+
 const BLOCO_CALCULO = `CONTAS E RACIOCÍNIO NUMÉRICO
 - <calculos> traz contas feitas por um programa, com exatidão. Use os resultados como estão: não refaça, não arredonde de outro jeito e não troque o formato. Mostre a conta em linhas curtas começando com \"- \" (ex.: \"- renda per capita: 3.200 ÷ 4 = R$ 800\") e conclua em uma frase.
 - Todo número da resposta precisa ter origem: a pergunta, <calculos> ou as fontes (<normas>, <fichas>, <base_do_app>). Valor, limite, percentual e prazo de norma só dessas fontes; se não estiver lá, diga que não consta e não complete de cabeça.
@@ -514,7 +526,7 @@ export function montarMensagens({ documento = '', imagem = '', app, pagina, hist
     (textoLeitura ? '<leitura_da_pergunta>\nReleitura automática, só como pista do que a pessoa quis dizer (pode errar; vale o que ela escreveu e a conversa): ' + textoLeitura + '\n</leitura_da_pergunta>\n\n' : '') +
     '<pergunta>\n' + pergunta + '\n</pergunta>';
   return [
-    { role: 'system', content: montarSistema(app, pagina, suicidio, habilidades, { comUnidades: temFichas || !!pan || !!base, modo: modo, partes: partes, comGeo: !dieta || dieta.geo, comPdf: !dieta || dieta.pdf, comOutrosApps: !dieta || dieta.apps, comCenso: !dieta || trazDadoLocal(achados), enxuto: !!(dieta && dieta.enxuto) }) + (comCalculo ? '\n\n' + BLOCO_CALCULO : '') + (textoRaciocinio ? '\n\n' + BLOCO_RACIOCINIO + (tipoAnalise ? '\nFORMA DESTA RESPOSTA (' + tipoAnalise + '): ' + formaDaResposta(tipoAnalise) : '') : '') + (textoVoce ? '\n\n' + BLOCO_VOCE : '') + (listaAcoes && !sobreAUltima ? '\n\n' + BLOCO_ACOES : '') + (preferenciasComoTexto(preferencias) ? '\n\n' + preferenciasComoTexto(preferencias) : '') + (semPerguntar && !suicidio ? '\n\n' + BLOCO_SEM_PERGUNTAR : '') + (idiomaExtra ? '\n' + idiomaExtra : '') },
+    { role: 'system', content: montarSistema(app, pagina, suicidio, habilidades, { comUnidades: temFichas || !!pan || !!base, modo: modo, partes: partes, comGeo: !dieta || dieta.geo, comPdf: !dieta || dieta.pdf, comOutrosApps: !dieta || dieta.apps, comCenso: !dieta || trazDadoLocal(achados), enxuto: !!(dieta && dieta.enxuto) }) + (comCalculo ? '\n\n' + BLOCO_CALCULO : '') + (!suicidio && pedidoDeDesenho(pergunta) ? '\n\n' + BLOCO_DESENHO : '') + (textoRaciocinio ? '\n\n' + BLOCO_RACIOCINIO + (tipoAnalise ? '\nFORMA DESTA RESPOSTA (' + tipoAnalise + '): ' + formaDaResposta(tipoAnalise) : '') : '') + (textoVoce ? '\n\n' + BLOCO_VOCE : '') + (listaAcoes && !sobreAUltima ? '\n\n' + BLOCO_ACOES : '') + (preferenciasComoTexto(preferencias) ? '\n\n' + preferenciasComoTexto(preferencias) : '') + (semPerguntar && !suicidio ? '\n\n' + BLOCO_SEM_PERGUNTAR : '') + (idiomaExtra ? '\n' + idiomaExtra : '') },
     ...historicoComoMensagens(historico, (sobreAUltima || (modo === 'contestacao' && !suicidio)) ? { maxUltimaResposta: MAX_ULTIMA_RESPOSTA_AJUSTE } : {}),
     { role: 'user', content: usuario }
   ];

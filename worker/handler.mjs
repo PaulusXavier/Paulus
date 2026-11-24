@@ -42,7 +42,7 @@ import { detectarCrise } from '../shared/crise.mjs';
 import { idiomaDoPedido, paraBusca, instrucaoDeIdioma, avisoPessoalNoIdioma } from '../shared/idioma.mjs';
 import { trechosDaRota, combinarComBusca } from '../shared/suicidio.mjs';
 import { escolherHabilidades } from '../shared/habilidades.mjs';
-import { classificarPedido, consultaDoPedido, trechosParaOPedido, perfilDaIA, ehSaudacao, ehSeguimento, partesDaPergunta } from '../shared/pedido.mjs';
+import { classificarPedido, consultaDoPedido, trechosParaOPedido, perfilDaIA, ehSaudacao, ehSeguimento, partesDaPergunta, pedidoDeDesenho } from '../shared/pedido.mjs';
 import { sanearEstado } from '../shared/conversa.mjs';
 import { escopoDaConversa } from '../shared/escopo.mjs';
 import { respostaDiretaDaFicha } from '../shared/consulta-direta.mjs';
@@ -672,7 +672,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     try {
       // Parâmetros por situação (shared/pedido.mjs): texto pronto e ajuste precisam de mais espaço; consulta de unidade, de menos criatividade;
       // quem prefere respostas curtas (memória do aparelho) recebe um teto menor.
-      ajuste = perfilDaIA({ quantitativo: quantitativo, modo: modo, tema: tema, comTextoPronto: habilidades.some(function (h) { return h.texto; }), pref: tema ? null : pref, partes: partesDaMsg.length });
+      ajuste = perfilDaIA({ quantitativo: quantitativo, modo: modo, tema: tema, comTextoPronto: habilidades.some(function (h) { return h.texto; }), pref: tema ? null : pref, partes: partesDaMsg.length, comDesenho: !tema && pedidoDeDesenho(pergunta) });
       if (sobreSi) ajuste.temperature = Math.min(ajuste.temperature != null ? ajuste.temperature : 0.4, 0.3);
       // Com o esqueleto de análise pronto, a resposta final só precisa redigi-lo com fidelidade: menos criatividade, menos desvio da conclusão.
       if (raciocinio) ajuste.temperature = Math.min(ajuste.temperature != null ? ajuste.temperature : 0.4, 0.3);
