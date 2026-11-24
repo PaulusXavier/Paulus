@@ -1074,6 +1074,135 @@ button,.hb,#go,#tb button{user-select:none;-webkit-user-select:none}  /* segurar
 }
 /* botão do cabeçalho com painel aberto: no tema claro o fundo ficava branco com ícone branco */
 body.claro:not(.lock) .hb.on{background:var(--c);border-color:var(--c);color:#fff}
+/* =====================================================================
+   v4 · LIMPO E PROFISSIONAL
+   Mesma estrutura e mesmo comportamento; muda só a pele. Grafite neutro em vez de azul-neon,
+   uma cor de destaque (verde-água) só onde há ação, linhas finas cinza em vez de brilho,
+   sem varredura, sem grade, sem sombra luminosa. Camada final: para voltar ao HUD, apague daqui até o fim do <style>.
+   ===================================================================== */
+:root{
+  --c:#58c4d2;--c2:#a9dbe3;--t:#e9eef0;--mut:#9aabb1;--a:#e8b05a;--ok:#6fcf9b;--red:#f0786b;
+  --bd:#ffffff14;--bd2:#ffffff2b;--bg:#0c1216;--bg2:#10181d;--panel:#121b20;--panel2:#1a252b;
+  --hud:"Inter","Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;
+  --r3:12px;--lift:none;
+}
+body{background:linear-gradient(#0f171c,#0c1216 320px)}
+body::after{background:none}
+#bgc,#hx{display:none}
+#rx{opacity:.05}body.vazio #rx{opacity:.16}
+::selection{background:#58c4d255}
+
+/* cabeçalho: faixa lisa, marca discreta */
+header{background:var(--bg);border-bottom:1px solid var(--bd)}
+header::after{display:none}
+.brand{font:700 13px var(--hud);letter-spacing:.14em;color:var(--t);text-shadow:none}
+.brand small{font:500 10.5px var(--hud);letter-spacing:.1em;color:var(--mut);border:1px solid var(--bd2);border-radius:999px;padding:1px 8px;margin-left:10px}
+.sline{font:600 11px var(--hud);letter-spacing:.06em;color:var(--mut)}
+#core{filter:saturate(.7)}
+.hb{background:transparent;border-color:transparent;color:var(--mut);border-radius:10px}
+.hb:hover{background:var(--panel2);border-color:var(--bd2);color:var(--t);box-shadow:none}
+.hb.on,.hb[aria-pressed=true]{background:var(--panel2);border-color:var(--c);color:var(--c);box-shadow:none}
+body.claro:not(.lock) .hb.on,body.claro:not(.lock) .hb[aria-pressed=true]{background:var(--panel2);border-color:var(--c);color:var(--c)}
+.hr{gap:2px}
+
+/* boas-vindas */
+.hi h2{font-weight:600;letter-spacing:0;text-shadow:none;font-size:clamp(26px,6vw,36px)}
+.hi h2 b{color:var(--t);font-weight:600}
+.hi .ey{font:500 12px var(--hud);letter-spacing:.06em;color:var(--mut)}
+.hi .ey::before{box-shadow:none}
+.hi .dt{font:500 12px var(--hud);letter-spacing:.04em;color:var(--mut)}
+.hi p{color:var(--mut)}
+.hi .ch{background:var(--panel);border:1px solid var(--bd);border-radius:12px;min-height:54px;font-size:15px;box-shadow:none}
+.hi .ch i{color:var(--c);font-size:15px}
+.hi .ch:hover{background:var(--panel2);border-color:var(--bd2)}
+.hi small{color:var(--mut)}
+
+/* conversa */
+.m.p{border-left:0;padding:2px 0}
+.u{background:var(--panel2);border:1px solid var(--bd);border-right:1px solid var(--bd);border-radius:14px 14px 4px 14px}
+.mh{font:600 12px var(--hud);letter-spacing:.04em;color:var(--mut)}
+.mh .k{color:var(--c);letter-spacing:.04em}
+.mh .id{color:var(--mut)}
+.m h3,.m h4{color:var(--t)}
+.m th{background:var(--panel2);color:var(--t)}
+.m table{border-color:var(--bd)}
+.cb pre{background:#0a1014;border:1px solid var(--bd);border-left-width:1px;border-radius:10px}
+.sug .sgb{border-radius:12px}
+
+/* ações e atalhos: pílulas calmas */
+.ac button,.ac a,#tb button{font:500 13px var(--hud);min-height:34px;border-color:var(--bd2);color:var(--t);background:transparent}
+.ac a{color:var(--a);border-color:#e8b05a55}
+.ac button:hover,#tb button:hover{background:var(--panel2);border-color:var(--c);color:var(--t)}
+#tb{gap:8px}
+
+/* entrada */
+.qw{background:var(--panel);border:1px solid var(--bd2);border-radius:14px}
+.qw::before{font:500 22px/1 var(--hud);color:var(--mut);text-shadow:none}
+.qw::after{display:none}
+.qw:focus-within{border-color:var(--c);box-shadow:0 0 0 3px #58c4d233}
+body[data-estado=busy] .qw{border-color:var(--a)}
+#q::placeholder{color:var(--mut);opacity:.8}
+#at,#mic{background:var(--panel);border:1px solid var(--bd2);border-radius:12px;color:var(--mut)}
+#at:hover,#mic:hover{color:var(--t);border-color:var(--c)}
+#mic.on{background:var(--ok);color:#06180f;box-shadow:none}
+#go{clip-path:none;border-radius:12px;background:var(--c);color:#06161a;font:700 14px var(--hud);letter-spacing:.02em;text-transform:none;min-width:88px}
+#go:hover{filter:brightness(1.08)}
+#go.stop{background:var(--red);color:#1d0704}
+
+/* painéis laterais e flutuantes */
+.pn{background:var(--panel);border:1px solid var(--bd);border-radius:14px;box-shadow:none}
+.pt{font:600 12px var(--hud);letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.pt::after{display:none}
+.kv div{border-bottom:1px solid var(--bd)}
+.kv dt{font:500 12.5px var(--hud);letter-spacing:0;color:var(--mut);text-transform:none}
+.kv dd{background:none;padding:0;border-radius:0;font:600 12.5px var(--hud);letter-spacing:0;color:var(--t)}
+.kv dd.ok{color:var(--ok);background:none}.kv dd.av{color:var(--a);background:none}.kv dd.er{color:var(--red);background:none}
+kbd{box-shadow:none;border:1px solid var(--bd2);background:var(--panel2)}
+#apn,#sxp,#vp,#nt-p,#mnp{background:var(--panel);border:1px solid var(--bd2);border-radius:14px;box-shadow:0 14px 40px #0009}
+#sxp h2,#apn h2{font:600 12px var(--hud);letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+#sxp .sx-todos{background:var(--c);color:#06161a;border-radius:10px}
+#sxp .sx-lista a{background:var(--panel2);border-color:var(--bd);border-radius:10px}
+#sxp .sx-lista a:hover,#sxp .sx-lista a:focus-visible{border-color:var(--c);background:#202e35}
+
+/* login */
+#lg{background:var(--bg)}
+#lg::before{display:none}
+.hud{display:none}
+.lt{font:700 14px var(--hud);letter-spacing:.18em;color:var(--t);text-shadow:none}
+.ls{color:var(--mut)}
+#lgform{background:var(--panel);border:1px solid var(--bd2);border-radius:16px;backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:0 20px 50px #0008}
+#lgform::before,#lgform::after{display:none}
+.lb{background:var(--bg);border:1px solid var(--bd2);border-radius:10px}
+.lb:focus-within{border-color:var(--c);box-shadow:0 0 0 3px #58c4d233}
+#lgb{background:var(--c);color:#06161a;letter-spacing:.04em;text-transform:none;font-size:15px;border-radius:10px}
+#lgb:hover:not(:disabled){box-shadow:none;filter:brightness(1.08)}
+#lgb:disabled{background:var(--panel2);border-color:var(--bd);color:var(--mut)}
+
+/* tema claro: mesmo desenho, papel branco */
+body.claro:not(.lock){
+  --c:#0e7c8f;--c2:#0a5f6f;--t:#13262d;--mut:#5a6f77;--a:#9a5a00;--ok:#16794b;--red:#c23b2d;
+  --bd:#0f2a3314;--bd2:#0f2a332e;--bg:#f4f7f8;--bg2:#eaf0f2;--panel:#ffffff;--panel2:#eef3f5;
+  background:linear-gradient(#ffffff,#f4f7f8 320px);
+}
+body.claro:not(.lock) header{background:var(--bg);border-bottom:1px solid var(--bd)}
+body.claro:not(.lock) .hb:hover{background:var(--panel2)}
+body.claro:not(.lock) .u{background:var(--panel2)}
+body.claro:not(.lock) .cb pre{background:#10191d}
+body.claro:not(.lock) .qw{background:#fff}
+body.claro:not(.lock) #go,body.claro:not(.lock) #lgb,body.claro:not(.lock) #sxp .sx-todos{background:var(--c);color:#fff}
+body.claro:not(.lock) .pn,body.claro:not(.lock) #apn,body.claro:not(.lock) #sxp,body.claro:not(.lock) #vp{box-shadow:0 1px 2px #0f2a3312}
+body.claro:not(.lock) #apn,body.claro:not(.lock) #sxp,body.claro:not(.lock) #vp{box-shadow:0 14px 36px #0f2a331f}
+body.claro:not(.lock) #sxp .sx-lista a:hover{background:var(--panel2)}
+/* acertos do v4 */
+.m.p::before{display:none}
+.cb{background:#0a1014}.cbh{background:var(--panel2)}.cbh .cl{color:var(--mut)}
+.cb button.cp{color:var(--c)}
+body.claro:not(.lock) .m.p{background:none;border:0;box-shadow:none;border-radius:0;backdrop-filter:none;-webkit-backdrop-filter:none}
+body.claro:not(.lock) .hb{background:transparent;border-color:transparent}
+body.claro:not(.lock) .hb:hover{background:var(--panel2);border-color:var(--bd2)}
+body.claro:not(.lock) .kv dd{background:none}
+body.claro:not(.lock) .cbh{background:#1a252b}
+body.claro:not(.lock) .kv dd.ok,body.claro:not(.lock) .kv dd.av,body.claro:not(.lock) .kv dd.er{background:none}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
 <svg id="hx" aria-hidden="true" focusable="false"><defs><pattern id="hxp" width="56" height="97" patternUnits="userSpaceOnUse" patternTransform="scale(.9)"><path d="M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z M28 62 L28 95 M54 47 L82 62 M2 47 L-26 62" fill="none" stroke="currentColor" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#hxp)"/></svg>
