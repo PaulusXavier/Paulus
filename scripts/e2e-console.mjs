@@ -4,7 +4,7 @@ import http from 'node:http'; import fs from 'node:fs'; import path from 'node:p
 import { criarManipulador } from '../worker/handler.mjs'; import { APPS } from '../worker/apps.mjs'; import { criarHashDeSenha } from '../worker/auth.mjs'; import { carregarPDFLib } from '../tests/pdflib-carregar.mjs';
 const RAIZ = path.join(path.dirname(fileURLToPath(import.meta.url)), '..'); const require = createRequire(import.meta.url);
 let chromium; try { ({ chromium } = require('playwright')); } catch (e) { ({ chromium } = require(path.join(process.env.NODE_PATH || '', 'playwright'))); }
-const PORTA = 8766, ORIGEM = 'http://localhost:' + PORTA, SENHA = 'senha-forte-2026';
+const ESPERA = Number(process.env.E2E_ESPERA) || 1; const PORTA = 8766, ORIGEM = 'http://localhost:' + PORTA, SENHA = 'senha-forte-2026';
 const dist = path.join(RAIZ, 'dist'); if (!fs.existsSync(path.join(dist, 'paulus.v1.js'))) throw new Error('Rode antes: npm run build');
 const base = JSON.parse(fs.readFileSync(path.join(dist, 'conhecimento.json'), 'utf8'));
 const hash = await criarHashDeSenha(SENHA);
@@ -47,13 +47,13 @@ async function teste(nome, fn, op = {}) {
 }
 const ok = (c, m) => { if (!c) throw new Error(m); };
 async function abrir(pg) {
-  await pg.goto(ORIGEM + '/'); await pg.waitForSelector('#lgu:not([disabled])', { timeout: 8000 });
+  await pg.goto(ORIGEM + '/'); await pg.waitForSelector('#lgu:not([disabled])', { timeout: 8000 * ESPERA });
   await pg.fill('#lgu', 'paulo'); await pg.fill('#lgp', SENHA); await pg.click('#lgb');
-  await pg.waitForSelector('#q', { state: 'visible', timeout: 8000 }); await pg.waitForFunction(() => document.getElementById('st').textContent === 'EM ESPERA', null, { timeout: 8000 });
+  await pg.waitForSelector('#q', { state: 'visible', timeout: 8000 * ESPERA }); await pg.waitForFunction(() => document.getElementById('st').textContent === 'EM ESPERA', null, { timeout: 8000 * ESPERA });
 }
 const enviar = async (pg, t) => { await pg.fill('#q', t); await pg.press('#q', 'Enter'); };
 const ultima = (pg) => pg.locator('#log .m.p').last();
-const fim = (pg) => pg.waitForFunction(() => document.getElementById('go').textContent === 'Enviar', null, { timeout: 15000 });
+const fim = (pg) => pg.waitForFunction(() => document.getElementById('go').textContent === 'Enviar', null, { timeout: 15000 * ESPERA });
 
 console.log('Console · ponta a ponta');
 await teste('abre após o login, com boas-vindas, atalhos e foco na pergunta', async (pg) => {
@@ -121,6 +121,30 @@ await teste('celular (390×760): barra não cobre a conversa e nada rola de lado
   ok(g.l <= g.b + 1, 'conversa passa por baixo da barra: ' + JSON.stringify(g)); ok(g.sw <= g.iw, 'rolagem horizontal');
 }, { viewport: { width: 390, height: 760 } });
 const SHOT = process.env.SHOT_DIR;
+await teste('Ícone (núcleo): fala por estado, aperta ao segurar e 4 toques seguidos dão "tonto" (só no 4º)', async (pg) => {
+  await abrir(pg);
+  const fala = () => pg.textContent('#fala');
+  await pg.click('#core'); await pg.waitForSelector('#fala.on', { timeout: 2000 * ESPERA });
+  ok((await fala()).length > 3, 'sem fala ao tocar parado');
+  // pensando: o toque responde conforme o estado
+  demora = 400;
+  try {
+    await enviar(pg, 'explique o papel do CRAS no território');
+    await pg.waitForFunction(() => document.body.getAttribute('data-estado') === 'busy', null, { timeout: 5000 * ESPERA });
+    await pg.click('#core');
+    ok(/pensando/i.test(await fala()), 'em "busy" a fala deveria dizer que está pensando: ' + await fala());
+  } finally { demora = 0; }
+  await fim(pg);
+  // 4 toques em sequência: espera a janela de 1,6 s esvaziar para não herdar os toques acima
+  await pg.waitForTimeout(1800);
+  const bx = await pg.locator('#core').boundingBox(); await pg.mouse.move(bx.x + bx.width / 2, bx.y + bx.height / 2);
+  const falas = [];
+  for (let i = 0; i < 4; i++) { await pg.mouse.down(); await pg.mouse.up(); await pg.waitForTimeout(80); falas.push(await fala()); }
+  ok(!falas.slice(0, 3).some((t) => /tonto/i.test(t)), '"tonto" veio cedo demais: ' + falas.join(' | '));
+  ok(/tonto/i.test(falas[3]), 'o 4º toque não deu "tonto": ' + falas.join(' | '));
+  // segurar e soltar não pode deixar erro de script (a página falha o teste se houver)
+  await pg.mouse.down(); await pg.waitForTimeout(250); await pg.mouse.up();
+});
 await teste('Meus sistemas: botão abre o painel com 12 links e "Abrir todos"; /sistemas e Escape; /sibec abre a aba', async (pg) => {
   await abrir(pg); await pg.click('#sx'); ok(await pg.locator('#sxp').isVisible(), 'painel não abriu');
   ok(await pg.locator('#sxp .sx-lista a[target=_blank]').count() === 12, 'não são 12 links');
@@ -129,7 +153,7 @@ await teste('Meus sistemas: botão abre o painel com 12 links e "Abrir todos"; /
   await pg.keyboard.press('Escape'); ok(await pg.locator('#sxp').isHidden(), 'Escape não fechou');
   await pg.fill('#q', '/sis'); ok(await pg.locator('#sl').isVisible(), 'sem lista de atalhos');
   await pg.press('#q', 'Enter'); await pg.waitForTimeout(150);
-  const [nova] = await Promise.all([pg.context().waitForEvent('page', { timeout: 4000 }), (async () => { await pg.fill('#q', 'chama o cadunico'); await pg.press('#q', 'Enter'); })()]);
+  const [nova] = await Promise.all([pg.context().waitForEvent('page', { timeout: 4000 * ESPERA }), (async () => { await pg.fill('#q', 'chama o cadunico'); await pg.press('#q', 'Enter'); })()]);
   await nova.close().catch(() => {});
 });
 await teste('Meus sistemas no celular: vai para o menu e o painel cabe na tela', async (pg) => {
@@ -164,7 +188,7 @@ async function simularMapa(pg, estado) {
 await teste('rota com posição mostra o MAPA: marcadores numerados, linha, atribuição OSM e botão Pelas ruas', async (pg) => {
   const est = {}; await simularMapa(pg, est); pg.on('dialog', (d) => d.accept());
   await abrir(pg); await enviar(pg, 'traçar rota saindo daqui: CAPS Teste Um e CRAS Teste Dois'); await fim(pg);
-  await pg.waitForSelector('#log .mapa .leaflet-tile-loaded', { timeout: 8000 });
+  await pg.waitForSelector('#log .mapa .leaflet-tile-loaded', { timeout: 8000 * ESPERA });
   ok(await pg.locator('#log .mapa .pin').count() === 3, 'marcadores: ' + await pg.locator('#log .mapa .pin').count());
   ok(await pg.locator('#log .mapa path.leaflet-interactive').count() >= 1, 'sem linha da rota');
   ok(/OpenStreetMap/.test(await pg.innerText('#log .mapa .leaflet-control-attribution')), 'sem atribuição');
@@ -174,13 +198,13 @@ await teste('rota com posição mostra o MAPA: marcadores numerados, linha, atri
 }, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758, accuracy: 20 } });
 await teste('"mostrar o mapa de Boa Vista" abre o mapa no aparelho, sem chamar a IA; Onde estou põe o marcador EU', async (pg) => {
   perguntasIA.length = 0; await simularMapa(pg, {});
-  await abrir(pg); await enviar(pg, 'mostrar o mapa de Boa Vista'); await pg.waitForSelector('#log .mapa .leaflet-tile-loaded', { timeout: 8000 });
+  await abrir(pg); await enviar(pg, 'mostrar o mapa de Boa Vista'); await pg.waitForSelector('#log .mapa .leaflet-tile-loaded', { timeout: 8000 * ESPERA });
   ok(perguntasIA.length === 0, 'chamou a IA'); await pg.click('#log button:has-text("Onde estou")'); await pg.waitForSelector('#log .mapa .pin.eu', { timeout: 6000 });
 }, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758, accuracy: 20 } });
 await teste('mapa sem internet (tiles falham): a rota continua desenhada e o aviso aparece', async (pg) => {
   await pg.route('https://tile.openstreetmap.org/**', (r) => r.abort());
   await abrir(pg); await enviar(pg, 'traçar rota saindo daqui: CAPS Teste Um e CRAS Teste Dois'); await fim(pg);
-  await pg.waitForSelector('#log .mapa .pin', { timeout: 8000 }); await pg.waitForFunction(() => /INDISPONÍVEL/.test(document.querySelector('.mleg').innerText), null, { timeout: 8000 });
+  await pg.waitForSelector('#log .mapa .pin', { timeout: 8000 * ESPERA }); await pg.waitForFunction(() => /INDISPONÍVEL/.test(document.querySelector('.mleg').innerText), null, { timeout: 8000 * ESPERA });
 }, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758 } });
 await teste('voz do navegador: escolhe sozinha a voz masculina natural, deixa trocar e usa velocidade e tom ao falar', async (pg) => {
   await pg.addInitScript(() => {
