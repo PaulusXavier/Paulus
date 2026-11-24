@@ -2852,9 +2852,21 @@ function trechosParaOPedido(modo, pergunta, padrao) {
 // Parâmetros da IA por situação. Os valores "normais" são os de sempre (900 tokens, temperatura 0,4),
 // para a resposta de rotina não mudar; o que muda é o que precisa mudar.
 //   pref.tamanho === 'curto' (memória do aparelho) continua mandando no teto de respostas comuns.
-function perfilDaIA({ modo, tema = false, comTextoPronto = false, pref = null, quantitativo = false, partes = 0 }) {
+// Pedido de DESENHO ("desenhe um fluxograma", "faça um esquema do PAIF", "ilustre"): a IA responde com um bloco ```svg que o console desenha na tela.
+const RE_DESENHO = /\b(desenh(a|e|ar|o|os|ando)|ilustr(a|e|ar|acao|acoes)|esbo(c|ç)(a|e|ar|o)|croqui|fluxograma|organograma|diagrama|infografico|mapa mental|mapa conceitual|linha do tempo|cartaz|banner|logotipo|logomarca|icone|pictograma|svg)\b/;
+function pedidoDeDesenho(texto) {
+  const t = String(texto == null ? '' : texto).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (!RE_DESENHO.test(t)) return false;
+  // "desenho institucional", "desenho do programa/serviço/política" é assunto do SUAS, não pedido de imagem
+  if (/\bdesenho (institucional|do (programa|servico|projeto|sistema|estudo)|da (politica|rede|pesquisa))\b/.test(t) && !/\b(desenh(a|e|ar)|faca|faz|crie|gere|monte)\b/.test(t)) return false;
+  return true;
+}
+
+function perfilDaIA({ modo, tema = false, comTextoPronto = false, pref = null, quantitativo = false, partes = 0, comDesenho = false }) {
   if (modo === 'saudacao') return { max_tokens: 160, temperature: 0.5 };
   if (tema) return { max_tokens: 900, temperature: 0.4 };
+  // Desenho: o SVG ocupa muito mais que um texto; sem este teto o código é cortado no meio e o desenho não aparece.
+  if (comDesenho) return { max_tokens: 3200, temperature: 0.3 };
   // Pergunta de conta: o número vem do programa, a IA só explica. Temperatura baixa para não reescrever o resultado.
   if (comTextoPronto) return { max_tokens: 1400, temperature: quantitativo ? 0.3 : 0.5 };
   if (quantitativo && modo !== 'refinamento') return { max_tokens: pref && pref.tamanho === 'curto' ? 600 : 1000, temperature: 0.2 };
