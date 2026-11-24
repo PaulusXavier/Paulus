@@ -169,19 +169,26 @@ function parametrosDaIA(mensagens, ajuste, stream) {
   return { messages: mensagens, max_tokens: ajuste.max_tokens || 900, temperature: ajuste.temperature != null ? ajuste.temperature : 0.4, stream: !!stream };
 }
 
+// Cache de prefixo do Workers AI: o começo do prompt de sistema (regras e normas fixas, milhares de tokens) é igual em
+// todas as perguntas; o cabeçalho x-session-affinity leva as chamadas ao mesmo servidor, que já tem esse começo
+// processado. Fica mais rápido e gasta menos da cota. O valor é só um rótulo de roteamento (nada da pessoa nem da conversa):
+// cada instância do Worker sorteia um entre 8, para a carga não se concentrar num servidor só.
+const AFINIDADE = 'paulus-' + Math.floor(Math.random() * 8);
+const OPCOES_IA = { extraHeaders: { 'x-session-affinity': AFINIDADE } };
+
 async function chamarIA(env, mensagens, stream, extra) {
   const ajuste = extra || {};
   const { principal, reserva } = resolverModelos(env, ajuste);
   const params = parametrosDaIA(mensagens, ajuste, stream);
   let saida;
   try {
-    saida = await env.AI.run(principal, params);
+    saida = await env.AI.run(principal, params, OPCOES_IA);
   } catch (e) {
     if (reserva === principal) throw e;
-    return await env.AI.run(reserva, params);
+    return await env.AI.run(reserva, params, OPCOES_IA);
   }
   if (!stream && !extrairTexto(saida) && reserva !== principal) {
-    try { return await env.AI.run(reserva, params); } catch (e) { return saida; }
+    try { return await env.AI.run(reserva, params, OPCOES_IA); } catch (e) { return saida; }
   }
   return saida;
 }
@@ -631,7 +638,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       // Se o fluxo do modelo grande falhar ou vier vazio antes de sair texto, o modelo pequeno responde (sem stream) no lugar.
       const { principal, reserva } = resolverModelos(env, ajuste);
       const recuperar = reserva !== principal
-        ? async function () { return extrairTexto(await env.AI.run(reserva, parametrosDaIA(mensagens, ajuste, false))); }
+        ? async function () { return extrairTexto(await env.AI.run(reserva, parametrosDaIA(mensagens, ajuste, false), OPCOES_IA)); }
         : null;
       return sse(normalizarFluxo(saida, fontes, nomesHabilidades, citaveis, recuperar, imagemLida));
     }
