@@ -431,6 +431,26 @@
     "caracteres": 2669
   },
   {
+    "doc": "decreto-11016-2022-cadunico",
+    "titulo": "Decreto do Cadastro Único de 2022 (resumo por tema)",
+    "norma": "Resumo do Decreto nº 11.016, de 29 de março de 2022 (Planalto, com alterações do Decreto nº 12.534/2025), que regulamenta o Cadastro Único para Programas Sociais do Governo Federal",
+    "ano": 2022,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 6,
+    "caracteres": 4055
+  },
+  {
+    "doc": "decreto-12064-2024-resumo-por-tema",
+    "titulo": "Decreto do Bolsa Família de 2024 (resumo por tema)",
+    "norma": "Resumo do Decreto nº 12.064, de 17 de junho de 2024 (texto no Planalto, com alterações dos Decretos nº 12.417/2025 e nº 13.120/2026), que regulamenta a Lei nº 14.601/2023",
+    "ano": 2024,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 10,
+    "caracteres": 6099
+  },
+  {
     "doc": "decreto-12064-2024",
     "titulo": "Regulamento do Programa Bolsa Família",
     "norma": "Decreto nº 12.064, de 17 de junho de 2024 (texto compilado, Planalto, com alterações dos Decretos nº 12.417/2025 e nº 13.120/2026)",
@@ -631,6 +651,16 @@
     "caracteres": 4456
   },
   {
+    "doc": "gas-do-povo-2026",
+    "titulo": "Gás do Povo (substitui o Auxílio Gás): resumo do FAQ oficial",
+    "norma": "Resumo do FAQ do Programa Gás do Povo (Ministério de Minas e Energia e MDS, gov.br, março de 2026) e da Lei nº 15.348, de 13 de fevereiro de 2026",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 7,
+    "caracteres": 2463
+  },
+  {
     "doc": "guia-bolsa-familia-cadunico-2026",
     "titulo": "Guia rápido Bolsa Família e CadÚnico (orientação, não é norma)",
     "norma": "Material orientativo compilado de MDS/Caixa e das normas citadas (Lei 14.601/2023, Decretos 12.064/2024 e 13.120/2026, Decreto 11.016/2022, Portaria MDS 1.058/2025, IN SENARC/MDS 50/2025, Portarias Interministeriais MDS/MS 38/2026 e MEC/MDS 12/2025); atualizado em 15/10/2026",
@@ -682,6 +712,16 @@
     "revisao": "pendente",
     "trechos": 16,
     "caracteres": 5698
+  },
+  {
+    "doc": "lei-15077-2024-cadunico-bpc-pbf",
+    "titulo": "Lei de 2024 sobre Cadastro Único, BPC e Bolsa Família (resumo por tema)",
+    "norma": "Resumo da Lei nº 15.077, de 27 de dezembro de 2024 (Planalto, texto retificado em 21/03/2025), com a Portaria MDS nº 1.145/2025 e suas alterações de 2026",
+    "ano": 2024,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 9,
+    "caracteres": 5665
   },
   {
     "doc": "loas-1993",
@@ -841,6 +881,46 @@
     "revisao": "pendente",
     "trechos": 38,
     "caracteres": 24814
+  },
+  {
+    "doc": "pbf-calendario-operacional-2026",
+    "titulo": "Calendário Operacional do Bolsa Família 2026 (pagamento, folha, reflexo cadastral)",
+    "norma": "Calendário Operacional do PBF 2026 (MDS, gov.br/mds/pt-br/acoes-e-programas/bolsa-familia/arquivos/calendario_operacional.pdf), transcrito por resumo; datas de pagamento por final de NIS não constam neste calendário",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 6,
+    "caracteres": 2601
+  },
+  {
+    "doc": "pbf-portaria-897-2023-gestao-beneficios",
+    "titulo": "Portaria de gestão dos benefícios do Bolsa Família (resumo por tema)",
+    "norma": "Resumo da Portaria MDS nº 897, de 7 de julho de 2023 (texto consolidado no gov.br/mds, com alterações até a Portaria MDS nº 1.152/2026), sobre a gestão dos benefícios do Programa Bolsa Família, do ingresso ao desligamento",
+    "ano": 2023,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 14,
+    "caracteres": 8808
+  },
+  {
+    "doc": "pbf-portarias-interministeriais-saude-educacao",
+    "titulo": "Condicionalidades do Bolsa Família: portarias interministeriais da educação (2025) e da saúde (2026)",
+    "norma": "Resumo dos Informes Bolsa Família nº 103 (08/01/2026), nº 105 (13/01/2026) e nº 124 (10/07/2026) do MDS, sobre a Portaria Interministerial MEC/MDS nº 12/2025, a Portaria Interministerial MDS/MS nº 38/2026 e o calendário 2026 (Instrução Normativa MDS nº 50/2025)",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 7,
+    "caracteres": 5660
+  },
+  {
+    "doc": "pbf-regra-protecao-retorno-revisao-2026",
+    "titulo": "Regra de Proteção, Retorno Garantido e Revisão Cadastral 2026 (informes do MDS)",
+    "norma": "Resumo dos Informes Bolsa Família nº 80 (16/05/2025) e nº 115 (24/04/2026), do folder \"Regra de Proteção\" do MDS e da Instrução Normativa SAGICAD/SENARC/SNAS/SNBA nº 2, de 30/01/2026 (Ação de Qualificação do Cadastro Único 2026)",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 7,
+    "caracteres": 4758
   },
   {
     "doc": "pnas-2004",
