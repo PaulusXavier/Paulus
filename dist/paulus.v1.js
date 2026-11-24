@@ -10244,6 +10244,10 @@ function iaLigada() {
 
 const REG_ACAO = /^(abrir|abra|abre|ir para|ir pra|va para|va pra|me leve|leve me|mostrar|mostre|navegar)\b\s*(.*)$/;
 // Verbos de fechar: só valem se o app registrou uma ação com esse rótulo; senão a frase segue para a IA.
+// Verbos mais soltos ("chama o sibec", "acessar o cadunico", "entrar no drive"): só valem se a frase for SÓ o pedido
+// (verbo + nome de uma ação registrada + palavras de ligação). Qualquer outra palavra manda a frase para a IA,
+// para "chamar o conselho tutelar, como faço?" ou "acessar o PAIF para quê?" não virarem abertura de tela.
+const REG_ACAO_SOLTO = /^(chamar|chame|chama|acessar|acesse|acessa|entrar no|entrar na|entrar nos|entrar nas|entrar em|entre no|entre na|entre nos|entre nas|entre em|iniciar|inicie|lancar|lance|carregar|carregue|vai para|vai pra|ir ao|ir a|va ao|va a)\b\s*(.*)$/;
 const REG_FECHAR = /^(fechar|feche|encerrar|encerre|sair|saia)\b\s*(.*)$/;
 const REG_BUSCA = /^(buscar|busque|procurar|procure|achar|ache|encontrar|encontre)\b\s*(.*)$/;
 
@@ -10257,6 +10261,9 @@ function acharPorRotulo(lista, alvo) {
   }
   return melhor;
 }
+
+// Palavras de ligação que podem sobrar numa frase que é só o pedido de abrir.
+const LIGACAO = { e: 1, o: 1, a: 1, os: 1, as: 1, tambem: 1, depois: 1, mais: 1, um: 1, uma: 1, app: 1, apps: 1, aplicativo: 1, aplicativos: 1, aba: 1, abas: 1, site: 1, sites: 1, sistema: 1, pagina: 1, link: 1, por: 1, favor: 1, pra: 1, para: 1, mim: 1, agora: 1, pelo: 1, pela: 1, no: 1, na: 1, nos: 1, nas: 1, do: 1, da: 1, dos: 1, das: 1, de: 1 };
 
 // "abrir o Argo e o Anona": várias ações de uma vez, só se TODAS as partes forem reconhecidas e nenhuma pedir confirmação.
 function tratarVariasAcoes(resto, fechando) {
@@ -10277,11 +10284,22 @@ function tratarVariasAcoes(resto, fechando) {
   if (achadas.length < 2 || achadas.length > 6) return null;
   achadas.sort(function (x, y) { return posicao.get(x) - posicao.get(y); });
   // só vale se o resto da frase for ligação ("e", "o", "tambem"...): qualquer palavra estranha cancela o lote
-  const LIGACAO = { e: 1, o: 1, a: 1, os: 1, as: 1, tambem: 1, depois: 1, mais: 1, um: 1, uma: 1, app: 1, apps: 1, aplicativo: 1, aplicativos: 1, aba: 1, abas: 1 };
   if (sobra.split(/\s+/).filter(Boolean).some(function (w) { return !LIGACAO[w]; })) return null;
   if (achadas.some(function (a) { return a.confirmar; })) return null;
   achadas.forEach(function (a) { a.executar(); estado.mem.aprenderAcao(a.id); });
   return { tipo: 'acao', acao: achadas.map(function (a) { return a.id; }).join(','), texto: 'Pronto: ' + achadas.map(function (a) { return a.titulo; }).join(', ') + '.', executada: true };
+}
+
+// Verbo solto: devolve a resposta só se TODA a frase for o pedido; senão null (e a frase segue para a IA).
+function tratarAcaoSolta(resto) {
+  const varias = tratarVariasAcoes(resto, false);
+  if (varias) return varias;
+  const a = acharPorRotulo(estado.acoes.filter(function (x) { return !x.fechar; }), resto);
+  if (!a) return null;
+  let sobra = ' ' + resto + ' ';
+  a.rotulos.slice().sort(function (x, y) { return y.length - x.length; }).forEach(function (r) { sobra = sobra.split(' ' + r + ' ').join(' '); });
+  if (sobra.split(/\s+/).filter(Boolean).some(function (w) { return !LIGACAO[w]; })) return null;
+  return tratarAcao(resto);
 }
 
 function tratarAcao(resto, fechando) {
@@ -10898,6 +10916,8 @@ async function perguntar(texto, opcoes) {
     const alvo = normalizar(t);
     let m = REG_ACAO.exec(alvo);
     if (m) return tratarAcao(m[2]);
+    m = REG_ACAO_SOLTO.exec(alvo);
+    if (m) { const solta = tratarAcaoSolta(m[2]); if (solta) return solta; }
     m = REG_FECHAR.exec(alvo);
     if (m && acharPorRotulo(estado.acoes.filter(function (x) { return x.fechar; }), m[2])) return tratarAcao(m[2], true);
     m = REG_BUSCA.exec(alvo);
