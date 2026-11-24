@@ -120,6 +120,24 @@ await teste('celular (390×760): barra não cobre a conversa e nada rola de lado
   const g = await pg.evaluate(() => ({ l: document.getElementById('log').getBoundingClientRect().bottom, b: document.getElementById('bar').getBoundingClientRect().top, sw: document.documentElement.scrollWidth, iw: innerWidth }));
   ok(g.l <= g.b + 1, 'conversa passa por baixo da barra: ' + JSON.stringify(g)); ok(g.sw <= g.iw, 'rolagem horizontal');
 }, { viewport: { width: 390, height: 760 } });
+const SHOT = process.env.SHOT_DIR;
+await teste('Meus sistemas: botão abre o painel com 12 links e "Abrir todos"; /sistemas e Escape; /sibec abre a aba', async (pg) => {
+  await abrir(pg); await pg.click('#sx'); ok(await pg.locator('#sxp').isVisible(), 'painel não abriu');
+  ok(await pg.locator('#sxp .sx-lista a[target=_blank]').count() === 12, 'não são 12 links');
+  ok(/Abrir todos \(12\)/.test(await pg.locator('#sxp .sx-todos').textContent()), 'sem Abrir todos');
+  if (SHOT) { await pg.mouse.move(600, 600); await pg.waitForTimeout(3500); await pg.screenshot({ path: SHOT + '/painel-desktop.png', clip: { x: 760, y: 0, width: 520, height: 130 } }); }
+  await pg.keyboard.press('Escape'); ok(await pg.locator('#sxp').isHidden(), 'Escape não fechou');
+  await pg.fill('#q', '/sis'); ok(await pg.locator('#sl').isVisible(), 'sem lista de atalhos');
+  await pg.press('#q', 'Enter'); await pg.waitForTimeout(150);
+  const [nova] = await Promise.all([pg.context().waitForEvent('page', { timeout: 4000 }), (async () => { await pg.fill('#q', 'chama o cadunico'); await pg.press('#q', 'Enter'); })()]);
+  await nova.close().catch(() => {});
+});
+await teste('Meus sistemas no celular: vai para o menu e o painel cabe na tela', async (pg) => {
+  await abrir(pg); await pg.click('#mn'); await pg.click('#sx'); ok(await pg.locator('#sxp').isVisible(), 'painel não abriu');
+  const g = await pg.evaluate(() => { const r = document.getElementById('sxp').getBoundingClientRect(); return { l: r.left, r: r.right, iw: innerWidth, sw: document.documentElement.scrollWidth }; });
+  ok(g.l >= 0 && g.r <= g.iw && g.sw <= g.iw, 'painel vaza: ' + JSON.stringify(g));
+  if (SHOT) { await pg.waitForTimeout(3500); await pg.screenshot({ path: SHOT + '/painel-celular.png' }); }
+}, { viewport: { width: 390, height: 760 } });
 // Rota a partir da posição do aparelho: o mapa de lugares de teste vai para dist/ só durante este teste.
 const lugaresTeste = path.join(dist, 'lugares-boa-vista.json'); const tinha = fs.existsSync(lugaresTeste);
 if (!tinha) fs.writeFileSync(lugaresTeste, JSON.stringify({ fonte: 'teste', gerado: '2026-11-21', cats: ['saude', 'assistencia'], bairros: [['Centro', 2.8235, -60.6758]], lugares: [['CAPS Teste Um', 0, 0, 2.8300, -60.6800, '', ''], ['CRAS Teste Dois', 1, 0, 2.8500, -60.7000, '', '']] }));
