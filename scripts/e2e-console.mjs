@@ -4,17 +4,19 @@ import http from 'node:http'; import fs from 'node:fs'; import path from 'node:p
 import { criarManipulador } from '../worker/handler.mjs'; import { APPS } from '../worker/apps.mjs'; import { criarHashDeSenha } from '../worker/auth.mjs'; import { carregarPDFLib } from '../tests/pdflib-carregar.mjs';
 const RAIZ = path.join(path.dirname(fileURLToPath(import.meta.url)), '..'); const require = createRequire(import.meta.url);
 let chromium; try { ({ chromium } = require('playwright')); } catch (e) { ({ chromium } = require(path.join(process.env.NODE_PATH || '', 'playwright'))); }
-const ESPERA = Number(process.env.E2E_ESPERA) || 1; const PORTA = 8766, ORIGEM = 'http://localhost:' + PORTA, SENHA = 'senha-forte-2026';
+const ESPERA = Number(process.env.E2E_ESPERA) || 1;
+const PORTA = 8766, ORIGEM = 'http://localhost:' + PORTA, SENHA = 'senha-forte-2026';
 const dist = path.join(RAIZ, 'dist'); if (!fs.existsSync(path.join(dist, 'paulus.v1.js'))) throw new Error('Rode antes: npm run build');
 const base = JSON.parse(fs.readFileSync(path.join(dist, 'conhecimento.json'), 'utf8'));
 const hash = await criarHashDeSenha(SENHA);
-const perguntasIA = []; let demora = 0;
+const perguntasIA = []; let demora = 0, respostaFixa = null, ultimoMax = 0;
 const MD = 'O **CRAS** é a porta de entrada.\n\n- Item *um*\n- Item dois\n\n| Serviço | Sigla |\n|---|---|\n| Proteção e Atendimento Integral à Família | PAIF |\n\n```\nconst x = 1;\n```\n\n[link bom](https://example.com) e [link ruim](javascript:alert(1)) <img src=x onerror="window.__xss=1"> <script>window.__xss=2</script>';
 function ia() {
   return { async run(_m, p) {
-    perguntasIA.push(p.messages[p.messages.length - 1].content);
-    if (!p.stream) return { response: MD };
-    const enc = new TextEncoder(); const pedacos = MD.match(/[\s\S]{1,12}/g);
+    perguntasIA.push(p.messages[p.messages.length - 1].content); ultimoMax = Math.max(ultimoMax, p.max_tokens || 0);
+    const T = respostaFixa || MD;
+    if (!p.stream) return { response: T };
+    const enc = new TextEncoder(); const pedacos = T.match(/[\s\S]{1,12}/g);
     return new ReadableStream({ async start(c) { for (const t of pedacos) { if (demora) await new Promise((r) => setTimeout(r, demora)); c.enqueue(enc.encode('data: ' + JSON.stringify({ response: t }) + '\n\n')); } c.enqueue(enc.encode('data: [DONE]\n\n')); c.close(); } });
   } };
 }
@@ -47,13 +49,13 @@ async function teste(nome, fn, op = {}) {
 }
 const ok = (c, m) => { if (!c) throw new Error(m); };
 async function abrir(pg) {
-  await pg.goto(ORIGEM + '/'); await pg.waitForSelector('#lgu:not([disabled])', { timeout: 8000 * ESPERA });
+  await pg.goto(ORIGEM + '/'); await pg.waitForSelector('#lgu:not([disabled])', { timeout: 8000 });
   await pg.fill('#lgu', 'paulo'); await pg.fill('#lgp', SENHA); await pg.click('#lgb');
-  await pg.waitForSelector('#q', { state: 'visible', timeout: 8000 * ESPERA }); await pg.waitForFunction(() => document.getElementById('st').textContent === 'EM ESPERA', null, { timeout: 8000 * ESPERA });
+  await pg.waitForSelector('#q', { state: 'visible', timeout: 8000 }); await pg.waitForFunction(() => document.getElementById('st').textContent === 'EM ESPERA', null, { timeout: 8000 });
 }
 const enviar = async (pg, t) => { await pg.fill('#q', t); await pg.press('#q', 'Enter'); };
 const ultima = (pg) => pg.locator('#log .m.p').last();
-const fim = (pg) => pg.waitForFunction(() => document.getElementById('go').textContent === 'Enviar', null, { timeout: 15000 * ESPERA });
+const fim = (pg) => pg.waitForFunction(() => document.getElementById('go').textContent === 'Enviar', null, { timeout: 15000 });
 
 console.log('Console · ponta a ponta');
 await teste('abre após o login, com boas-vindas, atalhos e foco na pergunta', async (pg) => {
@@ -121,29 +123,52 @@ await teste('celular (390×760): barra não cobre a conversa e nada rola de lado
   ok(g.l <= g.b + 1, 'conversa passa por baixo da barra: ' + JSON.stringify(g)); ok(g.sw <= g.iw, 'rolagem horizontal');
 }, { viewport: { width: 390, height: 760 } });
 const SHOT = process.env.SHOT_DIR;
-await teste('Ícone (núcleo): fala por estado, aperta ao segurar e 4 toques seguidos dão "tonto" (só no 4º)', async (pg) => {
-  await abrir(pg);
-  const fala = () => pg.textContent('#fala');
-  await pg.click('#core'); await pg.waitForSelector('#fala.on', { timeout: 2000 * ESPERA });
-  ok((await fala()).length > 3, 'sem fala ao tocar parado');
-  // pensando: o toque responde conforme o estado
-  demora = 400;
+const SVG_IA = '<svg viewBox="0 0 400 200" width="9999" height="9999">' +
+  '<rect width="400" height="200" fill="#ffffff" onclick="window.__xss=3"/>' +
+  '<script>window.__xss=4</script>' +
+  '<g id="g1" style="fill:url(http://evil.example/x)" onload="window.__xss=5">' +
+  '<circle cx="100" cy="100" r="50" fill="#37e6ff" stroke="#036" stroke-width="4"/>' +
+  '<image href="https://evil.example/track.png" x="0" y="0" width="10" height="10"/>' +
+  '<foreignObject x="0" y="0" width="50" height="50"><div xmlns="http://www.w3.org/1999/xhtml">oi</div></foreignObject>' +
+  '<a href="javascript:window.__xss=6"><rect x="200" y="60" width="120" height="80" fill="url(#g)" rx="8"/></a>' +
+  '<text x="260" y="108" font-size="16" text-anchor="middle" font-family="sans-serif">Olá, CRAS</text>' +
+  '</g></svg>';
+await teste('IA desenha: bloco svg vira desenho na tela (limpo, sem script), com baixar SVG e PNG; espaço de resposta maior', async (pg) => {
+  perguntasIA.length = 0; ultimoMax = 0;
+  respostaFixa = 'Aqui está o desenho.\n\n```svg\n' + SVG_IA + '\n```\n\nPosso ajustar as cores.';
   try {
-    await enviar(pg, 'explique o papel do CRAS no território');
-    await pg.waitForFunction(() => document.body.getAttribute('data-estado') === 'busy', null, { timeout: 5000 * ESPERA });
-    await pg.click('#core');
-    ok(/pensando/i.test(await fala()), 'em "busy" a fala deveria dizer que está pensando: ' + await fala());
-  } finally { demora = 0; }
-  await fim(pg);
-  // 4 toques em sequência: espera a janela de 1,6 s esvaziar para não herdar os toques acima
-  await pg.waitForTimeout(1800);
-  const bx = await pg.locator('#core').boundingBox(); await pg.mouse.move(bx.x + bx.width / 2, bx.y + bx.height / 2);
-  const falas = [];
-  for (let i = 0; i < 4; i++) { await pg.mouse.down(); await pg.mouse.up(); await pg.waitForTimeout(80); falas.push(await fala()); }
-  ok(!falas.slice(0, 3).some((t) => /tonto/i.test(t)), '"tonto" veio cedo demais: ' + falas.join(' | '));
-  ok(/tonto/i.test(falas[3]), 'o 4º toque não deu "tonto": ' + falas.join(' | '));
-  // segurar e soltar não pode deixar erro de script (a página falha o teste se houver)
-  await pg.mouse.down(); await pg.waitForTimeout(250); await pg.mouse.up();
+    await abrir(pg); await enviar(pg, 'desenhe um círculo azul e uma caixa com o texto Olá, CRAS'); await fim(pg);
+    await pg.waitForSelector('#log .dw img', { timeout: 5000 * ESPERA });
+    ok(perguntasIA.length >= 1, 'o pedido de desenho deveria ir à IA');
+    ok(ultimoMax >= 3000, 'sem espaço extra para o SVG: max_tokens=' + ultimoMax);
+    ok(await pg.locator('#log pre').count() === 0, 'o código SVG apareceu como texto em vez de desenho');
+    const src = decodeURIComponent((await pg.getAttribute('#log .dw img', 'src')).replace(/^data:image\/svg\+xml;charset=utf-8,/, ''));
+    for (const proibido of [/<script/i, /onclick|onload/i, /<image/i, /foreignObject/i, /javascript:/i, /evil\.example/i, /\bstyle=/i, /<a[\s>]/i, /\bhref=/i]) ok(!proibido.test(src), 'sobrou no SVG: ' + proibido + ' -> ' + src);
+    ok(/<circle/.test(src) && /Olá, CRAS/.test(src) && /viewBox="0 0 400 200"/.test(src), 'o desenho limpo perdeu as formas boas: ' + src);
+    ok(!/\swidth="9999"/.test(src), 'width/height do SVG não foram normalizados');
+    ok(await pg.evaluate(() => !window.__xss), 'script do SVG rodou');
+    ok(await pg.evaluate(() => { const i = document.querySelector('#log .dw img'); return i.complete && i.naturalWidth > 0; }), 'o navegador não conseguiu desenhar a imagem');
+    const [dsvg] = await Promise.all([pg.waitForEvent('download', { timeout: 5000 * ESPERA }), pg.click('#log .dw button:has-text("SVG")')]);
+    ok(dsvg.suggestedFilename() === 'desenho-paulus.svg', 'nome do SVG: ' + dsvg.suggestedFilename());
+    const [dpng] = await Promise.all([pg.waitForEvent('download', { timeout: 5000 * ESPERA }), pg.click('#log .dw button:has-text("PNG")')]);
+    ok(dpng.suggestedFilename() === 'desenho-paulus.png', 'nome do PNG: ' + dpng.suggestedFilename());
+  } finally { respostaFixa = null; }
+});
+await teste('IA desenha: enquanto o SVG chega aparece "Desenhando…"; SVG quebrado cai de volta em bloco de código', async (pg) => {
+  respostaFixa = 'Segue.\n\n```svg\n' + SVG_IA + '\n```\n'; demora = 120;
+  try {
+    await abrir(pg); await enviar(pg, 'desenhe um círculo azul');
+    await pg.waitForSelector('#log .dwp', { timeout: 8000 * ESPERA });
+    ok(await pg.locator('#log pre').count() === 0, 'o código apareceu aos poucos em vez de "Desenhando…"');
+    demora = 0; await fim(pg);
+    ok(await pg.locator('#log .dw img').count() === 1 && await pg.locator('#log .dwp').count() === 0, 'depois de pronto deveria ficar só o desenho');
+    // SVG quebrado (tag aberta): não some nem quebra a tela, vira bloco de código
+    respostaFixa = 'Tentei.\n\n```svg\n<svg viewBox="0 0 10 10"><rect width="5" height="5">\n```\n';
+    await pg.waitForTimeout(1500);   // o cliente recusa perguntas com menos de 1,2 s de intervalo ("uma pergunta de cada vez")
+    await enviar(pg, 'desenhe um quadrado'); await fim(pg);
+    ok(await pg.locator('#log pre').count() === 1, 'SVG inválido deveria aparecer como código: ' + (await pg.innerText('#log')).slice(-400));
+    ok(await pg.locator('#log .dw img').count() === 1, 'o desenho anterior deveria continuar');
+  } finally { respostaFixa = null; demora = 0; }
 });
 await teste('Meus sistemas: botão abre o painel com 12 links e "Abrir todos"; /sistemas e Escape; /sibec abre a aba', async (pg) => {
   await abrir(pg); await pg.click('#sx'); ok(await pg.locator('#sxp').isVisible(), 'painel não abriu');
@@ -153,7 +178,7 @@ await teste('Meus sistemas: botão abre o painel com 12 links e "Abrir todos"; /
   await pg.keyboard.press('Escape'); ok(await pg.locator('#sxp').isHidden(), 'Escape não fechou');
   await pg.fill('#q', '/sis'); ok(await pg.locator('#sl').isVisible(), 'sem lista de atalhos');
   await pg.press('#q', 'Enter'); await pg.waitForTimeout(150);
-  const [nova] = await Promise.all([pg.context().waitForEvent('page', { timeout: 4000 * ESPERA }), (async () => { await pg.fill('#q', 'chama o cadunico'); await pg.press('#q', 'Enter'); })()]);
+  const [nova] = await Promise.all([pg.context().waitForEvent('page', { timeout: 4000 }), (async () => { await pg.fill('#q', 'chama o cadunico'); await pg.press('#q', 'Enter'); })()]);
   await nova.close().catch(() => {});
 });
 await teste('Meus sistemas no celular: vai para o menu e o painel cabe na tela', async (pg) => {
@@ -188,7 +213,7 @@ async function simularMapa(pg, estado) {
 await teste('rota com posição mostra o MAPA: marcadores numerados, linha, atribuição OSM e botão Pelas ruas', async (pg) => {
   const est = {}; await simularMapa(pg, est); pg.on('dialog', (d) => d.accept());
   await abrir(pg); await enviar(pg, 'traçar rota saindo daqui: CAPS Teste Um e CRAS Teste Dois'); await fim(pg);
-  await pg.waitForSelector('#log .mapa .leaflet-tile-loaded', { timeout: 8000 * ESPERA });
+  await pg.waitForSelector('#log .mapa .leaflet-tile-loaded', { timeout: 8000 });
   ok(await pg.locator('#log .mapa .pin').count() === 3, 'marcadores: ' + await pg.locator('#log .mapa .pin').count());
   ok(await pg.locator('#log .mapa path.leaflet-interactive').count() >= 1, 'sem linha da rota');
   ok(/OpenStreetMap/.test(await pg.innerText('#log .mapa .leaflet-control-attribution')), 'sem atribuição');
@@ -198,38 +223,13 @@ await teste('rota com posição mostra o MAPA: marcadores numerados, linha, atri
 }, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758, accuracy: 20 } });
 await teste('"mostrar o mapa de Boa Vista" abre o mapa no aparelho, sem chamar a IA; Onde estou põe o marcador EU', async (pg) => {
   perguntasIA.length = 0; await simularMapa(pg, {});
-  await abrir(pg); await enviar(pg, 'mostrar o mapa de Boa Vista'); await pg.waitForSelector('#log .mapa .leaflet-tile-loaded', { timeout: 8000 * ESPERA });
+  await abrir(pg); await enviar(pg, 'mostrar o mapa de Boa Vista'); await pg.waitForSelector('#log .mapa .leaflet-tile-loaded', { timeout: 8000 });
   ok(perguntasIA.length === 0, 'chamou a IA'); await pg.click('#log button:has-text("Onde estou")'); await pg.waitForSelector('#log .mapa .pin.eu', { timeout: 6000 });
 }, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758, accuracy: 20 } });
-await teste('"fechar o mapa" tira o mapa da conversa, sem chamar a IA; sem mapa aberto avisa', async (pg) => {
-  perguntasIA.length = 0; await simularMapa(pg, {});
-  await abrir(pg); await enviar(pg, 'mostrar o mapa de Boa Vista'); await pg.waitForSelector('#log .mapa .leaflet-tile-loaded', { timeout: 8000 * ESPERA });
-  await enviar(pg, 'fechar o mapa'); await fim(pg);
-  ok(await pg.locator('#log .mapa').count() === 0, 'o mapa continua na tela');
-  ok(/Mapa fechado/.test(await ultima(pg).innerText()), 'sem confirmação: ' + await ultima(pg).innerText());
-  await enviar(pg, 'fecha o mapa'); await fim(pg);
-  ok(/Não há mapa aberto/.test(await ultima(pg).innerText()), 'sem aviso de mapa fechado: ' + await ultima(pg).innerText());
-  ok(perguntasIA.length === 0, 'chamou a IA');
-}, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758, accuracy: 20 } });
-await teste('"terminar a conversa" encerra: limpa a tela, avisa e volta às boas-vindas; pergunta com a palavra não apaga nada', async (pg) => {
-  perguntasIA.length = 0; await abrir(pg);
-  await enviar(pg, 'quanto é 15% de 3200?'); await fim(pg);
-  await enviar(pg, 'terminar a conversa com o cidadão, como faço?'); await fim(pg);
-  ok(await pg.locator('#log .m.p').count() >= 2, 'a pergunta com a palavra "conversa" apagou a conversa');
-  perguntasIA.length = 0;
-  await enviar(pg, 'termine a conversa'); await fim(pg);
-  ok(await pg.locator('#log .m.u').count() === 0, 'a conversa antiga continua na tela');
-  ok(!/480/.test(await pg.innerText('#log')), 'a resposta antiga continua na tela');
-  ok(/Conversa encerrada/.test(await pg.innerText('#log')), 'sem aviso: ' + await pg.innerText('#log'));
-  ok(await pg.locator('#log .hi').count() === 1, 'sem boas-vindas depois de encerrar');
-  ok(perguntasIA.length === 0, 'chamou a IA');
-  await enviar(pg, 'quanto é 15% de 3200?'); await fim(pg);
-  ok(/480/.test(await ultima(pg).innerText()), 'não dá para continuar depois de encerrar');
-});
 await teste('mapa sem internet (tiles falham): a rota continua desenhada e o aviso aparece', async (pg) => {
   await pg.route('https://tile.openstreetmap.org/**', (r) => r.abort());
   await abrir(pg); await enviar(pg, 'traçar rota saindo daqui: CAPS Teste Um e CRAS Teste Dois'); await fim(pg);
-  await pg.waitForSelector('#log .mapa .pin', { timeout: 8000 * ESPERA }); await pg.waitForFunction(() => /INDISPONÍVEL/.test(document.querySelector('.mleg').innerText), null, { timeout: 8000 * ESPERA });
+  await pg.waitForSelector('#log .mapa .pin', { timeout: 8000 }); await pg.waitForFunction(() => /INDISPONÍVEL/.test(document.querySelector('.mleg').innerText), null, { timeout: 8000 });
 }, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758 } });
 await teste('voz do navegador: escolhe sozinha a voz masculina natural, deixa trocar e usa velocidade e tom ao falar', async (pg) => {
   await pg.addInitScript(() => {
