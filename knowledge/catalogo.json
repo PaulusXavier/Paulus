@@ -88,14 +88,24 @@
     "caracteres": 2849
   },
   {
-    "doc": "argo-enderecos-diretorio",
-    "titulo": "Diretório de endereços do Argo SUAS",
-    "norma": "Diretório de equipamentos e serviços do app Argo SUAS (js/data.js e UNITS_CRAS_CREAS), copiado em 2026-11-21. Não é norma nem cadastro oficial: é o diretório mantido pela equipe do Argo, e endereço, telefone e horário mudam. Confirme com a unidade antes de encaminhar uma pessoa.",
+    "doc": "argo-cards-abas",
+    "titulo": "Cards das abas do Argo SUAS (Ferramentas, Aplicativos, Informes, Central de PDF, guias de BPC)",
+    "norma": "Texto dos cards das abas do app Argo SUAS (js/app.js), copiado em 2026-11-24. Não é norma: descreve o que o Argo oferece em cada aba. Valores e regras dos guias (renda, salário mínimo, prazos) mudam; confira na fonte oficial antes de orientar uma família.",
     "ano": 2026,
     "tipo": "apoio",
     "revisao": "pendente",
-    "trechos": 515,
-    "caracteres": 208185
+    "trechos": 57,
+    "caracteres": 27189
+  },
+  {
+    "doc": "argo-enderecos-diretorio",
+    "titulo": "Diretório de endereços do Argo SUAS",
+    "norma": "Diretório de equipamentos e serviços do app Argo SUAS (js/data.js e UNITS_CRAS_CREAS), copiado em 2026-11-24. Não é norma nem cadastro oficial: é o diretório mantido pela equipe do Argo, e endereço, telefone e horário mudam. Confirme com a unidade antes de encaminhar uma pessoa.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 524,
+    "caracteres": 388766
   },
   {
     "doc": "boa-vista-diagnostico-socioterritorial-2026",
@@ -664,6 +674,16 @@
     "revisao": "pendente",
     "trechos": 507,
     "caracteres": 89447
+  },
+  {
+    "doc": "mascote-argo-guia-apoio",
+    "titulo": "Mascote do Argo SUAS: guia de apoio às habilidades (não é norma)",
+    "norma": "Descrição própria do que o mascote do app Argo SUAS (o barquinho Argo) sabe fazer, escrita a partir do código do app em novembro de 2026. Não é norma nem manual oficial: o app muda, e valores, datas e regras vêm das normas, das fichas e do próprio app, não deste guia.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 5,
+    "caracteres": 2327
   },
   {
     "doc": "nob-rh-suas-anotada-2011",
