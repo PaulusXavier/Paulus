@@ -1017,6 +1017,32 @@
         if (!w) aviso('O navegador bloqueou a nova aba. Libere pop-ups para este site e peça de novo.');
       } });
     });
+    // Sistemas do trabalho: "abrir meus sistemas" abre todos de uma vez; "abrir sibec" ou "abrir cadunico e drive" abre só esses.
+    // Só endereços de acesso (nenhum login ou senha passa pelo Paulus). O navegador pode bloquear várias abas de um comando: nesse caso avisa quantas.
+    var SISTEMAS = [
+      { id: 'sis-bvcidadao', t: 'BV Cidadão (Proton)', r: ['bv cidadao', 'proton'], u: 'https://bvcidadao.prefeitura.boavista.br/proton/login.asp' },
+      { id: 'sis-portalcidadao', t: 'Portal do Cidadão', r: ['portal do cidadao', 'portal cidadao'], u: 'https://portalcidadao.prefeitura.boavista.br/default.aspx' },
+      { id: 'sis-cidadesocial', t: 'Cidade Social', r: ['cidade social'], u: 'https://cidadesocial.pmbv.rr.gov.br/' },
+      { id: 'sis-sipweb', t: 'SIPWeb (trabalhador)', r: ['sipweb', 'sip web'], u: 'http://sipweb.boavista.rr.gov.br:8080/sipweb/trabalhador/login/login.xhtml' },
+      { id: 'sis-smt', t: 'SMT (chamados)', r: ['smt', 'chamados'], u: 'https://bt.pmbv.rr.gov.br/SMT73/open.do?sys=SMT' },
+      { id: 'sis-cedulac', t: 'Cedulac', r: ['cedulac'], u: 'http://servicos.boavista.rr.gov.br/cedulac/' },
+      { id: 'sis-sibec', t: 'SIBEC (Caixa)', r: ['sibec', 'sibec caixa', 'beneficios sociais caixa'], u: 'https://beneficiossociais.caixa.gov.br/sibec2/sisgrSibec' },
+      { id: 'sis-sigpbf', t: 'SIGPBF (MDS)', r: ['sigpbf', 'sigpbf mds'], u: 'https://www.mds.gov.br/mds-sigpbf-web/carregarTelaLogin.jsf' },
+      { id: 'sis-govbr', t: 'Acesso gov.br', r: ['gov br', 'acesso gov br', 'govbr'], u: 'https://sso.acesso.gov.br/login?client_id=portal-logado.estaleiro.serpro.gov.br&authorization_id=1a20df2fed9' },
+      { id: 'sis-cadunico', t: 'CadÚnico (Dataprev)', r: ['cadunico', 'cad unico', 'cadastro unico'], u: 'https://cadunico.dataprev.gov.br/portal/' },
+      { id: 'sis-drive', t: 'Pasta no Google Drive', r: ['drive', 'google drive', 'minha pasta'], u: 'https://drive.google.com/drive/folders/1nR7c8AsrhwWPyBYfmWkOmEIfyH349gXR' }
+    ];
+    function abrirAba(u) { var w = null; try { w = window.open(u, '_blank', 'noopener'); } catch (e) { w = null; } return !!w; }
+    SISTEMAS.forEach(function (a) {
+      P.registrarAcao({ id: a.id, titulo: a.t, rotulos: a.r, executar: function () {
+        if (!abrirAba(a.u)) aviso('O navegador bloqueou a nova aba. Libere pop-ups para este site e peça de novo.');
+      } });
+    });
+    P.registrarAcao({ id: 'sis-todos', titulo: 'Abrir todos os meus sistemas', rotulos: ['meus sistemas', 'todos os sistemas', 'todos os meus sistemas', 'sistemas', 'todos os sites', 'meus sites', 'sites do trabalho'], executar: function () {
+      var barrados = 0;
+      SISTEMAS.forEach(function (a) { if (!abrirAba(a.u)) barrados++; });
+      if (barrados) aviso('O navegador bloqueou ' + barrados + ' de ' + SISTEMAS.length + ' abas. Libere pop-ups para este site (ícone na barra de endereço) e peça de novo.');
+    } });
     P.registrarAcao({ id: 'fechar-app', fechar: true, titulo: 'Fechar o aplicativo', rotulos: ['aplicativo', 'app', 'console', 'o paulus', 'paulus', 'tudo', 'esta aba', 'essa aba', 'janela'], executar: function () {
       try { if (typeof pararFala === 'function') pararFala(); } catch (e) { /* segue */ }
       try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) { /* segue */ }
