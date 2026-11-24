@@ -1311,6 +1311,9 @@
     var COR = { idle: [55, 230, 255], busy: [255, 179, 71], listen: [110, 231, 168], speak: [143, 244, 255], erro: [255, 107, 94] };
     var AMP = { idle: 0.05, busy: 0.3, listen: 0.62, speak: 0.8, erro: 0.1 }, VEL = { idle: 1, busy: 3.4, listen: 1.7, speak: 2, erro: 0.4 };
     var cur = COR.idle.slice();
+    // reações do rosto: molas [posição, velocidade]. sc = escala (afunda ao apertar), rot = inclinação em radianos
+    var K = { sc: [0, 0], rot: [0, 0] }, aperta = false;
+    function mola(m, k, c, repouso) { m[1] += -k * (m[0] - repouso) - c * m[1]; m[0] += m[1]; }
     img.onload = function () { imgOk = true; if (reduzido) quadro(performance.now()); };
     img.src = 'icon-512.png';
     function tam() { var r = cv.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2); W = r.width; H = r.height; cv.width = Math.round(W * d); cv.height = Math.round(H * d); ctx.setTransform(d, 0, 0, d, 0, 0); }
@@ -1323,6 +1326,7 @@
       var t = reduzido ? 2 : now / 1000, R = Math.min(W, H) / 2 - 1, cx = W / 2, cy = H / 2, alvo = COR[est] || COR.idle, vel = VEL[est] || 1;
       for (i = 0; i < 3; i++) cur[i] += (alvo[i] - cur[i]) * 0.12;
       amp += ((AMP[est] || 0.05) - amp) * 0.1; imp *= 0.94;
+      mola(K.sc, 0.2, 0.17, aperta ? -0.07 : 0); mola(K.rot, 0.12, 0.12, 0);
       var tr = est === 'erro' ? Math.sin((now - estT) / 28) * Math.max(0, 1 - (now - estT) / 600) * R * 0.05 : 0;
       cx += tr;
       var pulso = 0.5 + 0.5 * Math.sin(t * (est === 'busy' ? 8 : 2)), Ri = R * 0.5 * (1 + 0.02 * pulso + imp * 0.06 + hov * 0.07); px += (ax - px) * 0.12; py += (ay - py) * 0.12; hov += (hovAlvo - hov) * 0.12; giro += giroVel; giroVel *= 0.96;
@@ -1369,9 +1373,9 @@
       // rosto (ícone do app) dentro do vidro
       ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, Ri, 0, 6.2832); ctx.clip();
       if (imgOk) {
-        var ts = Ri * 2.04 * (1 + hov * 0.07 + (est === 'speak' ? amp * 0.03 * Math.sin(t * 9) : 0) + 0.008 * Math.sin(t * 1.6));
+        var ts = Ri * 2.04 * (1 + K.sc[0] + hov * 0.07 + (est === 'speak' ? amp * 0.03 * Math.sin(t * 9) : 0) + 0.008 * Math.sin(t * 1.6));
         // o rosto acompanha o ponteiro: desloca, inclina um pouco (skew) e aproxima no hover
-        ctx.save(); ctx.translate(cx + px * Ri * 0.2, cy + py * Ri * 0.17); ctx.transform(1, py * 0.05, px * 0.05, 1, 0, 0);
+        ctx.save(); ctx.translate(cx + px * Ri * 0.2, cy + py * Ri * 0.17); ctx.rotate(K.rot[0]); ctx.transform(1, py * 0.05, px * 0.05, 1, 0, 0);
         ctx.drawImage(img, -ts / 2, -ts / 2, ts, ts); ctx.restore();
         if (est !== 'idle') { ctx.fillStyle = 'rgba(' + rgb(est === 'erro' ? 0.28 : 0.12) + ')'; ctx.fillRect(cx - Ri, cy - Ri, Ri * 2, Ri * 2); }
         var per = est === 'busy' ? 1.1 : 3.6, ph = ((t / per) % 1.3) - 0.15, sy = cy - Ri + ph * Ri * 2;
@@ -1387,7 +1391,7 @@
     tam(); window.addEventListener('resize', function () { tam(); if (reduzido) quadro(performance.now()); });
     if (typeof ResizeObserver !== 'undefined') { try { new ResizeObserver(function () { tam(); if (reduzido) quadro(performance.now()); }).observe(cv); } catch (e) { /* segue */ } }
     if (reduzido) quadro(performance.now()); else requestAnimationFrame(laco);
-    return { estado: function (e) { est = e; estT = performance.now(); if (reduzido) quadro(estT); }, impulso: function () { imp = 1; ondas.push(performance.now()); }, hover: function (v) { hovAlvo = v ? 1 : 0; }, girar: function (dv) { giroVel = Math.max(-0.5, Math.min(0.5, giroVel + dv)); }, olhar: function (x, y) { ax = Math.max(-1, Math.min(1, x)); ay = Math.max(-1, Math.min(1, y)); } };
+    return { estado: function (e) { est = e; estT = performance.now(); if (reduzido) quadro(estT); }, impulso: function () { imp = 1; ondas.push(performance.now()); }, hover: function (v) { hovAlvo = v ? 1 : 0; }, apertar: function (v) { aperta = !!v; if (reduzido) quadro(performance.now()); }, reagir: function (nome) { if (nome === 'tonto') { K.rot[1] += 0.35; K.sc[1] += 0.04; } }, girar: function (dv) { giroVel = Math.max(-0.5, Math.min(0.5, giroVel + dv)); }, olhar: function (x, y) { ax = Math.max(-1, Math.min(1, x)); ay = Math.max(-1, Math.min(1, y)); } };
   }
   var cvCore = $('core');
   if (cvCore && cvCore.getContext) {
@@ -1400,13 +1404,21 @@
       clearTimeout(tfala); tfala = setTimeout(function () { bolha.classList.remove('on'); }, 2400);
     }
     cvCore.setAttribute('role', 'button'); cvCore.setAttribute('tabindex', '0'); cvCore.setAttribute('aria-label', 'Paulus: toque para cumprimentar');
-    function tocar() { nucleo.impulso(); bip(660, 990, 0.1, 0.04); falar(FALAS[ifala++ % FALAS.length]); }
+    // fala por estado (se está pensando, diz que está pensando); 4 toques em 1,6 s = "tonto"
+    var toques = [], POR_ESTADO = { busy: 'Estou pensando, já respondo.', listen: 'Ouvindo. Pode falar.', speak: 'Falando. Para parar, use o botão de som.', erro: 'Algo falhou. Tente de novo.' };
+    function tocar() {
+      var agora = Date.now(); toques = toques.filter(function (t) { return agora - t < 1600; }); toques.push(agora);
+      nucleo.impulso(); bip(660, 990, 0.1, 0.04);
+      if (toques.length >= 4) { toques = []; nucleo.reagir('tonto'); falar('Calma, estou ficando tonto!'); return; }
+      falar(POR_ESTADO[estadoAtual] || FALAS[ifala++ % FALAS.length]);
+    }
     cvCore.addEventListener('pointerenter', function () { nucleo.hover(true); });
-    cvCore.addEventListener('pointerleave', function () { nucleo.hover(false); arrastando = false; });
+    cvCore.addEventListener('pointerleave', function () { nucleo.hover(false); if (arrastando) nucleo.apertar(false); arrastando = false; });
     cvCore.addEventListener('focus', function () { nucleo.hover(true); }); cvCore.addEventListener('blur', function () { nucleo.hover(false); });
     cvCore.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tocar(); } });
-    cvCore.addEventListener('pointerdown', function (e) { arrastando = true; ultX = e.clientX; try { cvCore.setPointerCapture(e.pointerId); } catch (x) { /* segue */ } tocar(); });
-    cvCore.addEventListener('pointerup', function () { arrastando = false; });
+    cvCore.addEventListener('pointerdown', function (e) { arrastando = true; nucleo.apertar(true); ultX = e.clientX; try { cvCore.setPointerCapture(e.pointerId); } catch (x) { /* segue */ } tocar(); });
+    cvCore.addEventListener('pointerup', function () { arrastando = false; nucleo.apertar(false); });
+    cvCore.addEventListener('pointercancel', function () { arrastando = false; nucleo.apertar(false); });
     // arrastar de lado gira os anéis (com inércia)
     cvCore.addEventListener('pointermove', function (e) { if (arrastando) { nucleo.girar((e.clientX - ultX) * 0.004); ultX = e.clientX; } });
     cvCore.addEventListener('dblclick', function () { nucleo.girar(0.45); nucleo.impulso(); falar('Varredura completa.'); });
