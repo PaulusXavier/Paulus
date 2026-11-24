@@ -18,6 +18,8 @@ function montar() {
   P.registrarAcao({ id: 'abrir-toth', titulo: 'Toth', rotulos: ['toth'], executar: () => feito.push('toth') });
   P.registrarAcao({ id: 'apagar', titulo: 'Apagar', rotulos: ['apagar notas'], confirmar: true, executar: () => feito.push('apagou') });
   P.registrarAcao({ id: 'fechar-app', fechar: true, titulo: 'Fechar o aplicativo', rotulos: ['aplicativo', 'app'], executar: () => feito.push('fechou') });
+  P.registrarAcao({ id: 'fechar-conversa', fechar: true, titulo: 'Encerrar a conversa', rotulos: ['conversa', 'esta conversa', 'chat'], executar: () => { feito.push('conversa'); return 'Conversa encerrada.'; } });
+  P.registrarAcao({ id: 'fechar-mapa', fechar: true, titulo: 'Fechar o mapa', rotulos: ['mapa', 'o mapa'], executar: () => { feito.push('mapa'); return 'Mapa fechado.'; } });
   return { P, feito };
 }
 
@@ -78,4 +80,41 @@ test('"fechar" sem ação registrada não vira "ação desconhecida": segue o fl
   P.init({ app: 'paulus' });
   const r = await P.perguntar('fechar a conta do mês com 15% de 1200');
   assert.notEqual(r.tipo, 'acao_desconhecida');
+});
+
+test('terminar/encerrar/finalizar/fechar a conversa encerra a conversa e usa o texto devolvido', async () => {
+  for (const frase of ['terminar a conversa', 'termine esta conversa', 'encerrar a conversa', 'finalize a conversa', 'fecha a conversa', 'sair da conversa', 'terminar conversa agora', 'por favor, termine a conversa']) {
+    const { P, feito } = montar();
+    const r = await P.perguntar(frase);
+    assert.deepEqual(feito, ['conversa'], frase);
+    assert.equal(r.tipo, 'acao', frase);
+    assert.equal(r.texto, 'Conversa encerrada.', frase);
+  }
+});
+
+test('fechar/fecha/encerrar o mapa fecha o mapa', async () => {
+  for (const frase of ['fechar o mapa', 'fecha o mapa', 'feche o mapa', 'encerrar o mapa', 'terminar o mapa', 'fechar mapa de Boa Vista']) {
+    const { P, feito } = montar();
+    const r = await P.perguntar(frase);
+    assert.deepEqual(feito, ['mapa'], frase);
+    assert.equal(r.texto, 'Mapa fechado.', frase);
+  }
+});
+
+test('pergunta que só menciona a conversa ou o mapa NÃO executa: segue para a IA', async () => {
+  for (const frase of ['terminar a conversa com o cidadão, como faço?', 'fechar o mapa de risco do território exige o quê?', 'encerrar o atendimento do usuário no CRAS quando acontece?', 'finalizar o relatório da conversa com a família']) {
+    const { P, feito } = montar();
+    const r = await P.perguntar(frase);
+    assert.deepEqual(feito, [], frase);
+    assert.notEqual(r.tipo, 'acao', frase);
+  }
+});
+
+test('"abrir o mapa" não fecha o mapa, e "terminar" sem ação com aquele nome não vira ação desconhecida', async () => {
+  const { P, feito } = montar();
+  await P.perguntar('abrir o mapa');
+  assert.ok(!feito.includes('mapa'));
+  const r = await P.perguntar('terminar o relatório do mês com 15% de 1200');
+  assert.notEqual(r.tipo, 'acao_desconhecida');
+  assert.ok(!feito.includes('conversa'));
 });
