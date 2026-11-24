@@ -42,7 +42,7 @@ import { detectarCrise } from '../shared/crise.mjs';
 import { idiomaDoPedido, paraBusca, instrucaoDeIdioma, avisoPessoalNoIdioma } from '../shared/idioma.mjs';
 import { trechosDaRota, combinarComBusca } from '../shared/suicidio.mjs';
 import { escolherHabilidades } from '../shared/habilidades.mjs';
-import { classificarPedido, consultaDoPedido, trechosParaOPedido, perfilDaIA, ehSaudacao, ehSeguimento, partesDaPergunta, pedidoDeDesenho } from '../shared/pedido.mjs';
+import { classificarPedido, consultaDoPedido, trechosParaOPedido, perfilDaIA, ehSaudacao, ehSeguimento, partesDaPergunta, pedidoDeDesenho, pedidoDeMatematica } from '../shared/pedido.mjs';
 import { sanearEstado } from '../shared/conversa.mjs';
 import { escopoDaConversa } from '../shared/escopo.mjs';
 import { respostaDiretaDaFicha } from '../shared/consulta-direta.mjs';
@@ -50,7 +50,7 @@ import { ehPerguntaSobreSi, temasDaPergunta, montarAutoconhecimento, fichaComoTe
 import { montarMensagens, montarMensagensSaudacao, preferenciasValidas, fichasComoTexto, baseAppComoTexto, panoramaComoTexto } from './prompt.mjs';
 import { montarMensagensInterpretacao, lerInterpretacao } from './interpretar.mjs';
 import { pareceProblemaDeCalculo, temNumeroPorExtenso } from '../shared/calculo.mjs';
-import { contasDoPedido } from '../shared/calculo-mais.mjs';
+import { contasDoPedido, contagemPorOrdem } from '../shared/calculo-mais.mjs';
 import { pedeAnalise, montarMensagensRaciocinio, lerRaciocinio, raciocinioComoTexto, buscaDoRaciocinio, completarAchados, conferirRaciocinio, calibrarSeguranca, tipoDeAnalise, disseSemAnalise, montarMensagensReformatar, limparPensamento } from './raciocinar.mjs';
 import { tratarVoz } from './voz.mjs';
 import { imagemSaneada, lerImagem, sanearLeitura, CORPO_MAX_COM_IMAGEM } from './visao.mjs';
@@ -519,7 +519,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       }
     }
 
-    let idiomaExtra = '', leitura = '', raciocinio = '', tipoAnalise = '', achados = [], fontes = [], habilidades = [], tema = false, sobreSi = false, partesDaMsg = [], voce = '', mensagens, pref = null, calculos = null, quantitativo = false, textosDaPessoa = [];
+    let comMatematica = false, idiomaExtra = '', leitura = '', raciocinio = '', tipoAnalise = '', achados = [], fontes = [], habilidades = [], tema = false, sobreSi = false, partesDaMsg = [], voce = '', mensagens, pref = null, calculos = null, quantitativo = false, textosDaPessoa = [];
     if (modo === 'saudacao') {
       // Só cumprimento: prompt mínimo, sem busca de norma e no modelo pequeno (o grande fica de reserva). Poupa a cota gratuita.
       mensagens = montarMensagensSaudacao({ app: app, historico: hist, pergunta: pergunta, idioma: idiomaDoPedido(pergunta, hist).resposta });
@@ -576,10 +576,13 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       const herda = modo === 'seguimento' || modo === 'refinamento' || modo === 'continuar' || modo === 'porque' || modo === 'contestacao';
       habilidades = (tema || sobreSi) ? [] : (herda ? escolherHabilidades(listaHabilidades, consulta, [], nomeApp) : escolherHabilidades(listaHabilidades, (pergunta + ' ' + paraBusca(pergunta)).trim(), anteriores, nomeApp));
       // Pergunta de conta: o programa calcula (shared/calculo.mjs), a IA só explica. Falha aqui nunca derruba a resposta.
+      // Questão de matemática de prova (na mensagem ou na foto): resolve-se por raciocínio em passos (prompt de matemática), sem o passo de contas do SUAS.
+      comMatematica = !tema && !sobreSi && (pedidoDeMatematica(pergunta) || (!!imagemLida && pedidoDeMatematica(imagemLida.texto)));
       if (!tema && !sobreSi && modo !== 'refinamento' && modo !== 'continuar' && modo !== 'porque') {
         textosDaPessoa = [pergunta].concat(anteriores.map(function (h) { return String(h.texto || ''); }));
-        const diretas = contasDoPedido(pergunta, { hoje: Math.floor((Date.now() - 4 * 3600000) / 86400000) }); // dia de Boa Vista (UTC-4)
-        const problema = pareceProblemaDeCalculo(pergunta, hist);
+        // Na foto de uma prova o programa só confere a contagem de bijeções; as demais regras olhariam questões vizinhas como se fossem uma só.
+        const diretas = contasDoPedido(pergunta, { hoje: Math.floor((Date.now() - 4 * 3600000) / 86400000) }) || (comMatematica && imagemLida ? contagemPorOrdem(imagemLida.texto) : null); // dia de Boa Vista (UTC-4)
+        const problema = !comMatematica && pareceProblemaDeCalculo(pergunta, hist);
         quantitativo = !!diretas || problema;
         if (diretas && diretas.soConta) {
           calculos = calculosDiretos(diretas);
@@ -596,7 +599,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       }
       // Pergunta de análise (posso/devo, elegibilidade, caso pensado junto): a IA monta antes o esqueleto (fato, regra, exceção, o que falta, caminho).
       // Falha ou fora do formato: a resposta segue como antes. Fora de tema de suicídio e de pedido de conta resolvido só pelo programa.
-      if (!tema && !sobreSi && String(env.RACIOCINIO || '').toLowerCase() !== 'desligado' && !(calculos && !calculos.faltas.length && quantitativo) && pedeAnalise(pergunta, modo, hist)) {
+      if (!tema && !sobreSi && String(env.RACIOCINIO || '').toLowerCase() !== 'desligado' && !comMatematica && !(calculos && !calculos.faltas.length && quantitativo) && pedeAnalise(pergunta, modo, hist)) {
         try {
           tipoAnalise = tipoDeAnalise(pergunta, hist);
           const mensagensRac = montarMensagensRaciocinio({ app: app, historico: hist, pergunta: pergunta, achados: achados, fichas: fichasRecebidas, baseApp: corpo.baseApp, habilidades: habilidades, panorama: corpo.panorama, tipo: tipoAnalise, partes: partes, modo: modo });
@@ -672,7 +675,8 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     try {
       // Parâmetros por situação (shared/pedido.mjs): texto pronto e ajuste precisam de mais espaço; consulta de unidade, de menos criatividade;
       // quem prefere respostas curtas (memória do aparelho) recebe um teto menor.
-      ajuste = perfilDaIA({ quantitativo: quantitativo, modo: modo, tema: tema, comTextoPronto: habilidades.some(function (h) { return h.texto; }), pref: tema ? null : pref, partes: partesDaMsg.length, comDesenho: !tema && pedidoDeDesenho(pergunta) });
+      ajuste = perfilDaIA({ quantitativo: quantitativo, modo: modo, tema: tema, comTextoPronto: habilidades.some(function (h) { return h.texto; }), pref: tema ? null : pref, partes: partesDaMsg.length, comDesenho: !tema && pedidoDeDesenho(pergunta), comMatematica: comMatematica });
+      if (comMatematica && (env.MODELO_MATEMATICA || env.MODELO_RACIOCINIO)) ajuste.modelo = env.MODELO_MATEMATICA || env.MODELO_RACIOCINIO;
       if (sobreSi) ajuste.temperature = Math.min(ajuste.temperature != null ? ajuste.temperature : 0.4, 0.3);
       // Com o esqueleto de análise pronto, a resposta final só precisa redigi-lo com fidelidade: menos criatividade, menos desvio da conclusão.
       if (raciocinio) ajuste.temperature = Math.min(ajuste.temperature != null ? ajuste.temperature : 0.4, 0.3);
