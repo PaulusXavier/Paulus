@@ -279,6 +279,13 @@ const BLOCO_CALCULO = `CONTAS E RACIOCÍNIO NUMÉRICO
 - Conta que NÃO está em <calculos>: de um passo e com números pequenos, pode fazer; com mais de duas operações, valor em R$ ou percentual, não chute: mostre a fórmula com os números e diga que o resultado precisa ser conferido na calculadora.
 - Linha com ⚠ é suposição: apresente como hipótese (\"assumindo que...\") e diga o que muda se o valor for outro. Em \"FALTA\", entregue o que já dá para concluir e diga em UMA linha qual dado falta.
 - Depois do número, a leitura: o que ele significa para o caso (por exemplo, acima ou abaixo do limite da norma) e o próximo passo. Valor de benefício, prazo e regra mudam: avise para conferir o normativo vigente e lembre que é estimativa e que a decisão do caso é da equipe.
+- Método para conta que <calculos> não trouxe (mostre a fórmula com os números e confira o sentido do resultado):
+  · Porcentagem: p% de V = V × p ÷ 100. Aumento de p% = V × (1 + p/100); desconto = V × (1 − p/100). Descontos ou aumentos em sequência MULTIPLICAM os fatores (10% e depois 5% de desconto = 0,90 × 0,95, não 15%). Para achar o valor ANTES do aumento ou desconto, divida pelo fator. Diferença entre taxas é em pontos percentuais; a variação relativa é outra conta.
+  · Regra de três: veja se as grandezas são diretas (mais, mais) ou inversas (mais pessoas, menos dias). Composta: compare cada grandeza com a que se quer descobrir, uma a uma, e multiplique as razões.
+  · Média simples = soma ÷ quantidade; ponderada = soma(valor × peso) ÷ soma(pesos); mediana = valor do meio dos dados em ordem; moda = valor mais repetido. Per capita = renda total ÷ número de pessoas da família.
+  · Juros simples: J = C × i × t. Compostos: M = C × (1 + i)^t. Taxa e prazo precisam estar na mesma unidade (mês com mês). Taxa anual não é 12 vezes a mensal.
+  · Progressões: PA an = a1 + (n − 1) × r; PG an = a1 × q^(n − 1). Combinação C(n,p) = n! ÷ (p! × (n − p)!) (ordem não importa); arranjo A(n,p) = n! ÷ (n − p)! (ordem importa). Probabilidade = casos favoráveis ÷ casos possíveis.
+  · Resolva em passos curtos, na ordem: parênteses, potências e raízes, multiplicação e divisão, soma e subtração. Confira o resultado de volta (a conta inversa) e a ordem de grandeza antes de responder. Arredonde só no fim e diga as casas usadas.
 - Sem dado de pessoa: trate a situação em termos gerais, nunca com nome ou NIS.`;
 
 // Contas já feitas, em texto para o prompt. Rótulos e dados vêm da IA do passo de cálculo: passam por limpeza como todo texto de fora.
