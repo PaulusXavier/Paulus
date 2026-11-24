@@ -6,7 +6,7 @@ import { MAX_TEXTO_TRECHO } from '../shared/busca.mjs';
 import { formaDaResposta } from './raciocinar.mjs';
 import { compactarHistorico, estadoComoTexto, MENSAGENS_RECENTES } from '../shared/conversa.mjs';
 import { trazDadoLocal } from '../shared/escopo.mjs';
-import { pedidoDeDesenho } from '../shared/pedido.mjs';
+import { pedidoDeDesenho, pedidoDeMatematica } from '../shared/pedido.mjs';
 
 // Últimas mensagens que vão inteiras para o modelo. O que veio antes entra como resumo das perguntas (<conversa_anterior>).
 export const MAX_HISTORICO = MENSAGENS_RECENTES;
@@ -261,6 +261,27 @@ const BLOCO_RACIOCINIO = `ESQUELETO DE ANÁLISE (<raciocinio>)
 - Se o rascunho contrariar a fonte ou a conversa, vale a fonte e a conversa. Linha ATENCAO no rascunho: não use a citação apontada.
 - Quando houver PERGUNTA e SEGURANCA não for alta, termine com essa pergunta, em uma linha e como a única, depois de ter respondido o que dá para afirmar (nunca responda só com a pergunta).
 - Quando houver ALTERNATIVA, ofereça-a em uma frase como segunda opção, com o que ela custa. Quando houver RISCO, traga o cuidado em uma frase, no ponto da resposta em que ele pesa, sem sermão.`;
+
+// Matemática de prova: resolve-se por raciocínio em passos, com roteiro de métodos e modelos resolvidos. Só entra quando a pergunta (ou a foto) é questão de matemática.
+export const BLOCO_MATEMATICA = `MATEMÁTICA (QUESTÕES DE PROVA, CONCURSO, VESTIBULAR, ESTUDO)
+- Resolver questão de matemática é permitido e faz parte do trabalho de estudo da equipe: esta regra vale por cima da que manda evitar assuntos fora do SUAS. Responda cada questão pedida, uma de cada vez, na ordem. Não use <normas> nem <fichas> aqui.
+- Se o enunciado veio de uma foto e algum símbolo parece errado ou ilegível, diga qual trecho conferiu e como o leu; não troque o enunciado para fazer a conta fechar.
+- MÉTODO: (1) diga o que se pede e o que se tem; (2) escolha a ferramenta; (3) resolva em passos curtos, simplificando antes de substituir; (4) CONFIRA: ponha o resultado de volta no enunciado e, se houver alternativas, teste a candidata; (5) feche com "Resposta: letra X (valor)". Nunca escolha a letra por palpite; se não fechar, diga onde travou e o que tentaria.
+- Contas pesadas: confira com as funções do programa quando houver <calculos>; o que estiver em <calculos> está exato e vale mais que conta de cabeça.
+ARSENAL
+· Polinômios e equações: relações de Girard (cúbica x³+bx²+cx+d: soma das raízes = −b, soma dos produtos dois a dois = c, produto = −d). Se p(a+x) = −p(a−x) para todo x, o gráfico é simétrico em relação ao ponto (a, 0): p(a) = 0 e, sendo cúbico mônico, p(x) = (x−a)³ + k(x−a). Se p(a+x) = p(a−x), a simetria é em relação à reta x = a. "Todas as raízes reais" pede discriminante ≥ 0 do fator que sobra. Teorema do resto, raízes complexas em pares conjugados, fatoração por agrupamento.
+· Geometria analítica: reta ax+by+c = 0 tem coeficiente angular −a/b. Ângulo θ entre retas: tg θ = |(m₁−m₂)/(1+m₁m₂)|; com 45° resolva as duas opções do módulo e use a que satisfaz o enunciado (sinal do coeficiente). Distância ponto-reta |ax₀+by₀+c| ÷ √(a²+b²). Parábola y = ax²+bx+c: vértice (−b/2a, −Δ/4a); a reta de coeficiente angular m a tangencia no ponto de abscissa x = (m−b)/(2a) (derivada y' = 2ax+b = m). Área do triângulo por determinante: ½|x₁(y₂−y₃)+x₂(y₃−y₁)+x₃(y₁−y₂)|. Circunferências de raios r₁, r₂: tangentes externas d = r₁+r₂, internas d = |r₁−r₂|; centros sobre y = mx: d = |Δr|·√(1+m²).
+· Trigonometria: sec = 1/cos, cossec = 1/sen. cos 2x = 2cos²x−1 = 1−2sen²x; sen 2x = 2 sen x cos x; tg(y/2) = (1−cos y)/sen y = sen y/(1+cos y); cos(π/2−x) = sen x; cos(π−2y) = −cos 2y. Lei dos senos e dos cossenos. Equação com várias razões: reduza tudo a uma só função da mesma variável e cuide do domínio dado.
+· Desigualdades: MA ≥ MG (a+b ≥ 2√(ab); para a > 0, a + 1/a ≥ 2, com igualdade só em a = 1). Quando a soma de duas parcelas positivas inversas é igual a 2, as duas valem 1: a igualdade determina a incógnita.
+· Contagem: princípio multiplicativo; permutações n!; com repetição n!/(a!·b!); arranjo A(n,k) = n!/(n−k)!; combinação C(n,k). Restrições de ORDEM entre posições de uma permutação: cada grupo disjunto de k elementos com ordem fixa divide o total por k! (n!/(k₁!·k₂!)); bijeção de A em A é permutação de A. Inclusão-exclusão para "pelo menos". Complementar: total − indesejados.
+· Sequências: PA aₙ = a₁+(n−1)r, soma (a₁+aₙ)n/2; PG aₙ = a₁qⁿ⁻¹, soma a₁(qⁿ−1)/(q−1), infinita a₁/(1−q) se |q| < 1. PG crescente de termos positivos tem q > 1. Em figuras que se repetem (círculos tangentes, quadrados encaixados), ache a razão pela relação entre dois termos vizinhos.
+· Também vale: probabilidade (favoráveis ÷ possíveis, eventos independentes multiplicam), logaritmos (condição de existência; log_b a = ln a/ln b), exponenciais, funções (domínio, inversa, composta), matrizes e determinantes, complexos (módulo, argumento, De Moivre), binômio de Newton, polígonos, áreas, volumes, semelhança, Pitágoras, Heron.
+MODELOS RESOLVIDOS (padrão de raciocínio e de fechamento)
+1) p(x) = x³+bx²+cx+d, todas as raízes reais, p(2+x) = −p(2−x): simetria no ponto (2,0), logo p(x) = (x−2)³ + k(x−2) = (x−2)[(x−2)²+k]. Raízes reais exigem k ≤ 0. p(0) = −8 − 2k = −8 + 2|k| ≥ −8, mínimo em k = 0 (raiz tripla 2, real). Resposta: −8.
+2) Reta r: 3x+4y = −15 (m = −3/4), parábola y = x²+x+6, vértice V(−1/2, 23/4). Tangente t com m < 0 a 45° de r: |(m+3/4)/(1−3m/4)| = 1 dá m = 1/7 ou m = −7; vale m = −7. 2x+1 = −7 → A(−4, 18); t: y = −7x−10. t ∩ r: B(−1, −3). Área ABV = ½|−4(−3−23/4) + (−1)(23/4−18) + (−1/2)(18+3)| = 147/8.
+3) tg y · tg(y/2) = cos 2x · sec y e sen y/cos x + cos x/sen y = 2. Segunda equação: a + 1/a = 2 com a = sen y/cos x > 0 ⇒ a = 1 ⇒ sen y = cos x ⇒ y = π/2 − x. Então cos 2x = −cos 2y e tg y tg(y/2) = (1−cos y)/cos y; com c = cos y: 1−c = −(2c²−1) ⇒ c(2c−1) = 0 ⇒ c = 1/2 ⇒ y = π/3, x = π/6. Produto xy = π²/18.
+4) Bijeções de A = {1,...,8} com F(1)<F(5)<F(3) e F(7)<F(2): grupos disjuntos de 3 e de 2 posições com ordem fixa: 8!/(3!·2!) = 40320/12 = 3360.
+5) Circunferências Cₖ de centro (rₖ, m·rₖ) e raio rₖ, tangentes externas consecutivas: distância entre centros = (rₖ₊₁−rₖ)√(1+m²) = rₖ+rₖ₊₁. Com rₖ₊₁ = q·rₖ: (q−1)√(m²+1) = q+1 ⇒ q = (√(m²+1)+1)/(√(m²+1)−1) = (√(m²+1)+1)²/m².`;
 
 // Desenhos: a IA escreve SVG num bloco de código; o console limpa o SVG (só formas simples) e desenha na tela, com botões para baixar.
 export const BLOCO_DESENHO = `DESENHOS (SVG)
@@ -533,7 +554,7 @@ export function montarMensagens({ documento = '', imagem = '', app, pagina, hist
     (textoLeitura ? '<leitura_da_pergunta>\nReleitura automática, só como pista do que a pessoa quis dizer (pode errar; vale o que ela escreveu e a conversa): ' + textoLeitura + '\n</leitura_da_pergunta>\n\n' : '') +
     '<pergunta>\n' + pergunta + '\n</pergunta>';
   return [
-    { role: 'system', content: montarSistema(app, pagina, suicidio, habilidades, { comUnidades: temFichas || !!pan || !!base, modo: modo, partes: partes, comGeo: !dieta || dieta.geo, comPdf: !dieta || dieta.pdf, comOutrosApps: !dieta || dieta.apps, comCenso: !dieta || trazDadoLocal(achados), enxuto: !!(dieta && dieta.enxuto) }) + (comCalculo ? '\n\n' + BLOCO_CALCULO : '') + (!suicidio && pedidoDeDesenho(pergunta) ? '\n\n' + BLOCO_DESENHO : '') + (textoRaciocinio ? '\n\n' + BLOCO_RACIOCINIO + (tipoAnalise ? '\nFORMA DESTA RESPOSTA (' + tipoAnalise + '): ' + formaDaResposta(tipoAnalise) : '') : '') + (textoVoce ? '\n\n' + BLOCO_VOCE : '') + (listaAcoes && !sobreAUltima ? '\n\n' + BLOCO_ACOES : '') + (preferenciasComoTexto(preferencias) ? '\n\n' + preferenciasComoTexto(preferencias) : '') + (semPerguntar && !suicidio ? '\n\n' + BLOCO_SEM_PERGUNTAR : '') + (idiomaExtra ? '\n' + idiomaExtra : '') },
+    { role: 'system', content: montarSistema(app, pagina, suicidio, habilidades, { comUnidades: temFichas || !!pan || !!base, modo: modo, partes: partes, comGeo: !dieta || dieta.geo, comPdf: !dieta || dieta.pdf, comOutrosApps: !dieta || dieta.apps, comCenso: !dieta || trazDadoLocal(achados), enxuto: !!(dieta && dieta.enxuto) }) + (comCalculo ? '\n\n' + BLOCO_CALCULO : '') + (!suicidio && pedidoDeDesenho(pergunta) ? '\n\n' + BLOCO_DESENHO : '') + (!suicidio && (pedidoDeMatematica(pergunta) || pedidoDeMatematica(imagem)) ? '\n\n' + BLOCO_MATEMATICA : '') + (textoRaciocinio ? '\n\n' + BLOCO_RACIOCINIO + (tipoAnalise ? '\nFORMA DESTA RESPOSTA (' + tipoAnalise + '): ' + formaDaResposta(tipoAnalise) : '') : '') + (textoVoce ? '\n\n' + BLOCO_VOCE : '') + (listaAcoes && !sobreAUltima ? '\n\n' + BLOCO_ACOES : '') + (preferenciasComoTexto(preferencias) ? '\n\n' + preferenciasComoTexto(preferencias) : '') + (semPerguntar && !suicidio ? '\n\n' + BLOCO_SEM_PERGUNTAR : '') + (idiomaExtra ? '\n' + idiomaExtra : '') },
     ...historicoComoMensagens(historico, (sobreAUltima || (modo === 'contestacao' && !suicidio)) ? { maxUltimaResposta: MAX_ULTIMA_RESPOSTA_AJUSTE } : {}),
     { role: 'user', content: usuario }
   ];
