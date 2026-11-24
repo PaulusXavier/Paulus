@@ -46,7 +46,7 @@ CREAS Centro. Endereço: Av. Mário Homem de Melo, 514 - Centro, Boa Vista-RR. T
 Abrigo Infantil Pedra Pintada. Endereço: R. Interna, 182 - Centenário, Boa Vista-RR. Telefone: Atendimento Direto. Coordenada: 2.796161, -60.703623. Público: Crianças de até 12 anos incompleto em situação de vulnerabilidade social.
 
 ## Equipe técnica do CRAS Cristiana Vicente Nunes — território por técnico(a)
-Divisão do território do CRAS Cristiana Vicente Nunes (Rua Santo Agostinho, 193 - Centenário, Boa Vista-RR) por técnico(a) de referência, conforme o Argo. Fernanda Gomes (Psicóloga): Buritis e Caimbé. Cléo Sousa (Assistente Social): Liberdade e Pricumã. Bárbara Parente (Assistente Social): Tancredo Neves, Cambará e Olímpico. Susy Andrade (Pedagoga): Centenário e Nova Canaã. Paloma de Assis (Assistente Social): Cinturão Verde e Jóquei Clube. Rafaela Garcia (Assistente Social): Asa Branca. Bairros na cobertura fixa do CRAS: 13 de Setembro, Asa Branca, Buritis, Caimbé, Cambará, Centenário, Cinturão Verde, Jóquei Clube, Liberdade, Marechal Rondon, Nova Canaã, Olímpico, Pricumã, Araceli Souto Maior, Tancredo Neves. Bairros da cobertura sem técnico fixo cadastrado (Marechal Rondon) devem ser confirmados com a unidade.
+Divisão do território do CRAS Cristiana Vicente Nunes (Rua Santo Agostinho, 193 - Centenário, Boa Vista-RR) por técnico(a) de referência, conforme o Argo. Fernanda Gomes (Psicóloga): Buritis e Caimbé. Cléo Sousa (Assistente Social): Liberdade e Pricumã. Marina Silvestre (Assistente Social): Tancredo Neves, Cambará e Olímpico. Susy Andrade (Pedagoga): Centenário e Nova Canaã. Paloma de Assis (Assistente Social): Cinturão Verde e Jóquei Clube. Rafaela Garcia (Assistente Social): Asa Branca. Bairros na cobertura fixa do CRAS: 13 de Setembro, Asa Branca, Buritis, Caimbé, Cambará, Centenário, Cinturão Verde, Jóquei Clube, Liberdade, Marechal Rondon, Nova Canaã, Olímpico, Pricumã, Araceli Souto Maior, Tancredo Neves. Bairros da cobertura sem técnico fixo cadastrado (Marechal Rondon) devem ser confirmados com a unidade.
 
 ## Equipe volante do CRAS Cristiana Vicente Nunes — atendimento itinerante
 Responsável por levar serviços (PAIF, CadÚnico) a áreas de difícil acesso e populações dispersas. Equipe volante: Keomara Teles (Assistente Social, Atendimento Itinerante); Danilo Braga (Psicólogo, Atendimento Itinerante); Paulo Xavier (Psicólogo, Atendimento Itinerante). Cobertura itinerante: Professora Araceli Souto Maior, 13 de Setembro e Ocupação Nova Vida. Só existe divisão por técnico(a) para este CRAS: nos demais, o diretório não traz a equipe por bairro e não se deve inventar nome.
@@ -57,8 +57,8 @@ Fernanda Gomes é Psicóloga do CRAS Cristiana Vicente Nunes e a referência té
 ## Técnico(a) de referência no CRAS Cristiana — Cléo Sousa
 Cléo Sousa é Assistente Social do CRAS Cristiana Vicente Nunes e a referência técnica dos bairros: Liberdade e Pricumã.
 
-## Técnico(a) de referência no CRAS Cristiana — Bárbara Parente
-Bárbara Parente é Assistente Social do CRAS Cristiana Vicente Nunes e a referência técnica dos bairros: Tancredo Neves, Cambará e Olímpico.
+## Técnico(a) de referência no CRAS Cristiana — Marina Silvestre
+Marina Silvestre é Assistente Social do CRAS Cristiana Vicente Nunes e a referência técnica dos bairros: Tancredo Neves, Cambará e Olímpico.
 
 ## Técnico(a) de referência no CRAS Cristiana — Susy Andrade
 Susy Andrade é Pedagoga do CRAS Cristiana Vicente Nunes e a referência técnica dos bairros: Centenário e Nova Canaã.
