@@ -1076,9 +1076,48 @@ function cmxAtalhos(n) {
   return null;
 }
 
+// Bijeções (permutações) com restrições de ordem: "F: A→A bijetora, F(1)<F(5)<F(3) e F(7)<F(2)", A = {1,...,8}.
+// Conta por força bruta (até 9 elementos), então não depende de a IA acertar a combinatória.
+function cmxBijecoes(n) {
+  if (!/bijec|bijetora|permutac|injetora/.test(n) || !/\bf\s*\(\s*\d+\s*\)\s*[<>]/.test(n)) return null;
+  const conj = /\{\s*([\d\s,.;]+)\s*\}/.exec(n);
+  let elementos = conj ? (conj[1].match(/\d+/g) || []).map(Number) : [];
+  if (conj && /\.\.\./.test(conj[1])) return null;
+  if (!elementos.length) { const k = /(\d+)\s+elementos/.exec(n); if (k) for (let i = 1; i <= Number(k[1]); i++) elementos.push(i); }
+  const N = elementos.length;
+  if (N < 2 || N > 9) return null;
+  const marcado = n.replace(/\bf\s*\(\s*(\d+)\s*\)/g, 'F#$1');
+  const cadeias = [], re = /F#\d+(?:\s*[<>]=?\s*F#\d+)+/g; let m;
+  while ((m = re.exec(marcado))) {
+    const idx = m[0].match(/F#(\d+)/g).map(function (x) { return Number(x.slice(2)); });
+    const ops = m[0].match(/[<>]/g);
+    cadeias.push({ idx: idx, ops: ops });
+  }
+  if (!cadeias.length) return null;
+  if (cadeias.some(function (c) { return c.idx.some(function (i) { return elementos.indexOf(i) < 0; }); })) return null;
+  const pos = {}; elementos.forEach(function (e, i) { pos[e] = i; });
+  const val = new Array(N), usado = new Array(N).fill(false);
+  let total = 0, bons = 0;
+  function ok() {
+    return cadeias.every(function (c) {
+      for (let i = 0; i < c.ops.length; i++) { const a = val[pos[c.idx[i]]], b = val[pos[c.idx[i + 1]]]; if (c.ops[i] === '<' ? !(a < b) : !(a > b)) return false; }
+      return true;
+    });
+  }
+  (function gera(i) {
+    if (i === N) { total++; if (ok()) bons++; return; }
+    for (let v = 0; v < N; v++) if (!usado[v]) { usado[v] = true; val[i] = v; gera(i + 1); usado[v] = false; }
+  })(0);
+  // Cadeias que não dividem índices: cada uma de k elementos reduz a conta em k! (a ordem dela é uma entre k!).
+  const todos = [].concat.apply([], cadeias.map(function (c) { return c.idx; }));
+  const disjuntas = new Set(todos).size === todos.length;
+  const expr = disjuntas ? N + '! ÷ (' + cadeias.map(function (c) { return c.idx.length + '!'; }).join(' × ') + ')' : 'contagem direta de ' + total + ' permutações';
+  return [cmxItem('bijeções com a ordem pedida', expr, bons, cmxF(bons) + ' de ' + cmxF(total) + ' permutações de ' + N + ' elementos')];
+}
+
 // ------------------------------------------------------------------ painel de regras
 
-const CMX_REGRAS = [cmxExtenso, cmxJurosMais, cmxSucessivos, cmxPercentualInverso, cmxProporcionais, cmxProgressao, cmxCombinatoria, cmxProbabilidade, cmxSistema, cmxLista, cmxFracoes, cmxAtalhos, cmxAcrescimo, cmxRegraDeTres, cmxRateio, cmxPerCapita, cmxFrequencia, cmxImc, cmxTaxa, cmxEstatistica, cmxEquacao, cmxFinanceiro, cmxHoras, cmxViagem, cmxNumerico, cmxGeometria, cmxPorcentagem, cmxConversao];
+const CMX_REGRAS = [cmxBijecoes, cmxExtenso, cmxJurosMais, cmxSucessivos, cmxPercentualInverso, cmxProporcionais, cmxProgressao, cmxCombinatoria, cmxProbabilidade, cmxSistema, cmxLista, cmxFracoes, cmxAtalhos, cmxAcrescimo, cmxRegraDeTres, cmxRateio, cmxPerCapita, cmxFrequencia, cmxImc, cmxTaxa, cmxEstatistica, cmxEquacao, cmxFinanceiro, cmxHoras, cmxViagem, cmxNumerico, cmxGeometria, cmxPorcentagem, cmxConversao];
 
 // Resolve pedidos "de cálculo pronto". Devolve null se nenhuma regra reconhece a mensagem.
 export function resolverEspecial(texto) {
@@ -1110,6 +1149,13 @@ export function contasDoPedido(texto, opc) {
   const a = contasConfiaveis(texto);
   if (a) return Object.assign({}, a, { origem: 'aritmetica', sensivel: false });
   return null;
+}
+
+// Só a contagem de bijeções (usada no texto lido de uma foto de prova, onde as outras regras poderiam confundir questões vizinhas).
+export function contagemPorOrdem(texto) {
+  const n = cmxSemAcentos(String(texto == null ? '' : texto).slice(0, 6000)).toLowerCase().replace(/\s+/g, ' ').trim();
+  let r = null; try { r = cmxBijecoes(n); } catch (e) { r = null; }
+  return r && r.length ? { itens: r, soConta: false, sensivel: false, origem: 'especial' } : null;
 }
 
 // Resposta direta, sem IA e sem rede, SÓ quando a mensagem é o pedido. Mais assunto na mensagem: null (a IA responde com a conta pronta).
