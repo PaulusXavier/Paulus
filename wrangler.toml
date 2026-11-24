@@ -37,6 +37,9 @@ FIREBASE_PROJECT_ID = "paulusia-de285"
 # Consulta de UMA unidade (só telefone, endereço ou horário) com a ficha enviada pelo app: o Worker copia a ficha e não chama a IA.
 # "desligado" manda toda consulta para a IA, como antes.
 # CONSULTA_DIRETA = "desligado"
+# Autocorreção de citações: se a resposta cita artigo, lei ou valor que a IA não leu nas fontes, uma chamada a mais a reescreve sem a citação.
+# "desligado" pula o passo (o navegador continua avisando).
+# CORRECAO = "desligado"
 
 # Leitura de imagem (opcional): o Paulus lê foto/print anexado por um modelo de visão. Os padrões já são estes:
 # MODELO_VISAO = "@cf/meta/llama-3.2-11b-vision-instruct"
