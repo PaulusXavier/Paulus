@@ -2862,11 +2862,26 @@ function pedidoDeDesenho(texto) {
   return true;
 }
 
-function perfilDaIA({ modo, tema = false, comTextoPronto = false, pref = null, quantitativo = false, partes = 0, comDesenho = false }) {
+// Questão de MATEMÁTICA de prova (vestibular, concurso, olimpíada, estudo): polinômio, geometria analítica, trigonometria, contagem...
+// Resolve-se por raciocínio em passos (não por regra pronta), então a IA precisa de mais espaço, temperatura baixa e o roteiro de métodos.
+const RE_MAT_FORTE = /\b(polinomio|raizes|raiz real|parabola|circunferencias?|hiperbole|elipse|reta tangente|tangente a|trigonometri\w*|seno|cosseno|tg|logaritm\w*|progressao (?:aritmetica|geometrica)|pa|pg|bijec\w*|injetora|sobrejetora|permutac\w*|combinac\w*|arranjos?|anagramas?|matriz|matrizes|determinante|sistema linear|numeros? complexos?|derivada|integral|vertice|baricentro|incentro|circuncentro|triangulo|esfera|cilindro|piramide|inequacao|equacao|funcao (?:quadratica|afim|exponencial|modular|inversa|composta)|binomio|vetores?|coeficiente angular|angulo|abscissa|ordenada|sen|cos|tan|sec|cossec|cotg)\b/g;
+const RE_MAT_PEDIDO = /\b(questao|questoes|alternativas?|gabarito|resolva|calcule|determine|demonstre|prove|qual (?:e )?o valor|valor possivel|seja|sejam|considere|satisfaz\w*|e igual a|vestibular|concurso|prova|ime|ita|enem|olimpiada)\b|\(\s*\)\s*[-−]?\d|\b[a-e]\s*\(\s*\)/;
+function pedidoDeMatematica(texto) {
+  const t = String(texto == null ? '' : texto).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().slice(0, 6000);
+  const fortes = (t.match(RE_MAT_FORTE) || []).length;
+  if (fortes >= 3) return true;
+  // Um termo de matemática só conta com sinal de conta (igualdade, potência, F(1), seta) ou com dois termos juntos; "triângulo de proteção" não é questão.
+  if (fortes >= 1 && (RE_MAT_PEDIDO.test(t) || /[=<>^]|->|\bx\s*\^?\s*\d|\bf\s*\(/.test(t))) return fortes >= 2 || /[=<>^]|->|\bx\b|\bf\s*\(/.test(t);
+  return false;
+}
+
+function perfilDaIA({ modo, tema = false, comTextoPronto = false, pref = null, quantitativo = false, partes = 0, comDesenho = false, comMatematica = false }) {
   if (modo === 'saudacao') return { max_tokens: 160, temperature: 0.5 };
   if (tema) return { max_tokens: 900, temperature: 0.4 };
   // Desenho: o SVG ocupa muito mais que um texto; sem este teto o código é cortado no meio e o desenho não aparece.
   if (comDesenho) return { max_tokens: 3200, temperature: 0.3 };
+  // Questão de prova: a resolução em passos e a conferência das alternativas ocupam bem mais que uma resposta comum (várias questões, mais ainda).
+  if (comMatematica) return { max_tokens: 4096, temperature: 0.1 };
   // Pergunta de conta: o número vem do programa, a IA só explica. Temperatura baixa para não reescrever o resultado.
   if (comTextoPronto) return { max_tokens: 1400, temperature: quantitativo ? 0.3 : 0.5 };
   if (quantitativo && modo !== 'refinamento') return { max_tokens: pref && pref.tamanho === 'curto' ? 600 : 1000, temperature: 0.2 };
@@ -3216,14 +3231,18 @@ const CALC_FUNCOES = {
   mediana: 'mediana', moda: 'moda', desvio: 'desvio', desviop: 'desviop', variancia: 'variancia', variancip: 'variancip',
   amplitude: 'amplitude', produto: 'produto', contar: 'contar', percentil: 'percentil', quartil: 'quartil',
   ponderada: 'ponderada', mediageo: 'mediageo', cv: 'cv', escorez: 'escorez',
-  montante: 'montante', parcela: 'parcela', vp: 'vp'
+  montante: 'montante', parcela: 'parcela', vp: 'vp',
+  atan: 'atan', arctan: 'atan', asin: 'asin', arcsen: 'asin', acos: 'acos', arccos: 'acos', cbrt: 'cbrt', raizcubica: 'cbrt',
+  sec: 'sec', cossec: 'cossec', cotg: 'cotg', dist: 'dist', areatri: 'areatri', raizmenor: 'raizmenor', raizmaior: 'raizmaior'
 };
 const CALC_ROTULO_FUNCAO = {
   raiz: 'raiz', media: 'média', min: 'mín', max: 'máx', arred: 'arred', teto: 'teto', piso: 'piso', abs: 'abs', soma: 'soma',
   mediana: 'mediana', desvio: 'desvio padrão', desviop: 'desvio padrão (população)', variancia: 'variância', variancip: 'variância (população)',
   fatorial: 'fatorial', resto: 'resto', mdc: 'mdc', mmc: 'mmc', comb: 'combinação', perm: 'arranjo', ponderada: 'média ponderada',
   mediageo: 'média geométrica', escorez: 'escore z', cv: 'coef. de variação', seno: 'seno', cosseno: 'cosseno', tangente: 'tangente',
-  montante: 'montante', parcela: 'parcela', vp: 'valor presente', trunc: 'trunc', hipot: 'hipotenusa'
+  montante: 'montante', parcela: 'parcela', vp: 'valor presente', trunc: 'trunc', hipot: 'hipotenusa',
+  atan: 'arco tangente', asin: 'arco seno', acos: 'arco cosseno', cbrt: 'raiz cúbica', sec: 'secante', cossec: 'cossecante', cotg: 'cotangente',
+  dist: 'distância', areatri: 'área do triângulo', raizmenor: 'menor raiz', raizmaior: 'maior raiz'
 };
 // Constantes: pi sempre; "e" só na conta escrita pela IA (em texto de gente "e" é a conjunção).
 const CALC_CONSTANTES = { pi: Math.PI, e: Math.E };
@@ -3580,6 +3599,23 @@ function calcFuncao(f, a) {
     const x = um();
     if (Math.abs(Math.cos(rad(x))) < 1e-12) throw calcErro('tangente não existe nesse ângulo');
     return calcTrig(Math.tan(rad(x)));
+  }
+  // Matemática de prova: ângulos em graus (como seno, cosseno e tangente acima); arco-funções devolvem graus.
+  if (f === 'atan') return calcLimpar(Math.round(Math.atan(um()) * 180 / Math.PI * 1e9) / 1e9);
+  if (f === 'asin') { const x = um(); if (Math.abs(x) > 1) throw calcErro('arco seno pede número entre -1 e 1'); return calcLimpar(Math.round(Math.asin(x) * 180 / Math.PI * 1e9) / 1e9); }
+  if (f === 'acos') { const x = um(); if (Math.abs(x) > 1) throw calcErro('arco cosseno pede número entre -1 e 1'); return calcLimpar(Math.round(Math.acos(x) * 180 / Math.PI * 1e9) / 1e9); }
+  if (f === 'cbrt') return calcLimpar(Math.round(Math.cbrt(um()) * 1e10) / 1e10);
+  if (f === 'sec') { const c = Math.cos(rad(um())); if (Math.abs(c) < 1e-12) throw calcErro('secante não existe nesse ângulo'); return calcTrig(1 / c); }
+  if (f === 'cossec') { const s = Math.sin(rad(um())); if (Math.abs(s) < 1e-12) throw calcErro('cossecante não existe nesse ângulo'); return calcTrig(1 / s); }
+  if (f === 'cotg') { const s = Math.sin(rad(um())); if (Math.abs(s) < 1e-12) throw calcErro('cotangente não existe nesse ângulo'); return calcTrig(Math.cos(rad(a[0])) / s); }
+  if (f === 'dist') { if (a.length !== 4) throw calcErro('dist pede x1; y1; x2; y2'); return calcLimpar(Math.sqrt(Math.pow(a[2] - a[0], 2) + Math.pow(a[3] - a[1], 2))); }
+  if (f === 'areatri') { if (a.length !== 6) throw calcErro('areatri pede x1; y1; x2; y2; x3; y3'); return calcLimpar(Math.abs(a[0] * (a[3] - a[5]) + a[2] * (a[5] - a[1]) + a[4] * (a[1] - a[3])) / 2); }
+  if (f === 'raizmenor' || f === 'raizmaior') {
+    const t = tres(), d = t[1] * t[1] - 4 * t[0] * t[2];
+    if (t[0] === 0) throw calcErro('equação do 2º grau pede a diferente de 0');
+    if (d < 0) throw calcErro('sem raiz real (delta negativo)');
+    const r1 = (-t[1] - Math.sqrt(d)) / (2 * t[0]), r2 = (-t[1] + Math.sqrt(d)) / (2 * t[0]);
+    return calcLimpar(f === 'raizmenor' ? Math.min(r1, r2) : Math.max(r1, r2));
   }
   if (f === 'fatorial') return calcFatorial(um());
   if (f === 'resto') { const d = dois(); if (d[1] === 0) throw calcErro('divisão por zero'); return calcLimpar(d[0] - d[1] * Math.floor(d[0] / d[1])); }
@@ -5350,9 +5386,48 @@ function cmxAtalhos(n) {
   return null;
 }
 
+// Bijeções (permutações) com restrições de ordem: "F: A→A bijetora, F(1)<F(5)<F(3) e F(7)<F(2)", A = {1,...,8}.
+// Conta por força bruta (até 9 elementos), então não depende de a IA acertar a combinatória.
+function cmxBijecoes(n) {
+  if (!/bijec|bijetora|permutac|injetora/.test(n) || !/\bf\s*\(\s*\d+\s*\)\s*[<>]/.test(n)) return null;
+  const conj = /\{\s*([\d\s,.;]+)\s*\}/.exec(n);
+  let elementos = conj ? (conj[1].match(/\d+/g) || []).map(Number) : [];
+  if (conj && /\.\.\./.test(conj[1])) return null;
+  if (!elementos.length) { const k = /(\d+)\s+elementos/.exec(n); if (k) for (let i = 1; i <= Number(k[1]); i++) elementos.push(i); }
+  const N = elementos.length;
+  if (N < 2 || N > 9) return null;
+  const marcado = n.replace(/\bf\s*\(\s*(\d+)\s*\)/g, 'F#$1');
+  const cadeias = [], re = /F#\d+(?:\s*[<>]=?\s*F#\d+)+/g; let m;
+  while ((m = re.exec(marcado))) {
+    const idx = m[0].match(/F#(\d+)/g).map(function (x) { return Number(x.slice(2)); });
+    const ops = m[0].match(/[<>]/g);
+    cadeias.push({ idx: idx, ops: ops });
+  }
+  if (!cadeias.length) return null;
+  if (cadeias.some(function (c) { return c.idx.some(function (i) { return elementos.indexOf(i) < 0; }); })) return null;
+  const pos = {}; elementos.forEach(function (e, i) { pos[e] = i; });
+  const val = new Array(N), usado = new Array(N).fill(false);
+  let total = 0, bons = 0;
+  function ok() {
+    return cadeias.every(function (c) {
+      for (let i = 0; i < c.ops.length; i++) { const a = val[pos[c.idx[i]]], b = val[pos[c.idx[i + 1]]]; if (c.ops[i] === '<' ? !(a < b) : !(a > b)) return false; }
+      return true;
+    });
+  }
+  (function gera(i) {
+    if (i === N) { total++; if (ok()) bons++; return; }
+    for (let v = 0; v < N; v++) if (!usado[v]) { usado[v] = true; val[i] = v; gera(i + 1); usado[v] = false; }
+  })(0);
+  // Cadeias que não dividem índices: cada uma de k elementos reduz a conta em k! (a ordem dela é uma entre k!).
+  const todos = [].concat.apply([], cadeias.map(function (c) { return c.idx; }));
+  const disjuntas = new Set(todos).size === todos.length;
+  const expr = disjuntas ? N + '! ÷ (' + cadeias.map(function (c) { return c.idx.length + '!'; }).join(' × ') + ')' : 'contagem direta de ' + total + ' permutações';
+  return [cmxItem('bijeções com a ordem pedida', expr, bons, cmxF(bons) + ' de ' + cmxF(total) + ' permutações de ' + N + ' elementos')];
+}
+
 // ------------------------------------------------------------------ painel de regras
 
-const CMX_REGRAS = [cmxExtenso, cmxJurosMais, cmxSucessivos, cmxPercentualInverso, cmxProporcionais, cmxProgressao, cmxCombinatoria, cmxProbabilidade, cmxSistema, cmxLista, cmxFracoes, cmxAtalhos, cmxAcrescimo, cmxRegraDeTres, cmxRateio, cmxPerCapita, cmxFrequencia, cmxImc, cmxTaxa, cmxEstatistica, cmxEquacao, cmxFinanceiro, cmxHoras, cmxViagem, cmxNumerico, cmxGeometria, cmxPorcentagem, cmxConversao];
+const CMX_REGRAS = [cmxBijecoes, cmxExtenso, cmxJurosMais, cmxSucessivos, cmxPercentualInverso, cmxProporcionais, cmxProgressao, cmxCombinatoria, cmxProbabilidade, cmxSistema, cmxLista, cmxFracoes, cmxAtalhos, cmxAcrescimo, cmxRegraDeTres, cmxRateio, cmxPerCapita, cmxFrequencia, cmxImc, cmxTaxa, cmxEstatistica, cmxEquacao, cmxFinanceiro, cmxHoras, cmxViagem, cmxNumerico, cmxGeometria, cmxPorcentagem, cmxConversao];
 
 // Resolve pedidos "de cálculo pronto". Devolve null se nenhuma regra reconhece a mensagem.
 function resolverEspecial(texto) {
@@ -5384,6 +5459,13 @@ function contasDoPedido(texto, opc) {
   const a = contasConfiaveis(texto);
   if (a) return Object.assign({}, a, { origem: 'aritmetica', sensivel: false });
   return null;
+}
+
+// Só a contagem de bijeções (usada no texto lido de uma foto de prova, onde as outras regras poderiam confundir questões vizinhas).
+function contagemPorOrdem(texto) {
+  const n = cmxSemAcentos(String(texto == null ? '' : texto).slice(0, 6000)).toLowerCase().replace(/\s+/g, ' ').trim();
+  let r = null; try { r = cmxBijecoes(n); } catch (e) { r = null; }
+  return r && r.length ? { itens: r, soConta: false, sensivel: false, origem: 'especial' } : null;
 }
 
 // Resposta direta, sem IA e sem rede, SÓ quando a mensagem é o pedido. Mais assunto na mensagem: null (a IA responde com a conta pronta).
