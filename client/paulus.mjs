@@ -185,7 +185,10 @@ const REG_ACAO = /^(abrir|abra|abre|ir para|ir pra|va para|va pra|me leve|leve m
 // (verbo + nome de uma ação registrada + palavras de ligação). Qualquer outra palavra manda a frase para a IA,
 // para "chamar o conselho tutelar, como faço?" ou "acessar o PAIF para quê?" não virarem abertura de tela.
 const REG_ACAO_SOLTO = /^(chamar|chame|chama|acessar|acesse|acessa|entrar no|entrar na|entrar nos|entrar nas|entrar em|entre no|entre na|entre nos|entre nas|entre em|iniciar|inicie|lancar|lance|carregar|carregue|vai para|vai pra|ir ao|ir a|va ao|va a)\b\s*(.*)$/;
-const REG_FECHAR = /^(fechar|feche|encerrar|encerre|sair|saia)\b\s*(.*)$/;
+const REG_FECHAR = /^(fechar|feche|fecha|encerrar|encerre|encerra|terminar|termine|termina|finalizar|finalize|finaliza|sair|saia)\b\s*(.*)$/;
+// Palavras que podem sobrar numa frase que é SÓ o pedido de fechar ("terminar esta conversa agora"). Qualquer outra manda a frase para a IA:
+// "terminar a conversa com o cidadão, como faço?" é pergunta, não comando, e não pode apagar a conversa.
+const SOBRA_FECHAR = { esta: 1, essa: 1, este: 1, esse: 1, atual: 1, aberta: 1, aberto: 1, ja: 1, logo: 1, aqui: 1, com: 1, paulus: 1, boa: 1, vista: 1, rota: 1, rotas: 1 };
 const REG_BUSCA = /^(buscar|busque|procurar|procure|achar|ache|encontrar|encontre)\b\s*(.*)$/;
 
 function acharPorRotulo(lista, alvo) {
@@ -239,6 +242,16 @@ function tratarAcaoSolta(resto) {
   return tratarAcao(resto);
 }
 
+// Verbo de fechar: só vale se a frase for SÓ o pedido e houver ação de fechar registrada com aquele rótulo; senão null (segue para a IA).
+function tratarFechar(resto) {
+  const a = acharPorRotulo(estado.acoes.filter(function (x) { return x.fechar; }), resto);
+  if (!a) return null;
+  let sobra = ' ' + resto + ' ';
+  a.rotulos.slice().sort(function (x, y) { return y.length - x.length; }).forEach(function (r) { sobra = sobra.split(' ' + r + ' ').join(' '); });
+  if (sobra.split(/\s+/).filter(Boolean).some(function (w) { return !LIGACAO[w] && !SOBRA_FECHAR[w]; })) return null;
+  return tratarAcao(resto, true);
+}
+
 function tratarAcao(resto, fechando) {
   const varias = tratarVariasAcoes(resto, fechando);
   if (varias) return varias;
@@ -259,9 +272,10 @@ function tratarAcao(resto, fechando) {
   if (a.confirmar) {
     return { tipo: 'acao', acao: a.id, texto: 'Posso fazer isso, mas preciso da sua confirmação.', pedeConfirmacao: true, confirmar: function () { estado.mem.aprenderAcao(a.id); return a.executar(); } };
   }
-  a.executar();
+  const dito = a.executar();
   estado.mem.aprenderAcao(a.id);
-  return { tipo: 'acao', acao: a.id, texto: 'Pronto.', executada: true };
+  // executar() pode devolver o texto da resposta ("Mapa fechado.", "Não há mapa aberto."); sem texto, "Pronto."
+  return { tipo: 'acao', acao: a.id, texto: typeof dito === 'string' && dito ? dito : 'Pronto.', executada: true };
 }
 
 async function tratarBusca(resto) {
@@ -850,13 +864,14 @@ async function perguntar(texto, opcoes) {
   }
 
   if (!o.semAcoes) {
-    const alvo = normalizar(t);
+    // cortesia no começo não atrapalha o comando: "por favor, termine a conversa", "pode fechar o mapa", "paulus, abre o argo"
+    const alvo = normalizar(t).replace(/^((por favor|paulus|pode|poderia|voce pode|voce poderia|quero que voce|preciso que voce|vamos|vamo|entao|agora)\s+)+/, '');
     let m = REG_ACAO.exec(alvo);
     if (m) return tratarAcao(m[2]);
     m = REG_ACAO_SOLTO.exec(alvo);
     if (m) { const solta = tratarAcaoSolta(m[2]); if (solta) return solta; }
     m = REG_FECHAR.exec(alvo);
-    if (m && acharPorRotulo(estado.acoes.filter(function (x) { return x.fechar; }), m[2])) return tratarAcao(m[2], true);
+    if (m) { const fecha = tratarFechar(m[2]); if (fecha) return fecha; }
     m = REG_BUSCA.exec(alvo);
     if (m) return tratarBusca(m[2]);
   }
