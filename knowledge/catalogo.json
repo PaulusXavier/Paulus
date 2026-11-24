@@ -118,6 +118,16 @@
     "caracteres": 6173
   },
   {
+    "doc": "boa-vista-economia-pib",
+    "titulo": "Economia de Boa Vista (RR): PIB, setores e peso da administração pública",
+    "norma": "SEPLAN-RR, Informativo \"PIB dos Municípios de Roraima 2022 e 2023\" (dez/2025) e \"PIB Roraima 2023\" (nov/2025), com dados do IBGE; SEPLAN-RR, Informativo 024/2023 (PIB dos Municípios 2021); Folha BV sobre o PIB dos municípios (IBGE, dez/2025). Dado de apoio, não norma.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 4,
+    "caracteres": 1554
+  },
+  {
     "doc": "boa-vista-geografia-mapa",
     "titulo": "Mapa e geografia de Boa Vista (RR): plano em leque, rios, avenidas, rodovias, zonas, bairros, expansão e zona rural",
     "norma": "Reunião de fontes públicas lidas em 22/11/2026: Prefeitura de Boa Vista, síntese do diagnóstico do Plano Diretor (boavista.rr.gov.br); IBGE (Cidades e Estados; Diretoria de Geociências, Divisão Territorial do Brasil); Folha BV (série sobre avenidas, rios e igarapés, Ponte dos Macuxis); Portal Amazônia (praças e avenida Ville Roy); Rua CEP e artigo da Vitruvius (plano urbanístico); artigo acadêmico sobre a mancha urbana e os bairros (Censo 2000); Lei Ordinária municipal nº 1.232/2010; relação de bairros do CepBrasil. Não é cadastro oficial de bairros nem de ruas.",
@@ -126,6 +136,26 @@
     "revisao": "pendente",
     "trechos": 34,
     "caracteres": 16248
+  },
+  {
+    "doc": "boa-vista-historia-fundacao",
+    "titulo": "História de Boa Vista (RR): do Forte São Joaquim à capital do estado",
+    "norma": "Reunião de fontes públicas lidas em 23/11/2026: série histórica da Folha BV sobre os 125, 128, 130 e 135 anos da cidade (folhabv.com.br); resumo de história de Roraima (Wikipédia); artigo sobre a paisagem do centro histórico (Dialnet). Não é fonte oficial; fontes divergem em alguns anos e isso aparece no texto.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 5,
+    "caracteres": 2146
+  },
+  {
+    "doc": "boa-vista-transporte-gestao-2026",
+    "titulo": "Boa Vista (RR): transporte coletivo e quem governa a cidade (posição em novembro de 2026)",
+    "norma": "Decreto municipal nº 36E, de 28/04/2025 (tarifa de ônibus, via NormasBrasil); Folha BV (tarifas, frota, passe estudantil, renúncia do prefeito em 02/04/2026, secretariado); Exame (tarifas de ônibus nas capitais em 2026); Diário Oficial do Município nº 6561, de 24/03/2026. Dado de apoio, pode estar desatualizado.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 5,
+    "caracteres": 2077
   },
   {
     "doc": "bolsa-familia-2026",
