@@ -747,9 +747,338 @@ function cmxEstatistica(n) {
   return null;
 }
 
+// ------------------------------------------------------------------ mais matemática (exata, no aparelho)
+// Frações e razões, porcentagem inversa e sucessiva, progressões (PA e PG), análise combinatória, probabilidade simples, sistema 2x2,
+// moda e amplitude, média necessária, taxa equivalente, valor presente, prazo para dobrar, rateio proporcional e alguns atalhos.
+// Cada regra só responde quando reconhece o pedido por inteiro; na dúvida devolve null e a pergunta segue para a IA.
+
+const CMX_NS = '-?' + CMX_NUM;
+
+function cmxMdc(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { const t = a % b; a = b; b = t; } return a; }
+
+function cmxFracaoTexto(num, den) {
+  const g = cmxMdc(num, den) || 1;
+  let a = num / g, b = den / g;
+  if (b < 0) { a = -a; b = -b; }
+  return { a: a, b: b, texto: b === 1 ? cmxF(a) : cmxF(a) + '/' + cmxF(b) };
+}
+
+function cmxFracoes(n) {
+  if (/\d+\s*\/\s*\d+\s*\/\s*\d+/.test(n)) return null;                              // data, não fração
+  let m = new RegExp('(' + CMX_NUM + ')\\s*/\\s*(' + CMX_NUM + ')\\s*([+\\-x*×÷:]|mais|menos|vezes)\\s*(' + CMX_NUM + ')\\s*/\\s*(' + CMX_NUM + ')').exec(n);
+  if (m && /fracao|fracoes|some|soma|subtra|multipl|divid|calcul|quanto|\+|-|×|\*|x/.test(n) && !/\d\s*%/.test(n)) {
+    const a = cmxNum(m[1]), b = cmxNum(m[2]), c = cmxNum(m[4]), d = cmxNum(m[5]);
+    if (b === 0 || d === 0 || ![a, b, c, d].every(Number.isInteger)) return null;
+    const op = m[3];
+    let num, den, sinal;
+    if (op === '+' || op === 'mais') { num = a * d + c * b; den = b * d; sinal = '+'; }
+    else if (op === '-' || op === 'menos') { num = a * d - c * b; den = b * d; sinal = '−'; }
+    else if (op === '÷' || op === ':') { if (c === 0) return [cmxErro('Divisão por zero.')]; num = a * d; den = b * c; sinal = '÷'; }
+    else { num = a * c; den = b * d; sinal = '×'; }
+    const f = cmxFracaoTexto(num, den);
+    return [cmxItem('fração', a + '/' + b + ' ' + sinal + ' ' + c + '/' + d, num / den, f.texto + (f.b !== 1 ? ' (' + cmxF(num / den) + ')' : ''))];
+  }
+  m = new RegExp('(?:simplifi\\w+|reduz\\w+|irredutivel)\\D{0,25}(' + CMX_NUM + ')\\s*/\\s*(' + CMX_NUM + ')').exec(n);
+  if (m) {
+    const a = cmxNum(m[1]), b = cmxNum(m[2]);
+    if (b === 0 || !Number.isInteger(a) || !Number.isInteger(b)) return null;
+    const f = cmxFracaoTexto(a, b), g = cmxMdc(a, b);
+    return [cmxItem('fração simplificada', a + '/' + b + ' ÷ mdc ' + g, a / b, f.texto + (f.b !== 1 ? ' (' + cmxF(a / b) + ')' : ''))];
+  }
+  m = new RegExp('razao\\s+entre\\s+(' + CMX_NUM + ')\\s+e\\s+(' + CMX_NUM + ')').exec(n);
+  if (m) {
+    const a = cmxNum(m[1]), b = cmxNum(m[2]);
+    if (b === 0) return [cmxErro('Divisão por zero: o segundo número não pode ser 0.')];
+    const itens = [];
+    if (Number.isInteger(a) && Number.isInteger(b)) { const f = cmxFracaoTexto(a, b); itens.push(cmxItem('razão', a + ' ÷ ' + b, a / b, f.texto.replace('/', ' para ') + ' (' + f.texto + ')')); }
+    itens.push(cmxItem('razão em decimal e %', cmxF(a) + ' ÷ ' + cmxF(b), a / b, cmxF(a / b) + ' = ' + cmxF(a / b * 100) + '%'));
+    return itens;
+  }
+  m = new RegExp('(' + CMX_NUM + ')\\s*/\\s*(' + CMX_NUM + ')\\s+(?:em|para|como)\\s+(?:numero\\s+)?(?:decimal|porcentagem|percentual|por\\s*cento|%)').exec(n);
+  if (m) {
+    const a = cmxNum(m[1]), b = cmxNum(m[2]);
+    if (b === 0) return [cmxErro('Divisão por zero.')];
+    return [cmxItem('fração em decimal', cmxF(a) + ' ÷ ' + cmxF(b), a / b, cmxF(a / b) + ' = ' + cmxF(a / b * 100) + '%')];
+  }
+  m = new RegExp('(' + CMX_NUM + ')\\s*%?\\s+(?:em|para|como|virar)\\s+fracao').exec(n);
+  if (m) {
+    const txt = m[1].replace(/\./g, ''), pct = /%/.test(n.slice(n.indexOf(m[1]), n.indexOf(m[1]) + m[1].length + 2));
+    const dec = cmxNum(m[1]);
+    const casas = (txt.split(',')[1] || '').length;
+    if (!isFinite(dec) || casas > 6) return null;
+    const den = Math.pow(10, casas) * (pct ? 100 : 1), num = Math.round(dec * Math.pow(10, casas));
+    const f = cmxFracaoTexto(num, den);
+    return [cmxItem('decimal em fração', cmxF(dec) + (pct ? '% = ' : ' = ') + num + '/' + den, dec, f.texto)];
+  }
+  return null;
+}
+
+// Preço original antes de aumento ou desconto: valor final ÷ (1 ± p).
+function cmxPercentualInverso(n) {
+  if (!/%/.test(n) || !/\b(?:original|inicial|antes|custava|era|valia|sem\s+(?:o\s+)?(?:aumento|desconto|reajuste|acrescimo)|base)\b/.test(n)) return null;
+  const mp = new RegExp('(' + CMX_NUM + ')\\s*%').exec(n);
+  if (!mp) return null;
+  const resto = n.replace(mp[0], ' ');
+  if (new RegExp('%').test(resto)) return null;
+  const nums = cmxNumeros(resto);
+  if (nums.length !== 1) return null;
+  const desc = /desconto|abatimento|queda|reducao|barate|diminu|promocao|liquidacao/.test(n);
+  const aum = /aumento|acrescimo|reajuste|alta|encarec|imposto|taxa|juros|majora/.test(n);
+  if (desc === aum) return null;
+  const p = cmxNum(mp[1]) / 100, fim = nums[0];
+  const f = desc ? 1 - p : 1 + p;
+  if (f <= 0) return [cmxErro('Com esse percentual o valor original não existe (desconto de 100% ou mais).')];
+  const orig = fim / f;
+  return [cmxItem('valor original', cmxF(fim) + ' ÷ (1 ' + (desc ? '−' : '+') + ' ' + cmxF(p * 100) + '%)', orig, cmxF(orig))];
+}
+
+// Aumentos/descontos em sequência e inflação acumulada: os fatores se multiplicam, os percentuais não se somam.
+function cmxSucessivos(n) {
+  const pcts = [];
+  const re = new RegExp('(' + CMX_NUM + ')\\s*%', 'g');
+  let m;
+  while ((m = re.exec(n))) pcts.push({ v: cmxNum(m[1]), ini: m.index, fim: re.lastIndex });
+  if (pcts.length < 2 || !/(?:sucessiv\w*|acumulad\w*|depois|em\s+seguida|seguid\w+|e\s+mais|outro|novo|inflacao)/.test(n)) return null;
+  if (!/(?:desconto|aumento|acrescimo|reajuste|inflacao|variacao|queda|reducao|alta|taxa)/.test(n)) return null;
+  let sinal = /desconto|queda|reducao|abatimento|barate/.test(n.slice(0, pcts[0].ini + 30)) ? -1 : 1;
+  const fatores = [], partes = [];
+  pcts.forEach(function (p, i) {
+    const antes = n.slice(i ? pcts[i - 1].fim : 0, p.ini);
+    if (/desconto|queda|reducao|abatimento|barate|diminu/.test(antes)) sinal = -1;
+    else if (/aumento|acrescimo|reajuste|alta|majora/.test(antes)) sinal = 1;
+    fatores.push(1 + sinal * p.v / 100);
+    partes.push('(1 ' + (sinal < 0 ? '−' : '+') + ' ' + cmxF(p.v) + '%)');
+  });
+  if (fatores.some(function (f) { return f < 0; })) return null;
+  const total = fatores.reduce(function (x, y) { return x * y; }, 1);
+  const itens = [cmxItem('variação acumulada', partes.join(' × ') + ' − 1', total - 1, cmxF((total - 1) * 100) + '% (fator ' + cmxF(total) + ')')];
+  let resto = n; pcts.slice().reverse().forEach(function (p) { resto = resto.slice(0, p.ini) + ' ' + resto.slice(p.fim); });
+  const base = cmxNumeros(resto);
+  if (base.length === 1) itens.push(cmxItem('valor final', cmxF(base[0]) + ' × ' + cmxF(total), base[0] * total, cmxF(base[0] * total)));
+  return itens;
+}
+
+const CMX_ORD = { primeiro: 1, segundo: 2, terceiro: 3, quarto: 4, quinto: 5, sexto: 6, setimo: 7, oitavo: 8, nono: 9, decimo: 10, vigesimo: 20, trigesimo: 30 };
+
+function cmxProgressao(n) {
+  const pa = /\bpa\b|progressao\s+aritmetica/.test(n), pg = /\bpg\b|progressao\s+geometrica/.test(n);
+  if (pa === pg) return null;
+  const a1m = new RegExp('(?:primeiro\\s+termo|\\ba\\s*1\\b|\\ba1\\b)\\s*(?:=|de|e|igual\\s+a|:)?\\s*(' + CMX_NS + ')').exec(n);
+  const rm = new RegExp('(?:razao|\\br\\b|\\bq\\b)\\s*(?:=|de|e|igual\\s+a|:)?\\s*(' + CMX_NS + ')').exec(n);
+  if (!a1m || !rm) return null;
+  const a1 = cmxNum(a1m[1]), r = cmxNum(rm[1]);
+  const itens = [];
+  const termo = function (k) { return pa ? a1 + (k - 1) * r : a1 * Math.pow(r, k - 1); };
+  const soma = function (k) { return pa ? (a1 + termo(k)) * k / 2 : (r === 1 ? a1 * k : a1 * (Math.pow(r, k) - 1) / (r - 1)); };
+  const sm = /soma\s+d\w+\s+(?:(?:os|as)\s+)?(?:(\d+)|primeir\w+\s+(\d+))\s*(?:primeiros\s+)?termos/.exec(n);
+  const sem1 = n.replace(a1m[0], ' ').replace(rm[0], ' ');
+  const km = /(?:termo\s+(?:de\s+)?(?:numero\s+|posicao\s+)?(\d+)\b|(\d+)\s*(?:o|º|°)?\s*termo|\ba(?:\s*_?)(\d+)\b(?!\s*=))/.exec(sem1);
+  let k = null;
+  if (km) k = Number(km[1] || km[2] || km[3]);
+  else { const om = /\b(primeiro|segundo|terceiro|quarto|quinto|sexto|setimo|oitavo|nono|decimo|vigesimo|trigesimo)\s+termo/.exec(sem1); if (om) k = CMX_ORD[om[1]]; }
+  const ks = sm ? Number(sm[1] || sm[2]) : null;
+  if (!k && !ks) return null;
+  const rot = pa ? 'PA' : 'PG';
+  if (k) {
+    if (k < 1 || k > 1000) return [cmxErro('A posição do termo precisa ficar entre 1 e 1000.')];
+    const t = termo(k);
+    if (!isFinite(t) || Math.abs(t) > 1e15) return [cmxErro('O termo passa de 1 quatrilhão; confira os dados.')];
+    itens.push(cmxItem('termo ' + k + ' da ' + rot, pa ? cmxF(a1) + ' + ' + (k - 1) + ' × ' + cmxP(r) : cmxF(a1) + ' × ' + cmxP(r) + '^' + (k - 1), t, cmxF(t)));
+  }
+  if (ks) {
+    if (ks < 1 || ks > 1000) return [cmxErro('A quantidade de termos precisa ficar entre 1 e 1000.')];
+    const s = soma(ks);
+    if (!isFinite(s) || Math.abs(s) > 1e15) return [cmxErro('A soma passa de 1 quatrilhão; confira os dados.')];
+    itens.push(cmxItem('soma dos ' + ks + ' primeiros termos da ' + rot, pa ? '(' + cmxF(a1) + ' + ' + cmxF(termo(ks)) + ') × ' + ks + ' ÷ 2' : cmxF(a1) + ' × (' + cmxP(r) + '^' + ks + ' − 1) ÷ (' + cmxP(r) + ' − 1)', s, cmxF(s)));
+  }
+  return itens;
+}
+
+function cmxFatorialExato(k) { let f = 1; for (let i = 2; i <= k; i++) f *= i; return f; }
+
+// C(n,p), A(n,p) e permutação. Só com palavra de análise combinatória; produto passo a passo para não estourar.
+function cmxCombinatoria(n) {
+  const comb = /combinac\w+|\bc\s*\(\s*\d+\s*,\s*\d+\s*\)|tomados?\s+\d+\s+a\s+\d+|escolher\s+\d+\s+de\s+\d+|escolhe\s+\d+/.test(n);
+  const arr = /arranjos?|\ba\s*\(\s*\d+\s*,\s*\d+\s*\)/.test(n);
+  const perm = /permutac\w+|anagramas?\s+d[ea]\s+\d+/.test(n);
+  if (!comb && !arr && !perm) return null;
+  const nums = (n.match(/\d+/g) || []).map(Number);
+  if (perm && !comb && !arr) {
+    if (nums.length < 1) return null;
+    const k = nums[0];
+    if (k > 170) return [cmxErro('Acima de 170 elementos o resultado passa do limite.')];
+    const v = cmxFatorialExato(k);
+    if (v > 1e15) return [cmxItem('permutação', k + '!', v, cmxF(v) + ' (valor aproximado)')];
+    return [cmxItem('permutação simples', k + '!', v, cmxF(v) + (k > 1 ? ' maneiras' : ''))];
+  }
+  if (nums.length < 2) return null;
+  let a = nums[0], b = nums[1];
+  // "combinações de 10 escolhe 3", "tomados 3 a 3 de 10": o maior número é o total
+  if (b > a) { const t = a; a = b; b = t; }
+  if (a > 1000) return [cmxErro('Use no máximo 1000 elementos.')];
+  let r = 1;
+  const kk = comb && !arr ? Math.min(b, a - b) : b;
+  for (let i = 1; i <= kk; i++) { r = comb && !arr ? r * (a - kk + i) / i : r * (a - i + 1); if (r > 9e15) return [cmxErro('O resultado passa de 9 quatrilhões; use uma calculadora científica.')]; }
+  r = Math.round(r);
+  if (comb && !arr) return [cmxItem('combinação C(' + a + ', ' + b + ')', a + '! ÷ (' + b + '! × ' + (a - b) + '!)', r, cmxF(r) + ' maneiras (a ordem não importa)')];
+  return [cmxItem('arranjo A(' + a + ', ' + b + ')', a + '! ÷ ' + (a - b) + '!', r, cmxF(r) + ' maneiras (a ordem importa)')];
+}
+
+function cmxProbTexto(fav, tot, rot) {
+  const f = cmxFracaoTexto(fav, tot);
+  return cmxItem(rot || 'probabilidade', fav + ' ÷ ' + tot, fav / tot, f.texto + ' = ' + cmxF(fav / tot) + ' = ' + cmxF(fav / tot * 100) + '%');
+}
+
+function cmxProbabilidade(n) {
+  if (!/probabilidade|chance/.test(n)) return null;
+  let m = new RegExp('(\\d+)\\s+(?:casos?\\s+)?favoravei?s?\\b[^\\d]{0,30}(\\d+)').exec(n);
+  if (m) { const a = Number(m[1]), b = Number(m[2]); if (b > 0 && a <= b) return [cmxProbTexto(a, b)]; return [cmxErro('Os casos favoráveis não podem passar do total.')]; }
+  if (/\bdado\b/.test(n) && !/\bdois\b|\b2\s+dados|dados/.test(n)) {
+    const comp = /(maior|acima)\s+(?:que|do\s+que|de)\s+(\d)/.exec(n) || null, menor = /(menor|abaixo)\s+(?:que|do\s+que|de)\s+(\d)/.exec(n);
+    if (comp) return [cmxProbTexto(Math.max(0, 6 - Number(comp[2])), 6, 'probabilidade (dado de 6 faces)')];
+    if (menor) return [cmxProbTexto(Math.max(0, Number(menor[2]) - 1), 6, 'probabilidade (dado de 6 faces)')];
+    if (/\bpar\b/.test(n) || /\bimpar\b/.test(n)) return [cmxProbTexto(3, 6, 'probabilidade (dado de 6 faces)')];
+    const f = /\b([1-6])\b/.exec(n);
+    if (f) return [cmxProbTexto(1, 6, 'probabilidade (dado de 6 faces)')];
+  }
+  if (/\bmoeda\b|\bcara\b|\bcoroa\b/.test(n)) {
+    const v = /(\d+)\s+vezes/.exec(n);
+    const k = v ? Number(v[1]) : 1;
+    if (k < 1 || k > 30) return null;
+    return [cmxProbTexto(1, Math.pow(2, k), 'probabilidade (moeda' + (k > 1 ? ', ' + k + ' vezes seguidas, mesmo resultado' : '') + ')')];
+  }
+  m = /(?:sortear|sorteado|sorteio|ganhar)[^\d]{0,20}(\d+)[^\d]{1,25}(?:entre|de|dentre)\s+(\d+)/.exec(n);
+  if (m) { const a = Number(m[1]), b = Number(m[2]); if (b > 0 && a <= b) return [cmxProbTexto(a, b, 'probabilidade (sorteio)')]; }
+  return null;
+}
+
+// Sistema 2x2 (x e y) por Cramer.
+function cmxSistema(n) {
+  if ((n.match(/=/g) || []).length < 2 || !/[xy]/.test(n)) return null;
+  const re = new RegExp('((?:[+\\-]?\\s*(?:' + CMX_NUM + ')?\\s*[xy]\\s*)+)=\\s*(' + CMX_NS + ')', 'g');
+  const eqs = []; let m;
+  while ((m = re.exec(n.replace(/\s+/g, ' ')))) {
+    const lado = m[1].replace(/\s+/g, ''); let cx = 0, cy = 0, ok = true;
+    const tr = /([+\-]?)(\d[\d.]*(?:,\d+)?)?([xy])/g; let t, resto = lado;
+    while ((t = tr.exec(lado))) { const c = (t[2] ? cmxNum(t[2]) : 1) * (t[1] === '-' ? -1 : 1); if (t[3] === 'x') cx += c; else cy += c; resto = resto.replace(t[0], ''); }
+    if (resto || !isFinite(cx + cy)) ok = false;
+    if (ok) eqs.push({ a: cx, b: cy, c: cmxNum(m[2]) });
+  }
+  if (eqs.length !== 2) return null;
+  const e1 = eqs[0], e2 = eqs[1], d = e1.a * e2.b - e2.a * e1.b;
+  if (d === 0) return [cmxErro('O sistema não tem solução única (as retas são paralelas ou iguais).')];
+  const x = (e1.c * e2.b - e2.c * e1.b) / d, y = (e1.a * e2.c - e2.a * e1.c) / d;
+  return [cmxItem('x', '(' + cmxF(e1.c) + ' × ' + cmxP(e2.b) + ' − ' + cmxF(e2.c) + ' × ' + cmxP(e1.b) + ') ÷ ' + cmxP(d), x, cmxF(x)),
+    cmxItem('y', '(' + cmxP(e1.a) + ' × ' + cmxF(e2.c) + ' − ' + cmxP(e2.a) + ' × ' + cmxF(e1.c) + ') ÷ ' + cmxP(d), y, cmxF(y))];
+}
+
+// "2,3,3,5" (vírgula sem espaço, três ou mais números) é lista; "2,5" sozinho é decimal.
+function cmxNumerosLista(t) {
+  return /\d,\d+,\d/.test(t) && !/,\s/.test(t) ? t.split(',').map(cmxNum).filter(isFinite) : cmxNumeros(t);
+}
+
+function cmxLista(n) {
+  let m = /\bmoda\b\s*(?:de|dos|das|:)?\s*([\d.,\s;e]+)/.exec(n);
+  if (m) {
+    const v = cmxNumerosLista(m[1].trim()); if (v.length < 2) return null;
+    const cont = {}; v.forEach(function (x) { cont[x] = (cont[x] || 0) + 1; });
+    const max = Math.max.apply(null, Object.keys(cont).map(function (k) { return cont[k]; }));
+    if (max === 1) return [cmxItem('moda', 'valores: ' + v.map(function (x) { return cmxF(x); }).join('; '), null, 'não há moda (nenhum valor se repete)')];
+    const modas = Object.keys(cont).filter(function (k) { return cont[k] === max; }).map(Number).sort(function (a, b) { return a - b; });
+    return [cmxItem(modas.length > 1 ? 'moda (multimodal)' : 'moda', 'valor mais frequente', modas[0], modas.map(function (x) { return cmxF(x); }).join(' e ') + ' (aparece ' + max + ' vezes)')];
+  }
+  m = /amplitude\s*(?:de|dos|das|:)?\s*([\d.,\s;e-]+)/.exec(n);
+  if (m) {
+    const v = cmxNumerosLista(m[1].trim()); if (v.length < 2) return null;
+    const mx = Math.max.apply(null, v), mn = Math.min.apply(null, v);
+    return [cmxItem('amplitude', cmxF(mx) + ' − ' + cmxP(mn), mx - mn, cmxF(mx - mn))];
+  }
+  // nota necessária: "preciso de média 7, tirei 6 e 8, quanto preciso na 3ª?"
+  if (/media/.test(n) && /(?:quanto|que\s+nota|nota\s+necessaria|qual\s+nota)[^.?]*(?:preciso|devo|tenho\s+que|falta|tirar|necessari)|(?:preciso|devo|tenho\s+que)[^.?]*(?:tirar|nota)/.test(n)) {
+    const mm = new RegExp('media\\s+(?:minima\\s+|final\\s+)?(?:de\\s+|igual\\s+a\\s+|para\\s+)?(' + CMX_NUM + ')').exec(n);
+    if (!mm) return null;
+    let resto = n.replace(mm[0], ' ');
+    const tm = new RegExp('(?:em|de|total\\s+de)\\s+(\\d+)\\s+(?:provas|avaliacoes|bimestres|trimestres|notas|testes|trabalhos)').exec(resto);
+    if (tm) resto = resto.replace(tm[0], ' ');
+    const notas = cmxNumeros(resto.replace(/\b\d+\s*(?:a|o|º|°|ª)\b/g, ' ')).filter(function (x) { return x >= 0 && x <= 100; });
+    if (!notas.length) return null;
+    const alvo = cmxNum(mm[1]), tot = tm ? Number(tm[1]) : notas.length + 1;
+    if (tot <= notas.length) return null;
+    const soma = notas.reduce(function (x, y) { return x + y; }, 0);
+    const falta = (alvo * tot - soma) / (tot - notas.length);
+    return [cmxItem('nota necessária', '(' + cmxF(alvo) + ' × ' + tot + ' − ' + cmxF(soma) + ') ÷ ' + (tot - notas.length), falta, cmxF(falta) + (falta > 10 && alvo <= 10 ? ' (acima de 10: com essas notas a média não é alcançável se a escala for de 0 a 10)' : falta < 0 ? ' (negativo: a média já está garantida)' : ''))];
+  }
+  return null;
+}
+
+function cmxJurosMais(n) {
+  let m = new RegExp('taxa\\s+equivalente\\s+(?:a\\s+|de\\s+)?(mensal|anual|ao\\s+mes|ao\\s+ano)?\\s*(?:de\\s+)?(' + CMX_NUM + ')\\s*%\\s*(?:ao|por|a\\.?)\\s*(mes|ano)').exec(n);
+  if (m) {
+    const i = cmxNum(m[2]) / 100, de = m[3];
+    if (de === 'ano') { const r = Math.pow(1 + i, 1 / 12) - 1; return [cmxItem('taxa mensal equivalente', '(1 + ' + cmxF(i * 100) + '%)^(1/12) − 1', r, cmxF(r * 100) + '% ao mês')]; }
+    const r = Math.pow(1 + i, 12) - 1; return [cmxItem('taxa anual equivalente', '(1 + ' + cmxF(i * 100) + '%)^12 − 1', r, cmxF(r * 100) + '% ao ano (não é 12 × ' + cmxF(i * 100) + '%)')];
+  }
+  m = new RegExp('valor\\s+presente\\D{0,20}(' + CMX_NUM + ')\\D{1,40}?(' + CMX_NUM + ')\\s*(meses|mes|anos|ano)\\D{1,30}?(' + CMX_NUM + ')\\s*%\\s*(?:ao|por|a\\.?)\\s*(mes|ano)').exec(n);
+  if (m) {
+    const vf = cmxNum(m[1]), t = cmxNum(m[2]), i = cmxNum(m[4]) / 100;
+    const k = cmxPrazoEmPeriodos(t, m[3], m[5]);
+    if (k === null) return null;
+    const vp = vf / Math.pow(1 + i, k);
+    return [cmxItem('valor presente', cmxF(vf) + ' ÷ (1 + ' + cmxF(i * 100) + '%)^' + cmxF(k), vp, cmxM(vp), { moeda: true })];
+  }
+  m = new RegExp('(dobrar|triplicar|quadruplicar)\\D{0,40}?(' + CMX_NUM + ')\\s*%\\s*(?:ao|por|a\\.?)\\s*(mes|ano)').exec(n);
+  if (m) {
+    const i = cmxNum(m[2]) / 100, f = { dobrar: 2, triplicar: 3, quadruplicar: 4 }[m[1]];
+    if (i <= 0) return null;
+    const k = Math.log(f) / Math.log(1 + i);
+    return [cmxItem('prazo para ' + m[1], 'ln(' + f + ') ÷ ln(1 + ' + cmxF(i * 100) + '%)', k, cmxF(k, 2) + (m[3] === 'mes' ? ' meses' : ' anos') + ' (juros compostos)')];
+  }
+  return null;
+}
+
+function cmxProporcionais(n) {
+  const m = new RegExp('(?:pessoas?\\s+)?(?:dividem|dividir|dividido|repartem|repartir|ratear|rateiam|distribuir|distribuem|partilham)\\D{0,30}?(' + CMX_NUM + ')\\D{0,40}?proporciona\\w*\\s+(?:a|aos|as|ao)\\s+(.+)').exec(n)
+    || new RegExp('(' + CMX_NUM + ')\\D{0,40}?(?:dividid\\w+|repartid\\w+|distribuid\\w+)\\D{0,40}?proporciona\\w*\\s+(?:a|aos|as|ao)\\s+(.+)').exec(n);
+  if (!m) return null;
+  const v = cmxNum(m[1]), pesos = cmxNumeros(m[2]), soma = pesos.reduce(function (x, y) { return x + y; }, 0);
+  if (pesos.length < 2 || soma <= 0 || pesos.length > 10) return null;
+  return pesos.map(function (pe, i) { const r = v * pe / soma; return cmxItem('parte ' + (i + 1), cmxF(v) + ' × ' + cmxF(pe) + ' ÷ ' + cmxF(soma), r, cmxF(r)); });
+}
+
+function cmxAtalhos(n) {
+  let m = new RegExp('quantas\\s+vezes\\s+(' + CMX_NUM + ')\\s+(?:cabe|cabem|entra|entram|ha)\\s+(?:em|no|na|dentro\\s+d\\w+)\\s+(' + CMX_NUM + ')').exec(n);
+  if (m) {
+    const a = cmxNum(m[1]), b = cmxNum(m[2]); if (a <= 0) return [cmxErro('O divisor precisa ser maior que 0.')];
+    const q = Math.floor(b / a), r = calcSemRuido(b - q * a);
+    return [cmxItem('vezes inteiras', cmxF(b) + ' ÷ ' + cmxF(a), q, cmxF(q) + (r ? ' (sobram ' + cmxF(r) + ')' : ' (sem resto)'))];
+  }
+  m = new RegExp('pontos?\\s+percentuais?\\D{0,25}(' + CMX_NUM + ')\\s*%?\\D{1,12}(' + CMX_NUM + ')\\s*%').exec(n);
+  if (m) {
+    const a = cmxNum(m[1]), b = cmxNum(m[2]), pp = calcSemRuido(b - a);
+    const itens = [cmxItem('diferença em pontos percentuais', cmxF(b) + '% − ' + cmxF(a) + '%', pp, cmxF(pp) + ' p.p.')];
+    if (a !== 0) itens.push(cmxItem('variação relativa', '(' + cmxF(b) + ' − ' + cmxF(a) + ') ÷ ' + cmxF(a), (b - a) / a, cmxF((b - a) / a * 100) + '% (não confundir com p.p.)'));
+    return itens;
+  }
+  m = new RegExp('notacao\\s+cientifica\\s+(?:de|do|da)?\\s*(' + CMX_NS + ')').exec(n);
+  if (m) {
+    const v = cmxNum(m[1]); if (!isFinite(v) || v === 0) return null;
+    const e = Math.floor(Math.log10(Math.abs(v))), mant = calcSemRuido(v / Math.pow(10, e));
+    return [cmxItem('notação científica', cmxF(v), v, cmxF(mant, 6) + ' × 10^' + e)];
+  }
+  m = new RegExp('raiz\\s+(?:cubica|quarta|quinta)\\s+(?:de|do|da)?\\s*(' + CMX_NS + ')').exec(n);
+  if (m) {
+    const v = cmxNum(m[1]), idx = /cubica/.test(n) ? 3 : /quarta/.test(n) ? 4 : 5;
+    if (!isFinite(v) || (v < 0 && idx % 2 === 0)) return [cmxErro('Raiz de índice par não existe para número negativo.')];
+    const r = (v < 0 ? -1 : 1) * Math.pow(Math.abs(v), 1 / idx), rr = Math.round(r);
+    const exato = Math.abs(Math.pow(rr, idx) - v) < 1e-9 * Math.max(1, Math.abs(v));
+    return [cmxItem('raiz de índice ' + idx, idx + '√' + cmxF(v), exato ? rr : r, exato ? cmxF(rr) : cmxF(r))];
+  }
+  return null;
+}
+
 // ------------------------------------------------------------------ painel de regras
 
-const CMX_REGRAS = [cmxExtenso, cmxAcrescimo, cmxRegraDeTres, cmxRateio, cmxPerCapita, cmxFrequencia, cmxImc, cmxTaxa, cmxEstatistica, cmxEquacao, cmxFinanceiro, cmxHoras, cmxViagem, cmxNumerico, cmxGeometria, cmxPorcentagem, cmxConversao];
+const CMX_REGRAS = [cmxExtenso, cmxJurosMais, cmxSucessivos, cmxPercentualInverso, cmxProporcionais, cmxProgressao, cmxCombinatoria, cmxProbabilidade, cmxSistema, cmxLista, cmxFracoes, cmxAtalhos, cmxAcrescimo, cmxRegraDeTres, cmxRateio, cmxPerCapita, cmxFrequencia, cmxImc, cmxTaxa, cmxEstatistica, cmxEquacao, cmxFinanceiro, cmxHoras, cmxViagem, cmxNumerico, cmxGeometria, cmxPorcentagem, cmxConversao];
 
 // Resolve pedidos "de cálculo pronto". Devolve null se nenhuma regra reconhece a mensagem.
 export function resolverEspecial(texto) {
@@ -773,7 +1102,8 @@ export function linhaDeItem(item) {
 // Datas, depois cálculos prontos, depois aritmética. origem diz de onde veio (o cliente trata idade como dado sensível).
 export function contasDoPedido(texto, opc) {
   let r = null;
-  try { r = resolverDatas(texto, opc); } catch (e) { r = null; }
+  const financeiro = /%|juros|valor\s+presente|taxa\s+equivalente|inflac/i.test(String(texto == null ? '' : texto));
+  if (!financeiro) { try { r = resolverDatas(texto, opc); } catch (e) { r = null; } }
   if (r) return r;
   r = resolverEspecial(texto);
   if (r) return r;
