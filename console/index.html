@@ -693,6 +693,15 @@ body:not(.vazio)[data-estado] #bgc{opacity:.32}
 .tg-fx[aria-checked=true] i{background:var(--c)}
 .tg-fx[aria-checked=true] i::after{transform:translateX(16px);background:#02121a}
 #apn .vn{margin:10px 0 0;color:var(--mut);font-size:12px}
+#sxp{position:fixed;right:10px;top:calc(var(--hh) + var(--sat) + 4px);z-index:8;width:min(360px,calc(100vw - 20px));max-height:calc(100vh - var(--hh) - 40px);overflow:auto;padding:16px;border-radius:12px;background:var(--panel);border:1px solid var(--bd2);box-shadow:0 12px 40px #000b;color:var(--t);font:14px/1.4 var(--hud)}
+#sxp[hidden]{display:none}
+#sxp h2{margin:0 0 10px;font:600 12px var(--hud);letter-spacing:.06em;color:var(--c2)}
+#sxp .sx-todos{width:100%;min-height:42px;margin-bottom:10px;border:0;border-radius:8px;background:var(--c);color:#02121a;font:600 14px var(--hud)}
+#sxp .sx-lista{display:grid;gap:6px}
+#sxp .sx-lista a{display:flex;flex-direction:column;gap:1px;min-height:44px;justify-content:center;padding:6px 12px;border:1px solid var(--bd2);border-radius:8px;background:var(--bg);color:var(--t);text-decoration:none;font-weight:600}
+#sxp .sx-lista a:hover,#sxp .sx-lista a:focus-visible{background:var(--panel2);border-color:var(--c)}
+#sxp .sx-lista small{font-weight:400;font-size:11.5px;color:var(--mut)}
+#sxp .vn{margin:10px 0 0;color:var(--mut);font-size:12px}
 #mnp{position:fixed;right:8px;top:calc(var(--hh) + var(--sat));z-index:9;width:min(300px,calc(100vw - 16px));padding:6px;border-radius:12px;background:var(--panel);border:1px solid var(--bd2);box-shadow:0 14px 40px #000b;display:flex;flex-direction:column;gap:2px}
 #mnp[hidden]{display:none}
 #mnp .hb{display:flex;justify-content:flex-start;align-items:center;gap:14px;width:100%;height:46px;min-width:0;border-radius:8px;border-color:transparent;background:transparent;padding:0 12px!important}
@@ -1063,6 +1072,8 @@ button,.hb,#go,#tb button{user-select:none;-webkit-user-select:none}  /* segurar
   :root{--hh:56px}#core{width:44px;height:44px}.hl{margin-left:50px}
   #tb{display:none}
 }
+/* botão do cabeçalho com painel aberto: no tema claro o fundo ficava branco com ícone branco */
+body.claro:not(.lock) .hb.on{background:var(--c);border-color:var(--c);color:#fff}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
 <svg id="hx" aria-hidden="true" focusable="false"><defs><pattern id="hxp" width="56" height="97" patternUnits="userSpaceOnUse" patternTransform="scale(.9)"><path d="M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z M28 62 L28 95 M54 47 L82 62 M2 47 L-26 62" fill="none" stroke="currentColor" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#hxp)"/></svg>
@@ -1119,6 +1130,7 @@ button,.hb,#go,#tb button{user-select:none;-webkit-user-select:none}  /* segurar
 <button id="ex" class="hb" title="Salvar a conversa em arquivo (.md)" aria-label="Salvar a conversa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg></button>
 <button id="fo" class="hb" title="Modo foco: esconde painéis e efeitos (Ctrl+Shift+F)" aria-label="Modo foco" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4"/><circle cx="12" cy="12" r="2.2"/></svg></button>
 <button id="nv" class="hb" title="Nova conversa (Ctrl+Shift+N)" aria-label="Nova conversa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4"/></svg></button>
+<button id="sx" class="hb" title="Meus sistemas: abrir os sites de trabalho" aria-label="Meus sistemas" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></button>
 <button id="nt" class="hb" title="Anotações e lista de compras" aria-label="Anotações" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg></button>
 <button id="jv" class="hb" title="Modo voz: conversa falada contínua" aria-label="Modo voz" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></svg></button>
 <button id="ap" class="hb" title="Aparência: tema claro ou escuro e tamanho do texto" aria-label="Aparência" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17" fill="currentColor" stroke="none"/></svg></button>

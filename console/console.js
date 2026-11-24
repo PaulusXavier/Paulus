@@ -391,7 +391,7 @@
   function aviso(t) { pi.textContent = t; setTimeout(function () { if (pi.textContent === t) pi.textContent = ''; ajustarBarra(); }, 3500); ajustarBarra(); }
 
   // barra de tarefas rápidas
-  [['PAIF × PAEFI', 'qual a diferença entre PAIF e PAEFI?'], ['Conta', '/conta'], ['Mapa', 'mostrar o mapa de Boa Vista'], ['Rota daqui', '/daqui'], ['Rota', '/rota'], ['PDF', '/pdf'], ['Corrigir', '/corrigir'], ['Espanhol', '/espanhol']].forEach(function (x) {
+  [['PAIF × PAEFI', 'qual a diferença entre PAIF e PAEFI?'], ['Conta', '/conta'], ['Sistemas', '/sistemas'], ['Mapa', 'mostrar o mapa de Boa Vista'], ['Rota daqui', '/daqui'], ['Rota', '/rota'], ['PDF', '/pdf'], ['Corrigir', '/corrigir'], ['Espanhol', '/espanhol']].forEach(function (x) {
     tb.appendChild(btn(x[0], function () {
       if (x[1].charAt(0) === '/') { q.value = x[1]; var a = ATALHOS.filter(function (z) { return z.c === x[1]; })[0]; if (a) rodarAtalho(a); }
       else enviar(x[1]);
@@ -1017,20 +1017,21 @@
         if (!w) aviso('O navegador bloqueou a nova aba. Libere pop-ups para este site e peça de novo.');
       } });
     });
-    // Sistemas do trabalho: "abrir meus sistemas" abre todos de uma vez; "abrir sibec" ou "abrir cadunico e drive" abre só esses.
+    // Sistemas do trabalho: "abrir meus sistemas" abre todos de uma vez; "abrir sibec", "chama o sibec" ou "acessar cadunico e drive" abre só esses.
     // Só endereços de acesso (nenhum login ou senha passa pelo Paulus). O navegador pode bloquear várias abas de um comando: nesse caso avisa quantas.
     var SISTEMAS = [
-      { id: 'sis-bvcidadao', t: 'BV Cidadão (Proton)', r: ['bv cidadao', 'proton'], u: 'https://bvcidadao.prefeitura.boavista.br/proton/login.asp' },
-      { id: 'sis-portalcidadao', t: 'Portal do Cidadão', r: ['portal do cidadao', 'portal cidadao'], u: 'https://portalcidadao.prefeitura.boavista.br/default.aspx' },
-      { id: 'sis-cidadesocial', t: 'Cidade Social', r: ['cidade social'], u: 'https://cidadesocial.pmbv.rr.gov.br/' },
-      { id: 'sis-sipweb', t: 'SIPWeb (trabalhador)', r: ['sipweb', 'sip web'], u: 'http://sipweb.boavista.rr.gov.br:8080/sipweb/trabalhador/login/login.xhtml' },
-      { id: 'sis-smt', t: 'SMT (chamados)', r: ['smt', 'chamados'], u: 'https://bt.pmbv.rr.gov.br/SMT73/open.do?sys=SMT' },
-      { id: 'sis-cedulac', t: 'Cedulac', r: ['cedulac'], u: 'http://servicos.boavista.rr.gov.br/cedulac/' },
-      { id: 'sis-sibec', t: 'SIBEC (Caixa)', r: ['sibec', 'sibec caixa', 'beneficios sociais caixa'], u: 'https://beneficiossociais.caixa.gov.br/sibec2/sisgrSibec' },
-      { id: 'sis-sigpbf', t: 'SIGPBF (MDS)', r: ['sigpbf', 'sigpbf mds'], u: 'https://www.mds.gov.br/mds-sigpbf-web/carregarTelaLogin.jsf' },
-      { id: 'sis-govbr', t: 'Acesso gov.br', r: ['gov br', 'acesso gov br', 'govbr'], u: 'https://sso.acesso.gov.br/login?client_id=portal-logado.estaleiro.serpro.gov.br&authorization_id=1a20df2fed9' },
-      { id: 'sis-cadunico', t: 'CadÚnico (Dataprev)', r: ['cadunico', 'cad unico', 'cadastro unico'], u: 'https://cadunico.dataprev.gov.br/portal/' },
-      { id: 'sis-drive', t: 'Pasta no Google Drive', r: ['drive', 'google drive', 'minha pasta'], u: 'https://drive.google.com/drive/folders/1nR7c8AsrhwWPyBYfmWkOmEIfyH349gXR' }
+      { id: 'sis-bvcidadao', t: 'BV Cidadão (Proton)', r: ['bv cidadao', 'bvcidadao', 'proton', 'bv'], u: 'https://bvcidadao.prefeitura.boavista.br/proton/login.asp' },
+      { id: 'sis-portalcidadao', t: 'Portal do Cidadão', r: ['portal do cidadao', 'portal cidadao', 'portal da prefeitura'], u: 'https://portalcidadao.prefeitura.boavista.br/default.aspx' },
+      { id: 'sis-cidadesocial', t: 'Cidade Social', r: ['cidade social', 'cidadesocial'], u: 'https://cidadesocial.pmbv.rr.gov.br/auth/login/' },
+      { id: 'sis-sipweb', t: 'SIPWeb (trabalhador)', r: ['sipweb', 'sip web', 'sip'], u: 'http://sipweb.boavista.rr.gov.br:8080/sipweb/trabalhador/login/login.xhtml' },
+      { id: 'sis-smt', t: 'SMT (chamados)', r: ['smt', 'chamados', 'chamado', 'suporte da prefeitura'], u: 'https://bt.pmbv.rr.gov.br/SMT73/open.do?sys=SMT' },
+      { id: 'sis-cedulac', t: 'Cedulac', r: ['cedulac', 'cedula c'], u: 'http://servicos.boavista.rr.gov.br/cedulac/' },
+      { id: 'sis-sibec', t: 'SIBEC (Caixa)', r: ['sibec', 'sibec caixa', 'beneficios sociais caixa', 'caixa'], u: 'https://beneficiossociais.caixa.gov.br/sibec2/sisgrSibec' },
+      { id: 'sis-sigpbf', t: 'SIGPBF (MDS)', r: ['sigpbf', 'sigpbf mds', 'sistema do bolsa familia'], u: 'https://www.mds.gov.br/mds-sigpbf-web/carregarTelaLogin.jsf' },
+      { id: 'sis-govbr', t: 'Acesso gov.br', r: ['gov br', 'acesso gov br', 'govbr', 'login gov'], u: 'https://sso.acesso.gov.br/login?client_id=portal-logado.estaleiro.serpro.gov.br&authorization_id=1a20df2fed9' },
+      { id: 'sis-carteira-idosa', t: 'Carteira da Pessoa Idosa (Rede SUAS)', r: ['carteira da pessoa idosa', 'carteira do idoso', 'carteira idosa', 'carteira', 'rede suas', 'redesuas'], u: 'https://redesuas.mds.gov.br/carteiradapessoaidosa/' },
+      { id: 'sis-cadunico', t: 'CadÚnico (Dataprev)', r: ['cadunico', 'cad unico', 'cadastro unico', 'cadunico dataprev', 'dataprev'], u: 'https://cadunico.dataprev.gov.br/portal/' },
+      { id: 'sis-drive', t: 'Pasta no Google Drive', r: ['drive', 'google drive', 'minha pasta', 'pasta do drive'], u: 'https://drive.google.com/drive/folders/1nR7c8AsrhwWPyBYfmWkOmEIfyH349gXR' }
     ];
     function abrirAba(u) { var w = null; try { w = window.open(u, '_blank', 'noopener'); } catch (e) { w = null; } return !!w; }
     SISTEMAS.forEach(function (a) {
@@ -1043,6 +1044,39 @@
       SISTEMAS.forEach(function (a) { if (!abrirAba(a.u)) barrados++; });
       if (barrados) aviso('O navegador bloqueou ' + barrados + ' de ' + SISTEMAS.length + ' abas. Libere pop-ups para este site (ícone na barra de endereço) e peça de novo.');
     } });
+    // Painel "Meus sistemas": um botão por site (links comuns <a target=_blank>, que o navegador não bloqueia como pop-up),
+    // mais "Abrir todos". Também por /sistemas, pelo botão do cabeçalho e por "lista de sistemas". Atalhos /sibec, /cadunico... abrem direto.
+    var sxp = null;
+    function painelSistemas(abrir) {
+      var bx = $('sx');
+      if (!sxp) {
+        sxp = document.createElement('div'); sxp.id = 'sxp'; sxp.hidden = true; sxp.setAttribute('role', 'dialog'); sxp.setAttribute('aria-label', 'Meus sistemas');
+        var t = document.createElement('h2'); t.textContent = 'Meus sistemas'; sxp.appendChild(t);
+        var todos = document.createElement('button'); todos.type = 'button'; todos.className = 'sx-todos'; todos.textContent = 'Abrir todos (' + SISTEMAS.length + ')';
+        todos.addEventListener('click', function () { var b = 0; SISTEMAS.forEach(function (a) { if (!abrirAba(a.u)) b++; }); if (b) aviso('O navegador bloqueou ' + b + ' de ' + SISTEMAS.length + ' abas. Libere pop-ups para este site ou use os botões um a um.'); });
+        sxp.appendChild(todos);
+        var lista = document.createElement('div'); lista.className = 'sx-lista'; sxp.appendChild(lista);
+        SISTEMAS.forEach(function (a) {
+          var l = document.createElement('a'); l.href = a.u; l.target = '_blank'; l.rel = 'noopener noreferrer'; l.textContent = a.t;
+          var d = document.createElement('small'); d.textContent = 'ou diga: abrir ' + a.r[0]; l.appendChild(d);
+          lista.appendChild(l);
+        });
+        var n = document.createElement('p'); n.className = 'vn'; n.textContent = 'Abre só a página de acesso. O login e a senha são digitados por você, no próprio site.'; sxp.appendChild(n);
+        document.body.appendChild(sxp);
+        document.addEventListener('click', function (e) { if (!sxp.hidden && !sxp.contains(e.target) && !(bx && bx.contains(e.target))) painelSistemas(false); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !sxp.hidden) { painelSistemas(false); if (bx && bx.offsetParent) bx.focus(); } });
+      }
+      var mostrar = typeof abrir === 'boolean' ? abrir : sxp.hidden;
+      sxp.hidden = !mostrar;
+      if (bx) { bx.setAttribute('aria-expanded', String(mostrar)); bx.classList.toggle('on', mostrar); }
+      if (mostrar) { var p1 = sxp.querySelector('.sx-todos'); if (p1) p1.focus(); }
+    }
+    (function () {
+      var bx = $('sx'); if (bx) bx.addEventListener('click', function (e) { e.stopPropagation(); painelSistemas(); });
+      ATALHOS.push({ c: '/sistemas', d: 'Painel com os meus sistemas (um toque abre)', f: function () { painelSistemas(true); } });
+      SISTEMAS.forEach(function (a) { ATALHOS.push({ c: '/' + a.id.replace(/^sis-/, ''), d: 'Abrir ' + a.t, f: function () { if (!abrirAba(a.u)) aviso('O navegador bloqueou a nova aba. Libere pop-ups para este site e peça de novo.'); } }); });
+      P.registrarAcao({ id: 'painel-sistemas', titulo: 'Painel dos meus sistemas', rotulos: ['lista de sistemas', 'painel de sistemas', 'painel dos sistemas', 'meus links', 'lista de sites', 'atalhos dos sites'], executar: function () { painelSistemas(true); } });
+    })();
     P.registrarAcao({ id: 'fechar-app', fechar: true, titulo: 'Fechar o aplicativo', rotulos: ['aplicativo', 'app', 'console', 'o paulus', 'paulus', 'tudo', 'esta aba', 'essa aba', 'janela'], executar: function () {
       try { if (typeof pararFala === 'function') pararFala(); } catch (e) { /* segue */ }
       try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) { /* segue */ }
@@ -1126,7 +1160,7 @@
   (function () {
     var MN = $('mn'), hrx = document.querySelector('header .hr'); if (!MN || !hrx || !window.matchMedia) return;
     var menu = document.createElement('div'); menu.id = 'mnp'; menu.hidden = true; menu.setAttribute('role', 'group'); menu.setAttribute('aria-label', 'Mais opções'); document.body.appendChild(menu);
-    var ORDEM = ['ins', 'sair', 'ex', 'fo', 'nv', 'nt', 'jv', 'ap', 'vc', 'vz'], FICA = { nv: 1, jv: 1 }, ROT = { ins: 'Instalar o app', sair: 'Sair da conta', ex: 'Salvar a conversa', fo: 'Modo foco', nt: 'Anotações e compras', ap: 'Aparência', vc: 'Escolher a voz', vz: 'Ler respostas em voz alta' };
+    var ORDEM = ['ins', 'sair', 'ex', 'fo', 'nv', 'sx', 'nt', 'jv', 'ap', 'vc', 'vz'], FICA = { nv: 1, jv: 1 }, ROT = { ins: 'Instalar o app', sair: 'Sair da conta', ex: 'Salvar a conversa', fo: 'Modo foco', sx: 'Meus sistemas', nt: 'Anotações e compras', ap: 'Aparência', vc: 'Escolher a voz', vz: 'Ler respostas em voz alta' };
     var mm = matchMedia('(max-width:640px)');
     function fecharMenu() { menu.hidden = true; MN.setAttribute('aria-expanded', 'false'); MN.classList.remove('on'); }
     function ajustar() {
