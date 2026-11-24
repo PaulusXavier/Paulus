@@ -201,6 +201,31 @@ await teste('"mostrar o mapa de Boa Vista" abre o mapa no aparelho, sem chamar a
   await abrir(pg); await enviar(pg, 'mostrar o mapa de Boa Vista'); await pg.waitForSelector('#log .mapa .leaflet-tile-loaded', { timeout: 8000 * ESPERA });
   ok(perguntasIA.length === 0, 'chamou a IA'); await pg.click('#log button:has-text("Onde estou")'); await pg.waitForSelector('#log .mapa .pin.eu', { timeout: 6000 });
 }, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758, accuracy: 20 } });
+await teste('"fechar o mapa" tira o mapa da conversa, sem chamar a IA; sem mapa aberto avisa', async (pg) => {
+  perguntasIA.length = 0; await simularMapa(pg, {});
+  await abrir(pg); await enviar(pg, 'mostrar o mapa de Boa Vista'); await pg.waitForSelector('#log .mapa .leaflet-tile-loaded', { timeout: 8000 * ESPERA });
+  await enviar(pg, 'fechar o mapa'); await fim(pg);
+  ok(await pg.locator('#log .mapa').count() === 0, 'o mapa continua na tela');
+  ok(/Mapa fechado/.test(await ultima(pg).innerText()), 'sem confirmação: ' + await ultima(pg).innerText());
+  await enviar(pg, 'fecha o mapa'); await fim(pg);
+  ok(/Não há mapa aberto/.test(await ultima(pg).innerText()), 'sem aviso de mapa fechado: ' + await ultima(pg).innerText());
+  ok(perguntasIA.length === 0, 'chamou a IA');
+}, { permissions: ['geolocation'], geolocation: { latitude: 2.8235, longitude: -60.6758, accuracy: 20 } });
+await teste('"terminar a conversa" encerra: limpa a tela, avisa e volta às boas-vindas; pergunta com a palavra não apaga nada', async (pg) => {
+  perguntasIA.length = 0; await abrir(pg);
+  await enviar(pg, 'quanto é 15% de 3200?'); await fim(pg);
+  await enviar(pg, 'terminar a conversa com o cidadão, como faço?'); await fim(pg);
+  ok(await pg.locator('#log .m.p').count() >= 2, 'a pergunta com a palavra "conversa" apagou a conversa');
+  perguntasIA.length = 0;
+  await enviar(pg, 'termine a conversa'); await fim(pg);
+  ok(await pg.locator('#log .m.u').count() === 0, 'a conversa antiga continua na tela');
+  ok(!/480/.test(await pg.innerText('#log')), 'a resposta antiga continua na tela');
+  ok(/Conversa encerrada/.test(await pg.innerText('#log')), 'sem aviso: ' + await pg.innerText('#log'));
+  ok(await pg.locator('#log .hi').count() === 1, 'sem boas-vindas depois de encerrar');
+  ok(perguntasIA.length === 0, 'chamou a IA');
+  await enviar(pg, 'quanto é 15% de 3200?'); await fim(pg);
+  ok(/480/.test(await ultima(pg).innerText()), 'não dá para continuar depois de encerrar');
+});
 await teste('mapa sem internet (tiles falham): a rota continua desenhada e o aviso aparece', async (pg) => {
   await pg.route('https://tile.openstreetmap.org/**', (r) => r.abort());
   await abrir(pg); await enviar(pg, 'traçar rota saindo daqui: CAPS Teste Um e CRAS Teste Dois'); await fim(pg);
