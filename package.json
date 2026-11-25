@@ -2,8 +2,9 @@
   "name": "paulus",
   "version": "0.27.0",
   "private": true,
+  "license": "UNLICENSED",
   "type": "module",
-  "description": "Paulus: copiloto de IA compartilhado pelos apps (Argo SUAS, Anona, Toth, Umbrella, Grafia, Verbus).",
+  "description": "Uso individual, sem fins comerciais (só Paulo Xavier). Paulus: copiloto de IA compartilhado pelos apps (Argo SUAS, Anona, Toth, Umbrella, Grafia, Verbus).",
   "scripts": {
     "pretest": "node scripts/build-knowledge.mjs && node scripts/build-habilidades.mjs",
     "test": "node --test",

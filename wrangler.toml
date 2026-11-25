@@ -1,3 +1,4 @@
+# USO INDIVIDUAL, SEM FINS COMERCIAIS: este Worker é só de Paulo Xavier (veja USO-INDIVIDUAL.md).
 # Publicação pelo terminal:  npx wrangler deploy
 # (pelo painel da Cloudflare também funciona; veja docs/DEPLOY.md)
 name = "paulus-ia"
