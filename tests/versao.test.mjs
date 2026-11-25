@@ -57,7 +57,7 @@ test('visitas: o módulo não faz rede nem usa IA', () => {
 test('visitas: o pacote do navegador expõe Paulus.visitas', () => {
   const ctx = { self: {}, console }; ctx.self = ctx; vm.createContext(ctx); vm.runInContext(juntar(), ctx);
   const P = ctx.Paulus;
-  assert.equal(P.versao, '0.24.0');
+  assert.equal(P.versao, JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version);
   assert.deepEqual(Array.from(P.visitas.ordenar([{ endereco: 'Rua B, 2' }, { endereco: 'Rua A, 1' }]).indices), [1, 0]);
 });
 
