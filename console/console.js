@@ -1288,8 +1288,13 @@
         linha('USADOS', fmt(dados.usados) + ' (' + String(dados.percentual).replace('.', ',') + '%)', cls),
         acaba,
         linha('RENOVA', ren.txt, 'ok', ren.falta),
-        linha('CHAMADAS À IA HOJE', fmt(dados.chamadas))
-      ]));
+        linha('CHAMADAS À IA HOJE', fmt(dados.chamadas), '', dados.neuronsPorChamada ? 'média de ' + String(dados.neuronsPorChamada).replace('.', ',') + ' neurons por chamada' : '')
+      ].concat(
+        !dados.esgotada && dados.chamadasRestantes != null ? [linha('AINDA CABEM', '≈ ' + fmt(dados.chamadasRestantes) + ' chamadas', cls, 'no gasto médio de hoje; cada pergunta usa 1 a 3')] : [],
+        !dados.esgotada && dados.projecaoDoDia != null ? [linha('FIM DO DIA', '≈ ' + fmt(dados.projecaoDoDia) + ' neurons', dados.projecaoDoDia > dados.franquia ? 'av' : 'ok', 'se o ritmo recente continuar (' + fmt(dados.ritmoPorHora) + ' por hora)')] : [],
+        dados.horaDePico ? [linha('HORA DE PICO', hhmm(new Date(dados.horaDePico.hora)), '', fmt(dados.horaDePico.neurons) + ' neurons nessa hora')] : [],
+        dados.dadosAte ? [linha('DADOS ATÉ', hhmm(new Date(dados.dadosAte)), '', 'a Cloudflare atrasa alguns minutos')] : []
+      )));
       if (dados.usados > 0 && Array.isArray(dados.porHora)) {
         var inicio = new Date(dados.inicioDoDia), horaAgora = Math.floor((Date.now() - inicio.getTime()) / 3600000), max = 1;
         dados.porHora.forEach(function (n) { if (n > max) max = n; });
@@ -1304,12 +1309,35 @@
         var h0 = inicio.getHours();
         c.appendChild(h('div', { class: 'cq-hl' }, [h('span', { text: ('0' + h0).slice(-2) + 'h' }), h('span', { text: ('0' + ((h0 + 12) % 24)).slice(-2) + 'h' }), h('span', { text: ('0' + ((h0 + 23) % 24)).slice(-2) + 'h' })]));
       }
+      var hs = dados.historico;
+      if (hs && Array.isArray(hs.dias) && hs.dias.length) {
+        c.appendChild(h('h3', { text: 'Últimos ' + hs.dias.length + ' dias (cada dia renova às ' + quando(dados.renova).hora + ')' }));
+        var topo = Math.max(dados.franquia, 1); hs.dias.forEach(function (d) { if (d.neurons > topo) topo = d.neurons; });
+        var gd = h('div', { class: 'cq-h', 'aria-hidden': 'true' });
+        hs.dias.forEach(function (d, i) {
+          var rot = d.dia.slice(8, 10) + '/' + d.dia.slice(5, 7);
+          var b = h('i', { class: i === hs.dias.length - 1 ? 'agora' : '', title: rot + ' · ' + fmt(d.neurons) + ' neurons' + (d.esgotou ? ' (franquia esgotada)' : '') });
+          b.style.height = Math.max(2, Math.round(d.neurons / topo * 46)) + 'px';
+          gd.appendChild(b);
+        });
+        c.appendChild(gd);
+        var pri = hs.dias[0].dia, ult = hs.dias[hs.dias.length - 1].dia;
+        c.appendChild(h('div', { class: 'cq-hl' }, [h('span', { text: pri.slice(8, 10) + '/' + pri.slice(5, 7) }), h('span', { text: 'hoje ' + ult.slice(8, 10) + '/' + ult.slice(5, 7) })]));
+        var pct = hs.hojeVsNormalPct;
+        c.appendChild(h('dl', {}, [].concat(
+          [linha('ONTEM', fmt(hs.ontem) + ' neurons')],
+          [linha('MÉDIA DIÁRIA', fmt(hs.mediaDiaria) + ' neurons', '', 'em ' + hs.diasComDados + (hs.diasComDados === 1 ? ' dia anterior com uso' : ' dias anteriores com uso') + '; maior: ' + fmt(hs.maiorDia))],
+          pct != null ? [linha('HOJE x NORMAL', (pct > 0 ? '+' : '') + pct + '%', pct >= 50 ? 'av' : 'ok', 'comparado ao mesmo ponto do dia, nas horas já fechadas')] : [],
+          hs.diasEsgotados ? [linha('FRANQUIA ESGOTADA', hs.diasEsgotados + (hs.diasEsgotados === 1 ? ' dia' : ' dias'), 'av', 'nos dias anteriores desta janela')] : []
+        )));
+        if (dados.historicoParcial) c.appendChild(h('p', { class: 'vn', text: 'A Cloudflare cortou a lista de leituras; o histórico pode estar incompleto.' }));
+      }
       if (dados.modelos && dados.modelos.length) {
         c.appendChild(h('h3', { text: 'O que mais gastou' }));
         var ul = h('ul', { class: 'cq-m' });
         dados.modelos.slice(0, 4).forEach(function (m) {
           var parte = dados.usados ? Math.round(m.neurons / dados.usados * 100) : 0;
-          ul.appendChild(h('li', { title: m.modelo }, [h('span', { text: m.modelo }), h('span', { text: fmt(m.neurons) + ' · ' + parte + '%' })]));
+          ul.appendChild(h('li', { title: m.modelo }, [h('span', { text: m.modelo }), h('span', { text: fmt(m.neurons) + ' · ' + parte + '%' + (m.neuronsPorChamada ? ' · ' + String(m.neuronsPorChamada).replace('.', ',') + '/chamada' : '') })]));
         });
         c.appendChild(ul);
       }
