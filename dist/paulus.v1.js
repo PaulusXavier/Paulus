@@ -12349,15 +12349,16 @@ function respostaDeRevisao(pergunta) {
 //
 //   lerPedidoDePdf(texto, { temArquivo })   -> { operacoes, naoSuporta, saida } ou null (não é pedido de edição de PDF; a pergunta segue o caminho normal)
 //   editarPdf(operacoes, arquivos, opcoes)  -> Promise<{ ok, texto, arquivos, avisos, campos }>   (opcoes.PDFLib = a biblioteca pdf-lib)
-//   respostaDePdf(texto, arquivos, opcoes)  -> Promise<resultado | null>   (lê o pedido e, havendo arquivo, edita)
+//   respostaDePdf(texto, arquivos, opcoes)  -> Promise<resultado | null>   (lê o pedido e, havendo arquivo, edita ou prepara proteção)
 //   resolverPaginasPdf(spec, total)         -> { indices, erro }   (páginas escritas em português, 0-based)
 //   listaPaginasPdf([1,2,3,5]) -> "1 a 3 e 5"
 //
 // arquivos: [{ nome, bytes: Uint8Array | ArrayBuffer }]. Aceita PDF, JPG e PNG (imagem vira página, ou carimbo se o pedido for de carimbo/assinatura).
 //
-// O que faz: juntar, dividir, extrair, remover, girar, inverter/reordenar, numerar páginas, marca d'água, escrever texto, carimbar imagem,
+// A proteção é AES-256 no aparelho; senha entra depois, em campo local do console, nunca no pedido/histórico/IA. O original não é alterado.
+// O que faz: proteger com senha, juntar, dividir, extrair, remover, girar, inverter/reordenar, numerar páginas, marca d'água, escrever texto, carimbar imagem,
 // preencher e marcar campos de formulário, achatar formulário, título/autor, listar campos, informações do arquivo, imagens em PDF.
-// O que NÃO faz (e diz): alterar o texto que já está no PDF, tarjar de verdade, comprimir, OCR, senha, assinatura digital.
+// O que NÃO faz (e diz): alterar o texto que já está no PDF, tarjar de verdade, comprimir, OCR, remover senha, assinatura digital.
 // Texto novo usa a fonte Helvetica (acentos do português funcionam; símbolos fora do alfabeto latino viram "?").
 // Sem lookbehind e sem BigInt de propósito (Safari/iOS antigos quebram o arquivo inteiro). Nomes com "pdf" por causa do arquivo único do navegador.
 
@@ -12367,7 +12368,7 @@ const PDF_MAX_PAGINAS = 3000;
 const PDF_MAX_PARTES = 200;
 const PDF_MARGEM = 28;
 
-const PDF_VERBOS = 'remov|exclu|apag|retir|elimin|descart|tire|tirar|gir|rotacion|vire|virar|numer|pagin|coloc|escrev|insir|adicion|inclu|marc|desmarc|carimb|preench|complet|achat|invert|reorden|mov|extra|separ|divid|fatie|junt|unir|unifi|une |mescl|combin|defin|troc|mud|alter|salv|anot|aplic|renome|converta|transform|assin';
+const PDF_VERBOS = 'remov|exclu|apag|retir|elimin|descart|tire|tirar|gir|rotacion|vire|virar|numer|pagin|coloc|escrev|insir|adicion|inclu|marc|desmarc|carimb|preench|complet|achat|invert|reorden|mov|extra|separ|divid|fatie|junt|unir|unifi|une |mescl|combin|defin|troc|mud|alter|salv|anot|aplic|renome|converta|transform|assin|prote|criptograf|cifr';
 
 const PDF_COR = {
   preto: [0, 0, 0], preta: [0, 0, 0], vermelho: [0.8, 0.1, 0.1], vermelha: [0.8, 0.1, 0.1], azul: [0.1, 0.25, 0.75],
@@ -12378,7 +12379,7 @@ const PDF_NAO_SUPORTA = {
   tarja: 'Tarjar (cobrir dado sensível) eu ainda não faço com segurança: um retângulo por cima não apaga o texto que está embaixo, e quem abrir o arquivo consegue copiá-lo. Para sigilo de verdade, tarje no arquivo de origem (Word, Verbus) e gere o PDF de novo, ou imprima e digitalize. No Argo SUAS (Central de PDF), "cobrir" também só esconde; depois, "Reduzir tamanho" no modo "Páginas como imagem" transforma as páginas em imagem e o texto de baixo deixa de ser texto. Confira tentando selecionar e copiar no resultado.',
   texto: 'Não consigo alterar o texto que já está dentro do PDF: ele guarda letras posicionadas, não parágrafos. Eu posso escrever um texto novo por cima, preencher campos de formulário, numerar, carimbar e mexer nas páginas. Para mudar o conteúdo, corrija no arquivo de origem (Word, Verbus) e gere o PDF de novo, ou use "PDF → Word" na Central de PDF do Argo SUAS e edite o .docx.',
   comprimir: 'Comprimir ou reduzir o tamanho do PDF eu não faço por aqui. Isso é função da Central de PDF do Argo SUAS ("Reduzir tamanho"): no modo "Manter o texto" só as imagens são recomprimidas e o texto continua selecionável; no modo "Páginas como imagem" o arquivo fica menor, mas o texto deixa de poder ser copiado. Peça "abrir a central de pdf".',
-  senha: 'Não crio nem removo senha de PDF por aqui. A Central de PDF do Argo SUAS faz as duas coisas no próprio aparelho: "Proteger PDF" (senha para abrir, AES de 128 bits; anote a senha, porque não há como recuperar) e "Remover senha" (você precisa saber a senha; o app não adivinha nem quebra senha). Peça "abrir a central de pdf". Depois eu edito a cópia.',
+  senha: 'Para colocar senha, anexe o PDF e use o campo local de proteção que aparece na resposta. A senha não deve ser escrita na conversa: ela não vai à IA nem ao histórico. A proteção usa AES-256. Anote a senha: se esquecida, não há recuperação. Para remover senha, use a Central de PDF e informe a senha conhecida.',
   ocr: 'Não faço OCR (reconhecer o texto de um PDF escaneado) nem leio o conteúdo do PDF. A Central de PDF do Argo SUAS tem "Extrair texto (.txt)", que copia o texto página por página, mas só de PDF com texto selecionável; documento escaneado (foto) não tem texto para copiar e também não passa por OCR lá.',
   assinatura: 'Assinatura digital com certificado eu não faço. Posso colocar a imagem de uma assinatura escaneada na página ("colocar a assinatura no canto inferior direito da última página", anexando a imagem), mas isso é só uma imagem e não tem validade de certificado digital.',
   branco: 'Ainda não sei achar páginas em branco sozinha. Diga quais páginas remover, por exemplo: "remover as páginas 3 e 7". No Argo SUAS, "Reorganizar páginas" (Central de PDF) mostra todas as miniaturas para você tirar, girar ou duplicar páginas.',
@@ -12551,7 +12552,8 @@ function pdfClausula(o, n, citados) {
   // 1) o que não faz: diz com franqueza em vez de fingir
   if (T(/\b(tarj\w+|censur\w+|ocultar|esconder)\b/) && !T(/\bcampos?\b/)) return { nao: 'tarja' };
   if (T(/\b(comprim\w+|compactar|reduz\w+ (o )?(tamanho|peso)|diminu\w+ (o )?(tamanho|peso)|otimiz\w+ (o )?(pdf|arquivo))/)) return { nao: 'comprimir' };
-  if (T(/\b(senha|criptograf\w+)\b/) && !T(/\bcampos?\b/)) return { nao: 'senha' };
+  if (T(/\b(proteg\w*|criptograf\w*|cifr\w*|coloc\w*|crie|criar|defin\w*|adicion\w*|ponha|poe|tranc\w*|bloque\w*)\b.{0,40}\b(senha|cadeado)\b|\b(proteg\w*|criptograf\w*|cifr\w*)\b.{0,20}\b(pdf|arquivo|documento)\b/)) return { op: 'proteger' };
+  if (T(/\b(senha|criptograf\w+)\b/) && !T(/\bcampos?\b|\b(remov\w*|tir\w*|desbloque\w*)\b/)) return { nao: 'senha' };
   if (T(/\bocr\b|reconhec\w+ (de )?texto|extra\w+ (o )?texto|copiar (o )?texto|\b(ler|leia|resum\w+)\b/)) return { nao: 'ocr' };
   if (T(/assinatura digital|certificado digital|assinar digitalmente|assinar com certificado/)) return { nao: 'assinatura' };
   if (T(/\b(converter|converta|transformar|transforme|exportar|salvar)\b.*\b(em|para|como)\s+(word|docx|excel|xlsx|imagem|jpg|jpeg|png|txt|powerpoint|ppt)\b/)) return { nao: 'converter' };
@@ -12749,6 +12751,44 @@ function pdfTipoDe(b) {
   if (b[0] === 0xff && b[1] === 0xd8) return 'jpg';
   if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'png';
   return '';
+}
+
+// Criptografa bytes locais usando AES-256. A senha só vive na pilha desta chamada; nunca a inclua em retorno/erro/log.
+async function protegerPdfLocal(arquivos, senha, PDFEncrypt) {
+  const falha = function (texto) { return { ok: false, texto: texto, arquivos: [], avisos: [] }; };
+  if (!PDFEncrypt || typeof PDFEncrypt.encryptPDF !== 'function') return falha('O módulo local de proteção não carregou. Confira a conexão e tente de novo.');
+  if (typeof senha !== 'string' || Array.from(senha).length < 8) return falha('Use uma senha de pelo menos 8 caracteres. Digite-a somente nos campos desta tela, nunca na conversa.');
+  if (!Array.isArray(arquivos) || !arquivos.length) return falha('Anexe pelo menos um PDF para proteger.');
+  if (arquivos.length > 10) return falha('Proteja até 10 PDFs por vez.');
+  let soma = 0;
+  const fontes = [];
+  for (let i = 0; i < arquivos.length; i++) {
+    const a = arquivos[i] || {};
+    let bytes;
+    try { bytes = pdfBytes(a.bytes); } catch (e) { return falha('Não consegui ler um dos arquivos. O original não foi alterado.'); }
+    soma += bytes.length;
+    if (soma > PDF_MAX_BYTES) return falha('Os PDFs somam mais de 150 MB. Proteja menos arquivos por vez.');
+    if (pdfTipoDe(bytes) !== 'pdf') return falha('Anexe somente arquivos PDF. O original não foi alterado.');
+    fontes.push({ nome: pdfNome(a.nome || 'documento'), bytes: bytes });
+  }
+  const saidas = [];
+  try {
+    for (let i = 0; i < fontes.length; i++) {
+      const fonte = fontes[i];
+      const bytes = await PDFEncrypt.encryptPDF(fonte.bytes, senha, { algorithm: 'AES-256' });
+      if (!(bytes instanceof Uint8Array) || pdfTipoDe(bytes) !== 'pdf') throw new Error('invalid-output');
+      const fim = bytes.subarray(Math.max(0, bytes.length - 8192));
+      let trailer = '';
+      for (let j = 0; j < fim.length; j++) trailer += String.fromCharCode(fim[j]);
+      if (!/\/Encrypt\b/.test(trailer)) throw new Error('missing-encryption');
+      saidas.push({ nome: fonte.nome + '-protegido.pdf', bytes: bytes, tipo: 'application/pdf', tamanho: bytes.length });
+    }
+  } catch (e) {
+    if (e && e.code === 'ALREADY_ENCRYPTED') return falha('Um dos PDFs já está protegido. Abra-o com a senha e salve uma cópia sem proteção antes de tentar novamente.');
+    if (e && e.name === 'PasswordEncodingError') return falha('Esta senha contém caracteres que o padrão PDF não aceita. Use outra senha com letras, números e símbolos comuns.');
+    return falha('Não consegui proteger o PDF neste aparelho. O original não foi alterado; confira se o arquivo abre e tente novamente.');
+  }
+  return { ok: true, texto: 'Pronto: ' + saidas.length + (saidas.length === 1 ? ' cópia protegida com AES-256 foi gerada.' : ' cópias protegidas com AES-256 foram geradas.') + ' A senha foi usada somente neste aparelho e não foi guardada. Guarde-a em local seguro; não há recuperação se for esquecida.', arquivos: saidas, avisos: [] };
 }
 
 function pdfKb(n) { return n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
@@ -13241,6 +13281,17 @@ async function respostaDePdf(texto, arquivos, opcoes) {
   const pedido = lerPedidoDePdf(texto, { temArquivo: temArquivo });
   if (!pedido) return null;
   const avisosPedido = pedido.avisosDoPedido || [];
+  const proteger = pedido.operacoes.filter(function (op) { return op.op === 'proteger'; });
+  if (proteger.length) {
+    if (!o.protegerLocal) return null;
+    if (pedido.operacoes.length !== 1) return { ok: false, texto: 'Faça primeiro as outras edições e depois peça para proteger o PDF em uma mensagem separada. A senha não deve ser digitada na conversa.', arquivos: [], avisos: [], naoSuporta: pedido.naoSuporta, pedido: { operacoes: [{ op: 'proteger' }] } };
+    if (!temArquivo) return { ok: false, precisaArquivo: true, texto: 'Anexe o PDF que quer proteger. A senha será digitada depois, em campos locais nesta tela; não a escreva na conversa.', arquivos: [], avisos: [], naoSuporta: [], pedido: { operacoes: [{ op: 'proteger' }] } };
+    if (arquivos.length > 10) return { ok: false, texto: 'Proteja até 10 PDFs por vez.', arquivos: [], avisos: [], naoSuporta: [], pedido: { operacoes: [{ op: 'proteger' }] } };
+    const bytes = arquivos.reduce(function (n, a) { return n + (a && a.bytes && a.bytes.length || 0); }, 0);
+    if (bytes > PDF_MAX_BYTES) return { ok: false, texto: 'Os arquivos somam mais de 150 MB. Proteja menos arquivos por vez.', arquivos: [], avisos: [], naoSuporta: [], pedido: { operacoes: [{ op: 'proteger' }] } };
+    if (arquivos.some(function (a) { try { return pdfTipoDe(pdfBytes(a.bytes)) !== 'pdf'; } catch (e) { return true; } })) return { ok: false, texto: 'Para colocar senha, anexe somente PDFs. O arquivo não foi enviado à IA.', arquivos: [], avisos: [], naoSuporta: [], pedido: { operacoes: [{ op: 'proteger' }] } };
+    return { ok: false, requerSenha: true, texto: 'Digite a senha nos dois campos abaixo. AES-256 será aplicado neste aparelho, sem enviar o PDF ou a senha à IA. **Anote a senha**: se esquecida, não há recuperação. A proteção exige HTTPS ou localhost.', arquivos: [], avisos: [], naoSuporta: [], pedido: { operacoes: [{ op: 'proteger' }] } };
+  }
   if (!pedido.operacoes.length) {
     return { ok: false, texto: avisosPedido.join('\n\n'), arquivos: [], avisos: [], naoSuporta: pedido.naoSuporta, pedido: pedido };
   }
@@ -15077,6 +15128,8 @@ const PADRAO = {
   modelosUrl: '',          // pasta dos modelos 3D didáticos (padrão: modelos/, ao lado da página); o arquivo só é baixado quando a pessoa clica
   centralPdf: false,       // true no app que TEM a Central de PDF (Argo SUAS): o texto diz "faço pela Central"; nos outros, "no Argo SUAS peça..."
   pdfLibUrl: '',           // onde está o pdf-lib.min.js (padrão: na mesma pasta do paulus.v1.js); carregado só no primeiro pedido de PDF
+  pdfEncryptUrl: '',       // biblioteca local AES-256; carregada só para proteger PDFs
+  pdfProtegerLocal: false, // exige interface local própria para senha; true apenas no console
   cidade: '',              // 'Boa Vista, RR': acrescentada ao nome nos links de rota feitos só com texto
   maxHistorico: 10,        // últimas mensagens (5 trocas) que vão inteiras à IA; as perguntas mais antigas vão num resumo curto (shared/conversa.mjs)
   porMinuto: 8,            // limite local (o Worker também limita)
@@ -15815,7 +15868,9 @@ const memoria = {
 
 // Endereço padrão do pdf-lib: a mesma pasta de onde veio este script (capturado na carga, quando document.currentScript existe).
 const PDF_URL_PADRAO = (typeof document !== 'undefined' && document.currentScript && document.currentScript.src) ? document.currentScript.src.replace(/[^\/]*([?#].*)?$/, 'pdf-lib.min.js') : '';
+const PDF_ENCRYPT_URL_PADRAO = (typeof document !== 'undefined' && document.currentScript && document.currentScript.src) ? document.currentScript.src.replace(/[^\/]*([?#].*)?$/, 'pdf-encrypt.umd.js') : '';
 let pdfLibPromessa = null;
+let pdfEncryptPromessa = null;
 
 function pdfCarregarLib() {
   const g = typeof globalThis !== 'undefined' ? globalThis : self;
@@ -15832,6 +15887,25 @@ function pdfCarregarLib() {
     document.head.appendChild(s);
   }).catch(function (e) { pdfLibPromessa = null; throw e; });
   return pdfLibPromessa;
+}
+
+function pdfCarregarEncrypt() {
+  const g = typeof globalThis !== 'undefined' ? globalThis : self;
+  if (cfg.PDFEncrypt && typeof cfg.PDFEncrypt.encryptPDF === 'function') return Promise.resolve(cfg.PDFEncrypt);
+  if (g.PDFEncrypt && typeof g.PDFEncrypt.encryptPDF === 'function') return Promise.resolve(g.PDFEncrypt);
+  if (pdfEncryptPromessa) return pdfEncryptPromessa;
+  const url = cfg.pdfEncryptUrl || PDF_ENCRYPT_URL_PADRAO;
+  if (!url || typeof document === 'undefined') return Promise.reject(new Error('proteção PDF indisponível'));
+  if (typeof isSecureContext !== 'undefined' && !isSecureContext) return Promise.reject(new Error('contexto seguro necessário'));
+  if (!g.crypto || !g.crypto.subtle) return Promise.reject(new Error('Web Crypto indisponível'));
+  pdfEncryptPromessa = new Promise(function (resolve, reject) {
+    const s = document.createElement('script');
+    s.src = url; s.async = true;
+    s.onload = function () { g.PDFEncrypt && typeof g.PDFEncrypt.encryptPDF === 'function' ? resolve(g.PDFEncrypt) : reject(new Error('módulo não carregou')); };
+    s.onerror = function () { reject(new Error('módulo não carregou')); };
+    document.head.appendChild(s);
+  }).catch(function (e) { pdfEncryptPromessa = null; throw e; });
+  return pdfEncryptPromessa;
 }
 
 // Aceita File/Blob do navegador ou { nome, bytes }.
@@ -15889,24 +15963,41 @@ async function tratarPdf(t, o) {
   const arquivos = Array.isArray(o.arquivos) ? o.arquivos : [];
   const temArq = arquivos.length > 0;
   const proprio = lerPedidoDePdf(t, { temArquivo: temArq });
-  // Reduzir, recortar, dados ocultos, texto, PDF ↔ Word/JPG, senha, tarja, assinatura...: quem faz é a Central de PDF do app (Argo SUAS).
+  // Reduzir, recortar, dados ocultos, texto, PDF ↔ Word/JPG, remover senha, tarja, assinatura...: quem faz é a Central de PDF do app (Argo SUAS).
   // O Paulus só entende o pedido e responde com o que a Central fará (ou aponta o caminho); o arquivo não é lido nem enviado.
   const central = lerPedidoDeCentral(t, { temArquivo: temArq });
-  if (central && !(proprio && (proprio.operacoes || []).length)) return respostaDeCentral(t, central, temArq, o);
+  const pedidoProteger = !!(proprio && (proprio.operacoes || []).some(function (op) { return op.op === 'proteger'; }));
+  if (central && (!(proprio && (proprio.operacoes || []).length) || (pedidoProteger && !cfg.pdfProtegerLocal))) return respostaDeCentral(t, central, temArq, o);
   if (!proprio) return null;
+  if (pedidoProteger && !cfg.pdfProtegerLocal) return { tipo: 'pdf', ok: false, texto: 'Não escreva a senha na conversa. Abra a Central de PDF do Argo SUAS e digite-a somente no campo local da ferramenta Proteger com senha.', arquivos: [], precisaArquivo: false, campos: [], naoSuporta: [], avisos: [], fontes: [], pergunta: '', docs: [] };
   let r = null;
   try {
     const lidos = await pdfLerArquivos(arquivos);
-    let PDFLib = null;
-    if (lidos.length) { try { PDFLib = await pdfCarregarLib(); } catch (e) { PDFLib = null; } }
-    r = await respostaDePdf(t, lidos, { PDFLib: PDFLib, converterImagem: pdfImagemParaPng });
+    if (proprio.operacoes.some(function (op) { return op.op === 'proteger'; })) {
+      r = await respostaDePdf(t, lidos, { protegerLocal: cfg.pdfProtegerLocal });
+    } else {
+      let PDFLib = null;
+      if (lidos.length) { try { PDFLib = await pdfCarregarLib(); } catch (e) { PDFLib = null; } }
+      r = await respostaDePdf(t, lidos, { PDFLib: PDFLib, converterImagem: pdfImagemParaPng });
+    }
   } catch (e) { r = null; }
   if (!r) return null;
   if (!Array.isArray(o.historico)) {
     estado.historico.push({ papel: 'usuario', texto: '[pedido de edição de PDF, feito no aparelho]' }, { papel: 'paulus', texto: '[resposta sobre o PDF, feita no aparelho]' });
     estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
   }
-  return { tipo: 'pdf', ok: !!r.ok, texto: r.texto, arquivos: r.arquivos || [], precisaArquivo: !!r.precisaArquivo, campos: r.campos || [], naoSuporta: r.naoSuporta || [], avisos: r.arquivos && r.arquivos.length ? ['Editado neste aparelho: o PDF não foi enviado a nenhum servidor. Confira o resultado antes de usar.'] : [], fontes: [], pergunta: '', docs: [] };
+  return { tipo: 'pdf', ok: !!r.ok, texto: r.texto, arquivos: r.arquivos || [], precisaArquivo: !!r.precisaArquivo, requerSenha: !!r.requerSenha, campos: r.campos || [], naoSuporta: r.naoSuporta || [], avisos: r.arquivos && r.arquivos.length ? ['Feito neste aparelho: o PDF e a senha não foram enviados a nenhum servidor. Confira a cópia antes de usar.'] : [], fontes: [], pergunta: '', docs: [] };
+}
+
+async function pdfProteger(arquivos, senha) {
+  if (!cfg.pdfProtegerLocal) return { ok: false, texto: 'A proteção local por senha não está habilitada neste app.', arquivos: [], avisos: [] };
+  try {
+    const lidos = await pdfLerArquivos(arquivos);
+    const PDFEncrypt = await pdfCarregarEncrypt();
+    return await protegerPdfLocal(lidos, senha, PDFEncrypt);
+  } catch (e) {
+    return { ok: false, texto: 'A proteção AES-256 precisa de HTTPS ou localhost e da biblioteca local disponível. O original não foi alterado.', arquivos: [], avisos: [] };
+  }
 }
 
 // ------------------------------------------------------------------ rota
@@ -16288,7 +16379,7 @@ const Paulus = { init, perguntar,
   equipeCras: { responder: respostaDeEquipeCras, dados: equipeCrasCristiana },
   geo: { responder: respostaDeGeo, tipo: geoTipoDePedido, coordenadas: geoLerCoordenadas, formatar: geoFormatarCoordenadas, endereco: geoNormalizarEndereco, montarEndereco: geoMontarEndereco, perto: function (centro, opcoes, o) { return geoPerto(centro, geoFontes(opcoes || {}), o); }, distanciaKm: geoDistanciaKm, links: geoLinksDeRota, gpx: geoParaGpx, kml: geoParaKml },
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
-  pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
+  pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { const pedido = lerPedidoDePdf(t, { temArquivo: l.length > 0 }); if (pedido && pedido.operacoes.some(function (op) { return op.op === 'proteger'; })) return respostaDePdf(t, l, Object.assign({ protegerLocal: cfg.pdfProtegerLocal }, opc || {})); return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, proteger: pdfProteger, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
   fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.33.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.

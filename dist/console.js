@@ -40,6 +40,7 @@
   P.init({
     app: 'paulus',
     endpoint: ENDPOINT || undefined,
+    pdfProtegerLocal: true,
     conhecimentoUrl: 'conhecimento.json',
     aparelho: posicaoDoAparelho,
     lugaresUrl: 'lugares-boa-vista.json'
@@ -419,7 +420,7 @@
     var grade = h('div', { class: 'sg' });
     sug.forEach(function (s, i) { grade.appendChild(h('button', { type: 'button', class: 'ch', on: { click: function () { enviar(s); } } }, [h('i', { text: '\u203A' }), h('span', { text: s })])); });
     hi.appendChild(grade);
-    hi.appendChild(h('small', { text: 'Não digite nome nem documento de pessoas atendidas. Digite / para atalhos. PDFs com texto são lidos no aparelho; PDF escaneado e foto podem enviar páginas/imagens à IA: não use arquivos com dados pessoais.' }));
+    hi.appendChild(h('small', { text: 'Não digite nome nem documento de pessoas atendidas. Digite / para atalhos. Proteção por senha de PDF é sempre local; apenas pedidos de leitura de PDFs escaneados ou fotos podem enviar páginas/imagens à IA, após confirmação.' }));
     log.appendChild(hi); document.body.classList.add('vazio');
     decod(eySp, 'TODOS OS SISTEMAS OPERACIONAIS', 700); decod(dtSp, dataHud(), 600);
     decod(gSp, saudacao() + (nome ? ', ' : '.'), 520); if (nSp) decod(nSp, nome + '.', 700);
@@ -543,6 +544,43 @@
     var a = h('a', { href: url, download: nome }); document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
   }
+  function sanitizarPedidoComSenha(texto, temArquivo) {
+    var p = P.pdf && P.pdf.ler && P.pdf.ler(texto, { temArquivo: !!temArquivo });
+    if (!p || !(p.operacoes || []).some(function (o) { return o.op === 'proteger'; })) return texto;
+    // Protege também contra alguém que digite a senha no campo errado: o texto cru não aparece, não é exportado nem chega ao Paulus.
+    return String(texto).replace(/\b(senha)\b(?:\s*(?:[:=]|é|e|será|sera|de|para abrir|para acesso)\s*)?[^,;.!?\n]*/gi, '$1 [digitada somente no campo local]');
+  }
+  function formularioSenhaPdf(x, arquivos) {
+    var form = h('form', { class: 'pdfpw', autocomplete: 'off', 'aria-label': 'Proteger PDF com senha' });
+    var senha = h('input', { type: 'password', minlength: '8', required: 'required', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', 'aria-label': 'Senha de abertura, mínimo 8 caracteres' });
+    var confirma = h('input', { type: 'password', minlength: '8', required: 'required', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', 'aria-label': 'Confirme a senha de abertura' });
+    var avisoSenha = h('p', { class: 'pdfpw-warn', text: 'Digite aqui, não na conversa. A senha e o PDF ficam neste aparelho. Se esquecer a senha, não há recuperação. Guarde-a antes de continuar.' });
+    var aceito = h('input', { type: 'checkbox', required: 'required', 'aria-label': 'Confirmo que guardei a senha e entendo que não pode ser recuperada' });
+    var estadoPw = h('p', { role: 'status', 'aria-live': 'polite' });
+    var enviarPw = h('button', { type: 'submit', text: 'Proteger e baixar cópia' });
+    form.appendChild(h('label', {}, ['Senha (mínimo 8 caracteres)', senha]));
+    form.appendChild(h('label', {}, ['Confirme a senha', confirma]));
+    form.appendChild(avisoSenha);
+    form.appendChild(h('label', { class: 'pdfpw-check' }, [aceito, 'Entendi e guardei a senha; ela não poderá ser recuperada.']));
+    form.appendChild(enviarPw); form.appendChild(estadoPw);
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!window.isSecureContext || !window.crypto || !window.crypto.subtle) { estadoPw.textContent = 'AES-256 precisa de HTTPS ou localhost. O arquivo original não foi alterado.'; return; }
+      if (!aceito.checked) { estadoPw.textContent = 'Marque a confirmação depois de guardar a senha.'; return; }
+      if (Array.from(senha.value).length < 8) { estadoPw.textContent = 'A senha precisa ter pelo menos 8 caracteres.'; senha.focus(); return; }
+      if (senha.value !== confirma.value) { estadoPw.textContent = 'As senhas não coincidem. Digite novamente.'; confirma.focus(); return; }
+      var segredo = senha.value;
+      senha.value = ''; confirma.value = ''; enviarPw.disabled = true; estadoPw.textContent = 'Protegendo localmente…';
+      P.pdf.proteger(arquivos, segredo).then(function (r) {
+        segredo = '';
+        if (!r || !r.ok) { estadoPw.textContent = r && r.texto || 'Não consegui proteger o arquivo. O original não foi alterado.'; return; }
+        (r.arquivos || []).forEach(function (a) { P.pdf.baixar(a); });
+        estadoPw.textContent = r.texto;
+      }).catch(function () { segredo = ''; estadoPw.textContent = 'Não consegui proteger o arquivo neste aparelho. O original não foi alterado.'; })
+        .then(function () { segredo = ''; senha.value = ''; confirma.value = ''; enviarPw.disabled = false; });
+    });
+    x.m.appendChild(form);
+  }
   function desenhar(x, r) {
     var corpo = x.corpo;
     fimPensando(x);
@@ -609,6 +647,8 @@
       (r.arquivos || []).forEach(function (a) { ap.appendChild(btn('⤓ ' + a.nome + (a.paginas ? ' (' + a.paginas + ' pág.)' : ''), function () { P.pdf.baixar(a); })); });
       if (r.precisaArquivo) ap.appendChild(btn('📎 Anexar PDF', function () { $('fi').click(); }));
       if (ap.childNodes.length) x.m.appendChild(ap);
+      if (r.requerSenha && r.__pdfOrigem) formularioSenhaPdf(x, r.__pdfOrigem);
+      delete r.__pdfOrigem;
     }
     if (r.tipo === 'acao' && r.pedeConfirmacao) {
       x.m.appendChild(h('div', { class: 'ac' }, [btn('Confirmar', function () { r.confirmar(); aviso('Feito.'); }), btn('Cancelar', function () { aviso('Cancelado.'); })]));
@@ -790,6 +830,7 @@
   function enviar(texto) {
     texto = String(texto == null ? q.value : texto).trim();
     if (ocupado || (!texto && !anexos.length)) return;
+    texto = sanitizarPedidoComSenha(texto, anexos.length > 0);
     var DI = window.PaulusDocs, soFoto = !!(DI && DI.ehImagem && anexos.length && anexos.every(DI.ehImagem));
     if (!texto) texto = soFoto ? 'Descreva esta imagem e diga o que nela é útil para o meu trabalho.' : 'o que posso fazer com este arquivo?';
     var arqs = anexos.slice(), nomes = arqs.map(function (a) { return a.name; });
@@ -828,8 +869,9 @@
       arquivos: querPdf ? arqs : docArqs, documento: querPdf ? null : docAtivo, imagem: foto && foto.dados ? foto : undefined,
       imagens: d && d.pdfEscaneado ? d.imagens : undefined, pdfEscaneado: !!(d && d.pdfEscaneado), paginasTotal: d && d.paginasTotal,
       onToken: function (_p, tudo) { if (!vivo()) return; fimPensando(x); legenda(''); x.streamed = true; x.corpo.classList.add('dig'); pintar(x.corpo, tudo, true); rolar(); }
-    }); }).then(function (r) {
+      }); }).then(function (r) {
       if (!vivo()) return;
+      if (r && r.requerSenha) r.__pdfOrigem = arqs.slice();
       // Foto lida: o texto que o Paulus tirou dela fica "em uso" e as próximas perguntas seguem como documento anexado (a foto não sobe de novo).
       if (r && r.imagemLida && r.imagemLida.texto) { docAtivo = { nome: r.imagemLida.nome, texto: r.imagemLida.texto }; renderAnexos(); }
       var ms = performance.now() - x.t0, tipar = !x.streamed && !reduzido && TIPA[r.tipo] && String(r.texto || '').length > 60;
@@ -860,7 +902,7 @@
     fl.textContent = '';
     anexos.forEach(function (a, i) {
       var foto = window.PaulusDocs && window.PaulusDocs.ehImagem && window.PaulusDocs.ehImagem(a);
-      fl.appendChild(h('div', foto ? { class: 'fc', title: 'A foto é reduzida neste aparelho e enviada à IA para ser lida; não é gravada.' } : { class: 'fc', title: /\.pdf$/i.test(a.name) ? 'PDF com texto é lido no aparelho. Se escaneado, páginas podem ser enviadas à IA de visão após confirmação.' : '' }, [h('span', { text: foto ? '🖼 ' + a.name + ' · vai para a IA' : a.name }), h('button', { type: 'button', text: '✕', 'aria-label': 'Remover ' + a.name, on: { click: function () { anexos.splice(i, 1); renderAnexos(); } } })]));
+      fl.appendChild(h('div', foto ? { class: 'fc', title: 'A foto é reduzida neste aparelho e enviada à IA para ser lida; não é gravada.' } : { class: 'fc', title: /\.pdf$/i.test(a.name) ? 'Pedidos de proteção por senha nunca enviam páginas. Somente pedidos de leitura de PDF escaneado podem enviar páginas à IA após confirmação.' : '' }, [h('span', { text: foto ? '🖼 ' + a.name + ' · vai para a IA' : a.name }), h('button', { type: 'button', text: '✕', 'aria-label': 'Remover ' + a.name, on: { click: function () { anexos.splice(i, 1); renderAnexos(); } } })]));
     });
     if (docAtivo) fl.appendChild(h('div', { class: 'fc doc' }, [h('span', { text: 'Em uso: ' + docAtivo.nome }), h('button', { type: 'button', text: '✕', 'aria-label': 'Parar de usar o documento ' + docAtivo.nome, on: { click: function () { docAtivo = null; renderAnexos(); } } })]));
     ajustarBarra();
@@ -871,7 +913,7 @@
         if (f.size > 30 * 1024 * 1024) { aviso(f.name + ': maior que 30 MB.'); return; }
         if (anexos.length < 10) anexos.push(f);
         if (window.PaulusDocs && window.PaulusDocs.ehImagem && window.PaulusDocs.ehImagem(f)) aviso('A foto vai para a IA ler. Não anexe imagem com rosto, nome ou documento de pessoa atendida.');
-        else if (/\.pdf$/i.test(f.name)) aviso('PDF com texto é lido no aparelho. Se estiver escaneado, até cinco páginas serão enviadas à IA de visão após sua confirmação; não use cópia com dados pessoais.');
+        else if (/\.pdf$/i.test(f.name)) aviso('PDF fica no aparelho durante proteção por senha. Só pedidos de leitura de PDF escaneado podem enviar páginas à IA, após confirmação.');
       } else aviso(f.name + ': só PDF, DOCX, TXT, MD, CSV, PNG, JPG ou WebP.');
     });
     renderAnexos();

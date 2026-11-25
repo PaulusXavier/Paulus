@@ -1,11 +1,11 @@
 {
  "versao": "0.33.0",
- "build": "0dd04f6f4b8b",
+ "build": "bac94dc45b1f",
  "commit": null,
  "arquivos": {
   "paulus.v1.js": {
-   "sha256": "fc51eb73ff1c82b6",
-   "bytes": 1036467
+   "sha256": "53b15c1ba82fe6a5",
+   "bytes": 1045103
   },
   "conhecimento.json": {
    "sha256": "f1fc25a0cd5a5906",
@@ -23,6 +23,10 @@
    "sha256": "0f9a5cad07941f08",
    "bytes": 525099
   },
+  "pdf-encrypt.umd.js": {
+   "sha256": "5331d84c0cf6bc74",
+   "bytes": 59251
+  },
   "leaflet.js": {
    "sha256": "db49d009c841f5ca",
    "bytes": 147552
@@ -32,8 +36,8 @@
    "bytes": 36926
   },
   "console.js": {
-   "sha256": "1d01f80ea4709acc",
-   "bytes": 141281
+   "sha256": "e29722a7d357a1b3",
+   "bytes": 145038
   },
   "notas.js": {
    "sha256": "06fc87015e78d8ff",
@@ -44,8 +48,8 @@
    "bytes": 10324
   },
   "index.html": {
-   "sha256": "ae7bf99697b5590b",
-   "bytes": 126215
+   "sha256": "73547a7b6444649e",
+   "bytes": 127108
   }
  }
 }
