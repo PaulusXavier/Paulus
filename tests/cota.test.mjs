@@ -226,3 +226,55 @@ test('cota: sem consumo ou esgotada, os dados derivados não inventam número', 
   assert.equal(esgotada.chamadasRestantes, 0);
   assert.equal(esgotada.projecaoDoDia, null);                  // já acabou: não projeta
 });
+
+// ---- histórico de 7 dias
+function linhaDia(dia, hora, neurons, count) {
+  return { count: count || 1, dimensions: { datetimeHour: '2026-11-' + String(dia).padStart(2, '0') + 'T' + String(hora).padStart(2, '0') + ':00:00Z', modelId: MODELO_GRANDE }, sum: { totalNeurons: neurons, totalInputTokens: 0, totalOutputTokens: 0 } };
+}
+
+test('cota: histórico traz 7 dias, ontem, média, maior dia, dias esgotados e hoje x normal na mesma hora', () => {
+  // AGORA = 24/11 15:30 UTC; horas fechadas de hoje: 0..14
+  const linhas = [
+    linhaDia(22, 3, 2000, 4), linhaDia(22, 20, 2000, 4),    // dia 22: 4000
+    linhaDia(23, 8, 5000, 10), linhaDia(23, 18, 5000, 10),  // dia 23 (ontem): 10000 = esgotou; até 14h: 5000
+    linhaDia(24, 9, 3000, 6)                                // hoje: 3000 até 14h
+  ];
+  const r = montarCota(linhas, AGORA, FRANQUIA_PADRAO);
+  const h = r.historico;
+  assert.equal(h.dias.length, 7);
+  assert.equal(h.dias[0].dia, '2026-11-18');
+  assert.equal(h.dias[6].dia, '2026-11-24');
+  assert.equal(r.usados, 3000);                              // o total de hoje não mistura os outros dias
+  assert.equal(h.ontem, 10000);
+  assert.equal(h.diasComDados, 2);
+  assert.equal(h.mediaDiaria, 7000);                         // (4000 + 10000) / 2
+  assert.equal(h.maiorDia, 10000);
+  assert.equal(h.diasEsgotados, 1);
+  assert.equal(h.dias[5].esgotou, true);
+  // normal até 14h: dia 22 = 2000 (3h), dia 23 = 5000 (8h) -> média 3500; hoje 3000 -> -14%
+  assert.equal(h.hojeVsNormalPct, Math.round((3000 - 3500) / 3500 * 100));
+});
+
+test('cota: sem dia anterior com uso não há histórico; no começo do dia não compara', () => {
+  assert.equal(montarCota([linha(9, MODELO_GRANDE, 100)], AGORA, FRANQUIA_PADRAO).historico, null);
+  const cedo = Date.UTC(2026, 10, 24, 0, 20);
+  const h = montarCota([linhaDia(23, 10, 800), linhaDia(24, 0, 50)], cedo, FRANQUIA_PADRAO).historico;
+  assert.equal(h.hojeVsNormalPct, null);
+  assert.equal(h.ontem, 800);
+});
+
+test('cota: a consulta pede a janela de dias pedida e consultarCota pede 7 dias (ou só hoje se COTA_HISTORICO=desligado)', async () => {
+  assert.match(montarConsulta(AGORA, 7), /datetime_geq: "2026-11-18T00:00:00.000Z"/);
+  assert.match(montarConsulta(AGORA), /datetime_geq: "2026-11-24T00:00:00.000Z"/);
+  const corpos = [];
+  const f = async (url, init) => { corpos.push(JSON.parse(init.body).query); return new Response(JSON.stringify({ data: { viewer: { accounts: [{ aiInferenceAdaptiveGroups: [linhaDia(23, 10, 500), linhaDia(24, 9, 300)] }] } } }), { status: 200 }); };
+  limparCache();
+  const r = await consultarCota({ COTA_CF_CONTA: 'c', COTA_CF_TOKEN: 't' }, { agora: AGORA, fetch: f });
+  assert.match(corpos[0], /2026-11-18/);
+  assert.equal(r.usados, 300);
+  assert.equal(r.historico.ontem, 500);
+  limparCache();
+  await consultarCota({ COTA_CF_CONTA: 'c', COTA_CF_TOKEN: 't', COTA_HISTORICO: 'desligado' }, { agora: AGORA, fetch: f });
+  assert.match(corpos[1], /datetime_geq: "2026-11-24T00:00:00.000Z"/);
+  limparCache();
+});
