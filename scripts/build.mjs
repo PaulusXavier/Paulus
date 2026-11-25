@@ -81,7 +81,7 @@ export function construir() {
   copyFileSync(join(RAIZ, 'vendor', 'pdf-lib.min.js'), join(saida, 'pdf-lib.min.js'));
   // Leaflet (BSD-2): mapa das rotas no console, baixado só quando uma resposta traz mapa
   copyFileSync(join(RAIZ, 'vendor', 'leaflet.js'), join(saida, 'leaflet.js'));
-  // leitor de PDF (pdf.js, Apache-2.0), opcional: se estiver em vendor/, o console lê PDF com texto (docs/DOCUMENTOS.md)
+  // leitor de PDF (pdf.js, Apache-2.0), opcional: extrai texto local e renderiza páginas escaneadas (docs/DOCUMENTOS.md)
   for (const f of ['pdf.min.mjs', 'pdf.worker.min.mjs']) { const o = join(RAIZ, 'vendor', f); if (existsSync(o)) copyFileSync(o, join(saida, f)); else console.warn('AVISO: falta vendor/' + f + ': o console não vai ler PDF anexado (veja docs/DOCUMENTOS.md).'); }
   // modelos 3D didáticos (modelos/*.html): ficam em dist/modelos/ e o navegador só os baixa quando a pessoa pede
   const pastaModelos = join(RAIZ, 'modelos');
