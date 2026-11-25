@@ -154,6 +154,25 @@ test('app: com a cota esgotada responde com vários trechos da base, avisa quand
   limparMarcaEsgotada();
 });
 
+test('app: com a cota esgotada a prova de matemática é resolvida no aparelho (alternativa incluída), sem gastar a IA de novo', async () => {
+  limparMarcaEsgotada();
+  const c = { n: 0 };
+  const P = carregar(fetchSemCota(c));
+  P.init(Object.assign({ app: 'argo', endpoint: ENDPOINT, conhecimento: base }, semEspera));
+  await P.perguntar('Quem gere o Cadastro Único no município?');   // a primeira chamada descobre que a cota acabou
+  assert.equal(P.ia.estado().pausada, true);
+  const antes = c.n;
+  const prova = 'Questão 1. Seja z = a + 2i um número complexo, em que a ∈ R é positivo. O valor de a para que as representações de 1, z e z² no plano de Argand-Gauss formem um triângulo de área 200 é A ( ) 14. B ( ) 15. C ( ) 16. D ( ) 17. E ( ) 18. ' +
+    'Questão 7. Sejam m, n e k números reais. Considere os sistemas abaixo: I: x + y + z = 1, x + 2y − z = 2, 2x + y + 4z = 1; II: x + y + z = 1, x + my + nz = 5, kx + y − z = 3m + 2n. Sabendo-se que os dois sistemas são equivalentes, o valor de k é A ( ) 1/3. B ( ) 1/2. C ( ) 1. D ( ) 2. E ( ) 3.';
+  const r = await P.perguntar(prova);
+  assert.equal(c.n, antes, 'com a IA em pausa o app não chama o Worker');
+  assert.equal(r.tipo, 'matematica');
+  assert.equal(r.resolvida, true);
+  assert.match(r.texto, /Questão 1[\s\S]*alternativa B/); assert.match(r.texto, /Questão 7[\s\S]*alternativa A/);
+  assert.ok(r.avisos.some(a => /sem IA e sem rede/.test(a)));
+  limparMarcaEsgotada();
+});
+
 test('app: cumprimento e "mais curto" com a cota esgotada explicam em vez de dar trecho de norma', async () => {
   limparMarcaEsgotada();
   const c = { n: 0 };

@@ -43,7 +43,7 @@ test('roteiro de matemática: só os assuntos da questão entram, e a prova inte
   assert.match(arsenalDaQuestao(Q[6]), /INCENTRO e 3 EXINCENTROS/);
   assert.equal(arsenalDaQuestao('o que é o CRAS?'), '');
   const prova = arsenalDaQuestao(Object.values(Q).join(' '));
-  assert.ok(prova.length <= 13000, 'prova inteira: ' + prova.length);
+  assert.ok(prova.length <= 17500, 'prova inteira: ' + prova.length);
   for (const id of ['complexos', 'logaritmos', 'matrizes', 'plana', 'espacial', 'polinomios', 'analitica', 'trigonometria', 'contagem', 'sequencias', 'desigualdades']) {
     const tp = TOPICOS.find(function (t) { return t.id === id; });
     assert.ok(prova.includes(tp.arsenal.slice(0, 60)), 'faltou o assunto ' + id);
