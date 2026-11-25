@@ -110,6 +110,28 @@ Paulus.init({ app: 'argo', endpoint: 'https://paulus-ia.SEU-USUARIO.workers.dev'
 - Remover a conta no Firebase não derruba na hora um token já emitido: ele vale até vencer (até 1 h). Para cortar acesso na hora, tire o e-mail de `FIREBASE_EMAILS` e publique de novo.
 - O Worker busca as chaves públicas do Google (googleapis.com) e as guarda por 1 h; se o Google não responder e não houver cópia, ninguém entra até voltar.
 
+## Cota da IA no console (opcional)
+
+O botão de medidor do cabeçalho (ou `/cota`) abre o painel da cota: quanto da franquia diária da IA já foi usado, a hora em que ela acaba no ritmo de hoje e a hora em que renova. A franquia gratuita do Workers AI é de **10.000 neurons por dia**, somados entre todos os modelos, e **renova às 00:00 UTC** (20:00 em Boa Vista). Sem nada configurado o painel já mostra a hora da renovação; para ele mostrar também o **consumo**, o Worker precisa ler as análises da sua conta Cloudflare. A Cloudflare não tem uma rota "quanto me resta"; o consumo vem da API de análises (GraphQL, conjunto `aiInferenceAdaptiveGroups`).
+
+1. No painel da Cloudflare, copie o **ID da conta** (Workers & Pages, coluna da direita; é um código de 32 letras e números).
+2. Crie um token só de leitura: **Meu perfil → Tokens de API → Criar token → Criar token personalizado**. Permissão: **Conta → Análises da conta → Leitura** (*Account Analytics: Read*), só para a sua conta. Não dê nenhuma outra permissão. Copie o token (ele só aparece uma vez).
+3. Guarde os dois como **segredos do Worker** (não vão para o Git nem para o `wrangler.toml`):
+
+```bash
+npx wrangler secret put COTA_CF_CONTA   # cole o ID da conta
+npx wrangler secret put COTA_CF_TOKEN   # cole o token de leitura
+```
+
+Pelo painel: Workers & Pages → `paulus-ia` → Settings → Variables and Secrets → Add (tipo *Secret*). Esse token é **diferente** do `CLOUDFLARE_API_TOKEN` usado pelo GitHub Actions para publicar o Worker (aquele tem permissão de publicar; este só lê números). Os segredos ficam no Worker e sobrevivem às próximas publicações.
+
+Notas:
+- O painel só mostra números agregados (neurons por hora e por modelo); não passa pergunta, resposta, conversa nem dado de família. A rota `/cota` exige o mesmo login das demais.
+- Os números vêm das análises da Cloudflare e podem **atrasar alguns minutos** em relação ao painel oficial (Workers AI → uso), que é a fonte de verdade. O Worker guarda o resultado por 1 minuto, então abrir o painel várias vezes não multiplica consultas.
+- "Acaba às..." é estimativa: usa o ritmo das últimas horas e some quando a franquia dura até a renovação.
+- Se a sua conta usa o plano **Workers Paid**, a franquia de 10.000 neurons por dia continua valendo, mas o que passa dela é cobrado (US$ 0,011 por mil neurons) em vez de a IA parar; o painel avisa e estima esse custo. Para outra franquia, defina a variável `COTA_NEURONS` no `wrangler.toml`.
+- Mensagem "A Cloudflare recusou a leitura": o token está sem a permissão de análises da conta, ou o ID da conta está errado.
+
 ## Atualização automática
 
 **Neste repositório** (`.github/workflows/pages.yml`): a cada push na `main` (e toda segunda de manhã) o GitHub roda os testes, gera o `dist/` e publica o site. Se os segredos da Cloudflare existirem, publica também o Worker, que reconstrói sozinho a base e as habilidades (`wrangler.toml → [build]`). Se um teste falhar, nada é publicado.
