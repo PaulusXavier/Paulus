@@ -4,6 +4,7 @@ titulo: Referências Técnicas para atuação de psicólogas(os) nos serviços h
 norma: CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) nos Serviços Hospitalares do SUS, 1ª edição
 ano: 2019
 tipo: referencia
+worker: nao
 pacote: psicologia
 revisao: pendente
 ---

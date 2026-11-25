@@ -4,6 +4,7 @@ titulo: Referências Técnicas para atuação de psicólogas(os) junto às pesso
 norma: CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) junto às Pessoas Idosas nas Políticas Públicas, 1ª edição
 ano: 2025
 tipo: referencia
+worker: nao
 pacote: psicologia
 revisao: pendente
 ---

@@ -4,6 +4,7 @@ titulo: Referências Técnicas para atuação de psicólogas(os) na gestão inte
 norma: CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) na Gestão Integral de Riscos, Emergências e Desastres, 1ª edição
 ano: 2021
 tipo: referencia
+worker: nao
 pacote: psicologia
 revisao: pendente
 ---

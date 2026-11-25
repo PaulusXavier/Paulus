@@ -4,6 +4,7 @@ titulo: Referências Técnicas para atuação de psicólogas(os) nos programas e
 norma: CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) nos Programas e Serviços de IST/HIV/Aids, edição revisada
 ano: 2020
 tipo: referencia
+worker: nao
 pacote: psicologia
 revisao: pendente
 ---

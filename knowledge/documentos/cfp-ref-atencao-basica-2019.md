@@ -4,6 +4,7 @@ titulo: Referências Técnicas para atuação de psicólogas(os) na atenção b�
 norma: CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) na Atenção Básica à Saúde, 2ª edição
 ano: 2019
 tipo: referencia
+worker: nao
 pacote: psicologia
 revisao: pendente
 ---

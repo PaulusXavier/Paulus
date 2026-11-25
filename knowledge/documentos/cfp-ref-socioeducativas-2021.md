@@ -4,6 +4,7 @@ titulo: Referências Técnicas para atuação de psicólogas(os) no âmbito das 
 norma: CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) no Âmbito das Medidas Socioeducativas, edição revisada
 ano: 2021
 tipo: referencia
+worker: nao
 pacote: psicologia
 revisao: pendente
 ---

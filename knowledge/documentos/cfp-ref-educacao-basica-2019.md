@@ -4,6 +4,7 @@ titulo: Referências Técnicas para a atuação de psicólogas(os) na educação
 norma: CFP/CREPOP, Referências Técnicas para Atuação de Psicólogas(os) na Educação Básica, 2ª edição
 ano: 2019
 tipo: referencia
+worker: nao
 pacote: psicologia
 revisao: pendente
 ---
