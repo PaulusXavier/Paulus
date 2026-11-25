@@ -9,6 +9,7 @@
 //   COTA_CF_TOKEN   token de API com UMA permissão: Conta > Análises da conta > Leitura (Account Analytics: Read)
 // Opcional (variável comum):
 //   COTA_NEURONS    franquia diária em neurons (padrão 10000)
+//   COTA_HISTORICO  "desligado" pede só o dia de hoje à Cloudflare (padrão: pede 7 dias na mesma consulta, para o histórico)
 //
 // Sem os segredos o painel ainda mostra a hora da renovação (ela é fixa), e diz como ligar a leitura do consumo.
 // Esta rota não toca em pergunta, resposta, conversa nem dado de família: só soma de neurons por hora e por modelo.
@@ -20,6 +21,8 @@ const VALIDADE_CACHE_MS = 60000;            // várias telas abertas não multip
 const TEMPO_LIMITE_MS = 8000;
 const HORA = 3600000;
 const DIA = 24 * HORA;
+export const DIAS_HISTORICO = 7;             // hoje + 6 dias anteriores, na mesma consulta (o dia UTC é o da franquia)
+const LIMITE_LINHAS = 2000;
 
 // 00:00 UTC do dia de "agora", em milissegundos.
 export function inicioDoDiaUTC(agora) {
@@ -147,6 +150,8 @@ export function montarCota(linhas, agora, franquia) {
   r.dadosAte = ultima >= 0 ? new Date(inicio + (ultima + 1) * HORA).toISOString() : null; // fim da última hora que já tem consumo
   if (acima > 0) r.custoExcedenteUSD = Math.round(acima / 1000 * PRECO_POR_MIL_NEURONS * 100) / 100;
   r.esgotaEm = projetarEsgotamento(porHora, usados, franquia, agora);
+  r.historico = montarHistorico(linhas, agora, franquia);
+  if (Array.isArray(linhas) && linhas.length >= LIMITE_LINHAS) r.historicoParcial = true; // a Cloudflare cortou a lista: o histórico pode estar incompleto
   return r;
 }
 
@@ -190,12 +195,53 @@ export function projetarEsgotamento(porHora, usados, franquia, agora) {
   return new Date(quando).toISOString();
 }
 
-export function montarConsulta(agora) {
-  const inicio = new Date(inicioDoDiaUTC(agora)).toISOString();
+export function montarConsulta(agora, dias) {
+  const n = Math.max(1, Math.min(14, Math.floor(Number(dias) || 1)));
+  const inicio = new Date(inicioDoDiaUTC(agora) - (n - 1) * DIA).toISOString();
   const fim = new Date(proximaRenovacao(agora)).toISOString();
   return 'query ($conta: String!) { viewer { accounts(filter: { accountTag: $conta }) { ' +
-    'aiInferenceAdaptiveGroups(limit: 2000, filter: { datetime_geq: "' + inicio + '", datetime_lt: "' + fim + '" }) { ' +
+    'aiInferenceAdaptiveGroups(limit: ' + LIMITE_LINHAS + ', filter: { datetime_geq: "' + inicio + '", datetime_lt: "' + fim + '" }) { ' +
     'count dimensions { datetimeHour modelId } sum { totalNeurons totalInputTokens totalOutputTokens } } } } }';
+}
+
+// Histórico dos últimos dias UTC (o mais antigo primeiro, hoje por último) e comparação de hoje com o normal.
+// Devolve null quando não há consumo em nenhum dia anterior (consulta só do dia, ou conta nova): nada é inventado.
+export function montarHistorico(linhas, agora, franquia) {
+  const inicioHoje = inicioDoDiaUTC(agora);
+  const dias = [];
+  for (let k = DIAS_HISTORICO - 1; k >= 0; k--) dias.push({ inicio: inicioHoje - k * DIA, neurons: 0, chamadas: 0, horas: new Array(24).fill(0) });
+  (Array.isArray(linhas) ? linhas : []).forEach(function (l) {
+    if (!l || typeof l !== 'object') return;
+    const t = Date.parse((l.dimensions || {}).datetimeHour);
+    if (!Number.isFinite(t) || t < dias[0].inicio || t >= inicioHoje + DIA) return;
+    const d = dias[Math.floor((t - dias[0].inicio) / DIA)];
+    const n = numero((l.sum || {}).totalNeurons);
+    d.neurons += n; d.chamadas += numero(l.count);
+    d.horas[Math.floor((t - d.inicio) / HORA)] += n;
+  });
+  const anteriores = dias.slice(0, -1).filter(function (d) { return d.neurons > 0; });
+  if (!anteriores.length) return null;
+  const hoje = dias[dias.length - 1];
+  const media = anteriores.reduce(function (a, d) { return a + d.neurons; }, 0) / anteriores.length;
+  // Hoje x normal NO MESMO PONTO do dia: só as horas cheias já encerradas, para não comparar um dia inteiro com meio dia.
+  const horaAtual = Math.min(23, Math.floor((agora - inicioHoje) / HORA));
+  const somaAte = function (d) { let t = 0; for (let h = 0; h < horaAtual; h++) t += d.horas[h]; return t; };
+  const normalAte = anteriores.reduce(function (a, d) { return a + somaAte(d); }, 0) / anteriores.length;
+  const hojeAte = somaAte(hoje);
+  const ontem = dias[dias.length - 2];
+  return {
+    dias: dias.map(function (d) {
+      return { dia: new Date(d.inicio).toISOString().slice(0, 10), neurons: Math.round(d.neurons), chamadas: Math.round(d.chamadas), esgotou: d.neurons >= franquia };
+    }),
+    diasComDados: anteriores.length,
+    mediaDiaria: Math.round(media),
+    maiorDia: Math.round(Math.max.apply(null, anteriores.map(function (d) { return d.neurons; }))),
+    ontem: Math.round(ontem.neurons),
+    diasEsgotados: anteriores.filter(function (d) { return d.neurons >= franquia; }).length,
+    // % de diferença entre hoje e o normal até a mesma hora. null no começo do dia ou quando o normal é zero.
+    hojeVsNormalPct: (horaAtual >= 1 && normalAte > 0) ? Math.round((hojeAte - normalAte) / normalAte * 100) : null,
+    ateHoraUTC: horaAtual
+  };
 }
 
 // Cache por instância do Worker. Chave: dia + conta (a conta não aparece no resultado).
@@ -214,7 +260,8 @@ export async function consultarCota(env, opcoes) {
   if (!doFetch) return cotaSemLeitura(agora, franquia, 'sem-rede');
 
   const conta = String(env.COTA_CF_CONTA).trim();
-  const chave = inicioDoDiaUTC(agora) + ':' + conta + ':' + franquia;
+  const dias = String((env && env.COTA_HISTORICO) || '').trim().toLowerCase() === 'desligado' ? 1 : DIAS_HISTORICO;
+  const chave = inicioDoDiaUTC(agora) + ':' + conta + ':' + franquia + ':' + dias;
   if (cache.valor && cache.chave === chave && agora < cache.ate) return Object.assign({}, cache.valor, { agora: new Date(agora).toISOString() });
 
   let resposta;
@@ -224,7 +271,7 @@ export async function consultarCota(env, opcoes) {
     resposta = await doFetch(ENDPOINT_GRAPHQL, {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + String(env.COTA_CF_TOKEN).trim(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: montarConsulta(agora), variables: { conta: conta } }),
+      body: JSON.stringify({ query: montarConsulta(agora, dias), variables: { conta: conta } }),
       signal: controle ? controle.signal : undefined
     });
   } catch (e) {
