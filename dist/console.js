@@ -786,6 +786,7 @@
     msgUsuario(texto, nomes);
     if (!arqs.length && pedidoDeMapa(texto)) { vozPendente = false; mostrarMapaBV(); return; }
     if (!arqs.length && notasEnviar(texto)) return;
+    if (!arqs.length && cota.ehPergunta(texto)) { vozPendente = false; cota.responder(); return; }
     var x = msgPaulus(); pensando(x); x.t0 = performance.now(); if (nucleo) nucleo.impulso(); bip(520, 880, 0.12, 0.045);
     try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) { /* sem vibração */ }
     ultimoPedido = texto;
@@ -1180,6 +1181,213 @@
     P.registrarAcao({ id: 'salvar-conversa', titulo: 'Salvar a conversa', rotulos: ['salvar a conversa', 'exportar a conversa', 'baixar a conversa'], executar: clicar('ex') });
   })();
 
+  // ------------------------------------------------------------ cota da IA (painel, trilho lateral e /cota)
+  // Pergunta ao Worker (rota /cota) quanto da franquia diária do Workers AI já foi usada. A franquia é de 10.000 neurons por dia,
+  // somados entre todos os modelos, e renova às 00:00 UTC (20:00 em Boa Vista). Vem só número agregado: nada de conversa nem de família.
+  // O consumo exato depende de dois segredos no Worker (veja docs/DEPLOY.md); sem eles o painel mostra só a hora da renovação.
+  var cota = (function () {
+    var cqp = null, dados = null, falha = '', carregando = false, relogio = 0, ticks = 0;
+    var fmt = function (n) { return Number(n || 0).toLocaleString('pt-BR'); };
+    var hhmm = function (d) { return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
+    function diaDe(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); }
+    function duracao(ms) {
+      var m = Math.max(0, Math.round(ms / 60000));
+      if (m < 60) return m + ' min';
+      var hr = Math.floor(m / 60), r = m % 60;
+      return hr + ' h' + (r ? ' ' + r + ' min' : '');
+    }
+    // "hoje às 20:00", "amanhã às 20:00" ou "25/11 às 20:00", mais a contagem regressiva.
+    function quando(iso) {
+      var d = new Date(iso), agora = new Date(), dif = Math.round((diaDe(d) - diaDe(agora)) / 86400000);
+      var rot = dif === 0 ? 'hoje' : dif === 1 ? 'amanhã' : ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2);
+      return { txt: rot + ' às ' + hhmm(d), hora: hhmm(d), falta: 'em ' + duracao(d.getTime() - agora.getTime()) };
+    }
+    function classe(pct, esgotada) { return esgotada || pct >= 90 ? 'er' : pct >= 70 ? 'av' : 'ok'; }
+
+    function token() {
+      var S = window.PaulusSessao;
+      if (!S || !S.token) return Promise.resolve('');
+      try { return Promise.resolve(typeof S.token === 'function' ? S.token() : S.token).then(function (t) { return t || ''; }, function () { return ''; }); } catch (e) { return Promise.resolve(''); }
+    }
+    function buscar() {
+      if (!ENDPOINT || !window.fetch) { falha = 'sem-ia'; pintarPainel(); trilho(); return Promise.resolve(); }
+      if (carregando) return Promise.resolve();
+      carregando = true; pintarPainel();
+      return token().then(function (tk) {
+        var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+        var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 15000) : 0;
+        var cab = { 'Content-Type': 'application/json' }; if (tk) cab.Authorization = 'Bearer ' + tk;
+        return fetch(ENDPOINT + '/cota', { method: 'POST', headers: cab, body: '{}', credentials: 'omit', referrerPolicy: 'no-referrer', signal: ctrl ? ctrl.signal : undefined })
+          .then(function (r) {
+            clearTimeout(timer);
+            if (r.status === 401) { falha = 'sessao'; return null; }
+            if (!r.ok) { falha = 'rede'; return null; }
+            return r.json();
+          }, function () { clearTimeout(timer); falha = 'rede'; return null; });
+      }).then(function (j) {
+        if (j && j.ok) { dados = j; falha = ''; } else if (!falha) falha = 'rede';
+      }).catch(function () { falha = 'rede'; }).then(function () { carregando = false; pintarPainel(); trilho(); });
+    }
+
+    // Linhas do trilho lateral (tela larga): COTA IA e RENOVA.
+    function trilho() {
+      if (!dados) { pr('kq', falha ? 'INDISPONÍVEL' : '--', falha ? 'av' : ''); pr('kqr', '--', ''); return; }
+      pr('kqr', quando(dados.renova).hora, '');
+      if (!dados.leitura) { pr('kq', 'NÃO LIGADA', 'av'); return; }
+      pr('kq', dados.esgotada ? 'ESGOTADA' : fmt(dados.restam) + ' RESTAM', classe(dados.percentual, dados.esgotada));
+    }
+
+    function linha(rot, valor, cls, pequeno) {
+      var dd = h('dd', { class: cls || '', text: valor });
+      if (pequeno) dd.appendChild(h('small', { text: pequeno }));
+      return h('div', {}, [h('dt', { text: rot }), dd]);
+    }
+    var MOTIVOS = {
+      'nao-configurado': 'A leitura do consumo ainda não está ligada no Worker. Ela precisa de dois segredos da Cloudflare (ID da conta e um token só de leitura de análises). O passo a passo está em docs/DEPLOY.md. Enquanto isso, a hora da renovação abaixo vale.',
+      'sem-permissao': 'A Cloudflare recusou a leitura. Confira se o token tem a permissão "Análises da conta: leitura" (Account Analytics: Read) e se o ID da conta está certo.',
+      'muitas-consultas': 'A Cloudflare pediu para esperar um pouco antes de consultar de novo. Tente em alguns minutos.',
+      'sem-resposta': 'Não consegui ler o consumo agora. Tente de novo em instantes.',
+      'resposta-invalida': 'A Cloudflare respondeu algo que não entendi. Tente de novo em instantes.',
+      'sem-rede': 'Este ambiente não consegue consultar a Cloudflare.'
+    };
+    function textoDeFalha() {
+      if (falha === 'sem-ia') return 'O console está sem o endereço do Worker, então não há como consultar a cota. Só a IA remota gasta cota; o que roda no aparelho não.';
+      if (falha === 'sessao') return 'Sua sessão venceu. Entre de novo para ver a cota.';
+      return 'Sem conexão com o Paulus agora. Confira a internet e toque em Atualizar.';
+    }
+
+    function pintarPainel() {
+      if (!cqp) return;
+      var c = cqp.querySelector('.cq-corpo'), at = cqp.querySelector('.cq-at');
+      at.disabled = carregando; at.textContent = carregando ? 'Atualizando…' : 'Atualizar agora';
+      c.textContent = '';
+      if (!dados) { c.appendChild(h('p', { class: 'cq-av' + (falha ? ' er' : ''), text: falha ? textoDeFalha() : 'Consultando a cota…' })); return; }
+      var ren = quando(dados.renova);
+      if (!dados.leitura) {
+        c.appendChild(h('p', { class: 'cq-av', text: MOTIVOS[dados.motivo] || MOTIVOS['sem-resposta'] }));
+        c.appendChild(h('dl', {}, [
+          linha('FRANQUIA', fmt(dados.franquia) + ' neurons por dia'),
+          linha('RENOVA', ren.txt, 'ok', ren.falta)
+        ]));
+        return;
+      }
+      var cls = classe(dados.percentual, dados.esgotada);
+      c.appendChild(h('div', { class: 'cq-gr' }, [h('span', { class: 'cq-n ' + cls, text: fmt(dados.restam) }), h('span', { class: 'cq-de', text: 'neurons restantes de ' + fmt(dados.franquia) + ' hoje' })]));
+      var barra = h('div', { class: 'cq-bar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(Math.round(dados.percentual)), 'aria-label': 'Franquia diária usada' }, [h('i', { class: cls })]);
+      barra.firstChild.style.width = Math.max(1, Math.min(100, dados.percentual)) + '%';
+      c.appendChild(barra);
+      if (dados.esgotada) {
+        c.appendChild(h('p', { class: 'cq-av er', text: 'A franquia gratuita de hoje acabou. No plano gratuito, a IA remota fica parada até ' + ren.txt + '; no plano pago, o que passa da franquia é cobrado' + (dados.custoExcedenteUSD ? ' (cerca de US$ ' + String(dados.custoExcedenteUSD).replace('.', ',') + ' até agora)' : '') + '. O que roda no aparelho (contas, normas, PDF, rotas, socorro) segue funcionando.' }));
+      }
+      var acaba;
+      if (dados.esgotada) acaba = linha('ACABA', 'já acabou', 'er');
+      else if (dados.esgotaEm) { var q2 = quando(dados.esgotaEm); acaba = linha('ACABA', q2.txt, 'av', 'estimativa, no ritmo das últimas horas'); }
+      else if (!dados.usados) acaba = linha('ACABA', 'sem uso hoje', 'ok');
+      else acaba = linha('ACABA', 'não deve acabar', 'ok', 'no ritmo atual dura até a renovação');
+      c.appendChild(h('dl', {}, [
+        linha('USADOS', fmt(dados.usados) + ' (' + String(dados.percentual).replace('.', ',') + '%)', cls),
+        acaba,
+        linha('RENOVA', ren.txt, 'ok', ren.falta),
+        linha('CHAMADAS À IA HOJE', fmt(dados.chamadas), '', dados.neuronsPorChamada ? 'média de ' + String(dados.neuronsPorChamada).replace('.', ',') + ' neurons por chamada' : '')
+      ].concat(
+        !dados.esgotada && dados.chamadasRestantes != null ? [linha('AINDA CABEM', '≈ ' + fmt(dados.chamadasRestantes) + ' chamadas', cls, 'no gasto médio de hoje; cada pergunta usa 1 a 3')] : [],
+        !dados.esgotada && dados.projecaoDoDia != null ? [linha('FIM DO DIA', '≈ ' + fmt(dados.projecaoDoDia) + ' neurons', dados.projecaoDoDia > dados.franquia ? 'av' : 'ok', 'se o ritmo recente continuar (' + fmt(dados.ritmoPorHora) + ' por hora)')] : [],
+        dados.horaDePico ? [linha('HORA DE PICO', hhmm(new Date(dados.horaDePico.hora)), '', fmt(dados.horaDePico.neurons) + ' neurons nessa hora')] : [],
+        dados.dadosAte ? [linha('DADOS ATÉ', hhmm(new Date(dados.dadosAte)), '', 'a Cloudflare atrasa alguns minutos')] : []
+      )));
+      if (dados.usados > 0 && Array.isArray(dados.porHora)) {
+        var inicio = new Date(dados.inicioDoDia), horaAgora = Math.floor((Date.now() - inicio.getTime()) / 3600000), max = 1;
+        dados.porHora.forEach(function (n) { if (n > max) max = n; });
+        c.appendChild(h('h3', { text: 'Uso por hora (horário do aparelho)' }));
+        var grafico = h('div', { class: 'cq-h', 'aria-hidden': 'true' });
+        dados.porHora.forEach(function (n, i) {
+          var b = h('i', { class: i === horaAgora ? 'agora' : '', title: hhmm(new Date(inicio.getTime() + i * 3600000)) + ' · ' + fmt(n) + ' neurons' });
+          b.style.height = Math.max(2, Math.round(n / max * 46)) + 'px';
+          grafico.appendChild(b);
+        });
+        c.appendChild(grafico);
+        var h0 = inicio.getHours();
+        c.appendChild(h('div', { class: 'cq-hl' }, [h('span', { text: ('0' + h0).slice(-2) + 'h' }), h('span', { text: ('0' + ((h0 + 12) % 24)).slice(-2) + 'h' }), h('span', { text: ('0' + ((h0 + 23) % 24)).slice(-2) + 'h' })]));
+      }
+      if (dados.modelos && dados.modelos.length) {
+        c.appendChild(h('h3', { text: 'O que mais gastou' }));
+        var ul = h('ul', { class: 'cq-m' });
+        dados.modelos.slice(0, 4).forEach(function (m) {
+          var parte = dados.usados ? Math.round(m.neurons / dados.usados * 100) : 0;
+          ul.appendChild(h('li', { title: m.modelo }, [h('span', { text: m.modelo }), h('span', { text: fmt(m.neurons) + ' · ' + parte + '%' + (m.neuronsPorChamada ? ' · ' + String(m.neuronsPorChamada).replace('.', ',') + '/chamada' : '') })]));
+        });
+        c.appendChild(ul);
+      }
+      if (falha) c.appendChild(h('p', { class: 'vn', text: 'Não consegui atualizar agora; estes números são da última leitura.' }));
+      c.appendChild(h('p', { class: 'vn', text: 'Fonte: análises da Cloudflare, que podem atrasar alguns minutos. O painel oficial é o do Workers AI na Cloudflare. A hora em que acaba é só uma estimativa.' }));
+    }
+
+    function montar() {
+      cqp = document.createElement('div'); cqp.id = 'cqp'; cqp.hidden = true; cqp.setAttribute('role', 'dialog'); cqp.setAttribute('aria-label', 'Cota da IA');
+      cqp.appendChild(h('h2', { text: 'Cota da IA' }));
+      cqp.appendChild(h('div', { class: 'cq-corpo', 'aria-live': 'polite' }));
+      cqp.appendChild(h('button', { type: 'button', class: 'cq-at', text: 'Atualizar agora', on: { click: function () { buscar(); } } }));
+      document.body.appendChild(cqp);
+      var bx = $('cq');
+      document.addEventListener('click', function (e) { if (!cqp.hidden && !cqp.contains(e.target) && !(bx && bx.contains(e.target))) painel(false); });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !cqp.hidden) { painel(false); if (bx && bx.offsetParent) bx.focus(); } });
+    }
+    // Aberto: redesenha a cada 30 s (a contagem regressiva anda) e consulta o Worker a cada 60 s (ele guarda 1 minuto em cache).
+    function painel(abrir) {
+      if (!cqp) montar();
+      var mostrar = typeof abrir === 'boolean' ? abrir : cqp.hidden, bx = $('cq');
+      if (mostrar) { var outros = ['sxp', 'apn', 'vp', 'nt-p']; outros.forEach(function (id) { var o = $(id); if (o && !o.hidden) { var b = $({ sxp: 'sx', apn: 'ap', vp: 'vc', 'nt-p': 'nt' }[id]); if (b) b.click(); } }); }
+      cqp.hidden = !mostrar;
+      if (bx) { bx.setAttribute('aria-expanded', String(mostrar)); bx.classList.toggle('on', mostrar); }
+      clearInterval(relogio); relogio = 0; ticks = 0;
+      if (mostrar) {
+        pintarPainel(); buscar();
+        relogio = setInterval(function () { ticks++; if (ticks % 2 === 0) buscar(); else pintarPainel(); }, 30000);
+        var p1 = cqp.querySelector('.cq-at'); if (p1) p1.focus();
+      }
+    }
+
+    // Pergunta digitada ("quanto tenho de cota?", "quando a cota renova?"): responde aqui, sem gastar IA. Só frases claramente sobre a cota da IA,
+    // para "cota de vagas para PCD" ou "cotas na universidade" irem normalmente para a IA.
+    var SOBRE_COTA_IA = /\b(minha cota|sua cota|cota (da|de|do) (ia|inteligencia( artificial)?|paulus)|cota gratuita|franquia (da ia|diaria|gratuita)|neurons?|consumo da ia|tenho de cota|cota que (eu )?tenho|quanto (de )?cota|quanto (eu )?(ainda )?(tenho|resta\w*|sobr\w*|usei|gastei) (de|da) cota)\b/;
+    var CONTEXTO_OUTRO = /\b(pcd|deficiencia|vagas?|concurso|racia\w*|escola\w*|cotista\w*|universidade|faculdade|condominio|leite|carne)\b/;
+    function ehPergunta(texto) {
+      var t = semAcento(texto).replace(/[?!.,;:]+/g, ' ').replace(/\s+/g, ' ').trim();
+      if (t.length > 120 || CONTEXTO_OUTRO.test(t)) return false;
+      if (SOBRE_COTA_IA.test(t)) return true;
+      return /\bcota\b/.test(t) && /\b(renova\w*|acaba\w*|acabou|resta\w*|sobra\w*)\b/.test(t);
+    }
+    function responder() {
+      var x = msgPaulus();
+      var pronto = function () {
+        var corpo;
+        if (!dados) corpo = 'Não consegui consultar a cota agora. ' + textoDeFalha();
+        else {
+          var ren = quando(dados.renova);
+          if (!dados.leitura) corpo = 'A franquia da IA é de ' + fmt(dados.franquia) + ' neurons por dia e renova **' + ren.txt + '** (' + ren.falta + '). Para eu mostrar quanto já foi usado, a leitura do consumo precisa ser ligada no Worker (docs/DEPLOY.md).';
+          else if (dados.esgotada) corpo = 'A franquia de hoje **acabou** (' + fmt(dados.usados) + ' de ' + fmt(dados.franquia) + ' neurons). Renova **' + ren.txt + '** (' + ren.falta + '). Contas, normas, PDF, rotas e socorro seguem funcionando no aparelho.';
+          else corpo = 'Restam **' + fmt(dados.restam) + '** de ' + fmt(dados.franquia) + ' neurons hoje (' + String(dados.percentual).replace('.', ',') + '% usado). ' +
+            (dados.esgotaEm ? 'No ritmo das últimas horas, acaba por volta de **' + quando(dados.esgotaEm).txt + '**. ' : (dados.usados ? 'No ritmo atual dura até a renovação. ' : '')) +
+            'Renova **' + ren.txt + '** (' + ren.falta + ').';
+        }
+        pintar(x.corpo, corpo + '\n\nO painel completo abre no botão de medidor do cabeçalho ou com /cota.');
+        transcricao.push({ papel: 'Paulus', texto: corpo });
+        rolar(true);
+      };
+      pintar(x.corpo, 'Consultando a cota…');
+      buscar().then(pronto, pronto);
+    }
+    return { painel: painel, buscar: buscar, ehPergunta: ehPergunta, responder: responder, trilho: trilho };
+  })();
+  (function () {
+    var bx = $('cq'); if (bx) bx.addEventListener('click', function (e) { e.stopPropagation(); cota.painel(); });
+    ATALHOS.push({ c: '/cota', d: 'Cota da IA: quanto resta, quando acaba e quando renova', f: function () { cota.painel(true); } });
+    P.registrarAcao({ id: 'painel-cota', titulo: 'Cota da IA', rotulos: ['cota', 'cota da ia', 'minha cota', 'cota do paulus', 'consumo da ia', 'franquia da ia'], executar: function () { cota.painel(true); } });
+    // Primeira leitura logo depois da abertura (alimenta o trilho lateral) e, depois, a cada 5 minutos com a aba à vista.
+    setTimeout(function () { cota.buscar(); }, 2500);
+    setInterval(function () { if (!document.hidden) cota.buscar(); }, 300000);
+  })();
+
   // ------------------------------------------------------------ aparência (tema e tamanho do texto) e menu do cabeçalho no celular
   // Tudo fica só neste aparelho (localStorage). "Automático" segue o tema do sistema.
   var apn = null;
@@ -1244,7 +1452,7 @@
   (function () {
     var MN = $('mn'), hrx = document.querySelector('header .hr'); if (!MN || !hrx || !window.matchMedia) return;
     var menu = document.createElement('div'); menu.id = 'mnp'; menu.hidden = true; menu.setAttribute('role', 'group'); menu.setAttribute('aria-label', 'Mais opções'); document.body.appendChild(menu);
-    var ORDEM = ['ins', 'sair', 'ex', 'fo', 'nv', 'sx', 'nt', 'jv', 'ap', 'vc', 'vz'], FICA = { nv: 1, jv: 1 }, ROT = { ins: 'Instalar o app', sair: 'Sair da conta', ex: 'Salvar a conversa', fo: 'Modo foco', sx: 'Meus sistemas', nt: 'Anotações e compras', ap: 'Aparência', vc: 'Escolher a voz', vz: 'Ler respostas em voz alta' };
+    var ORDEM = ['ins', 'sair', 'ex', 'fo', 'nv', 'cq', 'sx', 'nt', 'jv', 'ap', 'vc', 'vz'], FICA = { nv: 1, jv: 1 }, ROT = { ins: 'Instalar o app', sair: 'Sair da conta', ex: 'Salvar a conversa', fo: 'Modo foco', cq: 'Cota da IA', sx: 'Meus sistemas', nt: 'Anotações e compras', ap: 'Aparência', vc: 'Escolher a voz', vz: 'Ler respostas em voz alta' };
     var mm = matchMedia('(max-width:640px)');
     function fecharMenu() { menu.hidden = true; MN.setAttribute('aria-expanded', 'false'); MN.classList.remove('on'); }
     function ajustar() {
