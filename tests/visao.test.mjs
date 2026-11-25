@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { criarManipulador } from '../worker/handler.mjs';
 import { APPS } from '../worker/apps.mjs';
-import { imagemSaneada, sanearLeitura, parametrosDeVisao, montarMensagensVisao, lerImagem } from '../worker/visao.mjs';
+import { imagemSaneada, sanearLeitura, parametrosDeVisao, montarMensagensVisao, lerImagem, lerImagens, MAX_IMAGENS_POR_PEDIDO } from '../worker/visao.mjs';
 
 const base = JSON.parse(readFileSync(new URL('../knowledge/conhecimento.json', import.meta.url), 'utf8'));
 const ORIGEM = 'https://paulusxavier.github.io';
@@ -91,6 +91,19 @@ test('lerImagem: aceita a licença da Meta uma vez e tenta de novo; cai no model
   await assert.rejects(lerImagem({ AI: { async run() { throw new Error('fora'); } } }, { dados: dataUri() }, 'x'));
 });
 
+test('lerImagens: lê páginas sequencialmente e limita o lote a cinco', async () => {
+  const chamadas = [];
+  const env = { AI: { async run(modelo, params) { chamadas.push({ modelo, params }); return { response: LEITURA }; } } };
+  const paginas = [{ nome: 'Página 1', dados: dataUri() }, { nome: 'Página 2', dados: dataUri('png') }];
+  const texto = await lerImagens(env, paginas, 'resuma o PDF');
+  assert.match(texto, /PÁGINA 1:[\s\S]*TEXTO NA IMAGEM/);
+  assert.match(texto, /PÁGINA 2:/);
+  assert.equal(chamadas.length, 2);
+  assert.match(chamadas[1].params.messages[1].content, /página 2 do arquivo; imagem 2 de 2/);
+  assert.equal(MAX_IMAGENS_POR_PEDIDO, 5);
+  await assert.rejects(lerImagens(env, Array(6).fill(paginas[0]), 'x'), /Quantidade/);
+});
+
 test('Worker: pergunta com foto → visão lê, linhas pessoais saem, o Paulus responde com <imagem_anexada> e devolve a leitura', async () => {
   const { env, chamadas } = ambiente();
   const r = await m(pedido({ app: 'argo', pergunta: 'Qual o horário que aparece no cartaz?', imagem: { nome: 'cartaz.jpg', dados: dataUri() } }), env);
@@ -113,6 +126,28 @@ test('Worker: pergunta com foto → visão lê, linhas pessoais saem, o Paulus r
   }
   const ultima = texto[texto.length - 1].params.messages;
   assert.match(ultima[ultima.length - 1].content, /<imagem_anexada>[\s\S]*horário de atendimento[\s\S]*<\/imagem_anexada>/);
+});
+
+test('Worker: páginas de PDF escaneado são lidas uma por vez e linhas pessoais não chegam ao modelo de texto', async () => {
+  const { env, chamadas } = ambiente();
+  const corpo = { app: 'argo', pergunta: 'Resuma este PDF', pdfEscaneado: true, paginasTotal: 12,
+    imagens: [{ nome: 'Página 1', dados: dataUri() }, { nome: 'Página 2', dados: dataUri('png') }] };
+  const r = await m(pedido(corpo), env);
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.imagem.nome, 'PDF escaneado');
+  assert.equal(j.imagem.paginas, 2);
+  assert.equal(j.imagem.paginasTotal, 12);
+  assert.ok(j.imagem.texto.includes('PÁGINA 1') && j.imagem.texto.includes('PÁGINA 2'));
+  assert.ok(!/Maria|99123/.test(j.imagem.texto));
+  const visao = chamadas.filter(c => /vision|llama-4/.test(c.modelo));
+  assert.equal(visao.length, 2);
+  const texto = chamadas.filter(c => !/vision|llama-4/.test(c.modelo));
+  assert.ok(texto.length > 0);
+  for (const c of texto) assert.ok(!/data:image|Maria Souza Lima|99123-4567|123\.456\.789-09/.test(JSON.stringify(c.params)));
+
+  const grande = await m(pedido({ app: 'argo', pergunta: 'Resuma o PDF', imagens: Array(6).fill({ nome: 'p', dados: dataUri() }) }), env);
+  assert.match((await grande.json()).resposta, /até cinco páginas/);
 });
 
 test('Worker: com stream a leitura chega no evento {imagem}', async () => {
@@ -164,12 +199,13 @@ test('Worker: a pergunta continua passando pelo socorro e pelo filtro de dado pe
   assert.equal(chamadas.length, 0);
 });
 
-test('Worker: corpo grande só passa com o campo "imagem"; teto absoluto continua', async () => {
+test('Worker: corpo grande só passa com imagem/páginas visuais; teto absoluto continua', async () => {
   const { env } = ambiente();
   const grande = 'x'.repeat(80000);
   assert.equal((await m(pedido({ app: 'argo', pergunta: 'oi', historico: [], lixo: grande }), env)).status, 413);
   assert.equal((await m(pedido({ app: 'argo', pergunta: 'o que diz?', imagem: { nome: 'f.jpg', dados: dataUri() }, extra: grande }), env)).status, 200);
-  assert.equal((await m(pedido({ app: 'argo', pergunta: 'o que diz?', imagem: { nome: 'f.jpg', dados: 'data:image/jpeg;base64,' + 'A'.repeat(1400000) } }), env)).status, 413);
+  const enorme = 'x'.repeat(6100000);
+  assert.equal((await m(pedido({ app: 'argo', pergunta: 'o que diz?', imagens: [], extra: enorme }), env)).status, 413);
 });
 
 test('docs.js (navegador): reduz a foto para JPEG pequeno e explica quando não abre', async () => {
@@ -229,6 +265,23 @@ test('cliente: foto vai no campo "imagem", atalhos locais não respondem no luga
   assert.equal(r2.tipo, 'ia');
   assert.equal(caps[1].imagem, undefined);
   assert.match(caps[1].documento.trechos.join(' '), /Segunda a sexta/);
+});
+
+test('cliente: páginas de PDF escaneado seguem ao Worker e voltam como documento em uso', async () => {
+  const caps = [];
+  const P = clienteComWorker(caps);
+  const r = await P.perguntar('resuma este PDF escaneado', { imagens: [{ nome: 'Página 1', dados: dataUri() }, { nome: 'Página 2', dados: dataUri('png') }], pdfEscaneado: true, paginasTotal: 9 });
+  assert.equal(r.tipo, 'ia');
+  assert.equal(caps.length, 1);
+  assert.equal(caps[0].imagens.length, 2);
+  assert.equal(caps[0].paginasTotal, 9);
+  assert.equal(r.imagemLida.nome, 'PDF escaneado');
+  assert.equal(r.imagemLida.paginas, 2);
+  assert.equal(r.imagemLida.paginasTotal, 9);
+  assert.ok(r.avisos.some(a => /2 de 9 página/.test(a)));
+  const r2 = await P.perguntar('explique melhor', { documento: { nome: r.imagemLida.nome, texto: r.imagemLida.texto } });
+  assert.equal(r2.tipo, 'ia');
+  assert.equal(caps[1].imagens, undefined, 'as páginas não são reenviadas no seguimento');
 });
 
 test('cliente: imagem inválida não sai do aparelho; falha da leitura não vira trecho de norma', async () => {
