@@ -360,8 +360,8 @@
 
   // ------------------------------------------------------------ mensagens
   function limparBoasVindas() { var o = log.querySelector('.hi'); if (o) o.remove(); document.body.classList.remove('vazio'); }
-  var KIND = { ia: 'IA', norma: 'NORMA', busca: 'BUSCA', acao: 'AÇÃO', acao_desconhecida: 'AÇÃO', calculo: 'CÁLCULO', matematica: 'MATEMÁTICA', rota: 'ROTA', geo: 'GEO', pdf: 'PDF', modelo: 'MODELO 3D', revisao: 'REVISÃO', espanhol: 'IDIOMA', ingles: 'IDIOMA', crise: 'SOCORRO', bloqueio: 'PRIVACIDADE', erro: 'ERRO', sem_resposta: 'SEM RESPOSTA', pens: 'PROCESSANDO' };
-  var LOCAL = { norma: 1, busca: 1, acao: 1, acao_desconhecida: 1, calculo: 1, matematica: 1, rota: 1, geo: 1, pdf: 1, modelo: 1, revisao: 1, espanhol: 1, ingles: 1, crise: 1, bloqueio: 1, sem_resposta: 1 };
+  var KIND = { ia: 'IA', norma: 'NORMA', busca: 'BUSCA', acao: 'AÇÃO', acao_desconhecida: 'AÇÃO', calculo: 'CÁLCULO', matematica: 'MATEMÁTICA', rota: 'ROTA', geo: 'GEO', pdf: 'PDF', modelo: 'MODELO 3D', qr: 'QR CODE', revisao: 'REVISÃO', espanhol: 'IDIOMA', ingles: 'IDIOMA', crise: 'SOCORRO', bloqueio: 'PRIVACIDADE', erro: 'ERRO', sem_resposta: 'SEM RESPOSTA', pens: 'PROCESSANDO' };
+  var LOCAL = { norma: 1, busca: 1, acao: 1, acao_desconhecida: 1, calculo: 1, matematica: 1, rota: 1, geo: 1, pdf: 1, modelo: 1, qr: 1, revisao: 1, espanhol: 1, ingles: 1, crise: 1, bloqueio: 1, sem_resposta: 1 };
   var nResp = 0, vozPendente = false;
   function cabeca(quem, kind, id) {
     var c = h('div', { class: 'mh' }, [h('span', { class: 'q', text: quem })]);
@@ -591,6 +591,18 @@
         if (a.url && !/^[a-z]+:/i.test(a.url)) am.appendChild(h('a', { href: a.url, target: '_blank', rel: 'noopener noreferrer', text: 'Abrir agora' }));
       });
       if (am.childNodes.length) x.m.appendChild(am);
+    }
+    if (r.qrs && r.qrs.length) {
+      r.qrs.forEach(function (q, i) {
+        var box = h('div', { class: 'qrbox' });
+        var img = h('img', { alt: 'QR Code de ' + q.alvo, src: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(q.svg) });
+        img.style.cssText = 'width:200px;max-width:100%;background:#fff;border-radius:8px;margin-top:6px;display:block'; box.appendChild(img);
+        box.appendChild(h('div', { class: 'f', text: q.alvo.length > 90 ? q.alvo.slice(0,87)+'...' : q.alvo }));
+        var acts = h('div', { class: 'ac' }), suffix = r.qrs.length > 1 ? '-' + (i+1) : '';
+        acts.appendChild(btn('⤓ PNG', function () { var a=P.qr.arquivo(q.qr,'png'); baixarTexto(a.nome.replace('.png',suffix+'.png'),a.bytes,a.tipo); }));
+        acts.appendChild(btn('⤓ SVG', function () { var a=P.qr.arquivo(q.qr,'svg',{alvo:q.alvo}); baixarTexto(a.nome.replace('.svg',suffix+'.svg'),a.texto,a.tipo); }));
+        box.appendChild(acts); x.m.appendChild(box);
+      });
     }
     if (r.tipo === 'pdf') {
       var ap = h('div', { class: 'ac' });
