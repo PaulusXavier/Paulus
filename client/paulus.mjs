@@ -1056,9 +1056,9 @@ async function perguntarFluxo(texto, opcoes) {
     }
   }
 
-  // Vocabulário, frases e falsos amigos PT↔ES e PT↔EN (shared/espanhol.mjs e shared/ingles.mjs): no aparelho, sem IA e sem rede. Não entra no histórico.
+  // Glossários, frases, falsos amigos e trilhas de estudo PT↔ES/PT↔EN: no aparelho, sem IA e sem rede. Não entra no histórico.
   if (!o.semEspanhol) {
-    const esp = respostaLocalDeIdioma(t);
+    const esp = respostaLocalDeIdioma(t, o.historico || estado.historico);
     if (esp) return { tipo: esp.idioma === 'en' ? 'ingles' : 'espanhol', tipoLocal: esp.tipoLocal, texto: esp.texto, fontes: [], avisos: ['Resposta feita neste aparelho, sem IA e sem rede. Confira o sentido com a pessoa atendida.'], pergunta: '', docs: [] };
   }
 
@@ -1272,7 +1272,7 @@ const Paulus = { init, perguntar,
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
-  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.32.0',
+  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.33.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
