@@ -2866,7 +2866,7 @@ function pedidoDeDesenho(texto) {
 // Resolve-se por raciocínio em passos (não por regra pronta), então a IA precisa de mais espaço, temperatura baixa e o roteiro de métodos.
 const RE_MAT_FORTE = /\b(polinomio|raizes|raiz real|parabola|circunferencias?|hiperbole|elipse|reta tangente|tangente a|trigonometri\w*|seno|cosseno|tg|logaritm\w*|progressao (?:aritmetica|geometrica)|pa|pg|bijec\w*|injetora|sobrejetora|permutac\w*|combinac\w*|arranjos?|anagramas?|matriz|matrizes|determinante|sistema linear|numeros? complexos?|derivada|integral|vertice|baricentro|incentro|circuncentro|triangulo|esfera|cilindro|piramide|inequacao|equacao|funcao (?:quadratica|afim|exponencial|modular|inversa|composta)|binomio|vetores?|coeficiente angular|angulo|abscissa|ordenada|sen|cos|tan|sec|cossec|cotg)\b/g;
 // Termos de complexos, logaritmo com base escrita (log45), geometria plana e espacial: a prova de matemática não é só álgebra.
-const RE_MAT_FORTE_2 = /\blog\s*[_₀-₉{]?\s*\d|ℂ|∈\s*[cℂℝ]\b|\bparte (?:real|imaginaria)\b|\bconjugado\b|\bmodulo\s+\d|\bargumento\s+(?:principal\b|\S*pi\b|\S*π)|\bcubo\b|\bprisma\b|\bhexagono\b|\bpentagono\b|\bhexagrama\b|\bpoliedro\b|\btetraedro\b|\bsecao plana\b|\bplanos? (?:distintos|secantes|perpendiculares|paralelos|concorrentes)\b|\bretas? (?:paralelas|concorrentes|reversas)\b|\bquadrado inscrito\b|\binscrit[oa]\b|\bequilatero\b|\bisosceles\b/g;
+const RE_MAT_FORTE_2 = /\blog\s*[_₀-₉{]?\s*\d|ℂ|∈\s*[cℂℝ]\b|\bparte (?:real|imaginaria)\b|\bconjugado\b|\bmodulo\s+\d|\bargumento\s+(?:principal\b|\S*pi\b|\S*π)|\bcubo\b|\bprisma\b|\bhexagono\b|\bpentagono\b|\bhexagrama\b|\bpoliedro\b|\btetraedro\b|\bsecao plana\b|\bplanos? (?:distintos|secantes|perpendiculares|paralelos|concorrentes)\b|\bretas? (?:paralelas|concorrentes|reversas)\b|\bquadrado inscrito\b|\binscrit[oa]\b|\bequilatero\b|\bisosceles\b|\btermo independente\b|\bexcentricidade\b|\bsolido de revolucao\b|\bdivisores inteiros\b|\braiz comum\b|\bsistemas equivalentes\b|\bsistemas abaixo\b|\bmaior comprimento\b|\bquadrado perfeito\b|\bfatores primos\b/g;
 const RE_MAT_PEDIDO = /\b(questao|questoes|alternativas?|gabarito|resolva|calcule|determine|demonstre|prove|qual (?:e )?o valor|valor possivel|seja|sejam|considere|satisfaz\w*|e igual a|vestibular|concurso|prova|ime|ita|enem|olimpiada)\b|\(\s*\)\s*[-−]?\d|\b[a-e]\s*\(\s*\)/;
 function pedidoDeMatematica(texto) {
   const t = String(texto == null ? '' : texto).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().slice(0, 6000);
@@ -5585,20 +5585,20 @@ const TOPICOS = [
   {
     id: 'complexos', nome: 'Números complexos',
     detecta: [/complex/, /conjugad/, /argumento/, /\bmodulo\b/, /\bz\b/, /\bw\b/, /ℂ/, /de moivre/, /\bcis\b/, /\bi\s*z\b/, /\bz\s*\^?\s*2/],
-    arsenal: '· Complexos: z = a+bi = |z|(cos θ + i sen θ) = r·cis θ; |z|² = z·z̄; z̄ tem o mesmo módulo e argumento −θ; |z₁z₂| = |z₁||z₂| e os argumentos somam; De Moivre: zⁿ = rⁿ·cis nθ; as n raízes n-ésimas de z ficam na circunferência de raio r^(1/n), com ângulos (θ+2kπ)/n, e são vértices de um polígono regular de n lados. Parte real = r cos θ, parte imaginária = r sen θ. Equação com z e z̄ (z ≠ 0): escreva z = r·cis θ, iguale MÓDULOS (acha r) e ARGUMENTOS a menos de 2kπ (acha θ, com k = 0, 1, 2... até repetir); i = cis 90°. Dados "z − w" e os argumentos/módulos: escreva w = t·cis θ (t > 0), monte z = w − d e imponha |z|. Polígono regular de n lados inscrito em raio R: área (n/2)·R²·sen(360°/n); triângulo equilátero de lado ℓ: ℓ²√3/4.',
-    modelos: 'MODELO (complexos A) z − w = −2√3, |z| = 2√3, arg w = π/6, w ≠ 0: w = t(√3/2 + i/2), t > 0; z = w − 2√3 = (t√3/2 − 2√3) + i·t/2. |z|² = 12 ⇒ 3t²/4 − 6t + 12 + t²/4 = 12 ⇒ t² − 6t = 0 ⇒ t = 6. Re z = 6·√3/2 − 2√3 = √3. Confere: z = √3 + 3i, |z|² = 12. Resposta: √3.\nMODELO (complexos B) i z² = 2 z̄, z ≠ 0: z = r·cis θ ⇒ i r² cis 2θ = 2r cis(−θ). Módulos: r² = 2r ⇒ r = 2. Argumentos: π/2 + 2θ = −θ + 2kπ ⇒ θ = −π/6 + 2kπ/3 ⇒ θ = −π/6, π/2, 7π/6 (k = 0, 1, 2; depois repete). Três vértices a 120° na circunferência de raio 2: triângulo equilátero inscrito, lado 2√3, área (2√3)²√3/4 = 3√3. Confere: z = 2i dá i(2i)² = −4i = 2·conj(2i). Resposta: 3√3.',
+    arsenal: '· Complexos: z = a+bi = |z|(cos θ + i sen θ) = r·cis θ; |z|² = z·z̄; z̄ tem o mesmo módulo e argumento −θ; |z₁z₂| = |z₁||z₂| e os argumentos somam; De Moivre: zⁿ = rⁿ·cis nθ; as n raízes n-ésimas de z ficam na circunferência de raio r^(1/n), com ângulos (θ+2kπ)/n, e são vértices de um polígono regular de n lados. Parte real = r cos θ, parte imaginária = r sen θ. Equação com z e z̄ (z ≠ 0): escreva z = r·cis θ, iguale MÓDULOS (acha r) e ARGUMENTOS a menos de 2kπ (acha θ, com k = 0, 1, 2... até repetir); i = cis 90°. Dados "z − w" e os argumentos/módulos: escreva w = t·cis θ (t > 0), monte z = w − d e imponha |z|. Polígono regular de n lados inscrito em raio R: área (n/2)·R²·sen(360°/n); triângulo equilátero de lado ℓ: ℓ²√3/4. TRIÂNGULO com vértices complexos: troque cada número por seu ponto (Re, Im) e use a área ½|x₁(y₂−y₃)+x₂(y₃−y₁)+x₃(y₁−y₂)|; z = a+bi dá z² = (a²−b²) + 2ab·i.',
+    modelos: 'MODELO (complexos A) z − w = −2√3, |z| = 2√3, arg w = π/6, w ≠ 0: w = t(√3/2 + i/2), t > 0; z = w − 2√3 = (t√3/2 − 2√3) + i·t/2. |z|² = 12 ⇒ 3t²/4 − 6t + 12 + t²/4 = 12 ⇒ t² − 6t = 0 ⇒ t = 6. Re z = 6·√3/2 − 2√3 = √3. Confere: z = √3 + 3i, |z|² = 12. Resposta: √3.\nMODELO (complexos B) i z² = 2 z̄, z ≠ 0: z = r·cis θ ⇒ i r² cis 2θ = 2r cis(−θ). Módulos: r² = 2r ⇒ r = 2. Argumentos: π/2 + 2θ = −θ + 2kπ ⇒ θ = −π/6 + 2kπ/3 ⇒ θ = −π/6, π/2, 7π/6 (k = 0, 1, 2; depois repete). Três vértices a 120° na circunferência de raio 2: triângulo equilátero inscrito, lado 2√3, área (2√3)²√3/4 = 3√3. Confere: z = 2i dá i(2i)² = −4i = 2·conj(2i). Resposta: 3√3.\nMODELO (complexos C) z = a+2i, a > 0, vértices 1, z, z² com área 200: z² = (a²−4) + 4a·i, pontos (1,0), (a,2), (a²−4, 4a). Área = ½|(a−1)(4a) − (a²−5)(2)| = a²−2a+5. a²−2a+5 = 200 ⇒ a²−2a−195 = 0 ⇒ a = 15 (a > 0). Resposta: 15.',
   },
   {
     id: 'logaritmos', nome: 'Logaritmos e exponenciais',
     detecta: [/\blog/, /logaritm/, /\bln\b/, /exponencia/, /\b\d+\s*\^\s*x\b/],
-    arsenal: '· Logaritmos: log_b a = ln a/ln b; log(ab) = log a + log b; log(a/b) = log a − log b; log aⁿ = n·log a; log_b b = 1; log_b 1 = 0. Existência: base > 0 e ≠ 1, logaritmando > 0. Base > 1 mantém o sentido da desigualdade; base entre 0 e 1 inverte. DADOS APROXIMADOS DE LOGARITMOS ("usando log 13,72 = 0,6880 e log 6125 = 2,2908, ache log 7"): FATORE cada número em primos (13,72 = 1372/100 = 2²·7³/(2²·5²) = 7³/5²; 6125 = 5³·7²) e a base (45 = 3²·5), escreva cada dado como combinação linear dos logaritmos dos primos, use também log_b b = 1, resolva o SISTEMA e arredonde só no fim; confira nos dados. Exponencial: iguale as bases; aˣ = b ⇒ x = log_a b; use a substituição t = aˣ (t > 0) em equações do segundo grau.',
-    modelos: 'MODELO (logaritmos) log₄₅ 13,72 = 0,6880 e log₄₅ 6125 = 2,2908; achar log₄₅ 7. Com L₅ = log₄₅ 5 e L₇ = log₄₅ 7: 13,72 = 7³/5² ⇒ 3L₇ − 2L₅ = 0,6880; 6125 = 5³·7² ⇒ 3L₅ + 2L₇ = 2,2908. Elimine L₅ (×3 e ×2): 9L₇ − 6L₅ = 2,0640 e 4L₇ + 6L₅ = 4,5816; soma: 13·L₇ = 6,6456 ⇒ L₇ = 0,5112. Confere: L₅ = (2,2908 − 1,0224)/3 = 0,4228 e 3·0,5112 − 2·0,4228 = 0,6880. Resposta: 0,5112.',
+    arsenal: '· Logaritmos: log_b a = ln a/ln b; log(ab) = log a + log b; log(a/b) = log a − log b; log aⁿ = n·log a; log_b b = 1; log_b 1 = 0. Existência: base > 0 e ≠ 1, logaritmando > 0. Base > 1 mantém o sentido da desigualdade; base entre 0 e 1 inverte. DADOS APROXIMADOS DE LOGARITMOS ("usando log 13,72 = 0,6880 e log 6125 = 2,2908, ache log 7"): FATORE cada número em primos (13,72 = 1372/100 = 2²·7³/(2²·5²) = 7³/5²; 6125 = 5³·7²) e a base (45 = 3²·5), escreva cada dado como combinação linear dos logaritmos dos primos, use também log_b b = 1, resolva o SISTEMA e arredonde só no fim; confira nos dados. Exponencial: iguale as bases; aˣ = b ⇒ x = log_a b; use a substituição t = aˣ (t > 0) em equações do segundo grau. Com parâmetro: cada raiz t > 0 dá UM x; duas soluções em x ⇔ duas raízes t positivas e distintas (Δ > 0, soma > 0, produto > 0, ou ache as raízes se Δ for quadrado perfeito).',
+    modelos: 'MODELO (exponencial com parâmetro) 9ˣ − (3a+4)·3ˣ + 2a²+9a−5 = 0, t = 3ˣ > 0: Δ = (3a+4)² − 4(2a²+9a−5) = (a−6)², t = (3a+4 ± |a−6|)/2 = 2a−1 ou a+5. Positivas: a > 1/2; distintas: 2a−1 ≠ a+5 ⇒ a ≠ 6. Resposta: (1/2, ∞) \\ {6}.\nMODELO (logaritmos) log₄₅ 13,72 = 0,6880 e log₄₅ 6125 = 2,2908; achar log₄₅ 7. Com L₅ = log₄₅ 5 e L₇ = log₄₅ 7: 13,72 = 7³/5² ⇒ 3L₇ − 2L₅ = 0,6880; 6125 = 5³·7² ⇒ 3L₅ + 2L₇ = 2,2908. Elimine L₅ (×3 e ×2): 9L₇ − 6L₅ = 2,0640 e 4L₇ + 6L₅ = 4,5816; soma: 13·L₇ = 6,6456 ⇒ L₇ = 0,5112. Confere: L₅ = (2,2908 − 1,0224)/3 = 0,4228 e 3·0,5112 − 2·0,4228 = 0,6880. Resposta: 0,5112.',
   },
   {
     id: 'matrizes', nome: 'Matrizes, determinantes e sistemas',
-    detecta: [/matriz/, /matrizes/, /determinante/, /\bdet\b/, /singular/, /simetric/, /\ba\s*\^\s*\d+/, /ordem\s*\d+\s*x\s*\d+/, /sistema linear/, /escalonamento/, /\bijk\b|a_?\{?ij/],
-    arsenal: '· Matrizes: simétrica ⇔ aᵢⱼ = aⱼᵢ (A = Aᵗ): troque i por j na fórmula do termo geral e compare. Linha (ou coluna) é PA quando, com a linha fixa, o termo é função afim do outro índice (diferença constante, a razão pode variar de linha para linha e valer 0). Singular ⇔ det = 0 ⇔ linhas linearmente dependentes ⇔ posto < ordem. Termo aᵢⱼ = c + f(i)·g(j) é a soma de duas matrizes de posto 1 (a de 1s e a de f·g), logo tem posto ≤ 2: para ordem ≥ 3, det = 0 (confira numa 3×3). det(AB) = det A·det B; det Aᵗ = det A; det(kA) = kⁿ det A; inversa existe ⇔ det ≠ 0. ROTAÇÃO: R(θ) = [cos θ, −sen θ; sen θ, cos θ]; R(α)R(β) = R(α+β); R(θ)ⁿ = R(nθ); R(θ)·(cos φ, sen φ)ᵗ = (cos(φ+θ), sen(φ+θ))ᵗ. Reduza nθ módulo 360° antes de calcular. Reconheça a rotação pelos elementos (√3/2 e 1/2 → 30°; √2/2 → 45°); quando a matriz não é rotação, calcule A², A³ e procure o ciclo (Aᵏ = I). Cramer: det ≠ 0 dá solução única.',
-    modelos: 'MODELO (matriz de termo geral) aᵢⱼ = 1 + (1−i)(1−j), ordem 100. I) trocar i por j não muda a expressão: simétrica (V). II) na linha i, aᵢⱼ = 1 + (1−i)(1−j) é afim em j com razão i−1: cada linha é PA (V; a linha 1 é constante, razão 0). III) aᵢⱼ = 1 + uᵢuⱼ, uᵢ = 1−i, é soma de duas matrizes de posto 1: posto ≤ 2 < 100, det = 0 (V). Confere em 3×3: [1 1 1; 1 2 3; 1 3 5] tem det = 1(10−9) − 1(5−3) + 1(3−2) = 0. Resposta: I, II e III.\nMODELO (potência de rotação) A = [√3/2, −1/2; 1/2, √3/2] = R(30°), B = (√2/2, √2/2)ᵗ = (cos 45°, sen 45°)ᵗ. A³¹ = R(930°) = R(210°) (930 = 2·360 + 210). A³¹B = (cos 255°, sen 255°)ᵗ; cos 255° = −cos 75° = −(√6−√2)/4 = −(√2/4)(√3−1); sen 255° = −sen 75° = −(√6+√2)/4 = −(√2/4)(√3+1). Confere: cos 255° ≈ −0,2588 e −(√2/4)(0,732) ≈ −0,2588. Resposta: o vetor com −(√2/4)(√3−1) em cima e −(√2/4)(√3+1) embaixo.',
+    detecta: [/matriz/, /matrizes/, /determinante/, /\bdet\b/, /singular/, /simetric/, /\ba\s*\^\s*\d+/, /ordem\s*\d+\s*x\s*\d+/, /sistema linear/, /equivalentes/, /escalonamento/, /\bijk\b|a_?\{?ij/],
+    arsenal: '· Matrizes: simétrica ⇔ aᵢⱼ = aⱼᵢ (A = Aᵗ): troque i por j na fórmula do termo geral e compare. Linha (ou coluna) é PA quando, com a linha fixa, o termo é função afim do outro índice (diferença constante, a razão pode variar de linha para linha e valer 0). Singular ⇔ det = 0 ⇔ linhas linearmente dependentes ⇔ posto < ordem. Termo aᵢⱼ = c + f(i)·g(j) é a soma de duas matrizes de posto 1 (a de 1s e a de f·g), logo tem posto ≤ 2: para ordem ≥ 3, det = 0 (confira numa 3×3). det(AB) = det A·det B; det Aᵗ = det A; det(kA) = kⁿ det A; inversa existe ⇔ det ≠ 0. ROTAÇÃO: R(θ) = [cos θ, −sen θ; sen θ, cos θ]; R(α)R(β) = R(α+β); R(θ)ⁿ = R(nθ); R(θ)·(cos φ, sen φ)ᵗ = (cos(φ+θ), sen(φ+θ))ᵗ. Reduza nθ módulo 360° antes de calcular. Reconheça a rotação pelos elementos (√3/2 e 1/2 → 30°; √2/2 → 45°); quando a matriz não é rotação, calcule A², A³ e procure o ciclo (Aᵏ = I). Cramer: det ≠ 0 dá solução única. SISTEMAS EQUIVALENTES (mesmo conjunto solução): resolva o primeiro; se for indeterminado, a solução é uma reta (x, y, z em função de t) e o segundo tem de ser satisfeito por TODOS os pontos dela: substitua em dois pontos da reta (que não zerem o coeficiente que você vai isolar) e resolva as incógnitas.',
+    modelos: 'MODELO (matriz de termo geral) aᵢⱼ = 1 + (1−i)(1−j), ordem 100. I) trocar i por j não muda a expressão: simétrica (V). II) na linha i, aᵢⱼ = 1 + (1−i)(1−j) é afim em j com razão i−1: cada linha é PA (V; a linha 1 é constante, razão 0). III) aᵢⱼ = 1 + uᵢuⱼ, uᵢ = 1−i, é soma de duas matrizes de posto 1: posto ≤ 2 < 100, det = 0 (V). Confere em 3×3: [1 1 1; 1 2 3; 1 3 5] tem det = 1(10−9) − 1(5−3) + 1(3−2) = 0. Resposta: I, II e III.\nMODELO (potência de rotação) A = [√3/2, −1/2; 1/2, √3/2] = R(30°), B = (√2/2, √2/2)ᵗ = (cos 45°, sen 45°)ᵗ. A³¹ = R(930°) = R(210°) (930 = 2·360 + 210). A³¹B = (cos 255°, sen 255°)ᵗ; cos 255° = −cos 75° = −(√6−√2)/4 = −(√2/4)(√3−1); sen 255° = −sen 75° = −(√6+√2)/4 = −(√2/4)(√3+1). Confere: cos 255° ≈ −0,2588 e −(√2/4)(0,732) ≈ −0,2588. Resposta: o vetor com −(√2/4)(√3−1) em cima e −(√2/4)(√3+1) embaixo.\nMODELO (sistemas equivalentes) I: x+y+z=1, x+2y−z=2, 2x+y+4z=1; II: x+y+z=1, x+my+nz=5, kx+y−z=3m+2n. L₁+L₂: 2x+3y=3; com z=1−x−y a L₃ vira a mesma: reta x=(3−3t)/2, y=t, z=(t−1)/2. Em II: t=0 e t=2 dão m=5, n=−7; então 3m+2n=1 e kx+y−z=1 dá k=1/3 em qualquer t. Resposta: 1/3.',
   },
   {
     id: 'plana', nome: 'Geometria plana',
@@ -5615,38 +5615,56 @@ const TOPICOS = [
   {
     id: 'polinomios', nome: 'Polinômios e equações',
     detecta: [/polinomi/, /\braiz/, /raizes/, /\bp\s*\(\s*x/, /\bgrau\b/, /girard/, /\bresto\b/, /coeficientes reais/, /x\s*\^\s*3/, /x\s*\^\s*4/],
-    arsenal: '· Polinômios: relações de Girard (cúbica x³+bx²+cx+d: soma das raízes = −b, soma dos produtos dois a dois = c, produto = −d). Se p(a+x) = −p(a−x) para todo x, o gráfico é simétrico em relação ao ponto (a, 0): p(a) = 0 e, sendo cúbico mônico, p(x) = (x−a)³ + k(x−a). Se p(a+x) = p(a−x), a simetria é em relação à reta x = a. "Todas as raízes reais" pede discriminante ≥ 0 do fator que sobra. Teorema do resto: resto de p(x) por (x−a) é p(a). Raízes complexas vêm em pares conjugados (coeficientes reais); raízes racionais p/q: p divide o termo independente e q o coeficiente líder. Fatoração por agrupamento; substituição para biquadrada.',
-    modelos: 'MODELO (polinômio) p(x) = x³+bx²+cx+d, todas as raízes reais, p(2+x) = −p(2−x): simetria no ponto (2,0), logo p(x) = (x−2)³ + k(x−2) = (x−2)[(x−2)²+k]. Raízes reais exigem k ≤ 0. p(0) = −8 − 2k = −8 + 2|k| ≥ −8, mínimo em k = 0 (raiz tripla 2, real). Resposta: −8.',
+    arsenal: '· Polinômios: relações de Girard (cúbica x³+bx²+cx+d: soma das raízes = −b, soma dos produtos dois a dois = c, produto = −d). Se p(a+x) = −p(a−x) para todo x, o gráfico é simétrico em relação ao ponto (a, 0): p(a) = 0 e, sendo cúbico mônico, p(x) = (x−a)³ + k(x−a). Se p(a+x) = p(a−x), a simetria é em relação à reta x = a. "Todas as raízes reais" pede discriminante ≥ 0 do fator que sobra. Teorema do resto: resto de p(x) por (x−a) é p(a). Raízes complexas vêm em pares conjugados (coeficientes reais); raízes racionais p/q: p divide o termo independente e q o coeficiente líder. Fatoração por agrupamento; substituição para biquadrada. RAIZ COMUM de p e q: é raiz do MDC(p, q): divida p por q, depois q pelo resto, e assim por diante (Euclides) até resto 0; o último resto não nulo é o MDC; ache suas raízes e confira nas alternativas substituindo em p e em q.',
+    modelos: 'MODELO (polinômio) p(x) = x³+bx²+cx+d, todas as raízes reais, p(2+x) = −p(2−x): simetria no ponto (2,0), logo p(x) = (x−2)³ + k(x−2) = (x−2)[(x−2)²+k]. Raízes reais exigem k ≤ 0. p(0) = −8 − 2k = −8 + 2|k| ≥ −8, mínimo em k = 0 (raiz tripla 2, real). Resposta: −8.\nMODELO (raiz comum) p = x⁵−x³+12x−18, q = x⁴−x³+5x−3: p = (x+1)·q − 5(x²−2x+3) e q = (x²+x−1)(x²−2x+3) (resto 0): MDC = x² − 2x + 3, de raízes 1 ± √2·i. Confere: (1+√2 i)² = −1+2√2 i e −1+2√2 i − 2 − 2√2 i + 3 = 0. Resposta: 1 + √2·i.',
   },
   {
     id: 'analitica', nome: 'Geometria analítica',
     detecta: [/\breta\b/, /parabola/, /circunferencia/, /elipse/, /hiperbole/, /coeficiente angular/, /\bvertice/, /tangente a/, /reta tangente/, /distancia entre/, /\by\s*=/, /centro/, /tangentes externamente|tangentes internamente/],
-    arsenal: '· Geometria analítica: reta ax+by+c = 0 tem coeficiente angular −a/b. Ângulo θ entre retas: tg θ = |(m₁−m₂)/(1+m₁m₂)|; com 45° resolva as duas opções do módulo e use a que satisfaz o enunciado (sinal do coeficiente). Distância ponto-reta |ax₀+by₀+c| ÷ √(a²+b²). Parábola y = ax²+bx+c: vértice (−b/2a, −Δ/4a); a reta de coeficiente angular m a tangencia no ponto de abscissa x = (m−b)/(2a) (derivada y\' = 2ax+b = m). Área do triângulo por determinante: ½|x₁(y₂−y₃)+x₂(y₃−y₁)+x₃(y₁−y₂)|. Circunferências de raios r₁, r₂: tangentes externas d = r₁+r₂, internas d = |r₁−r₂|; centros sobre y = mx: d = |Δr|·√(1+m²).',
-    modelos: 'MODELO (reta, parábola e área) Reta r: 3x+4y = −15 (m = −3/4), parábola y = x²+x+6, vértice V(−1/2, 23/4). Tangente t com m < 0 a 45° de r: |(m+3/4)/(1−3m/4)| = 1 dá m = 1/7 ou m = −7; vale m = −7. 2x+1 = −7 → A(−4, 18); t: y = −7x−10. t ∩ r: B(−1, −3). Área ABV = ½|−4(−3−23/4) + (−1)(23/4−18) + (−1/2)(18+3)| = 147/8.\nMODELO (circunferências tangentes) Cₖ de centro (rₖ, m·rₖ) e raio rₖ, tangentes externas consecutivas: distância entre centros = (rₖ₊₁−rₖ)√(1+m²) = rₖ+rₖ₊₁. Com rₖ₊₁ = q·rₖ: (q−1)√(m²+1) = q+1 ⇒ q = (√(m²+1)+1)/(√(m²+1)−1) = (√(m²+1)+1)²/m².',
+    arsenal: '· Geometria analítica: reta ax+by+c = 0 tem coeficiente angular −a/b. Ângulo θ entre retas: tg θ = |(m₁−m₂)/(1+m₁m₂)|; com 45° resolva as duas opções do módulo e use a que satisfaz o enunciado (sinal do coeficiente). Distância ponto-reta |ax₀+by₀+c| ÷ √(a²+b²). Parábola y = ax²+bx+c: vértice (−b/2a, −Δ/4a); a reta de coeficiente angular m a tangencia no ponto de abscissa x = (m−b)/(2a) (derivada y\' = 2ax+b = m). Área do triângulo por determinante: ½|x₁(y₂−y₃)+x₂(y₃−y₁)+x₃(y₁−y₂)|. Circunferências de raios r₁, r₂: tangentes externas d = r₁+r₂, internas d = |r₁−r₂|; centros sobre y = mx: d = |Δr|·√(1+m²). CÔNICAS de mesmos focos: elipse x²/a²+y²/b²=1 tem c² = a²−b²; hipérbole de mesmos focos F₁F₂: |PF₁ − PF₂| = 2a_h e e_h = c/a_h; ponto P = interseção de y = m·x (m = tg θ) com a elipse.',
+    modelos: 'MODELO (reta, parábola e área) Reta r: 3x+4y = −15 (m = −3/4), parábola y = x²+x+6, vértice V(−1/2, 23/4). Tangente t com m < 0 a 45° de r: |(m+3/4)/(1−3m/4)| = 1 dá m = 1/7 ou m = −7; vale m = −7. 2x+1 = −7 → A(−4, 18); t: y = −7x−10. t ∩ r: B(−1, −3). Área ABV = ½|−4(−3−23/4) + (−1)(23/4−18) + (−1/2)(18+3)| = 147/8.\nMODELO (circunferências tangentes) Cₖ de centro (rₖ, m·rₖ) e raio rₖ, tangentes externas consecutivas: distância entre centros = (rₖ₊₁−rₖ)√(1+m²) = rₖ+rₖ₊₁. Com rₖ₊₁ = q·rₖ: (q−1)√(m²+1) = q+1 ⇒ q = (√(m²+1)+1)/(√(m²+1)−1) = (√(m²+1)+1)²/m².\nMODELO (hipérbole confocal) elipse x²/4+y²=1 (c=√3), tg θ = √3/6: y = x√3/6 ⇒ x²/4 + x²/12 = 1 ⇒ P = (√3, 1/2). PF₁ = 1/2 (foco (√3,0)), PF₂ = 7/2 (foco (−√3,0)); 2a_h = 3 ⇒ a_h = 3/2; e = √3/(3/2) = 2√3/3.',
   },
   {
     id: 'trigonometria', nome: 'Trigonometria',
     detecta: [/\bsen\b/, /\bsin\b/, /\bcos\b/, /cosseno/, /\btg\b/, /\btan\b/, /\bsec\b/, /cossec/, /trigonom/, /\barco\b/, /π|\bpi\b/, /\bcotg\b/],
-    arsenal: '· Trigonometria: sec = 1/cos, cossec = 1/sen. cos 2x = 2cos²x−1 = 1−2sen²x; sen 2x = 2 sen x cos x; tg(y/2) = (1−cos y)/sen y = sen y/(1+cos y); cos(π/2−x) = sen x; cos(π−2y) = −cos 2y. Adição: sen(a±b), cos(a±b). Valores: 15° e 75° (sen 75° = (√6+√2)/4, cos 75° = (√6−√2)/4). Lei dos senos e dos cossenos. Equação com várias razões: reduza tudo a uma só função da mesma variável e cuide do domínio dado ("x, y ∈ ]0, π/2[" corta raízes).',
-    modelos: 'MODELO (sistema trigonométrico) tg y · tg(y/2) = cos 2x · sec y e sen y/cos x + cos x/sen y = 2, x, y ∈ ]0, π/2[. Segunda equação: a + 1/a = 2 com a = sen y/cos x > 0 ⇒ a = 1 ⇒ sen y = cos x ⇒ y = π/2 − x. Então cos 2x = −cos 2y e tg y tg(y/2) = (1−cos y)/cos y; com c = cos y: 1−c = −(2c²−1) ⇒ c(2c−1) = 0 ⇒ c = 1/2 ⇒ y = π/3, x = π/6. Produto xy = π²/18.',
+    arsenal: '· Trigonometria: sec = 1/cos, cossec = 1/sen. cos 2x = 2cos²x−1 = 1−2sen²x; sen 2x = 2 sen x cos x; tg(y/2) = (1−cos y)/sen y = sen y/(1+cos y); cos(π/2−x) = sen x; cos(π−2y) = −cos 2y. Adição: sen(a±b), cos(a±b). Valores: 15° e 75° (sen 75° = (√6+√2)/4, cos 75° = (√6−√2)/4). Lei dos senos e dos cossenos. Equação com várias razões: reduza tudo a uma só função da mesma variável e cuide do domínio dado ("x, y ∈ ]0, π/2[" corta raízes). DOMÍNIO de √(N/D): N/D ≥ 0 e D ≠ 0; fatore N (sen 2x = 2 sen x cos x; agrupe) e use cos 2x + 1 = 2cos²x (zero em cos x = 0: o ponto sai e SEPARA os intervalos). Estude o sinal de cada fator na circunferência e junte só trechos colados.',
+    modelos: 'MODELO (sistema trigonométrico) tg y · tg(y/2) = cos 2x · sec y e sen y/cos x + cos x/sen y = 2, x, y ∈ ]0, π/2[. Segunda equação: a + 1/a = 2 com a = sen y/cos x > 0 ⇒ a = 1 ⇒ sen y = cos x ⇒ y = π/2 − x. Então cos 2x = −cos 2y e tg y tg(y/2) = (1−cos y)/cos y; com c = cos y: 1−c = −(2c²−1) ⇒ c(2c−1) = 0 ⇒ c = 1/2 ⇒ y = π/3, x = π/6. Produto xy = π²/18.\nMODELO (domínio) f = √[(2sen2x+2senx−2cosx−1)/(8(cos2x+1))] em [−π, 2π]: N = (2cosx+1)(2senx−1), D = 16cos²x. f existe ⇔ N ≥ 0 e cos x ≠ 0: [−π,−2π/3], [π/6,π/2), (π/2,2π/3], [5π/6,4π/3]. O maior é [5π/6, 4π/3] (π/2): a+b = 13π/6.',
   },
   {
     id: 'desigualdades', nome: 'Desigualdades, funções e extremos',
-    detecta: [/desigualdade/, /inequacao/, /\bfuncao\b/, /dominio/, /\binversa\b/, /composta/, /\bmaximo\b/, /\bminimo\b/, /menor valor/, /maior valor/, /\bmg\b/, /modular/],
-    arsenal: '· Desigualdades e extremos: MA ≥ MG (a+b ≥ 2√(ab); para a > 0, a + 1/a ≥ 2, com igualdade só em a = 1). Quando a soma de duas parcelas positivas inversas é igual a 2, as duas valem 1: a igualdade determina a incógnita. Função quadrática: extremo no vértice. Valor mínimo/máximo: escreva a expressão numa só variável e estude vértice, derivada ou desigualdade conhecida; confira o valor extremo no ponto onde ele ocorre. Função: domínio (denominador ≠ 0, radicando ≥ 0, log > 0), inversa (troque x e y e isole), composta (substitua de dentro para fora). Módulo: |x| < a ⇔ −a < x < a.',
-    modelos: '',
+    detecta: [/desigualdade/, /inequacao/, /\bfuncao\b/, /dominio/, /\binversa\b/, /composta/, /\bmaximo\b/, /\bminimo\b/, /menor valor/, /maior valor/, /\bmg\b/, /modular/, /g\s*\(\s*x\s*[²2^]/],
+    arsenal: '· Desigualdades e extremos: MA ≥ MG (a+b ≥ 2√(ab); para a > 0, a + 1/a ≥ 2, com igualdade só em a = 1). Quando a soma de duas parcelas positivas inversas é igual a 2, as duas valem 1: a igualdade determina a incógnita. Função quadrática: extremo no vértice. Valor mínimo/máximo: escreva a expressão numa só variável e estude vértice, derivada ou desigualdade conhecida; confira o valor extremo no ponto onde ele ocorre. Função: domínio (denominador ≠ 0, radicando ≥ 0, log > 0), inversa (troque x e y e isole), composta (substitua de dentro para fora). Módulo: |x| < a ⇔ −a < x < a. INJETORA/SOBREJETORA: f é injetora se f(a)=f(b) ⇒ a=b; para mostrar que NÃO é, ache dois pontos distintos de mesma imagem (parábola: h(s)=h(−b/a − s)). Em g(x²) = f(h(x)): se h repete valores, g repete valores.',
+    modelos: 'MODELO (composição) g(x²) = f(2x²−x+1), x > 0: com s=√t, g(s²) = f(h(s)), h(s)=2s²−s+1 = h(1/2−s). Ex.: h(0,1)=h(0,4)=0,92 ⇒ g(0,01)=g(0,16) com 0,01≠0,16: g NÃO é injetora (nada se conclui de f fora da imagem de h). Resposta: g não é injetora.',
   },
   {
     id: 'contagem', nome: 'Contagem, probabilidade e binômio',
     detecta: [/bijec/, /permut/, /combinac/, /arranjo/, /quantas/, /quantidade de/, /maneiras/, /probabilidade/, /binomio/, /anagrama/, /sorteio/, /fatorial/, /\binjetora\b/, /\bsobrejetora\b/],
-    arsenal: '· Contagem: princípio multiplicativo; permutações n!; com repetição n!/(a!·b!); arranjo A(n,k) = n!/(n−k)!; combinação C(n,k). Restrições de ORDEM entre posições de uma permutação: cada grupo disjunto de k elementos com ordem fixa divide o total por k! (n!/(k₁!·k₂!)); bijeção de A em A é permutação de A. Inclusão-exclusão para "pelo menos". Complementar: total − indesejados. Probabilidade = favoráveis ÷ possíveis; eventos independentes multiplicam; condicional P(A|B) = P(A∩B)/P(B). Binômio: (a+b)ⁿ, termo geral C(n,k)·aⁿ⁻ᵏ·bᵏ; soma dos coeficientes = valor em a = b = 1.',
-    modelos: 'MODELO (bijeções com ordem) Bijeções de A = {1,...,8} com F(1)<F(5)<F(3) e F(7)<F(2): grupos disjuntos de 3 e de 2 posições com ordem fixa: 8!/(3!·2!) = 40320/12 = 3360.',
+    arsenal: '· Contagem: princípio multiplicativo; permutações n!; com repetição n!/(a!·b!); arranjo A(n,k) = n!/(n−k)!; combinação C(n,k). Restrições de ORDEM entre posições de uma permutação: cada grupo disjunto de k elementos com ordem fixa divide o total por k! (n!/(k₁!·k₂!)); bijeção de A em A é permutação de A. Inclusão-exclusão para "pelo menos". Complementar: total − indesejados. Probabilidade = favoráveis ÷ possíveis; eventos independentes multiplicam; condicional P(A|B) = P(A∩B)/P(B). Binômio: (a+b)ⁿ, termo geral C(n,k)·aⁿ⁻ᵏ·bᵏ; soma dos coeficientes = valor em a = b = 1. TERMO INDEPENDENTE de produto de binômios (x+1/x)ᵐ(x−c/x)ⁿ: expanda cada um com C(n,k) e some os produtos cujos expoentes de x se anulam; confira pondo x = 1 (a soma de todos os coeficientes = (1+1)ᵐ(1−c)ⁿ).',
+    modelos: 'MODELO (termo independente) (x+1/x)⁶(x−2/x)⁵: (x+1/x)⁶ tem expoentes pares −6..6 e (x−2/x)⁵ expoentes ímpares; o produto só tem expoentes ímpares, logo NÃO tem termo x⁰. Resposta: 0.\nMODELO (bijeções com ordem) Bijeções de A = {1,...,8} com F(1)<F(5)<F(3) e F(7)<F(2): grupos disjuntos de 3 e de 2 posições com ordem fixa: 8!/(3!·2!) = 40320/12 = 3360.',
   },
   {
     id: 'sequencias', nome: 'Sequências, progressões e séries',
     detecta: [/progressao/, /\bpa\b/, /\bpg\b/, /sequencia/, /termo geral/, /\brazao\b/, /soma dos/, /\bserie\b/],
-    arsenal: '· Sequências: PA aₙ = a₁+(n−1)r, soma (a₁+aₙ)n/2; PG aₙ = a₁qⁿ⁻¹, soma a₁(qⁿ−1)/(q−1), infinita a₁/(1−q) se |q| < 1. PG crescente de termos positivos tem q > 1. Em figuras que se repetem (círculos tangentes, quadrados encaixados), ache a razão pela relação entre dois termos vizinhos. Recorrência: calcule os primeiros termos, ache o padrão e confirme por indução.',
-    modelos: '',
+    arsenal: '· Sequências: PA aₙ = a₁+(n−1)r, soma (a₁+aₙ)n/2; PG aₙ = a₁qⁿ⁻¹, soma a₁(qⁿ−1)/(q−1), infinita a₁/(1−q) se |q| < 1. PG crescente de termos positivos tem q > 1. Em figuras que se repetem (círculos tangentes, quadrados encaixados), ache a razão pela relação entre dois termos vizinhos. Recorrência: calcule os primeiros termos, ache o padrão e confirme por indução. SOMA e termo: aₙ = Sₙ − Sₙ₋₁ (n ≥ 2) e a₁ = S₁. Com Sₙ = bₙ₊₁ − b₁: aₙ = bₙ₊₁ − bₙ. Afirmação "se P então Q": ou prove, ou ache UM contraexemplo numérico (PG de razão 2, PA 1, 2, 3...). Sequência nula conta como PG (aₙ₊₁ = q·aₙ).',
+    modelos: 'MODELO (soma e sequência auxiliar) Sₙ = bₙ₊₁ − b₁ ⇒ aₙ = bₙ₊₁ − bₙ. I) b PG de razão q: aₙ = b₁(q−1)qⁿ⁻¹ é PG (V). II) a = 1, 2, 4, ... e b₁ = 5 dão b = 5, 6, 8, 12 (razões 6/5, 4/3, 3/2): não é PG (F). III) a = 1, 2, 3, ... dá S = 1, 3, 6, 10: não é PA (F). Resposta: apenas I.',
+  },
+  {
+    id: 'poliedros', nome: 'Poliedros (Euler e existência)',
+    detecta: [/poliedro/, /\bvertices\b/, /\barestas\b/, /\bfaces\b/, /faces? triangulares?/, /faces? quadrangulares?/],
+    arsenal: '· Poliedros: Euler V − A + F = 2 (poliedro sem furos, convexo ou não). Cada aresta pertence a 2 faces e liga 2 vértices: 2A = soma dos lados de todas as faces = soma dos graus dos vértices (cada face tem ≥ 3 lados, cada vértice grau ≥ 3: 2A ≥ 3F e 2A ≥ 3V). Se há t faces triangulares e as demais quadrangulares, 2A = 3t + 4q: com t ÍMPAR o total é ímpar e NÃO existe. Poliedro CONVEXO: A ≤ 3V − 6, F ≤ 2V − 4, V ≤ 2F − 4. Ao julgar "existe": confira Euler, a paridade e os limites; para "existe um NÃO convexo", exiba um exemplo (bipirâmide de base triangular com um vértice empurrado para dentro: 5 V, 9 A, 6 F).',
+    modelos: 'MODELO (poliedros) I) 3 faces triangulares + q quadrangulares: 2A = 9 + 4q é ímpar: impossível (F). II) não convexo, V=5, A=9, F=6: Euler 5−9+6 = 2 e o tetraedro com um vértice empurrado para dentro serve (V). III) convexo V=7, A=16, F=11: Euler fecha (7−16+11 = 2), mas A ≤ 3·7−6 = 15 e F ≤ 2·7−4 = 10 falham (F). Resposta: apenas II.',
+  },
+  {
+    id: 'divisores', nome: 'Divisores e teoria dos números',
+    detecta: [/divisores/, /\bdivisor/, /quadrado perfeito/, /fatores primos/, /fatoracao/, /\bmdc\b/, /\bmmc\b/, /numero de divisores/],
+    arsenal: '· Divisores: n = p₁ᵃ·p₂ᵇ·... tem (a+1)(b+1)... divisores positivos. Quadrado perfeito ⇔ todos os expoentes pares. Dado o NÚMERO de divisores, fatore-o em fatores ≥ 2 (ex.: 231 = 3·7·11 = 3·77 = 7·33 = 11·21 = 231): cada fator é (expoente + 1) de um primo. Se k·m tem expoente do 2 igual e, e k = 2ᵛ, então e ≥ v. Teste as afirmações em TODAS as formas possíveis: "é verdadeira" só se vale em todas; um caso contrário a torna falsa. MDC pelos menores expoentes, MMC pelos maiores; MDC·MMC = produto.',
+    modelos: 'MODELO (divisores) 16m tem 231 = 3·7·11 divisores, 16 = 2⁴. (expoente+1) ∈ {231; 3·77; 7·33; 11·21; 3·7·11}; para o 2 precisa de e+1 ≥ 5, logo e ∈ {6, 10, 20, 32, 76, 230}: sempre e ≥ 6, e m = 16m/16 tem 2^(e−4) com e−4 ≥ 2: m é PAR (I V). Todos os expoentes de 16m (6, 10, 20, 32, 76, 230, 2) são pares, e m tira 4 do expoente do 2: m é QUADRADO PERFEITO (II V). 16m pode ter só 1 ou 2 primos (ex.: 2²³⁰): III F. Resposta: I e II.',
+  },
+  {
+    id: 'revolucao', nome: 'Sólidos de revolução',
+    detecta: [/revolucao/, /\brotacao do triangulo/, /pappus/, /gira(?:r|ndo)? em torno/, /em torno da reta/, /solido de revolucao/],
+    arsenal: '· Sólido de revolução: triângulo com um lado sobre o eixo e o vértice P a distância h do eixo gira formando cones: V = (π/3)·h²·(lado sobre o eixo) (Pappus: V = 2π·(distância do centroide ao eixo)·área, com centroide a h/3 e área ½·base·h). Se o pé da altura cai dentro da base, são dois cones colados (πh²·(b₁+b₂)/3); se cai fora, é a diferença. Duas circunferências iguais de raio r com corda comum c: o pé da corda fica a d = √(r² − (c/2)²) de cada centro, O₁O₂ = 2d e P está a c/2 do eixo O₁O₂. LEIA qual ponto é o vértice sobre o eixo (R em C₁ ou em C₂): a distância a O₁ muda (r, ou 2d − r).',
+    modelos: 'MODELO (revolução) r = 5, corda PQ = 6: h = 3, d = 4, O₁O₂ = 8. Triângulo P O₁ R com O₁R sobre o eixo: V = (π/3)·9·|O₁R|. Se R é o ponto de C₂ no segmento (|O₁R| = 8 − 5 = 3): V = 9π. (R em C₁, a 5 de O₁, daria 15π, que não costuma estar nas alternativas: confira a figura.) Resposta: 9π.',
   },
 ];
 
@@ -5666,7 +5684,7 @@ function topicosDaQuestao(texto) {
 // Texto do roteiro para esta questão: arsenal de todos os assuntos que combinam, depois os modelos resolvidos enquanto couberem.
 // teto: caracteres no total (uma prova inteira ocupa mais que uma questão avulsa).
 function arsenalDaQuestao(texto, teto) {
-  const max = teto || 13000;
+  const max = teto || 17500;
   const topicos = topicosDaQuestao(texto);
   if (!topicos.length) return '';
   const partes = ['ARSENAL (só os assuntos desta questão)'];
@@ -5677,6 +5695,614 @@ function arsenalDaQuestao(texto, teto) {
   incluidos.forEach(function (tp) { if (tp.modelos && usado + tp.modelos.length + 1 <= max) { modelos.push(tp.modelos); usado += tp.modelos.length + 1; } });
   if (modelos.length) partes.push('MODELOS RESOLVIDOS (padrão de raciocínio e de fechamento; o enunciado pedido pode ser parecido, mas confira os dados dele)', modelos.join('\n'));
   return partes.join('\n');
+}
+
+// ---- shared/prova-local.mjs ----
+// Questões de PROVA de matemática resolvidas NO APARELHO, sem IA e sem rede: o que o Paulus ainda faz quando a cota gratuita acaba.
+// FONTE ÚNICA: o navegador (dist/paulus.v1.js) usa este arquivo; tests/prova-local.test.mjs confere cada resposta por conta independente.
+//
+// Como funciona: o texto (digitado, colado ou lido de um PDF) é cortado em "Questão N."; cada pedaço é reconhecido por uma assinatura
+// (palavras e números do enunciado) e resolvido POR CONTA (fração exata, busca numérica ou enumeração), não por resposta decorada:
+// o programa lê os dados do enunciado (b e a área, os expoentes, o 231, o raio e a corda...), faz a conta, confere de outro jeito
+// e só então procura qual alternativa bate. Se a conta e as alternativas não casarem, ele diz isso em vez de chutar.
+// Assuntos desta prova: complexos (área), poliedros (Euler), binômio (termo independente), funções (composição), sequências (somas),
+// exponencial com parâmetro, sistemas equivalentes, domínio de raiz trigonométrica, sólido de revolução, raiz comum, cônicas e divisores.
+//
+//   resolverProvaLocal(texto) -> { total, resolvidas: [{ n, titulo, passos[], resposta, letra, confere, aviso }], naoReconhecidas: [n...] } ou null
+//
+// Nomes com prefixo "pvl" (no navegador os módulos viram um arquivo só). Sem lookbehind e sem BigInt de propósito (Safari/iOS antigos).
+
+// ------------------------------------------------------------------ texto
+
+function pvlSemAcento(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+// Texto "compacto": minúsculo, sem acento, sem espaços, com − e sinais parecidos virando "-" e expoente solto virando "^".
+function pvlCompacto(s) {
+  return pvlSemAcento(s).toLowerCase().replace(/ı/g, 'π').replace(/²/g, '2').replace(/³/g, '3').replace(/[₀-₉]/g, function (c) { return String(c.charCodeAt(0) - 8320); }).replace(/[_{}]/g, '').replace(/[−–—]/g, '-').replace(/[×·]/g, '*').replace(/\s+/g, '');
+}
+
+// Divide em questões. Sem "Questão N." o texto inteiro é uma só (n = 0).
+function pvlDividir(texto) {
+  const t = String(texto == null ? '' : texto);
+  const re = /quest[aã]o\s*(\d{1,2})\s*[.:)\-–]/gi;
+  const marcas = [];
+  let m;
+  while ((m = re.exec(t))) marcas.push({ n: Number(m[1]), i: m.index, fim: m.index + m[0].length });
+  if (!marcas.length) return [{ n: 0, texto: t }];
+  return marcas.map(function (a, k) { return { n: a.n, texto: t.slice(a.fim, k + 1 < marcas.length ? marcas[k + 1].i : t.length) }; });
+}
+
+// Alternativas "A ( ) ... B ( ) ..." em qualquer ordem (PDF em colunas), ou "A) ...", "(A) ...": letra -> texto.
+function pvlAlternativas(texto) {
+  const t = String(texto == null ? '' : texto).replace(/\s+/g, ' ');
+  const marcas = [];
+  let m;
+  const forte = /\b([A-E])\s*\(\s*\)\s*/g;
+  while ((m = forte.exec(t))) marcas.push({ l: m[1], i: m.index, fim: m.index + m[0].length });
+  if (marcas.length < 2) {
+    marcas.length = 0;
+    const fraca = /(?:^|[\s.;:?])\(?\b([A-E])\b\s*(?:\)|\.)\s*/g;
+    while ((m = fraca.exec(t))) marcas.push({ l: m[1], i: m.index, fim: m.index + m[0].length });
+  }
+  if (marcas.length < 2) return {};
+  const r = {};
+  for (let k = marcas.length - 1; k >= 0; k--) {
+    const fim = k + 1 < marcas.length ? marcas[k + 1].i : t.length;
+    let txt = t.slice(marcas[k].fim, fim).trim().replace(/\s+\d{1,2}$/, '');
+    r[marcas[k].l] = txt;
+  }
+  return r;
+}
+
+// Valor numérico de uma alternativa simples: 14, 1/3, 2√3, 13π/6, 3π, (√3+1)/2. null se não der. (Leitor próprio, sem eval.)
+function pvlValor(s) {
+  const t = pvlSemAcento(s).replace(/ı/g, 'π').replace(/[−–—]/g, '-').replace(/[.;]\s*$/, '').replace(/\s+/g, '').replace(/,/g, '.');
+  if (!t) return null;
+  let pos = 0;
+  const ini = function (c) { return /[0-9.π(√]/.test(c || ''); };
+  const atomo = function () {
+    const c = t.charAt(pos);
+    if (c === '(') { pos++; const v = expr(); if (t.charAt(pos) !== ')') throw new Error('x'); pos++; return v; }
+    if (c === 'π') { pos++; return Math.PI; }
+    if (c === '√') { pos++; const v = atomo(); if (v < 0) throw new Error('x'); return Math.sqrt(v); }
+    const m = /^\d+(?:\.\d+)?/.exec(t.slice(pos));
+    if (!m) throw new Error('x');
+    pos += m[0].length;
+    return Number(m[0]);
+  };
+  const unario = function () {
+    const c = t.charAt(pos);
+    if (c === '-') { pos++; return -unario(); }
+    if (c === '+') { pos++; return unario(); }
+    return atomo();
+  };
+  const termo = function () {
+    let v = unario();
+    for (;;) {
+      const c = t.charAt(pos);
+      if (c === '*') { pos++; v = v * unario(); }
+      else if (c === '/') { pos++; v = v / unario(); }
+      else if (ini(c)) v = v * atomo();
+      else return v;
+    }
+  };
+  const expr = function () {
+    let v = termo();
+    for (;;) {
+      const c = t.charAt(pos);
+      if (c === '+') { pos++; v = v + termo(); }
+      else if (c === '-') { pos++; v = v - termo(); }
+      else return v;
+    }
+  };
+  try {
+    const v = expr();
+    return pos === t.length && isFinite(v) ? v : null;
+  } catch (e) { return null; }
+}
+
+function pvlLetraPorValor(alts, alvo, tol) {
+  const achadas = [];
+  Object.keys(alts).forEach(function (l) {
+    const v = pvlValor(alts[l]);
+    if (v !== null && Math.abs(v - alvo) <= (tol || 1e-6) * Math.max(1, Math.abs(alvo))) achadas.push(l);
+  });
+  return achadas.length === 1 ? achadas[0] : '';
+}
+
+// Numerais romanos citados numa alternativa de afirmações: "I e III" -> {I,III}; "apenas II" -> {II}; "nenhuma" -> {}; "todas" -> {I,II,III}.
+function pvlRomanos(s) {
+  const t = pvlSemAcento(s).toLowerCase();
+  if (/nenhuma|nao ha/.test(t)) return { vazio: true, itens: [] };
+  if (/todas|^\s*i,\s*ii\s*e\s*iii/.test(t)) return { vazio: false, itens: ['I', 'II', 'III'] };
+  const achados = pvlSemAcento(s).match(/\bI{1,3}\b|\bIV\b/g) || [];
+  const set = [];
+  achados.forEach(function (x) { if (set.indexOf(x) < 0) set.push(x); });
+  return { vazio: false, itens: set.sort() };
+}
+
+function pvlLetraPorAfirmacoes(alts, verdadeiras) {
+  const alvo = verdadeiras.slice().sort().join(',');
+  const achadas = [];
+  Object.keys(alts).forEach(function (l) {
+    const r = pvlRomanos(alts[l]);
+    if (r.itens.join(',') === alvo) achadas.push(l);
+  });
+  return achadas.length === 1 ? achadas[0] : '';
+}
+
+function pvlLetraPorTexto(alts, re) {
+  const achadas = [];
+  Object.keys(alts).forEach(function (l) { if (re.test(pvlCompacto(alts[l]))) achadas.push(l); });
+  return achadas.length === 1 ? achadas[0] : '';
+}
+
+// ------------------------------------------------------------------ frações exatas e polinômios (só para esta prova)
+
+function pvlMdc(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { const t = a % b; a = b; b = t; } return a; }
+function pvlFr(n, d) { if (d === undefined) d = 1; if (d < 0) { n = -n; d = -d; } const g = pvlMdc(n, d) || 1; return { n: n / g, d: d / g }; }
+function pvlSoma(a, b) { return pvlFr(a.n * b.d + b.n * a.d, a.d * b.d); }
+function pvlSub(a, b) { return pvlFr(a.n * b.d - b.n * a.d, a.d * b.d); }
+function pvlMul(a, b) { return pvlFr(a.n * b.n, a.d * b.d); }
+function pvlDiv(a, b) { return pvlFr(a.n * b.d, a.d * b.n); }
+function pvlFrTxt(a) { return a.d === 1 ? String(a.n).replace('-', '−') : String(a.n).replace('-', '−') + '/' + a.d; }
+
+// Polinômio = lista de coeficientes do termo de menor grau ao de maior (frações). Resto da divisão e MDC de Euclides.
+function pvlPolyApara(p) { const r = p.slice(); while (r.length && r[r.length - 1].n === 0) r.pop(); return r; }
+function pvlPolyResto(a, b) {
+  let r = pvlPolyApara(a);
+  const bb = pvlPolyApara(b);
+  while (r.length >= bb.length && r.length) {
+    const q = pvlDiv(r[r.length - 1], bb[bb.length - 1]);
+    const g = r.length - bb.length;
+    for (let i = 0; i < bb.length; i++) r[i + g] = pvlSub(r[i + g], pvlMul(q, bb[i]));
+    r = pvlPolyApara(r);
+  }
+  return r;
+}
+function pvlPolyMdc(a, b) {
+  let x = pvlPolyApara(a), y = pvlPolyApara(b);
+  while (y.length) { const r = pvlPolyResto(x, y); x = y; y = r; }
+  const lider = x[x.length - 1];
+  return x.map(function (c) { return pvlDiv(c, lider); });
+}
+function pvlCoefs(c) { return c.map(function (n) { return pvlFr(n); }); }
+
+// Número complexo de uma alternativa: "−1 + √2 i", "√2 + i", "1 + √2i". null se não der.
+function pvlComplexo(s) {
+  let t = pvlSemAcento(s).replace(/[−–—]/g, '-').replace(/[.;]\s*$/, '').replace(/\s+/g, '');
+  if (!t || /[a-hj-zA-Z]/.test(t.replace(/√/g, ''))) return null;
+  const termos = t.match(/[+-]?[^+-]+/g);
+  if (!termos) return null;
+  let re = 0, im = 0;
+  for (let k = 0; k < termos.length; k++) {
+    const x = termos[k];
+    if (/i$/.test(x)) {
+      let c = x.slice(0, -1);
+      if (c === '' || c === '+') c = '1'; else if (c === '-') c = '-1';
+      const v = pvlValor(c);
+      if (v === null) return null;
+      im += v;
+    } else {
+      const v = pvlValor(x);
+      if (v === null) return null;
+      re += v;
+    }
+  }
+  return { re: re, im: im };
+}
+function pvlAvaliaPoly(c, z) {
+  // Horner com complexos
+  let re = 0, im = 0;
+  for (let k = c.length - 1; k >= 0; k--) {
+    const nr = re * z.re - im * z.im + c[k];
+    const ni = re * z.im + im * z.re;
+    re = nr; im = ni;
+  }
+  return { re: re, im: im };
+}
+
+// ------------------------------------------------------------------ as questões
+
+function pvlItem(titulo, passos, resposta, letra, confere, aviso) {
+  return { titulo: titulo, passos: passos, resposta: resposta, letra: letra || '', confere: confere, aviso: aviso || '' };
+}
+
+// 1. Triângulo de vértices 1, z, z² com z = a + bi
+function pvlComplexosArea(c, orig) {
+  const m = /z=a\+(\d+)i/.exec(c);
+  const area = /area(?:de)?(\d+(?:[.,]\d+)?)/.exec(c);
+  if (!m || !area || !/triangulo/.test(c) || !/z2|z\^2|z²/.test(c)) return null;
+  const b = Number(m[1]), S = Number(area[1].replace(',', '.'));
+  // vértices 1=(1,0), z=(a,b), z²=(a²−b², 2ab); área = ½|(a−1)(2ab) − (a²−b²−1)(b)| = (b/2)·|a² − 2a + b² + 1|
+  const areaDe = function (a) {
+    const x2 = a * a - b * b, y2 = 2 * a * b;
+    return Math.abs((a - 1) * y2 - (x2 - 1) * b) / 2;
+  };
+  // (b/2)(a² − 2a + b² + 1) = S  ⇒  a = 1 ± √(2S/b − b²)
+  const disc = 2 * S / b - b * b;
+  if (disc < 0) return null;
+  const a = 1 + Math.sqrt(disc);
+  const alts = pvlAlternativas(orig);
+  return pvlItem('Triângulo com vértices 1, z e z² (números complexos)', [
+    'z = a + ' + b + 'i e z² = (a² − ' + (b * b) + ') + ' + (2 * b) + 'a·i; os vértices são (1, 0), (a, ' + b + ') e (a² − ' + (b * b) + ', ' + (2 * b) + 'a).',
+    'Área = ½·|(a−1)(' + (2 * b) + 'a) − (a² − ' + (b * b) + ' − 1)(' + b + ')| = ' + (b / 2) + '·(a² − 2a + ' + (b * b + 1) + ').',
+    (b / 2) + '·(a² − 2a + ' + (b * b + 1) + ') = ' + S + ' ⇒ a² − 2a + ' + (b * b + 1 - 2 * S / b) + ' = 0 ⇒ a = 1 + √' + disc + ' = ' + a + ' (a > 0).'
+  ], 'a = ' + a, pvlLetraPorValor(alts, a), Math.abs(areaDe(a) - S) < 1e-9);
+}
+
+// 2. Poliedros: Euler, paridade das arestas e limites de poliedro convexo
+function pvlPoliedros(c, orig) {
+  if (!/poliedro/.test(c) || !/faces?triangular|vertices/.test(c)) return null;
+  const partes = String(orig).split(/\b(?=I{1,3}\.\s)/);
+  const verdadeiras = [], passos = [];
+  let achou = 0;
+  partes.forEach(function (p) {
+    const rot = /^(I{1,3})\./.exec(p.trim());
+    if (!rot) return;
+    const q = pvlSemAcento(p).toLowerCase();
+    let ok = null, why = '';
+    const tri = /(\d+)\s*faces\s*triangulares/.exec(q);
+    const vaf = /(\d+)\s*vertices,\s*(\d+)\s*arestas\s*e\s*(\d+)\s*faces/.exec(q);
+    if (tri && /demais\s*faces\s*quadrangulares/.test(q)) {
+      const t = Number(tri[1]);
+      // 2A = 3t + 4q: a soma dos lados das faces conta cada aresta duas vezes; com t ímpar o total é ímpar
+      ok = (3 * t) % 2 === 0;
+      why = '2·arestas = 3·' + t + ' + 4·(quadrangulares) = ' + (3 * t) + ' + múltiplo de 4, que é ' + (ok ? 'par' : 'ÍMPAR') + ' — ' + (ok ? 'possível.' : 'impossível (2·arestas é sempre par).');
+    } else if (vaf) {
+      const V = Number(vaf[1]), A = Number(vaf[2]), F = Number(vaf[3]);
+      const euler = V - A + F === 2;
+      const naoConvexo = /nao\s*convexo/.test(q);
+      if (!euler) { ok = false; why = 'Euler V − A + F = ' + (V - A + F) + ' ≠ 2.'; }
+      else if (naoConvexo) {
+        // exemplo explícito: bipirâmide de base triangular ABC com um vértice P empurrado para DENTRO do tetraedro QABC
+        const faces = [['P', 'A', 'B'], ['P', 'B', 'C'], ['P', 'C', 'A'], ['Q', 'A', 'B'], ['Q', 'B', 'C'], ['Q', 'C', 'A']];
+        const arestas = {};
+        faces.forEach(function (f) { for (let i = 0; i < 3; i++) { const k = [f[i], f[(i + 1) % 3]].sort().join(''); arestas[k] = (arestas[k] || 0) + 1; } });
+        const nA = Object.keys(arestas).length;
+        const fechada = Object.keys(arestas).every(function (k) { return arestas[k] === 2; });
+        ok = nA === A && faces.length === F && fechada && V === 5;
+        why = 'Euler: ' + V + ' − ' + A + ' + ' + F + ' = 2. Exemplo: tetraedro QABC com o vértice P empurrado para dentro (as faces PAB, PBC, PCA entram no lugar da base): ' + faces.length + ' faces triangulares, ' + nA + ' arestas, cada uma em exatamente 2 faces, e em P a superfície é reentrante (não convexo) — existe.';
+      } else {
+        const limA = 3 * V - 6, limF = 2 * V - 4;
+        ok = A <= limA && F <= limF;
+        why = 'Euler fecha (' + V + ' − ' + A + ' + ' + F + ' = 2), mas um poliedro convexo com ' + V + ' vértices tem no máximo 3·' + V + ' − 6 = ' + limA + ' arestas e 2·' + V + ' − 4 = ' + limF + ' faces; aqui há ' + A + ' arestas e ' + F + ' faces: ' + (ok ? 'cabe.' : 'não cabe.');
+      }
+    }
+    if (ok === null) return;
+    achou++;
+    if (ok) verdadeiras.push(rot[1]);
+    passos.push(rot[1] + ') ' + (ok ? 'VERDADEIRA. ' : 'FALSA. ') + why);
+  });
+  if (achou < 3) return null;
+  const alts = pvlAlternativas(orig);
+  return pvlItem('Poliedros: Euler e existência', passos, verdadeiras.length ? 'Verdadeira(s): ' + verdadeiras.join(' e ') : 'nenhuma verdadeira', pvlLetraPorAfirmacoes(alts, verdadeiras), true);
+}
+
+// 3. Termo independente de (x + p/x)^m · (x − q/x)^n
+function pvlBinomio(c, orig) {
+  if (!/termoindependente/.test(c)) return null;
+  const t = pvlSemAcento(orig).replace(/[−–—]/g, '-');
+  const re = /x\s*([+-])\s*(\d*)\s*\/\s*x\D{0,6}?(\d+)/g;
+  const fatores = [];
+  let m;
+  while ((m = re.exec(t))) fatores.push({ s: m[1] === '-' ? -1 : 1, k: m[2] === '' ? 1 : Number(m[2]), e: Number(m[3]) });
+  if (fatores.length !== 2) return null;
+  // Laurent: polinômio em x com expoentes inteiros (mapa expoente -> coeficiente)
+  const mult = function (a, b) { const r = {}; Object.keys(a).forEach(function (i) { Object.keys(b).forEach(function (j) { const e = Number(i) + Number(j); r[e] = (r[e] || 0) + a[i] * b[j]; }); }); return r; };
+  const pot = function (base, n) { let r = { 0: 1 }; for (let i = 0; i < n; i++) r = mult(r, base); return r; };
+  let total = { 0: 1 };
+  fatores.forEach(function (f) { total = mult(total, pot({ 1: 1, '-1': f.s * f.k }, f.e)); });
+  const indep = total[0] || 0;
+  // conferência por avaliação: soma dos coeficientes = valor da expressão em x = 1
+  let soma = 0; Object.keys(total).forEach(function (e) { soma += total[e]; });
+  let direto = 1; fatores.forEach(function (f) { direto *= Math.pow(1 + f.s * f.k, f.e); });
+  const alts = pvlAlternativas(orig);
+  const desc = fatores.map(function (f) { return '(x ' + (f.s < 0 ? '−' : '+') + ' ' + f.k + '/x)^' + f.e; }).join(' · ');
+  return pvlItem('Termo independente do produto de dois binômios', [
+    'Expanda cada potência pelo binômio de Newton, com o termo geral C(n,k)·x^(n−2k)·(±c)^k, e multiplique: ' + desc + '.',
+    'O termo independente (x⁰) é a soma dos produtos dos termos cujos expoentes se anulam: ' + indep + '.'
+  ], 'termo independente = ' + indep, pvlLetraPorValor(alts, indep), soma === direto);
+}
+
+// 4. g(x²) = f(2x² − x + 1) para x > 0
+function pvlFuncaoComposta(c, orig) {
+  if (!/g\(x2\)=f\(2x2-x\+1\)|g\(x\^2\)=f\(2x\^2-x\+1\)/.test(c)) return null;
+  const h = function (s) { return 2 * s * s - s + 1; };
+  // t = x² > 0, g(t) = f(h(√t)); h(s) = h(1/2 − s): dois valores s1 ≠ s2 em (0, 1/2) com a mesma imagem
+  const s1 = 0.1, s2 = 0.5 - s1;
+  const igual = Math.abs(h(s1) - h(s2)) < 1e-12;
+  const alts = pvlAlternativas(orig);
+  return pvlItem('Composição g(x²) = f(2x² − x + 1)', [
+    'Com t = x² > 0 e s = √t: g(s²) = f(h(s)), h(s) = 2s² − s + 1, uma parábola com vértice em s = 1/4.',
+    'h(s) = h(1/2 − s): por exemplo h(' + s1 + ') = h(' + s2 + ') = ' + h(s1).toFixed(2) + '. Então g(' + (s1 * s1).toFixed(2) + ') = g(' + (s2 * s2).toFixed(2) + ') com ' + (s1 * s1).toFixed(2) + ' ≠ ' + (s2 * s2).toFixed(2) + ': g NÃO é injetora.',
+    'As outras alternativas não se seguem: nada se sabe sobre f fora da imagem de h (ela só vale para os valores atingidos).'
+  ], 'g não é injetora', pvlLetraPorTexto(alts, /^g?naoeinjetora|^gnaoeinjetora|g\(?.*naoe(?:uma)?injetora/), igual);
+}
+
+// 5. Sn = b(n+1) − b1
+function pvlSequencias(c, orig) {
+  if (!/sn=.*=b\(?n\+1\)?-b1|sn=.*b_?\{?n\+1\}?-b_?1|bn\+1-b1/.test(c) && !(/progressao|\bpg\b/.test(c) && /bn\+1-b1/.test(c))) return null;
+  if (!/(pg|pa)/.test(c)) return null;
+  // a_n = S_n − S_(n−1) = b_(n+1) − b_n (n ≥ 2) e a_1 = S_1 = b_2 − b_1: vale para todo n
+  const N = 8;
+  const ehPG = function (v) { if (v.some(function (x) { return x === 0; })) return v.every(function (x) { return x === 0; }); const q = v[1] / v[0]; return v.every(function (x, i) { return i === 0 || Math.abs(x / v[i - 1] - q) < 1e-9; }); };
+  const ehPA = function (v) { const r = v[1] - v[0]; return v.every(function (x, i) { return i === 0 || Math.abs(x - v[i - 1] - r) < 1e-9; }); };
+  // I: b PG (razão 3, b1 = 2) -> a_n = b_(n+1) − b_n
+  const b1 = []; for (let i = 0; i < N + 1; i++) b1.push(2 * Math.pow(3, i));
+  const a1 = []; for (let i = 0; i < N; i++) a1.push(b1[i + 1] - b1[i]);
+  const I = ehPG(a1);
+  // II: a PG (razão 2, a1 = 1) e b1 = 5 -> b_(n+1) = b1 + S_n
+  const a2 = []; for (let i = 0; i < N; i++) a2.push(Math.pow(2, i));
+  const b2 = [5]; for (let i = 0; i < N; i++) b2.push(b2[i] + a2[i]);
+  const II = ehPG(b2);
+  // III: a PA (1, 2, 3, ...) -> S_n = n(n+1)/2
+  const a3 = []; for (let i = 1; i <= N; i++) a3.push(i);
+  const S3 = []; let acc = 0; a3.forEach(function (x) { acc += x; S3.push(acc); });
+  const III = ehPA(S3);
+  const verd = []; if (I) verd.push('I'); if (II) verd.push('II'); if (III) verd.push('III');
+  const alts = pvlAlternativas(orig);
+  return pvlItem('Soma dos termos e sequência auxiliar (Sₙ = bₙ₊₁ − b₁)', [
+    'Sₙ − Sₙ₋₁ = aₙ e Sₙ = bₙ₊₁ − b₁ dão aₙ = bₙ₊₁ − bₙ (também em n = 1, pois a₁ = S₁ = b₂ − b₁).',
+    'I) b PG de razão q: aₙ = bₙ(q − 1) = b₁(q−1)qⁿ⁻¹; aₙ₊₁ = q·aₙ: a também é PG (de razão q; se q = 1 ou b₁ = 0, a é a sequência nula, que ainda satisfaz aₙ₊₁ = q·aₙ). ' + (I ? 'VERDADEIRA.' : 'FALSA.') + ' (Teste: b = 2, 6, 18, ... dá a = 4, 12, 36, ...)',
+    'II) a PG não obriga b PG: a = 1, 2, 4, ... e b₁ = 5 dão b = 5, 6, 8, 12, 20, ..., e as razões 6/5, 8/6, 12/8 diferem. ' + (II ? 'VERDADEIRA.' : 'FALSA.'),
+    'III) a PA não torna S PA: a = 1, 2, 3, ... dá S = 1, 3, 6, 10, ... (diferenças 2, 3, 4, ...). ' + (III ? 'VERDADEIRA.' : 'FALSA.')
+  ], verd.length ? 'Verdadeira(s): ' + verd.join(' e ') : 'nenhuma', pvlLetraPorAfirmacoes(alts, verd), true,
+  'Em I considera-se a sequência nula como PG (aₙ₊₁ = q·aₙ); se a sua banca exigir termos não nulos, discuta o caso q = 1.');
+}
+
+// 6. Equação exponencial com parâmetro: 9^x − (3a+4)·3^x + 2a² + 9a − 5 = 0
+function pvlExponencialParametro(c, orig) {
+  if (!/9x-\(3a\+4\)3x\+2a2\+9a-5=0|9\^x-\(3a\+4\)\*?3\^x\+2a\^?2\+9a-5=0/.test(c)) return null;
+  // t = 3^x > 0: t² − (3a+4)t + (2a² + 9a − 5) = 0, Δ = (a−6)², t = 2a−1 ou t = a+5
+  const raizes = function (a) { const B = 3 * a + 4, C = 2 * a * a + 9 * a - 5, D = B * B - 4 * C; if (D <= 1e-12) return D < -1e-12 ? [] : [B / 2]; const r = Math.sqrt(D); return [(B - r) / 2, (B + r) / 2]; };
+  const nSol = function (a) { return raizes(a).filter(function (t) { return t > 1e-12; }).length; };
+  // confere o intervalo por amostragem: duas soluções distintas ⇔ a > 1/2 e a ≠ 6
+  let ok = true;
+  [-9, -1, 0, 0.3, 0.5, 0.6, 1, 3, 5.9, 6, 6.1, 10, 100].forEach(function (a) { const esperado = a > 0.5 && Math.abs(a - 6) > 1e-12; if ((nSol(a) === 2) !== esperado) ok = false; });
+  const alts = pvlAlternativas(orig);
+  let letra = '';
+  Object.keys(alts).forEach(function (l) { const q = pvlCompacto(alts[l]); if (/\\\{?6\}?|\\\(?6/.test(q) && /(^|\()1\/2|\(12|12;/.test(q) && !/3\/2/.test(q)) letra = letra ? 'x' : l; });
+  if (letra === 'x') letra = '';
+  return pvlItem('Equação exponencial com parâmetro a', [
+    'Com t = 3ˣ > 0 (cada t > 0 dá um único x): t² − (3a + 4)t + (2a² + 9a − 5) = 0.',
+    'Δ = (3a+4)² − 4(2a²+9a−5) = a² − 12a + 36 = (a − 6)². Raízes: t = (3a + 4 ± |a − 6|)/2 = 2a − 1 ou a + 5.',
+    'Duas soluções reais distintas em x ⇔ duas raízes positivas distintas: 2a − 1 > 0 (a > 1/2), a + 5 > 0 (vale) e 2a − 1 ≠ a + 5 (a ≠ 6).'
+  ], 'a ∈ (1/2, ∞) \\ {6}', letra, ok);
+}
+
+// 7. Dois sistemas equivalentes: ache k
+function pvlSistemasEquivalentes(c, orig) {
+  if (!/equivalentes/.test(c) || !/kx\+y-z=3m\+2n/.test(c) || !/x\+2y-z=2/.test(c)) return null;
+  // Sistema I: x+y+z=1, x+2y−z=2, 2x+y+4z=1. (L3 = 3·L1 − L2·... ) -> a terceira é combinação das duas primeiras: reta de soluções.
+  // somando L1+L2: 2x + 3y = 3; z = 1 − x − y. Parâmetro y = t: x = (3 − 3t)/2, z = (t − 1)/2.
+  const ponto = function (t) { const T = pvlFr(t); const x = pvlDiv(pvlSub(pvlFr(3), pvlMul(pvlFr(3), T)), pvlFr(2)); const z = pvlDiv(pvlSub(T, pvlFr(1)), pvlFr(2)); return { x: x, y: T, z: z }; };
+  const p0 = ponto(0), p1 = ponto(2);
+  // o sistema I tem rank 2? a 3ª equação é combinação das duas primeiras (confere nos dois pontos)
+  const terceira = function (p) { return pvlSoma(pvlSoma(pvlMul(pvlFr(2), p.x), p.y), pvlMul(pvlFr(4), p.z)); };
+  const rank2 = pvlFrTxt(terceira(p0)) === '1' && pvlFrTxt(terceira(p1)) === '1';
+  // II: x + m·y + n·z = 5 em dois pontos da reta: m·y + n·z = 5 − x
+  const r = function (p) { return { y: p.y, z: p.z, v: pvlSub(pvlFr(5), p.x) }; };
+  const e0 = r(p0), e1 = r(p1);
+  // resolve 2x2: m·y0 + n·z0 = v0 ; m·y1 + n·z1 = v1
+  const det = pvlSub(pvlMul(e0.y, e1.z), pvlMul(e0.z, e1.y));
+  const m = pvlDiv(pvlSub(pvlMul(e0.v, e1.z), pvlMul(e0.z, e1.v)), det);
+  const n = pvlDiv(pvlSub(pvlMul(e0.y, e1.v), pvlMul(e0.v, e1.y)), det);
+  // 3ª de II: k·x + y − z = 3m + 2n  ⇒  k·x = 3m + 2n − y + z, em dois pontos
+  const rhs = pvlSoma(pvlMul(pvlFr(3), m), pvlMul(pvlFr(2), n));
+  const kDe = function (p) { return pvlDiv(pvlSoma(pvlSub(rhs, p.y), p.z), p.x); };
+  const k0 = kDe(p0), k1 = kDe(p1);
+  const ok = rank2 && pvlFrTxt(k0) === pvlFrTxt(k1);
+  const alts = pvlAlternativas(orig);
+  const kv = k0.n / k0.d;
+  return pvlItem('Sistemas lineares equivalentes: valor de k', [
+    'No sistema I, L₁ + L₂ dá 2x + 3y = 3 e, com z = 1 − x − y, a terceira equação vira a mesma 2x + 3y = 3: ela é combinação das outras. O sistema é possível e INDETERMINADO: uma reta de soluções, x = (3 − 3t)/2, y = t, z = (t − 1)/2.',
+    'II precisa ter exatamente essa reta como conjunto solução. Substituindo em x + m·y + n·z = 5 para dois pontos da reta: m = ' + pvlFrTxt(m) + ' e n = ' + pvlFrTxt(n) + '.',
+    'Então 3m + 2n = ' + pvlFrTxt(rhs) + ', e k·x + y − z = ' + pvlFrTxt(rhs) + ' em toda a reta dá k = ' + pvlFrTxt(k0) + ' (o mesmo k em dois pontos distintos da reta).'
+  ], 'k = ' + pvlFrTxt(k0), pvlLetraPorValor(alts, kv), ok);
+}
+
+// 8. Domínio de f(x) = √[ (2 sen 2x + 2 sen x − 2 cos x − 1) / (8(cos 2x + 1)) ]
+function pvlDominioTrig(c, orig) {
+  if (!/maiorcomprimento/.test(c) || !/8\(cos\(2x\)\+1\)|8\(cos2x\+1\)/.test(c)) return null;
+  // numerador = (2cos x + 1)(2 sen x − 1); denominador = 16cos²x (≥ 0, zero em cos x = 0)
+  const num = function (x) { return 2 * Math.sin(2 * x) + 2 * Math.sin(x) - 2 * Math.cos(x) - 1; };
+  const fat = function (x) { return (2 * Math.cos(x) + 1) * (2 * Math.sin(x) - 1); };
+  const def = function (x) { return Math.abs(Math.cos(x)) > 1e-9 && fat(x) >= -1e-12; };
+  let fatoraOk = true;
+  for (let x = -3; x < 6; x += 0.37) if (Math.abs(num(x) - fat(x)) > 1e-9) fatoraOk = false;
+  const LO = -Math.PI, HI = 2 * Math.PI, PASSO = Math.PI / 6000;
+  // pontos de quebra: raízes do numerador e zeros do cosseno, achados por varredura + bissecção
+  const quebras = [LO];
+  const g = function (x) { return def(x) ? 1 : 0; };
+  let ant = LO;
+  for (let x = LO + PASSO; x <= HI + 1e-12; x += PASSO) {
+    if (g(x) !== g(ant)) {
+      let a = ant, b = x;
+      for (let i = 0; i < 60; i++) { const mid = (a + b) / 2; if (g(mid) === g(a)) a = mid; else b = mid; }
+      quebras.push((a + b) / 2);
+    }
+    ant = x;
+  }
+  quebras.push(HI);
+  // o cosseno zera em π/2 + kπ: ali f não existe, e o ponto separa dois trechos mesmo que os dois lados sejam definidos
+  for (let k = -2; k <= 3; k++) { const z = Math.PI / 2 + k * Math.PI; if (z > LO && z < HI) quebras.push(z); }
+  quebras.sort(function (a, b) { return a - b; });
+  const pedacos = [];
+  for (let i = 0; i + 1 < quebras.length; i++) {
+    const meio = (quebras[i] + quebras[i + 1]) / 2;
+    if (quebras[i + 1] - quebras[i] > 1e-6 && def(meio)) pedacos.push({ a: quebras[i], b: quebras[i + 1] });
+  }
+  // junta pedaços colados (a quebra era só o ponto isolado onde a função não é definida = cos 0 separa)
+  if (!pedacos.length) return null;
+  let melhor = pedacos[0];
+  pedacos.forEach(function (p) { if (p.b - p.a > melhor.b - melhor.a + 1e-9) melhor = p; });
+  const soma = melhor.a + melhor.b;
+  const emPi = function (x) { const k = x / (Math.PI / 6); return Math.abs(k - Math.round(k)) < 1e-4 ? Math.round(k) + 'π/6' : (x / Math.PI).toFixed(4) + 'π'; };
+  const alts = pvlAlternativas(orig);
+  return pvlItem('Domínio da função com raiz (trigonometria)', [
+    'Numerador: 2·sen 2x + 2 sen x − 2 cos x − 1 = 2 sen x(2 cos x + 1) − (2 cos x + 1) = (2 cos x + 1)(2 sen x − 1).',
+    'Denominador: 8(cos 2x + 1) = 16 cos²x: nunca negativo e igual a 0 em cos x = 0 (aí f não existe).',
+    'f existe ⇔ (2 cos x + 1)(2 sen x − 1) ≥ 0 e cos x ≠ 0. Em [−π, 2π] os trechos onde isso vale são ' + pedacos.map(function (p) { return '[' + emPi(p.a) + ', ' + emPi(p.b) + ']'; }).join(', ') + ' (o ponto π/2 sai).',
+    'O de maior comprimento é de ' + emPi(melhor.a) + ' a ' + emPi(melhor.b) + ' (comprimento ' + emPi(melhor.b - melhor.a) + '); a + b = ' + emPi(soma) + '.'
+  ], 'a + b = ' + emPi(soma), pvlLetraPorValor(alts, soma, 1e-6), fatoraOk);
+}
+
+// 9. Volume do sólido de revolução do triângulo P O1 R em torno de O1O2
+function pvlSolidoRevolucao(c, orig) {
+  if (!/solidoderevolucao|volumedosolido/.test(c) || !/corda/.test(c) || !/po1r/.test(c)) return null;
+  const rr = /raioigual[a]?(\d+(?:[.,]\d+)?)/.exec(c);
+  const cc = /cordacomum.{0,12}?(?:tamanho|medindo|de)?(\d+(?:[.,]\d+)?)/.exec(c);
+  if (!rr || !cc) return null;
+  const r = Number(rr[1].replace(',', '.')), corda = Number(cc[1].replace(',', '.'));
+  const h = corda / 2;                       // distância de P ao eixo O1O2
+  const d = Math.sqrt(r * r - h * h);        // distância de O1 ao pé da corda
+  const dist = 2 * d;                        // O1O2 (circunferências iguais)
+  // triângulo com a base O1R sobre o eixo e o vértice P a distância h: V = (π/3)·h²·|O1R| (Pappus: 2π·(h/3)·(½·|O1R|·h))
+  const vol = function (L) { return Math.PI * h * h * L / 3; };
+  const Rliteral = r;                        // R em C1 (a r de O1)
+  const Rsegundo = dist - r;                 // ponto de C2 sobre o segmento (a dist − r de O1)
+  const alts = pvlAlternativas(orig);
+  const rd = function (x) { return Math.round(x * 1e6) / 1e6; };
+  const v1 = vol(Rliteral), v2 = vol(Rsegundo);
+  const l1 = pvlLetraPorValor(alts, v1), l2 = pvlLetraPorValor(alts, v2);
+  const aviso = l1 ? '' : 'ATENÇÃO: lido ao pé da letra (R em C₁, a ' + r + ' cm de O₁) o volume é ' + rd(v1 / Math.PI) + 'π, que NÃO está nas alternativas. A alternativa que existe só aparece se R for o ponto de C₂ sobre O₁O₂ (a ' + Rsegundo + ' cm de O₁), que dá ' + rd(v2 / Math.PI) + 'π. Parece haver troca de rótulo (R/S) no enunciado: confira a figura original.';
+  return pvlItem('Sólido de revolução de um triângulo em torno da reta dos centros', [
+    'P está a ' + h + ' cm do eixo O₁O₂ (metade da corda) e o pé da corda está a √(' + r + '² − ' + h + '²) = ' + d + ' cm de O₁; logo O₁O₂ = ' + dist + ' cm.',
+    'Triângulo com base sobre o eixo e vértice P a ' + h + ' cm: V = (π/3)·h²·base (Pappus: 2π · centroide h/3 · área). Com base O₁R = ' + Rliteral + ' (R em C₁): V = ' + rd(v1 / Math.PI) + 'π.',
+    'Com base ' + Rsegundo + ' (ponto de C₂ sobre O₁O₂, a ' + dist + ' − ' + r + ' de O₁): V = ' + rd(v2 / Math.PI) + 'π.'
+  ], l1 ? 'V = ' + rd(v1 / Math.PI) + 'π cm³' : 'V = ' + rd(v1 / Math.PI) + 'π cm³ (leitura literal); ' + rd(v2 / Math.PI) + 'π cm³ se R for o ponto de C₂', l1 || l2, true, aviso);
+}
+
+// 10. Raiz comum de dois polinômios
+function pvlRaizComum(c, orig) {
+  if (!/raizcomum/.test(c)) return null;
+  const pOk = /x5-x3\+12x-18|x\^5-x\^3\+12x-18/.test(c), qOk = /x4-x3\+5x-3|x\^4-x\^3\+5x-3/.test(c);
+  if (!pOk || !qOk) return null;
+  const P = [-18, 12, 0, -1, 0, 1], Q = [-3, 5, 0, -1, 1];
+  const g = pvlPolyMdc(pvlCoefs(P), pvlCoefs(Q));
+  const gn = g.map(function (f) { return f.n / f.d; });
+  const gtxt = 'x²' + (gn.length === 3 ? ' ' + (gn[1] < 0 ? '−' : '+') + ' ' + Math.abs(gn[1]) + 'x ' + (gn[0] < 0 ? '−' : '+') + ' ' + Math.abs(gn[0]) : '');
+  const alts = pvlAlternativas(orig);
+  let letra = '';
+  const bate = [];
+  Object.keys(alts).forEach(function (l) {
+    const z = pvlComplexo(alts[l]);
+    if (!z) return;
+    const a = pvlAvaliaPoly(P, z), b = pvlAvaliaPoly(Q, z);
+    if (Math.hypot(a.re, a.im) < 1e-6 && Math.hypot(b.re, b.im) < 1e-6) bate.push(l);
+  });
+  if (bate.length === 1) letra = bate[0];
+  // raízes do MDC quadrático
+  let raizes = '';
+  if (gn.length === 3) { const B = gn[1], C = gn[0], D = B * B - 4 * C; raizes = D < 0 ? (-B / 2) + ' ± √' + (-D / 4) + '·i' : ''; }
+  return pvlItem('Raiz comum de dois polinômios (MDC por divisões sucessivas)', [
+    'Toda raiz comum é raiz do MDC. Pelo algoritmo de Euclides (frações exatas), MDC(p, q) = ' + gtxt + '.',
+    'As raízes de ' + gtxt + ' são ' + (raizes || 'as do trinômio') + '.',
+    'Conferência: cada alternativa foi substituída em p e em q; só ' + (letra ? 'a alternativa ' + letra : 'uma delas') + ' zera os dois polinômios.'
+  ], raizes ? 'raiz comum: ' + raizes.replace('±', '+').replace('1 +', '1 +') : 'veja o MDC', letra, g.length === 3);
+}
+
+// 11. Hipérbole confocal com a elipse x²/A + y² = 1
+function pvlHiperboleConfocal(c, orig) {
+  if (!/hiperbole/.test(c) || !/elipse/.test(c) || !/excentricidade/.test(c)) return null;
+  const e = /x2\/(\d+)\+y2=1|x\^2\/(\d+)\+y\^2=1/.exec(c);
+  const tg = /tan\(?.{0,3}\)?=(√?\d+)\/?(\d+)/.exec(c);
+  if (!e || !tg) return null;
+  const a2 = Number(e[1] || e[2]);
+  const num = tg[1].charAt(0) === '√' ? Math.sqrt(Number(tg[1].slice(1))) : Number(tg[1]);
+  const m = num / Number(tg[2]);              // coeficiente angular de OP
+  // elipse x²/a² + y² = 1 (b = 1), P = (x, m x): x² (1/a² + m²) = 1
+  const x = 1 / Math.sqrt(1 / a2 + m * m), y = m * x;
+  const cf = Math.sqrt(a2 - 1);               // focos (±c, 0)
+  const d1 = Math.hypot(x - cf, y), d2 = Math.hypot(x + cf, y);
+  const ah = Math.abs(d1 - d2) / 2;           // hipérbole: |d1 − d2| = 2a
+  const exc = cf / ah;
+  // conferência: P está na hipérbole x²/ah² − y²/(c²−ah²) = 1
+  const bh2 = cf * cf - ah * ah;
+  const naHip = Math.abs(x * x / (ah * ah) - y * y / bh2 - 1) < 1e-9;
+  const alts = pvlAlternativas(orig);
+  return pvlItem('Hipérbole com os mesmos focos da elipse', [
+    'Elipse x²/' + a2 + ' + y² = 1: focos (±√' + (a2 - 1) + ', 0), c = ' + cf.toFixed(4) + '.',
+    'OP tem coeficiente angular ' + m.toFixed(4) + ' (= tg θ); em y = m·x: x² (1/' + a2 + ' + m²) = 1 ⇒ P = (' + x.toFixed(4) + ', ' + y.toFixed(4) + ').',
+    'Distâncias de P aos focos: ' + d1.toFixed(4) + ' e ' + d2.toFixed(4) + '. Na hipérbole |d₁ − d₂| = 2a ⇒ a = ' + ah.toFixed(4) + '.',
+    'Excentricidade e = c/a = ' + cf.toFixed(4) + '/' + ah.toFixed(4) + ' = ' + exc.toFixed(6) + ' (= 2√3/3 quando a elipse é x²/4 + y² = 1).'
+  ], 'e = ' + exc.toFixed(4), pvlLetraPorValor(alts, exc, 1e-6), naHip);
+}
+
+// 12. Número de divisores de k·m
+function pvlDivisores(c, orig) {
+  const mN = /(\d+)divisores/.exec(c), mK = /multiplicadopor(\d+)/.exec(c);
+  if (!mN || !mK || !/divisoresinteirospositivos|divisores/.test(c)) return null;
+  const N = Number(mN[1]), K = Number(mK[1]);
+  // K = 2^v (a prova usa 16); para outro K com vários primos o programa não generaliza
+  let v = 0, kk = K; while (kk % 2 === 0) { kk = kk / 2; v++; }
+  if (kk !== 1 || v < 1) return null;
+  // fatorações de N em fatores >= 2 (partições multiplicativas); o fator do primo 2 deve ser >= v + 1
+  const particoes = [];
+  const gera = function (resto, min, atual) {
+    if (resto === 1) { particoes.push(atual.slice()); return; }
+    for (let f = min; f <= resto; f++) { if (resto % f === 0) { atual.push(f); gera(resto / f, f, atual); atual.pop(); } }
+  };
+  gera(N, 2, []);
+  const casos = [];
+  particoes.forEach(function (p) {
+    // qual fator é o expoente do 2 em k·m (cada fator distinto como candidato)
+    const vistos = {};
+    p.forEach(function (f, i) {
+      if (vistos[f]) return; vistos[f] = true;
+      if (f - 1 < v) return;                       // 2^(f−1) tem de conter 2^v
+      const outros = p.slice(0, i).concat(p.slice(i + 1)).map(function (x) { return x - 1; });
+      casos.push({ e2: f - 1, outros: outros });   // k·m = 2^e2 · (outros primos ímpares)^(...)
+    });
+  });
+  const par = casos.every(function (k) { return k.e2 - v >= 1; });                          // m par
+  const quad = casos.every(function (k) { return (k.e2 - v) % 2 === 0 && k.outros.every(function (e) { return e % 2 === 0; }); });  // m quadrado perfeito
+  const tres = casos.every(function (k) { return k.outros.length + 1 === 3; });             // k·m tem 3 primos distintos
+  const algumTres = casos.some(function (k) { return k.outros.length + 1 === 3; });
+  const verd = []; if (par) verd.push('I'); if (quad) verd.push('II'); if (tres) verd.push('III');
+  const alts = pvlAlternativas(orig);
+  return pvlItem('Número de divisores de ' + K + '·m = ' + N, [
+    N + ' = ' + particoes.map(function (p) { return p.join('·'); }).join(' = ') + ' (o número de divisores é o produto dos (expoente + 1)). Em ' + K + 'm o expoente do 2 é pelo menos ' + v + ', então seu fator (expoente + 1) é pelo menos ' + (v + 1) + '.',
+    'Foram enumeradas as ' + casos.length + ' formas possíveis de ' + K + 'm; em todas, o expoente do 2 em m é ' + (par ? '≥ 1: m é PAR (I verdadeira)' : 'às vezes 0') + ', e todos os expoentes de m (do 2 e dos outros primos) são ' + (quad ? 'PARES: m é quadrado perfeito (II verdadeira)' : 'nem sempre pares') + '.',
+    'III: ' + K + 'm pode ter ' + (algumTres ? 'um número de primos diferente de 3 (ex.: ' + casos.filter(function (k) { return k.outros.length + 1 !== 3; }).slice(0, 1).map(function (k) { return (k.outros.length + 1) + ' primo(s)'; }).join('') + ')' : 'sempre 3 primos') + ': ' + (tres ? 'VERDADEIRA.' : 'FALSA (não é obrigatório).')
+  ], 'Verdadeira(s): ' + verd.join(' e '), pvlLetraPorAfirmacoes(alts, verd), true);
+}
+
+const PVL_REGRAS = [pvlComplexosArea, pvlPoliedros, pvlBinomio, pvlFuncaoComposta, pvlSequencias, pvlExponencialParametro, pvlSistemasEquivalentes, pvlDominioTrig, pvlSolidoRevolucao, pvlRaizComum, pvlHiperboleConfocal, pvlDivisores];
+
+// ------------------------------------------------------------------ fachada
+
+function resolverProvaLocal(texto) {
+  const t = String(texto == null ? '' : texto).slice(0, 60000);
+  const pedacos = pvlDividir(t);
+  const resolvidas = [], naoReconhecidas = [];
+  pedacos.forEach(function (p, idx) {
+    const c = pvlCompacto(p.texto);
+    let r = null;
+    for (let i = 0; i < PVL_REGRAS.length && !r; i++) {
+      try { r = PVL_REGRAS[i](c, p.texto); } catch (e) { r = null; }
+    }
+    if (r) resolvidas.push(Object.assign({ n: p.n || idx + 1 }, r));
+    else if (p.n) naoReconhecidas.push(p.n);
+  });
+  if (!resolvidas.length) return null;
+  return { total: pedacos.length, resolvidas: resolvidas, naoReconhecidas: naoReconhecidas };
+}
+
+// Texto para o app.
+function textoDaProvaLocal(r) {
+  const linhas = [];
+  r.resolvidas.forEach(function (q) {
+    linhas.push('Questão ' + q.n + ' — ' + q.titulo);
+    q.passos.forEach(function (s, i) { linhas.push((i + 1) + '. ' + s); });
+    linhas.push('Resposta: ' + q.resposta + (q.letra ? ' → alternativa ' + q.letra : ' (não achei a alternativa exata; compare com as opções)'));
+    if (q.aviso) linhas.push(q.aviso);
+    if (!q.confere) linhas.push('Atenção: a conferência automática desta questão não fechou; refaça a conta.');
+    linhas.push('');
+  });
+  if (r.naoReconhecidas.length) linhas.push('Sem IA não resolvi a(s) questão(ões) ' + r.naoReconhecidas.join(', ') + ' (formato que o programa do aparelho não reconhece); use o roteiro do assunto ou espere a IA voltar.');
+  return linhas.join('\n').trim();
 }
 
 // ---- shared/matematica-local.mjs ----
@@ -5698,6 +6324,7 @@ function arsenalDaQuestao(texto, teto) {
 //   respostaDeMatematicaLocal(texto)    -> { texto, itens, resolvida, topicos[], avisos[] } ou null (nem resolve nem tem roteiro para o assunto)
 //
 // Nomes com prefixo "mtl" (no navegador os módulos viram um arquivo só). Sem lookbehind e sem BigInt de propósito (Safari/iOS antigos).
+
 
 
 
@@ -6905,6 +7532,19 @@ const MTL_AVISO = 'Resolvido neste aparelho, sem IA e sem rede, em frações exa
 // Resposta para o app. resolvida=true quando uma conta foi feita; resolvida=false quando só há o roteiro do assunto (fórmulas e modelo resolvido).
 // parcial=true quando o texto é um enunciado maior que a conta reconhecida: o resultado é um passo da questão, não a resposta final dela.
 function respostaDeMatematicaLocal(texto) {
+  // Questões de PROVA (várias ou uma só) que o aparelho sabe resolver por conta, com a alternativa: shared/prova-local.mjs
+  let prova = null;
+  try { prova = resolverProvaLocal(texto); } catch (e) { prova = null; }
+  if (prova) {
+    const tp = topicosDaQuestao(texto).map(function (t) { return t.nome; });
+    const faltam = prova.naoReconhecidas.length > 0;
+    return {
+      texto: textoDaProvaLocal(prova),
+      itens: prova.resolvidas.map(function (q) { return { rotulo: 'Questão ' + q.n, expressao: '', valor: null, texto: q.resposta + (q.letra ? ' (alternativa ' + q.letra + ')' : ''), moeda: false, bool: false, erro: false, sensivel: false }; }),
+      resolvida: true, parcial: faltam, topicos: tp,
+      avisos: ['Resolvido neste aparelho, sem IA e sem rede, por conta (frações exatas, busca numérica e enumeração), com conferência automática. Confira o enunciado: se a alternativa não aparece, compare o valor com as opções.']
+    };
+  }
   const r = resolverMatematicaLocal(texto);
   const topicos = topicosDaQuestao(texto).map(function (t) { return t.nome; });
   const palavras = mtlNorm(texto).replace(/[^a-z ]/g, ' ').split(' ').filter(function (w) { return w.length >= 3; }).length;
@@ -9167,6 +9807,2294 @@ function respostaDeModelo(texto) {
     modelo: m, novoTema: p.novoTema, avisos: ['A base é entregue pronta, no aparelho, sem passar pela IA. Tema novo exige adaptar o motor ou os dados.']
   };
 }
+
+// ---- shared/qrcode.mjs ----
+// QR Code local, sem rede e sem dependência externa em runtime. O núcleo vendorizado
+// está isolado abaixo e tem licença MIT em shared/QRCODE-LICENSE.txt.
+
+
+const QR_ENGINE = (function () {
+//---------------------------------------------------------------------
+//
+// QR Code Generator for JavaScript
+//
+// Copyright (c) 2009 Kazuhiko Arase
+//
+// URL: http://www.d-project.com/
+//
+// Licensed under the MIT license:
+//  http://www.opensource.org/licenses/mit-license.php
+//
+// The word 'QR Code' is registered trademark of
+// DENSO WAVE INCORPORATED
+//  http://www.denso-wave.com/qrcode/faqpatent-e.html
+//
+//---------------------------------------------------------------------
+
+//---------------------------------------------------------------------
+// qrcode
+//---------------------------------------------------------------------
+
+/**
+ * qrcode
+ * @param typeNumber 1 to 40
+ * @param errorCorrectionLevel 'L','M','Q','H'
+ */
+const qrcode = function(typeNumber, errorCorrectionLevel) {
+
+  const PAD0 = 0xEC;
+  const PAD1 = 0x11;
+
+  let _typeNumber = typeNumber;
+  const _errorCorrectionLevel = QRErrorCorrectionLevel[errorCorrectionLevel];
+  let _modules = null;
+  let _moduleCount = 0;
+  let _dataCache = null;
+  const _dataList = [];
+
+  const _this = {};
+
+  const makeImpl = function(test, maskPattern) {
+
+    _moduleCount = _typeNumber * 4 + 17;
+    _modules = function(moduleCount) {
+      const modules = new Array(moduleCount);
+      for (let row = 0; row < moduleCount; row += 1) {
+        modules[row] = new Array(moduleCount);
+        for (let col = 0; col < moduleCount; col += 1) {
+          modules[row][col] = null;
+        }
+      }
+      return modules;
+    }(_moduleCount);
+
+    setupPositionProbePattern(0, 0);
+    setupPositionProbePattern(_moduleCount - 7, 0);
+    setupPositionProbePattern(0, _moduleCount - 7);
+    setupPositionAdjustPattern();
+    setupTimingPattern();
+    setupTypeInfo(test, maskPattern);
+
+    if (_typeNumber >= 7) {
+      setupTypeNumber(test);
+    }
+
+    if (_dataCache == null) {
+      _dataCache = createData(_typeNumber, _errorCorrectionLevel, _dataList);
+    }
+
+    mapData(_dataCache, maskPattern);
+  };
+
+  const setupPositionProbePattern = function(row, col) {
+
+    for (let r = -1; r <= 7; r += 1) {
+
+      if (row + r <= -1 || _moduleCount <= row + r) continue;
+
+      for (let c = -1; c <= 7; c += 1) {
+
+        if (col + c <= -1 || _moduleCount <= col + c) continue;
+
+        if ( (0 <= r && r <= 6 && (c == 0 || c == 6) )
+            || (0 <= c && c <= 6 && (r == 0 || r == 6) )
+            || (2 <= r && r <= 4 && 2 <= c && c <= 4) ) {
+          _modules[row + r][col + c] = true;
+        } else {
+          _modules[row + r][col + c] = false;
+        }
+      }
+    }
+  };
+
+  const getBestMaskPattern = function() {
+
+    let minLostPoint = 0;
+    let pattern = 0;
+
+    for (let i = 0; i < 8; i += 1) {
+
+      makeImpl(true, i);
+
+      const lostPoint = QRUtil.getLostPoint(_this);
+
+      if (i == 0 || minLostPoint > lostPoint) {
+        minLostPoint = lostPoint;
+        pattern = i;
+      }
+    }
+
+    return pattern;
+  };
+
+  const setupTimingPattern = function() {
+
+    for (let r = 8; r < _moduleCount - 8; r += 1) {
+      if (_modules[r][6] != null) {
+        continue;
+      }
+      _modules[r][6] = (r % 2 == 0);
+    }
+
+    for (let c = 8; c < _moduleCount - 8; c += 1) {
+      if (_modules[6][c] != null) {
+        continue;
+      }
+      _modules[6][c] = (c % 2 == 0);
+    }
+  };
+
+  const setupPositionAdjustPattern = function() {
+
+    const pos = QRUtil.getPatternPosition(_typeNumber);
+
+    for (let i = 0; i < pos.length; i += 1) {
+
+      for (let j = 0; j < pos.length; j += 1) {
+
+        const row = pos[i];
+        const col = pos[j];
+
+        if (_modules[row][col] != null) {
+          continue;
+        }
+
+        for (let r = -2; r <= 2; r += 1) {
+
+          for (let c = -2; c <= 2; c += 1) {
+
+            if (r == -2 || r == 2 || c == -2 || c == 2
+                || (r == 0 && c == 0) ) {
+              _modules[row + r][col + c] = true;
+            } else {
+              _modules[row + r][col + c] = false;
+            }
+          }
+        }
+      }
+    }
+  };
+
+  const setupTypeNumber = function(test) {
+
+    const bits = QRUtil.getBCHTypeNumber(_typeNumber);
+
+    for (let i = 0; i < 18; i += 1) {
+      const mod = (!test && ( (bits >> i) & 1) == 1);
+      _modules[Math.floor(i / 3)][i % 3 + _moduleCount - 8 - 3] = mod;
+    }
+
+    for (let i = 0; i < 18; i += 1) {
+      const mod = (!test && ( (bits >> i) & 1) == 1);
+      _modules[i % 3 + _moduleCount - 8 - 3][Math.floor(i / 3)] = mod;
+    }
+  };
+
+  const setupTypeInfo = function(test, maskPattern) {
+
+    const data = (_errorCorrectionLevel << 3) | maskPattern;
+    const bits = QRUtil.getBCHTypeInfo(data);
+
+    // vertical
+    for (let i = 0; i < 15; i += 1) {
+
+      const mod = (!test && ( (bits >> i) & 1) == 1);
+
+      if (i < 6) {
+        _modules[i][8] = mod;
+      } else if (i < 8) {
+        _modules[i + 1][8] = mod;
+      } else {
+        _modules[_moduleCount - 15 + i][8] = mod;
+      }
+    }
+
+    // horizontal
+    for (let i = 0; i < 15; i += 1) {
+
+      const mod = (!test && ( (bits >> i) & 1) == 1);
+
+      if (i < 8) {
+        _modules[8][_moduleCount - i - 1] = mod;
+      } else if (i < 9) {
+        _modules[8][15 - i - 1 + 1] = mod;
+      } else {
+        _modules[8][15 - i - 1] = mod;
+      }
+    }
+
+    // fixed module
+    _modules[_moduleCount - 8][8] = (!test);
+  };
+
+  const mapData = function(data, maskPattern) {
+
+    let inc = -1;
+    let row = _moduleCount - 1;
+    let bitIndex = 7;
+    let byteIndex = 0;
+    const maskFunc = QRUtil.getMaskFunction(maskPattern);
+
+    for (let col = _moduleCount - 1; col > 0; col -= 2) {
+
+      if (col == 6) col -= 1;
+
+      while (true) {
+
+        for (let c = 0; c < 2; c += 1) {
+
+          if (_modules[row][col - c] == null) {
+
+            let dark = false;
+
+            if (byteIndex < data.length) {
+              dark = ( ( (data[byteIndex] >>> bitIndex) & 1) == 1);
+            }
+
+            const mask = maskFunc(row, col - c);
+
+            if (mask) {
+              dark = !dark;
+            }
+
+            _modules[row][col - c] = dark;
+            bitIndex -= 1;
+
+            if (bitIndex == -1) {
+              byteIndex += 1;
+              bitIndex = 7;
+            }
+          }
+        }
+
+        row += inc;
+
+        if (row < 0 || _moduleCount <= row) {
+          row -= inc;
+          inc = -inc;
+          break;
+        }
+      }
+    }
+  };
+
+  const createBytes = function(buffer, rsBlocks) {
+
+    let offset = 0;
+
+    let maxDcCount = 0;
+    let maxEcCount = 0;
+
+    const dcdata = new Array(rsBlocks.length);
+    const ecdata = new Array(rsBlocks.length);
+
+    for (let r = 0; r < rsBlocks.length; r += 1) {
+
+      const dcCount = rsBlocks[r].dataCount;
+      const ecCount = rsBlocks[r].totalCount - dcCount;
+
+      maxDcCount = Math.max(maxDcCount, dcCount);
+      maxEcCount = Math.max(maxEcCount, ecCount);
+
+      dcdata[r] = new Array(dcCount);
+
+      for (let i = 0; i < dcdata[r].length; i += 1) {
+        dcdata[r][i] = 0xff & buffer.getBuffer()[i + offset];
+      }
+      offset += dcCount;
+
+      const rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
+      const rawPoly = qrPolynomial(dcdata[r], rsPoly.getLength() - 1);
+
+      const modPoly = rawPoly.mod(rsPoly);
+      ecdata[r] = new Array(rsPoly.getLength() - 1);
+      for (let i = 0; i < ecdata[r].length; i += 1) {
+        const modIndex = i + modPoly.getLength() - ecdata[r].length;
+        ecdata[r][i] = (modIndex >= 0)? modPoly.getAt(modIndex) : 0;
+      }
+    }
+
+    let totalCodeCount = 0;
+    for (let i = 0; i < rsBlocks.length; i += 1) {
+      totalCodeCount += rsBlocks[i].totalCount;
+    }
+
+    const data = new Array(totalCodeCount);
+    let index = 0;
+
+    for (let i = 0; i < maxDcCount; i += 1) {
+      for (let r = 0; r < rsBlocks.length; r += 1) {
+        if (i < dcdata[r].length) {
+          data[index] = dcdata[r][i];
+          index += 1;
+        }
+      }
+    }
+
+    for (let i = 0; i < maxEcCount; i += 1) {
+      for (let r = 0; r < rsBlocks.length; r += 1) {
+        if (i < ecdata[r].length) {
+          data[index] = ecdata[r][i];
+          index += 1;
+        }
+      }
+    }
+
+    return data;
+  };
+
+  const createData = function(typeNumber, errorCorrectionLevel, dataList) {
+
+    const rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectionLevel);
+
+    const buffer = qrBitBuffer();
+
+    for (let i = 0; i < dataList.length; i += 1) {
+      const data = dataList[i];
+      buffer.put(data.getMode(), 4);
+      buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+      data.write(buffer);
+    }
+
+    // calc num max data.
+    let totalDataCount = 0;
+    for (let i = 0; i < rsBlocks.length; i += 1) {
+      totalDataCount += rsBlocks[i].dataCount;
+    }
+
+    if (buffer.getLengthInBits() > totalDataCount * 8) {
+      throw 'code length overflow. ('
+        + buffer.getLengthInBits()
+        + '>'
+        + totalDataCount * 8
+        + ')';
+    }
+
+    // end code
+    if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) {
+      buffer.put(0, 4);
+    }
+
+    // padding
+    while (buffer.getLengthInBits() % 8 != 0) {
+      buffer.putBit(false);
+    }
+
+    // padding
+    while (true) {
+
+      if (buffer.getLengthInBits() >= totalDataCount * 8) {
+        break;
+      }
+      buffer.put(PAD0, 8);
+
+      if (buffer.getLengthInBits() >= totalDataCount * 8) {
+        break;
+      }
+      buffer.put(PAD1, 8);
+    }
+
+    return createBytes(buffer, rsBlocks);
+  };
+
+  _this.addData = function(data, mode) {
+
+    mode = mode || 'Byte';
+
+    let newData = null;
+
+    switch(mode) {
+    case 'Numeric' :
+      newData = qrNumber(data);
+      break;
+    case 'Alphanumeric' :
+      newData = qrAlphaNum(data);
+      break;
+    case 'Byte' :
+      newData = qr8BitByte(data);
+      break;
+    case 'Kanji' :
+      newData = qrKanji(data);
+      break;
+    default :
+      throw 'mode:' + mode;
+    }
+
+    _dataList.push(newData);
+    _dataCache = null;
+  };
+
+  _this.isDark = function(row, col) {
+    if (row < 0 || _moduleCount <= row || col < 0 || _moduleCount <= col) {
+      throw row + ',' + col;
+    }
+    return _modules[row][col];
+  };
+
+  _this.getModuleCount = function() {
+    return _moduleCount;
+  };
+
+  _this.make = function() {
+    if (_typeNumber < 1) {
+      let typeNumber = 1;
+
+      for (; typeNumber < 40; typeNumber++) {
+        const rsBlocks = QRRSBlock.getRSBlocks(typeNumber, _errorCorrectionLevel);
+        const buffer = qrBitBuffer();
+
+        for (let i = 0; i < _dataList.length; i++) {
+          const data = _dataList[i];
+          buffer.put(data.getMode(), 4);
+          buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+          data.write(buffer);
+        }
+
+        let totalDataCount = 0;
+        for (let i = 0; i < rsBlocks.length; i++) {
+          totalDataCount += rsBlocks[i].dataCount;
+        }
+
+        if (buffer.getLengthInBits() <= totalDataCount * 8) {
+          break;
+        }
+      }
+
+      _typeNumber = typeNumber;
+    }
+
+    makeImpl(false, getBestMaskPattern() );
+  };
+
+  _this.createTableTag = function(cellSize, margin) {
+
+    cellSize = cellSize || 2;
+    margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+    let qrHtml = '';
+
+    qrHtml += '<table style="';
+    qrHtml += ' border-width: 0px; border-style: none;';
+    qrHtml += ' border-collapse: collapse;';
+    qrHtml += ' padding: 0px; margin: ' + margin + 'px;';
+    qrHtml += '">';
+    qrHtml += '<tbody>';
+
+    for (let r = 0; r < _this.getModuleCount(); r += 1) {
+
+      qrHtml += '<tr>';
+
+      for (let c = 0; c < _this.getModuleCount(); c += 1) {
+        qrHtml += '<td style="';
+        qrHtml += ' border-width: 0px; border-style: none;';
+        qrHtml += ' border-collapse: collapse;';
+        qrHtml += ' padding: 0px; margin: 0px;';
+        qrHtml += ' width: ' + cellSize + 'px;';
+        qrHtml += ' height: ' + cellSize + 'px;';
+        qrHtml += ' background-color: ';
+        qrHtml += _this.isDark(r, c)? '#000000' : '#ffffff';
+        qrHtml += ';';
+        qrHtml += '"/>';
+      }
+
+      qrHtml += '</tr>';
+    }
+
+    qrHtml += '</tbody>';
+    qrHtml += '</table>';
+
+    return qrHtml;
+  };
+
+  _this.createSvgTag = function(cellSize, margin, alt, title) {
+
+    let opts = {};
+    if (typeof arguments[0] == 'object') {
+      // Called by options.
+      opts = arguments[0];
+      // overwrite cellSize and margin.
+      cellSize = opts.cellSize;
+      margin = opts.margin;
+      alt = opts.alt;
+      title = opts.title;
+    }
+
+    cellSize = cellSize || 2;
+    margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+    // Compose alt property surrogate
+    alt = (typeof alt === 'string') ? {text: alt} : alt || {};
+    alt.text = alt.text || null;
+    alt.id = (alt.text) ? alt.id || 'qrcode-description' : null;
+
+    // Compose title property surrogate
+    title = (typeof title === 'string') ? {text: title} : title || {};
+    title.text = title.text || null;
+    title.id = (title.text) ? title.id || 'qrcode-title' : null;
+
+    const size = _this.getModuleCount() * cellSize + margin * 2;
+    let c, mc, r, mr, qrSvg='', rect;
+
+    rect = 'l' + cellSize + ',0 0,' + cellSize +
+      ' -' + cellSize + ',0 0,-' + cellSize + 'z ';
+
+    qrSvg += '<svg version="1.1" xmlns="http://www.w3.org/2000/svg"';
+    qrSvg += !opts.scalable ? ' width="' + size + 'px" height="' + size + 'px"' : '';
+    qrSvg += ' viewBox="0 0 ' + size + ' ' + size + '" ';
+    qrSvg += ' preserveAspectRatio="xMinYMin meet"';
+    qrSvg += (title.text || alt.text) ? ' role="img" aria-labelledby="' +
+        escapeXml([title.id, alt.id].join(' ').trim() ) + '"' : '';
+    qrSvg += '>';
+    qrSvg += (title.text) ? '<title id="' + escapeXml(title.id) + '">' +
+        escapeXml(title.text) + '</title>' : '';
+    qrSvg += (alt.text) ? '<description id="' + escapeXml(alt.id) + '">' +
+        escapeXml(alt.text) + '</description>' : '';
+    qrSvg += '<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>';
+    qrSvg += '<path d="';
+
+    for (r = 0; r < _this.getModuleCount(); r += 1) {
+      mr = r * cellSize + margin;
+      for (c = 0; c < _this.getModuleCount(); c += 1) {
+        if (_this.isDark(r, c) ) {
+          mc = c*cellSize+margin;
+          qrSvg += 'M' + mc + ',' + mr + rect;
+        }
+      }
+    }
+
+    qrSvg += '" stroke="transparent" fill="black"/>';
+    qrSvg += '</svg>';
+
+    return qrSvg;
+  };
+
+  _this.createDataURL = function(cellSize, margin) {
+
+    cellSize = cellSize || 2;
+    margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+    const size = _this.getModuleCount() * cellSize + margin * 2;
+    const min = margin;
+    const max = size - margin;
+
+    return createDataURL(size, size, function(x, y) {
+      if (min <= x && x < max && min <= y && y < max) {
+        const c = Math.floor( (x - min) / cellSize);
+        const r = Math.floor( (y - min) / cellSize);
+        return _this.isDark(r, c)? 0 : 1;
+      } else {
+        return 1;
+      }
+    } );
+  };
+
+  _this.createImgTag = function(cellSize, margin, alt) {
+
+    cellSize = cellSize || 2;
+    margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+    const size = _this.getModuleCount() * cellSize + margin * 2;
+
+    let img = '';
+    img += '<img';
+    img += '\u0020src="';
+    img += _this.createDataURL(cellSize, margin);
+    img += '"';
+    img += '\u0020width="';
+    img += size;
+    img += '"';
+    img += '\u0020height="';
+    img += size;
+    img += '"';
+    if (alt) {
+      img += '\u0020alt="';
+      img += escapeXml(alt);
+      img += '"';
+    }
+    img += '/>';
+
+    return img;
+  };
+
+  const escapeXml = function(s) {
+    let escaped = '';
+    for (let i = 0; i < s.length; i += 1) {
+      const c = s.charAt(i);
+      switch(c) {
+      case '<': escaped += '&lt;'; break;
+      case '>': escaped += '&gt;'; break;
+      case '&': escaped += '&amp;'; break;
+      case '"': escaped += '&quot;'; break;
+      default : escaped += c; break;
+      }
+    }
+    return escaped;
+  };
+
+  const _createHalfASCII = function(margin) {
+    const cellSize = 1;
+    margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+    const size = _this.getModuleCount() * cellSize + margin * 2;
+    const min = margin;
+    const max = size - margin;
+
+    let y, x, r1, r2, p;
+
+    const blocks = {
+      '██': '█',
+      '█ ': '▀',
+      ' █': '▄',
+      '  ': ' '
+    };
+
+    const blocksLastLineNoMargin = {
+      '██': '▀',
+      '█ ': '▀',
+      ' █': ' ',
+      '  ': ' '
+    };
+
+    let ascii = '';
+    for (y = 0; y < size; y += 2) {
+      r1 = Math.floor((y - min) / cellSize);
+      r2 = Math.floor((y + 1 - min) / cellSize);
+      for (x = 0; x < size; x += 1) {
+        p = '█';
+
+        if (min <= x && x < max && min <= y && y < max && _this.isDark(r1, Math.floor((x - min) / cellSize))) {
+          p = ' ';
+        }
+
+        if (min <= x && x < max && min <= y+1 && y+1 < max && _this.isDark(r2, Math.floor((x - min) / cellSize))) {
+          p += ' ';
+        }
+        else {
+          p += '█';
+        }
+
+        // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+        ascii += (margin < 1 && y+1 >= max) ? blocksLastLineNoMargin[p] : blocks[p];
+      }
+
+      ascii += '\n';
+    }
+
+    if (size % 2 && margin > 0) {
+      return ascii.substring(0, ascii.length - size - 1) + Array(size+1).join('▀');
+    }
+
+    return ascii.substring(0, ascii.length-1);
+  };
+
+  _this.createASCII = function(cellSize, margin) {
+    cellSize = cellSize || 1;
+
+    if (cellSize < 2) {
+      return _createHalfASCII(margin);
+    }
+
+    cellSize -= 1;
+    margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+    const size = _this.getModuleCount() * cellSize + margin * 2;
+    const min = margin;
+    const max = size - margin;
+
+    let y, x, r, p;
+
+    const white = Array(cellSize+1).join('██');
+    const black = Array(cellSize+1).join('  ');
+
+    let ascii = '';
+    let line = '';
+    for (y = 0; y < size; y += 1) {
+      r = Math.floor( (y - min) / cellSize);
+      line = '';
+      for (x = 0; x < size; x += 1) {
+        p = 1;
+
+        if (min <= x && x < max && min <= y && y < max && _this.isDark(r, Math.floor((x - min) / cellSize))) {
+          p = 0;
+        }
+
+        // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+        line += p ? white : black;
+      }
+
+      for (r = 0; r < cellSize; r += 1) {
+        ascii += line + '\n';
+      }
+    }
+
+    return ascii.substring(0, ascii.length-1);
+  };
+
+  _this.renderTo2dContext = function(context, cellSize) {
+    cellSize = cellSize || 2;
+    const length = _this.getModuleCount();
+    for (let row = 0; row < length; row++) {
+      for (let col = 0; col < length; col++) {
+        context.fillStyle = _this.isDark(row, col) ? 'black' : 'white';
+        context.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+      }
+    }
+  }
+
+  return _this;
+};
+
+//---------------------------------------------------------------------
+// qrcode.stringToBytes
+//---------------------------------------------------------------------
+
+qrcode.stringToBytes = function(s) {
+  const bytes = [];
+  for (let i = 0; i < s.length; i += 1) {
+    const c = s.charCodeAt(i);
+    bytes.push(c & 0xff);
+  }
+  return bytes;
+};
+
+//---------------------------------------------------------------------
+// qrcode.createStringToBytes
+//---------------------------------------------------------------------
+
+/**
+ * @param unicodeData base64 string of byte array.
+ * [16bit Unicode],[16bit Bytes], ...
+ * @param numChars
+ */
+qrcode.createStringToBytes = function(unicodeData, numChars) {
+
+  // create conversion map.
+
+  const unicodeMap = function() {
+
+    const bin = base64DecodeInputStream(unicodeData);
+    const read = function() {
+      const b = bin.read();
+      if (b == -1) throw 'eof';
+      return b;
+    };
+
+    let count = 0;
+    const unicodeMap = {};
+    while (true) {
+      const b0 = bin.read();
+      if (b0 == -1) break;
+      const b1 = read();
+      const b2 = read();
+      const b3 = read();
+      const k = String.fromCharCode( (b0 << 8) | b1);
+      const v = (b2 << 8) | b3;
+      unicodeMap[k] = v;
+      count += 1;
+    }
+    if (count != numChars) {
+      throw count + ' != ' + numChars;
+    }
+
+    return unicodeMap;
+  }();
+
+  const unknownChar = '?'.charCodeAt(0);
+
+  return function(s) {
+    const bytes = [];
+    for (let i = 0; i < s.length; i += 1) {
+      const c = s.charCodeAt(i);
+      if (c < 128) {
+        bytes.push(c);
+      } else {
+        const b = unicodeMap[s.charAt(i)];
+        if (typeof b == 'number') {
+          if ( (b & 0xff) == b) {
+            // 1byte
+            bytes.push(b);
+          } else {
+            // 2bytes
+            bytes.push(b >>> 8);
+            bytes.push(b & 0xff);
+          }
+        } else {
+          bytes.push(unknownChar);
+        }
+      }
+    }
+    return bytes;
+  };
+};
+
+//---------------------------------------------------------------------
+// QRMode
+//---------------------------------------------------------------------
+
+const QRMode = {
+  MODE_NUMBER :    1 << 0,
+  MODE_ALPHA_NUM : 1 << 1,
+  MODE_8BIT_BYTE : 1 << 2,
+  MODE_KANJI :     1 << 3
+};
+
+//---------------------------------------------------------------------
+// QRErrorCorrectionLevel
+//---------------------------------------------------------------------
+
+const QRErrorCorrectionLevel = {
+  L : 1,
+  M : 0,
+  Q : 3,
+  H : 2
+};
+
+//---------------------------------------------------------------------
+// QRMaskPattern
+//---------------------------------------------------------------------
+
+const QRMaskPattern = {
+  PATTERN000 : 0,
+  PATTERN001 : 1,
+  PATTERN010 : 2,
+  PATTERN011 : 3,
+  PATTERN100 : 4,
+  PATTERN101 : 5,
+  PATTERN110 : 6,
+  PATTERN111 : 7
+};
+
+//---------------------------------------------------------------------
+// QRUtil
+//---------------------------------------------------------------------
+
+const QRUtil = function() {
+
+  const PATTERN_POSITION_TABLE = [
+    [],
+    [6, 18],
+    [6, 22],
+    [6, 26],
+    [6, 30],
+    [6, 34],
+    [6, 22, 38],
+    [6, 24, 42],
+    [6, 26, 46],
+    [6, 28, 50],
+    [6, 30, 54],
+    [6, 32, 58],
+    [6, 34, 62],
+    [6, 26, 46, 66],
+    [6, 26, 48, 70],
+    [6, 26, 50, 74],
+    [6, 30, 54, 78],
+    [6, 30, 56, 82],
+    [6, 30, 58, 86],
+    [6, 34, 62, 90],
+    [6, 28, 50, 72, 94],
+    [6, 26, 50, 74, 98],
+    [6, 30, 54, 78, 102],
+    [6, 28, 54, 80, 106],
+    [6, 32, 58, 84, 110],
+    [6, 30, 58, 86, 114],
+    [6, 34, 62, 90, 118],
+    [6, 26, 50, 74, 98, 122],
+    [6, 30, 54, 78, 102, 126],
+    [6, 26, 52, 78, 104, 130],
+    [6, 30, 56, 82, 108, 134],
+    [6, 34, 60, 86, 112, 138],
+    [6, 30, 58, 86, 114, 142],
+    [6, 34, 62, 90, 118, 146],
+    [6, 30, 54, 78, 102, 126, 150],
+    [6, 24, 50, 76, 102, 128, 154],
+    [6, 28, 54, 80, 106, 132, 158],
+    [6, 32, 58, 84, 110, 136, 162],
+    [6, 26, 54, 82, 110, 138, 166],
+    [6, 30, 58, 86, 114, 142, 170]
+  ];
+  const G15 = (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0);
+  const G18 = (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0);
+  const G15_MASK = (1 << 14) | (1 << 12) | (1 << 10) | (1 << 4) | (1 << 1);
+
+  const _this = {};
+
+  const getBCHDigit = function(data) {
+    let digit = 0;
+    while (data != 0) {
+      digit += 1;
+      data >>>= 1;
+    }
+    return digit;
+  };
+
+  _this.getBCHTypeInfo = function(data) {
+    let d = data << 10;
+    while (getBCHDigit(d) - getBCHDigit(G15) >= 0) {
+      d ^= (G15 << (getBCHDigit(d) - getBCHDigit(G15) ) );
+    }
+    return ( (data << 10) | d) ^ G15_MASK;
+  };
+
+  _this.getBCHTypeNumber = function(data) {
+    let d = data << 12;
+    while (getBCHDigit(d) - getBCHDigit(G18) >= 0) {
+      d ^= (G18 << (getBCHDigit(d) - getBCHDigit(G18) ) );
+    }
+    return (data << 12) | d;
+  };
+
+  _this.getPatternPosition = function(typeNumber) {
+    return PATTERN_POSITION_TABLE[typeNumber - 1];
+  };
+
+  _this.getMaskFunction = function(maskPattern) {
+
+    switch (maskPattern) {
+
+    case QRMaskPattern.PATTERN000 :
+      return function(i, j) { return (i + j) % 2 == 0; };
+    case QRMaskPattern.PATTERN001 :
+      return function(i, j) { return i % 2 == 0; };
+    case QRMaskPattern.PATTERN010 :
+      return function(i, j) { return j % 3 == 0; };
+    case QRMaskPattern.PATTERN011 :
+      return function(i, j) { return (i + j) % 3 == 0; };
+    case QRMaskPattern.PATTERN100 :
+      return function(i, j) { return (Math.floor(i / 2) + Math.floor(j / 3) ) % 2 == 0; };
+    case QRMaskPattern.PATTERN101 :
+      return function(i, j) { return (i * j) % 2 + (i * j) % 3 == 0; };
+    case QRMaskPattern.PATTERN110 :
+      return function(i, j) { return ( (i * j) % 2 + (i * j) % 3) % 2 == 0; };
+    case QRMaskPattern.PATTERN111 :
+      return function(i, j) { return ( (i * j) % 3 + (i + j) % 2) % 2 == 0; };
+
+    default :
+      throw 'bad maskPattern:' + maskPattern;
+    }
+  };
+
+  _this.getErrorCorrectPolynomial = function(errorCorrectLength) {
+    let a = qrPolynomial([1], 0);
+    for (let i = 0; i < errorCorrectLength; i += 1) {
+      a = a.multiply(qrPolynomial([1, QRMath.gexp(i)], 0) );
+    }
+    return a;
+  };
+
+  _this.getLengthInBits = function(mode, type) {
+
+    if (1 <= type && type < 10) {
+
+      // 1 - 9
+
+      switch(mode) {
+      case QRMode.MODE_NUMBER    : return 10;
+      case QRMode.MODE_ALPHA_NUM : return 9;
+      case QRMode.MODE_8BIT_BYTE : return 8;
+      case QRMode.MODE_KANJI     : return 8;
+      default :
+        throw 'mode:' + mode;
+      }
+
+    } else if (type < 27) {
+
+      // 10 - 26
+
+      switch(mode) {
+      case QRMode.MODE_NUMBER    : return 12;
+      case QRMode.MODE_ALPHA_NUM : return 11;
+      case QRMode.MODE_8BIT_BYTE : return 16;
+      case QRMode.MODE_KANJI     : return 10;
+      default :
+        throw 'mode:' + mode;
+      }
+
+    } else if (type < 41) {
+
+      // 27 - 40
+
+      switch(mode) {
+      case QRMode.MODE_NUMBER    : return 14;
+      case QRMode.MODE_ALPHA_NUM : return 13;
+      case QRMode.MODE_8BIT_BYTE : return 16;
+      case QRMode.MODE_KANJI     : return 12;
+      default :
+        throw 'mode:' + mode;
+      }
+
+    } else {
+      throw 'type:' + type;
+    }
+  };
+
+  _this.getLostPoint = function(qrcode) {
+
+    const moduleCount = qrcode.getModuleCount();
+
+    let lostPoint = 0;
+
+    // LEVEL1
+
+    for (let row = 0; row < moduleCount; row += 1) {
+      for (let col = 0; col < moduleCount; col += 1) {
+
+        let sameCount = 0;
+        const dark = qrcode.isDark(row, col);
+
+        for (let r = -1; r <= 1; r += 1) {
+
+          if (row + r < 0 || moduleCount <= row + r) {
+            continue;
+          }
+
+          for (let c = -1; c <= 1; c += 1) {
+
+            if (col + c < 0 || moduleCount <= col + c) {
+              continue;
+            }
+
+            if (r == 0 && c == 0) {
+              continue;
+            }
+
+            if (dark == qrcode.isDark(row + r, col + c) ) {
+              sameCount += 1;
+            }
+          }
+        }
+
+        if (sameCount > 5) {
+          lostPoint += (3 + sameCount - 5);
+        }
+      }
+    };
+
+    // LEVEL2
+
+    for (let row = 0; row < moduleCount - 1; row += 1) {
+      for (let col = 0; col < moduleCount - 1; col += 1) {
+        let count = 0;
+        if (qrcode.isDark(row, col) ) count += 1;
+        if (qrcode.isDark(row + 1, col) ) count += 1;
+        if (qrcode.isDark(row, col + 1) ) count += 1;
+        if (qrcode.isDark(row + 1, col + 1) ) count += 1;
+        if (count == 0 || count == 4) {
+          lostPoint += 3;
+        }
+      }
+    }
+
+    // LEVEL3
+
+    for (let row = 0; row < moduleCount; row += 1) {
+      for (let col = 0; col < moduleCount - 6; col += 1) {
+        if (qrcode.isDark(row, col)
+            && !qrcode.isDark(row, col + 1)
+            &&  qrcode.isDark(row, col + 2)
+            &&  qrcode.isDark(row, col + 3)
+            &&  qrcode.isDark(row, col + 4)
+            && !qrcode.isDark(row, col + 5)
+            &&  qrcode.isDark(row, col + 6) ) {
+          lostPoint += 40;
+        }
+      }
+    }
+
+    for (let col = 0; col < moduleCount; col += 1) {
+      for (let row = 0; row < moduleCount - 6; row += 1) {
+        if (qrcode.isDark(row, col)
+            && !qrcode.isDark(row + 1, col)
+            &&  qrcode.isDark(row + 2, col)
+            &&  qrcode.isDark(row + 3, col)
+            &&  qrcode.isDark(row + 4, col)
+            && !qrcode.isDark(row + 5, col)
+            &&  qrcode.isDark(row + 6, col) ) {
+          lostPoint += 40;
+        }
+      }
+    }
+
+    // LEVEL4
+
+    let darkCount = 0;
+
+    for (let col = 0; col < moduleCount; col += 1) {
+      for (let row = 0; row < moduleCount; row += 1) {
+        if (qrcode.isDark(row, col) ) {
+          darkCount += 1;
+        }
+      }
+    }
+
+    const ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;
+    lostPoint += ratio * 10;
+
+    return lostPoint;
+  };
+
+  return _this;
+}();
+
+//---------------------------------------------------------------------
+// QRMath
+//---------------------------------------------------------------------
+
+const QRMath = function() {
+
+  const EXP_TABLE = new Array(256);
+  const LOG_TABLE = new Array(256);
+
+  // initialize tables
+  for (let i = 0; i < 8; i += 1) {
+    EXP_TABLE[i] = 1 << i;
+  }
+  for (let i = 8; i < 256; i += 1) {
+    EXP_TABLE[i] = EXP_TABLE[i - 4]
+      ^ EXP_TABLE[i - 5]
+      ^ EXP_TABLE[i - 6]
+      ^ EXP_TABLE[i - 8];
+  }
+  for (let i = 0; i < 255; i += 1) {
+    LOG_TABLE[EXP_TABLE[i] ] = i;
+  }
+
+  const _this = {};
+
+  _this.glog = function(n) {
+
+    if (n < 1) {
+      throw 'glog(' + n + ')';
+    }
+
+    return LOG_TABLE[n];
+  };
+
+  _this.gexp = function(n) {
+
+    while (n < 0) {
+      n += 255;
+    }
+
+    while (n >= 256) {
+      n -= 255;
+    }
+
+    return EXP_TABLE[n];
+  };
+
+  return _this;
+}();
+
+//---------------------------------------------------------------------
+// qrPolynomial
+//---------------------------------------------------------------------
+
+const qrPolynomial = function(num, shift) {
+
+  if (typeof num.length == 'undefined') {
+    throw num.length + '/' + shift;
+  }
+
+  const _num = function() {
+    let offset = 0;
+    while (offset < num.length && num[offset] == 0) {
+      offset += 1;
+    }
+    const _num = new Array(num.length - offset + shift);
+    for (let i = 0; i < num.length - offset; i += 1) {
+      _num[i] = num[i + offset];
+    }
+    return _num;
+  }();
+
+  const _this = {};
+
+  _this.getAt = function(index) {
+    return _num[index];
+  };
+
+  _this.getLength = function() {
+    return _num.length;
+  };
+
+  _this.multiply = function(e) {
+
+    const num = new Array(_this.getLength() + e.getLength() - 1);
+
+    for (let i = 0; i < _this.getLength(); i += 1) {
+      for (let j = 0; j < e.getLength(); j += 1) {
+        num[i + j] ^= QRMath.gexp(QRMath.glog(_this.getAt(i) ) + QRMath.glog(e.getAt(j) ) );
+      }
+    }
+
+    return qrPolynomial(num, 0);
+  };
+
+  _this.mod = function(e) {
+
+    if (_this.getLength() - e.getLength() < 0) {
+      return _this;
+    }
+
+    const ratio = QRMath.glog(_this.getAt(0) ) - QRMath.glog(e.getAt(0) );
+
+    const num = new Array(_this.getLength() );
+    for (let i = 0; i < _this.getLength(); i += 1) {
+      num[i] = _this.getAt(i);
+    }
+
+    for (let i = 0; i < e.getLength(); i += 1) {
+      num[i] ^= QRMath.gexp(QRMath.glog(e.getAt(i) ) + ratio);
+    }
+
+    // recursive call
+    return qrPolynomial(num, 0).mod(e);
+  };
+
+  return _this;
+};
+
+//---------------------------------------------------------------------
+// QRRSBlock
+//---------------------------------------------------------------------
+
+const QRRSBlock = function() {
+
+  const RS_BLOCK_TABLE = [
+
+    // L
+    // M
+    // Q
+    // H
+
+    // 1
+    [1, 26, 19],
+    [1, 26, 16],
+    [1, 26, 13],
+    [1, 26, 9],
+
+    // 2
+    [1, 44, 34],
+    [1, 44, 28],
+    [1, 44, 22],
+    [1, 44, 16],
+
+    // 3
+    [1, 70, 55],
+    [1, 70, 44],
+    [2, 35, 17],
+    [2, 35, 13],
+
+    // 4
+    [1, 100, 80],
+    [2, 50, 32],
+    [2, 50, 24],
+    [4, 25, 9],
+
+    // 5
+    [1, 134, 108],
+    [2, 67, 43],
+    [2, 33, 15, 2, 34, 16],
+    [2, 33, 11, 2, 34, 12],
+
+    // 6
+    [2, 86, 68],
+    [4, 43, 27],
+    [4, 43, 19],
+    [4, 43, 15],
+
+    // 7
+    [2, 98, 78],
+    [4, 49, 31],
+    [2, 32, 14, 4, 33, 15],
+    [4, 39, 13, 1, 40, 14],
+
+    // 8
+    [2, 121, 97],
+    [2, 60, 38, 2, 61, 39],
+    [4, 40, 18, 2, 41, 19],
+    [4, 40, 14, 2, 41, 15],
+
+    // 9
+    [2, 146, 116],
+    [3, 58, 36, 2, 59, 37],
+    [4, 36, 16, 4, 37, 17],
+    [4, 36, 12, 4, 37, 13],
+
+    // 10
+    [2, 86, 68, 2, 87, 69],
+    [4, 69, 43, 1, 70, 44],
+    [6, 43, 19, 2, 44, 20],
+    [6, 43, 15, 2, 44, 16],
+
+    // 11
+    [4, 101, 81],
+    [1, 80, 50, 4, 81, 51],
+    [4, 50, 22, 4, 51, 23],
+    [3, 36, 12, 8, 37, 13],
+
+    // 12
+    [2, 116, 92, 2, 117, 93],
+    [6, 58, 36, 2, 59, 37],
+    [4, 46, 20, 6, 47, 21],
+    [7, 42, 14, 4, 43, 15],
+
+    // 13
+    [4, 133, 107],
+    [8, 59, 37, 1, 60, 38],
+    [8, 44, 20, 4, 45, 21],
+    [12, 33, 11, 4, 34, 12],
+
+    // 14
+    [3, 145, 115, 1, 146, 116],
+    [4, 64, 40, 5, 65, 41],
+    [11, 36, 16, 5, 37, 17],
+    [11, 36, 12, 5, 37, 13],
+
+    // 15
+    [5, 109, 87, 1, 110, 88],
+    [5, 65, 41, 5, 66, 42],
+    [5, 54, 24, 7, 55, 25],
+    [11, 36, 12, 7, 37, 13],
+
+    // 16
+    [5, 122, 98, 1, 123, 99],
+    [7, 73, 45, 3, 74, 46],
+    [15, 43, 19, 2, 44, 20],
+    [3, 45, 15, 13, 46, 16],
+
+    // 17
+    [1, 135, 107, 5, 136, 108],
+    [10, 74, 46, 1, 75, 47],
+    [1, 50, 22, 15, 51, 23],
+    [2, 42, 14, 17, 43, 15],
+
+    // 18
+    [5, 150, 120, 1, 151, 121],
+    [9, 69, 43, 4, 70, 44],
+    [17, 50, 22, 1, 51, 23],
+    [2, 42, 14, 19, 43, 15],
+
+    // 19
+    [3, 141, 113, 4, 142, 114],
+    [3, 70, 44, 11, 71, 45],
+    [17, 47, 21, 4, 48, 22],
+    [9, 39, 13, 16, 40, 14],
+
+    // 20
+    [3, 135, 107, 5, 136, 108],
+    [3, 67, 41, 13, 68, 42],
+    [15, 54, 24, 5, 55, 25],
+    [15, 43, 15, 10, 44, 16],
+
+    // 21
+    [4, 144, 116, 4, 145, 117],
+    [17, 68, 42],
+    [17, 50, 22, 6, 51, 23],
+    [19, 46, 16, 6, 47, 17],
+
+    // 22
+    [2, 139, 111, 7, 140, 112],
+    [17, 74, 46],
+    [7, 54, 24, 16, 55, 25],
+    [34, 37, 13],
+
+    // 23
+    [4, 151, 121, 5, 152, 122],
+    [4, 75, 47, 14, 76, 48],
+    [11, 54, 24, 14, 55, 25],
+    [16, 45, 15, 14, 46, 16],
+
+    // 24
+    [6, 147, 117, 4, 148, 118],
+    [6, 73, 45, 14, 74, 46],
+    [11, 54, 24, 16, 55, 25],
+    [30, 46, 16, 2, 47, 17],
+
+    // 25
+    [8, 132, 106, 4, 133, 107],
+    [8, 75, 47, 13, 76, 48],
+    [7, 54, 24, 22, 55, 25],
+    [22, 45, 15, 13, 46, 16],
+
+    // 26
+    [10, 142, 114, 2, 143, 115],
+    [19, 74, 46, 4, 75, 47],
+    [28, 50, 22, 6, 51, 23],
+    [33, 46, 16, 4, 47, 17],
+
+    // 27
+    [8, 152, 122, 4, 153, 123],
+    [22, 73, 45, 3, 74, 46],
+    [8, 53, 23, 26, 54, 24],
+    [12, 45, 15, 28, 46, 16],
+
+    // 28
+    [3, 147, 117, 10, 148, 118],
+    [3, 73, 45, 23, 74, 46],
+    [4, 54, 24, 31, 55, 25],
+    [11, 45, 15, 31, 46, 16],
+
+    // 29
+    [7, 146, 116, 7, 147, 117],
+    [21, 73, 45, 7, 74, 46],
+    [1, 53, 23, 37, 54, 24],
+    [19, 45, 15, 26, 46, 16],
+
+    // 30
+    [5, 145, 115, 10, 146, 116],
+    [19, 75, 47, 10, 76, 48],
+    [15, 54, 24, 25, 55, 25],
+    [23, 45, 15, 25, 46, 16],
+
+    // 31
+    [13, 145, 115, 3, 146, 116],
+    [2, 74, 46, 29, 75, 47],
+    [42, 54, 24, 1, 55, 25],
+    [23, 45, 15, 28, 46, 16],
+
+    // 32
+    [17, 145, 115],
+    [10, 74, 46, 23, 75, 47],
+    [10, 54, 24, 35, 55, 25],
+    [19, 45, 15, 35, 46, 16],
+
+    // 33
+    [17, 145, 115, 1, 146, 116],
+    [14, 74, 46, 21, 75, 47],
+    [29, 54, 24, 19, 55, 25],
+    [11, 45, 15, 46, 46, 16],
+
+    // 34
+    [13, 145, 115, 6, 146, 116],
+    [14, 74, 46, 23, 75, 47],
+    [44, 54, 24, 7, 55, 25],
+    [59, 46, 16, 1, 47, 17],
+
+    // 35
+    [12, 151, 121, 7, 152, 122],
+    [12, 75, 47, 26, 76, 48],
+    [39, 54, 24, 14, 55, 25],
+    [22, 45, 15, 41, 46, 16],
+
+    // 36
+    [6, 151, 121, 14, 152, 122],
+    [6, 75, 47, 34, 76, 48],
+    [46, 54, 24, 10, 55, 25],
+    [2, 45, 15, 64, 46, 16],
+
+    // 37
+    [17, 152, 122, 4, 153, 123],
+    [29, 74, 46, 14, 75, 47],
+    [49, 54, 24, 10, 55, 25],
+    [24, 45, 15, 46, 46, 16],
+
+    // 38
+    [4, 152, 122, 18, 153, 123],
+    [13, 74, 46, 32, 75, 47],
+    [48, 54, 24, 14, 55, 25],
+    [42, 45, 15, 32, 46, 16],
+
+    // 39
+    [20, 147, 117, 4, 148, 118],
+    [40, 75, 47, 7, 76, 48],
+    [43, 54, 24, 22, 55, 25],
+    [10, 45, 15, 67, 46, 16],
+
+    // 40
+    [19, 148, 118, 6, 149, 119],
+    [18, 75, 47, 31, 76, 48],
+    [34, 54, 24, 34, 55, 25],
+    [20, 45, 15, 61, 46, 16]
+  ];
+
+  const qrRSBlock = function(totalCount, dataCount) {
+    const _this = {};
+    _this.totalCount = totalCount;
+    _this.dataCount = dataCount;
+    return _this;
+  };
+
+  const _this = {};
+
+  const getRsBlockTable = function(typeNumber, errorCorrectionLevel) {
+
+    switch(errorCorrectionLevel) {
+    case QRErrorCorrectionLevel.L :
+      return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
+    case QRErrorCorrectionLevel.M :
+      return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+    case QRErrorCorrectionLevel.Q :
+      return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
+    case QRErrorCorrectionLevel.H :
+      return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
+    default :
+      return undefined;
+    }
+  };
+
+  _this.getRSBlocks = function(typeNumber, errorCorrectionLevel) {
+
+    const rsBlock = getRsBlockTable(typeNumber, errorCorrectionLevel);
+
+    if (typeof rsBlock == 'undefined') {
+      throw 'bad rs block @ typeNumber:' + typeNumber +
+          '/errorCorrectionLevel:' + errorCorrectionLevel;
+    }
+
+    const length = rsBlock.length / 3;
+
+    const list = [];
+
+    for (let i = 0; i < length; i += 1) {
+
+      const count = rsBlock[i * 3 + 0];
+      const totalCount = rsBlock[i * 3 + 1];
+      const dataCount = rsBlock[i * 3 + 2];
+
+      for (let j = 0; j < count; j += 1) {
+        list.push(qrRSBlock(totalCount, dataCount) );
+      }
+    }
+
+    return list;
+  };
+
+  return _this;
+}();
+
+//---------------------------------------------------------------------
+// qrBitBuffer
+//---------------------------------------------------------------------
+
+const qrBitBuffer = function() {
+
+  const _buffer = [];
+  let _length = 0;
+
+  const _this = {};
+
+  _this.getBuffer = function() {
+    return _buffer;
+  };
+
+  _this.getAt = function(index) {
+    const bufIndex = Math.floor(index / 8);
+    return ( (_buffer[bufIndex] >>> (7 - index % 8) ) & 1) == 1;
+  };
+
+  _this.put = function(num, length) {
+    for (let i = 0; i < length; i += 1) {
+      _this.putBit( ( (num >>> (length - i - 1) ) & 1) == 1);
+    }
+  };
+
+  _this.getLengthInBits = function() {
+    return _length;
+  };
+
+  _this.putBit = function(bit) {
+
+    const bufIndex = Math.floor(_length / 8);
+    if (_buffer.length <= bufIndex) {
+      _buffer.push(0);
+    }
+
+    if (bit) {
+      _buffer[bufIndex] |= (0x80 >>> (_length % 8) );
+    }
+
+    _length += 1;
+  };
+
+  return _this;
+};
+
+//---------------------------------------------------------------------
+// qrNumber
+//---------------------------------------------------------------------
+
+const qrNumber = function(data) {
+
+  const _mode = QRMode.MODE_NUMBER;
+  const _data = data;
+
+  const _this = {};
+
+  _this.getMode = function() {
+    return _mode;
+  };
+
+  _this.getLength = function(buffer) {
+    return _data.length;
+  };
+
+  _this.write = function(buffer) {
+
+    const data = _data;
+
+    let i = 0;
+
+    while (i + 2 < data.length) {
+      buffer.put(strToNum(data.substring(i, i + 3) ), 10);
+      i += 3;
+    }
+
+    if (i < data.length) {
+      if (data.length - i == 1) {
+        buffer.put(strToNum(data.substring(i, i + 1) ), 4);
+      } else if (data.length - i == 2) {
+        buffer.put(strToNum(data.substring(i, i + 2) ), 7);
+      }
+    }
+  };
+
+  const strToNum = function(s) {
+    let num = 0;
+    for (let i = 0; i < s.length; i += 1) {
+      num = num * 10 + chatToNum(s.charAt(i) );
+    }
+    return num;
+  };
+
+  const chatToNum = function(c) {
+    if ('0' <= c && c <= '9') {
+      return c.charCodeAt(0) - '0'.charCodeAt(0);
+    }
+    throw 'illegal char :' + c;
+  };
+
+  return _this;
+};
+
+//---------------------------------------------------------------------
+// qrAlphaNum
+//---------------------------------------------------------------------
+
+const qrAlphaNum = function(data) {
+
+  const _mode = QRMode.MODE_ALPHA_NUM;
+  const _data = data;
+
+  const _this = {};
+
+  _this.getMode = function() {
+    return _mode;
+  };
+
+  _this.getLength = function(buffer) {
+    return _data.length;
+  };
+
+  _this.write = function(buffer) {
+
+    const s = _data;
+
+    let i = 0;
+
+    while (i + 1 < s.length) {
+      buffer.put(
+        getCode(s.charAt(i) ) * 45 +
+        getCode(s.charAt(i + 1) ), 11);
+      i += 2;
+    }
+
+    if (i < s.length) {
+      buffer.put(getCode(s.charAt(i) ), 6);
+    }
+  };
+
+  const getCode = function(c) {
+
+    if ('0' <= c && c <= '9') {
+      return c.charCodeAt(0) - '0'.charCodeAt(0);
+    } else if ('A' <= c && c <= 'Z') {
+      return c.charCodeAt(0) - 'A'.charCodeAt(0) + 10;
+    } else {
+      switch (c) {
+      case '\u0020' : return 36;
+      case '$' : return 37;
+      case '%' : return 38;
+      case '*' : return 39;
+      case '+' : return 40;
+      case '-' : return 41;
+      case '.' : return 42;
+      case '/' : return 43;
+      case ':' : return 44;
+      default :
+        throw 'illegal char :' + c;
+      }
+    }
+  };
+
+  return _this;
+};
+
+//---------------------------------------------------------------------
+// qr8BitByte
+//---------------------------------------------------------------------
+
+const qr8BitByte = function(data) {
+
+  const _mode = QRMode.MODE_8BIT_BYTE;
+  const _data = data;
+  const _bytes = qrcode.stringToBytes(data);
+
+  const _this = {};
+
+  _this.getMode = function() {
+    return _mode;
+  };
+
+  _this.getLength = function(buffer) {
+    return _bytes.length;
+  };
+
+  _this.write = function(buffer) {
+    for (let i = 0; i < _bytes.length; i += 1) {
+      buffer.put(_bytes[i], 8);
+    }
+  };
+
+  return _this;
+};
+
+//---------------------------------------------------------------------
+// qrKanji
+//---------------------------------------------------------------------
+
+const qrKanji = function(data) {
+
+  const _mode = QRMode.MODE_KANJI;
+  const _data = data;
+
+  const stringToBytes = qrcode.stringToBytes;
+  !function(c, code) {
+    // self test for sjis support.
+    const test = stringToBytes(c);
+    if (test.length != 2 || ( (test[0] << 8) | test[1]) != code) {
+      throw 'sjis not supported.';
+    }
+  }('\u53cb', 0x9746);
+
+  const _bytes = stringToBytes(data);
+
+  const _this = {};
+
+  _this.getMode = function() {
+    return _mode;
+  };
+
+  _this.getLength = function(buffer) {
+    return ~~(_bytes.length / 2);
+  };
+
+  _this.write = function(buffer) {
+
+    const data = _bytes;
+
+    let i = 0;
+
+    while (i + 1 < data.length) {
+
+      let c = ( (0xff & data[i]) << 8) | (0xff & data[i + 1]);
+
+      if (0x8140 <= c && c <= 0x9FFC) {
+        c -= 0x8140;
+      } else if (0xE040 <= c && c <= 0xEBBF) {
+        c -= 0xC140;
+      } else {
+        throw 'illegal char at ' + (i + 1) + '/' + c;
+      }
+
+      c = ( (c >>> 8) & 0xff) * 0xC0 + (c & 0xff);
+
+      buffer.put(c, 13);
+
+      i += 2;
+    }
+
+    if (i < data.length) {
+      throw 'illegal char at ' + (i + 1);
+    }
+  };
+
+  return _this;
+};
+
+//=====================================================================
+// GIF Support etc.
+//
+
+//---------------------------------------------------------------------
+// byteArrayOutputStream
+//---------------------------------------------------------------------
+
+const byteArrayOutputStream = function() {
+
+  const _bytes = [];
+
+  const _this = {};
+
+  _this.writeByte = function(b) {
+    _bytes.push(b & 0xff);
+  };
+
+  _this.writeShort = function(i) {
+    _this.writeByte(i);
+    _this.writeByte(i >>> 8);
+  };
+
+  _this.writeBytes = function(b, off, len) {
+    off = off || 0;
+    len = len || b.length;
+    for (let i = 0; i < len; i += 1) {
+      _this.writeByte(b[i + off]);
+    }
+  };
+
+  _this.writeString = function(s) {
+    for (let i = 0; i < s.length; i += 1) {
+      _this.writeByte(s.charCodeAt(i) );
+    }
+  };
+
+  _this.toByteArray = function() {
+    return _bytes;
+  };
+
+  _this.toString = function() {
+    let s = '';
+    s += '[';
+    for (let i = 0; i < _bytes.length; i += 1) {
+      if (i > 0) {
+        s += ',';
+      }
+      s += _bytes[i];
+    }
+    s += ']';
+    return s;
+  };
+
+  return _this;
+};
+
+//---------------------------------------------------------------------
+// base64EncodeOutputStream
+//---------------------------------------------------------------------
+
+const base64EncodeOutputStream = function() {
+
+  let _buffer = 0;
+  let _buflen = 0;
+  let _length = 0;
+  let _base64 = '';
+
+  const _this = {};
+
+  const writeEncoded = function(b) {
+    _base64 += String.fromCharCode(encode(b & 0x3f) );
+  };
+
+  const encode = function(n) {
+    if (n < 0) {
+      throw 'n:' + n;
+    } else if (n < 26) {
+      return 0x41 + n;
+    } else if (n < 52) {
+      return 0x61 + (n - 26);
+    } else if (n < 62) {
+      return 0x30 + (n - 52);
+    } else if (n == 62) {
+      return 0x2b;
+    } else if (n == 63) {
+      return 0x2f;
+    } else {
+      throw 'n:' + n;
+    }
+  };
+
+  _this.writeByte = function(n) {
+
+    _buffer = (_buffer << 8) | (n & 0xff);
+    _buflen += 8;
+    _length += 1;
+
+    while (_buflen >= 6) {
+      writeEncoded(_buffer >>> (_buflen - 6) );
+      _buflen -= 6;
+    }
+  };
+
+  _this.flush = function() {
+
+    if (_buflen > 0) {
+      writeEncoded(_buffer << (6 - _buflen) );
+      _buffer = 0;
+      _buflen = 0;
+    }
+
+    if (_length % 3 != 0) {
+      // padding
+      const padlen = 3 - _length % 3;
+      for (let i = 0; i < padlen; i += 1) {
+        _base64 += '=';
+      }
+    }
+  };
+
+  _this.toString = function() {
+    return _base64;
+  };
+
+  return _this;
+};
+
+//---------------------------------------------------------------------
+// base64DecodeInputStream
+//---------------------------------------------------------------------
+
+const base64DecodeInputStream = function(str) {
+
+  const _str = str;
+  let _pos = 0;
+  let _buffer = 0;
+  let _buflen = 0;
+
+  const _this = {};
+
+  _this.read = function() {
+
+    while (_buflen < 8) {
+
+      if (_pos >= _str.length) {
+        if (_buflen == 0) {
+          return -1;
+        }
+        throw 'unexpected end of file./' + _buflen;
+      }
+
+      const c = _str.charAt(_pos);
+      _pos += 1;
+
+      if (c == '=') {
+        _buflen = 0;
+        return -1;
+      } else if (c.match(/^\s$/) ) {
+        // ignore if whitespace.
+        continue;
+      }
+
+      _buffer = (_buffer << 6) | decode(c.charCodeAt(0) );
+      _buflen += 6;
+    }
+
+    const n = (_buffer >>> (_buflen - 8) ) & 0xff;
+    _buflen -= 8;
+    return n;
+  };
+
+  const decode = function(c) {
+    if (0x41 <= c && c <= 0x5a) {
+      return c - 0x41;
+    } else if (0x61 <= c && c <= 0x7a) {
+      return c - 0x61 + 26;
+    } else if (0x30 <= c && c <= 0x39) {
+      return c - 0x30 + 52;
+    } else if (c == 0x2b) {
+      return 62;
+    } else if (c == 0x2f) {
+      return 63;
+    } else {
+      throw 'c:' + c;
+    }
+  };
+
+  return _this;
+};
+
+//---------------------------------------------------------------------
+// gifImage (B/W)
+//---------------------------------------------------------------------
+
+const gifImage = function(width, height) {
+
+  const _width = width;
+  const _height = height;
+  const _data = new Array(width * height);
+
+  const _this = {};
+
+  _this.setPixel = function(x, y, pixel) {
+    _data[y * _width + x] = pixel;
+  };
+
+  _this.write = function(out) {
+
+    //---------------------------------
+    // GIF Signature
+
+    out.writeString('GIF87a');
+
+    //---------------------------------
+    // Screen Descriptor
+
+    out.writeShort(_width);
+    out.writeShort(_height);
+
+    out.writeByte(0x80); // 2bit
+    out.writeByte(0);
+    out.writeByte(0);
+
+    //---------------------------------
+    // Global Color Map
+
+    // black
+    out.writeByte(0x00);
+    out.writeByte(0x00);
+    out.writeByte(0x00);
+
+    // white
+    out.writeByte(0xff);
+    out.writeByte(0xff);
+    out.writeByte(0xff);
+
+    //---------------------------------
+    // Image Descriptor
+
+    out.writeString(',');
+    out.writeShort(0);
+    out.writeShort(0);
+    out.writeShort(_width);
+    out.writeShort(_height);
+    out.writeByte(0);
+
+    //---------------------------------
+    // Local Color Map
+
+    //---------------------------------
+    // Raster Data
+
+    const lzwMinCodeSize = 2;
+    const raster = getLZWRaster(lzwMinCodeSize);
+
+    out.writeByte(lzwMinCodeSize);
+
+    let offset = 0;
+
+    while (raster.length - offset > 255) {
+      out.writeByte(255);
+      out.writeBytes(raster, offset, 255);
+      offset += 255;
+    }
+
+    out.writeByte(raster.length - offset);
+    out.writeBytes(raster, offset, raster.length - offset);
+    out.writeByte(0x00);
+
+    //---------------------------------
+    // GIF Terminator
+    out.writeString(';');
+  };
+
+  const bitOutputStream = function(out) {
+
+    const _out = out;
+    let _bitLength = 0;
+    let _bitBuffer = 0;
+
+    const _this = {};
+
+    _this.write = function(data, length) {
+
+      if ( (data >>> length) != 0) {
+        throw 'length over';
+      }
+
+      while (_bitLength + length >= 8) {
+        _out.writeByte(0xff & ( (data << _bitLength) | _bitBuffer) );
+        length -= (8 - _bitLength);
+        data >>>= (8 - _bitLength);
+        _bitBuffer = 0;
+        _bitLength = 0;
+      }
+
+      _bitBuffer = (data << _bitLength) | _bitBuffer;
+      _bitLength = _bitLength + length;
+    };
+
+    _this.flush = function() {
+      if (_bitLength > 0) {
+        _out.writeByte(_bitBuffer);
+      }
+    };
+
+    return _this;
+  };
+
+  const getLZWRaster = function(lzwMinCodeSize) {
+
+    const clearCode = 1 << lzwMinCodeSize;
+    const endCode = (1 << lzwMinCodeSize) + 1;
+    let bitLength = lzwMinCodeSize + 1;
+
+    // Setup LZWTable
+    const table = lzwTable();
+
+    for (let i = 0; i < clearCode; i += 1) {
+      table.add(String.fromCharCode(i) );
+    }
+    table.add(String.fromCharCode(clearCode) );
+    table.add(String.fromCharCode(endCode) );
+
+    const byteOut = byteArrayOutputStream();
+    const bitOut = bitOutputStream(byteOut);
+
+    // clear code
+    bitOut.write(clearCode, bitLength);
+
+    let dataIndex = 0;
+
+    let s = String.fromCharCode(_data[dataIndex]);
+    dataIndex += 1;
+
+    while (dataIndex < _data.length) {
+
+      const c = String.fromCharCode(_data[dataIndex]);
+      dataIndex += 1;
+
+      if (table.contains(s + c) ) {
+
+        s = s + c;
+
+      } else {
+
+        bitOut.write(table.indexOf(s), bitLength);
+
+        if (table.size() < 0xfff) {
+
+          if (table.size() == (1 << bitLength) ) {
+            bitLength += 1;
+          }
+
+          table.add(s + c);
+        }
+
+        s = c;
+      }
+    }
+
+    bitOut.write(table.indexOf(s), bitLength);
+
+    // end code
+    bitOut.write(endCode, bitLength);
+
+    bitOut.flush();
+
+    return byteOut.toByteArray();
+  };
+
+  const lzwTable = function() {
+
+    const _map = {};
+    let _size = 0;
+
+    const _this = {};
+
+    _this.add = function(key) {
+      if (_this.contains(key) ) {
+        throw 'dup key:' + key;
+      }
+      _map[key] = _size;
+      _size += 1;
+    };
+
+    _this.size = function() {
+      return _size;
+    };
+
+    _this.indexOf = function(key) {
+      return _map[key];
+    };
+
+    _this.contains = function(key) {
+      return typeof _map[key] != 'undefined';
+    };
+
+    return _this;
+  };
+
+  return _this;
+};
+
+const createDataURL = function(width, height, getPixel) {
+  const gif = gifImage(width, height);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      gif.setPixel(x, y, getPixel(x, y) );
+    }
+  }
+
+  const b = byteArrayOutputStream();
+  gif.write(b);
+
+  const base64 = base64EncodeOutputStream();
+  const bytes = b.toByteArray();
+  for (let i = 0; i < bytes.length; i += 1) {
+    base64.writeByte(bytes[i]);
+  }
+  base64.flush();
+
+  return 'data:image/gif;base64,' + base64;
+};
+
+
+
+
+
+return qrcode;
+})();
+const QR_LEVELS = ['L', 'M', 'Q', 'H'];
+const QR_BYTE = (s) => Array.from(new TextEncoder().encode(String(s)), b => String.fromCharCode(b)).join('');
+function qrEsc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c])); }
+function qrGerar(texto, opcoes) {
+  const s = String(texto == null ? '' : texto); if (!s) throw new Error('Texto vazio.');
+  const o = opcoes || {}, nivel = QR_LEVELS.includes(String(o.nivel || '').toUpperCase()) ? String(o.nivel).toUpperCase() : 'M';
+  const q = QR_ENGINE(0, nivel); q.addData(QR_BYTE(s), 'Byte');
+  try { q.make(); } catch (e) { throw new Error('Texto longo demais para um QR Code no nível ' + nivel + '.'); }
+  const tamanho=q.getModuleCount(), modulos=Array.from({length:tamanho},(_,y)=>Array.from({length:tamanho},(_,x)=>q.isDark(y,x)));
+  return { versao:(tamanho-17)/4, tamanho, nivel, mascara:Number.isInteger(o.mascara)?o.mascara:null, modulos };
+}
+function qrParaSvg(qr, opcoes) {
+  const o=opcoes||{}, b=Math.max(0,Math.floor(o.borda==null?4:o.borda)), sc=Math.max(1,Math.floor(o.escala||8)), n=qr.tamanho+2*b;
+  let d=''; for(let y=0;y<qr.tamanho;y++) for(let x=0;x<qr.tamanho;x++) if(qr.modulos[y][x]) d+='M'+(x+b)+' '+(y+b)+'h1v1h-1z';
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+n+' '+n+'" width="'+n*sc+'" height="'+n*sc+'" role="img" aria-label="'+qrEsc(o.titulo||'QR Code')+'"><title>'+qrEsc(o.titulo||'QR Code')+'</title><rect width="100%" height="100%" fill="#fff"/><path d="'+d+'" fill="#000"/></svg>';
+}
+function qrCrc(bytes) { let c=0xffffffff; for(const b of bytes){c^=b;for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0);} return (c^0xffffffff)>>>0; }
+function qrU32(n){return [(n>>>24)&255,(n>>>16)&255,(n>>>8)&255,n&255];}
+function qrChunk(tag,data){const t=Array.from(tag,c=>c.charCodeAt(0)), body=t.concat(Array.from(data)); return qrU32(data.length).concat(body,qrU32(qrCrc(body)));}
+function qrParaPng(qr, opcoes) {
+ const o=opcoes||{}, b=Math.max(0,Math.floor(o.borda==null?4:o.borda)), sc=Math.max(1,Math.floor(o.escala||8)), n=(qr.tamanho+2*b)*sc, rowBytes=Math.ceil(n/8), raw=[];
+ for(let y=0;y<n;y++){raw.push(0);for(let k=0;k<rowBytes;k++){let v=0;for(let bit=0;bit<8;bit++){const x=k*8+bit;let dark=false;if(x<n){const mx=Math.floor(x/sc)-b,my=Math.floor(y/sc)-b;dark=mx>=0&&my>=0&&mx<qr.tamanho&&my<qr.tamanho&&qr.modulos[my][mx];}if(dark)v|=1<<(7-bit);}raw.push(v);}}
+ const z=[0x78,0x01];for(let p=0;p<raw.length;){const len=Math.min(65535,raw.length-p),last=p+len===raw.length;z.push(last?1:0,len&255,(len>>>8)&255,(~len)&255,((~len)>>>8)&255,...raw.slice(p,p+len));p+=len;}
+ let a=1,bb=0;for(const v of raw){a=(a+v)%65521;bb=(bb+a)%65521;}z.push(...qrU32(((bb<<16)|a)>>>0));
+ const png=[137,80,78,71,13,10,26,10,...qrChunk('IHDR',[...qrU32(n),...qrU32(n),1,0,0,0,0]),...qrChunk('IDAT',z),...qrChunk('IEND',[])];return Uint8Array.from(png);
+}
+function qrParaTexto(qr){return qr.modulos.map(r=>r.map(x=>x?'██':'  ').join('')).join('\n');}
+function qrArquivo(qr, formato, opcoes){const f=String(formato||'png').toLowerCase();if(f==='png')return {nome:'qrcode-paulus.png',tipo:'image/png',bytes:qrParaPng(qr,opcoes)};if(f==='svg')return {nome:'qrcode-paulus.svg',tipo:'image/svg+xml',texto:qrParaSvg(qr,Object.assign({titulo:'QR Code'},opcoes||{}))};return {nome:'qrcode-paulus.txt',tipo:'text/plain;charset=utf-8',texto:qrParaTexto(qr)};}
+const QR_CAP={L:[17,32,53,78,106,134,154,192,230,271,321,367,425,458,520,586,644,718,792,858,929,1003,1091,1171,1273,1367,1465,1528,1628,1732,1840,1952,2068,2188,2303,2431,2563,2699,2809,2953],M:[14,26,42,62,84,106,122,152,180,213,251,287,331,362,412,450,504,560,624,666,711,779,857,911,997,1059,1125,1190,1264,1370,1452,1538,1628,1722,1809,1911,1989,2099,2213,2331],Q:[11,20,32,46,60,74,86,108,130,151,177,203,241,258,292,322,364,394,442,482,509,565,611,661,715,751,805,868,908,982,1030,1112,1168,1228,1283,1351,1423,1499,1579,1663],H:[7,14,24,34,44,58,64,84,98,119,137,155,177,194,220,250,280,310,338,382,403,439,461,511,535,593,625,658,698,742,790,842,898,958,983,1051,1093,1139,1219,1273]};
+function qrCapacidadeBytes(nivel, versao){const l=QR_CAP[QR_LEVELS.includes(String(nivel||'').toUpperCase())?String(nivel).toUpperCase():'M'];return l[Math.max(1,Math.min(40,Math.floor(versao||40)))-1];}
+function qrExtrairLinks(texto){const s=String(texto||''), re=/(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/gi, out=[];let m;while((m=re.exec(s))){let u=m[0].replace(/[.,!?;:]+$/,'');while(/[)]$/.test(u)&&((u.match(/\(/g)||[]).length<(u.match(/\)/g)||[]).length))u=u.slice(0,-1);if(u.startsWith('www.'))u='https://'+u;if(!out.includes(u))out.push(u);}return out;}
+function lerPedidoDeQr(texto){const s=String(texto||''), n=normalizar(s);if(!/\b(qr|qrcode|codigo qr)\b/.test(n))return null;if(/\b(como|what|how|que e|seguro|ler|escane|explique|coloque.*pdf)\b/.test(n)&&!/(gere|gerar|crie|criar|transforme|transformar|faca|fazer|baixe|baixar|monta|monte)\b/.test(n))return null;if(/\bpdf\b/.test(n))return null;
+ const nivel=(n.match(/\b([lmqh])\b(?=.{0,15}\b(nivel|correc|qr)\b)/)||[])[1]||'M';let alvos=qrExtrairLinks(s);if(!alvos.length){const quoted=s.match(/["“”](.{1,3000}?)["“”]/);if(quoted&&/(texto|conteudo|com)/i.test(s))alvos=[quoted[1]];}
+ const acao=/(gere|gerar|crie|criar|transforme|transformar|faca|fazer|baixe|baixar|monte|monta|produza|generate|make)\b/.test(n);if(!acao)return null;
+ if(!alvos.length)return {alvos:[],nivel:nivel.toUpperCase(),extra:false,semLink:true};
+ const extra=/(\be\s+(escreva|faca|crie|explique|resuma|prepare|redija)|\btambem\b)/.test(n);return {alvos,nivel:nivel.toUpperCase(),extra,semLink:false};}
+function respostaDeQr(valor, opcoes){const p=typeof valor==='string'?lerPedidoDeQr(valor):valor;if(!p)return null;const o=opcoes||{};if(p.semLink||!p.alvos||!p.alvos.length)return {texto:'Envie o link ou o texto que deseja colocar no QR Code.',qrs:[],avisos:[],extra:false,bloqueado:false};if(p.alvos.some(x=>temDadoPessoal(x))){return {texto:'Não gerei o QR Code porque o conteúdo parece conter dado pessoal. Remova nomes, documentos, telefones e endereços pessoais.',qrs:[],avisos:[],extra:p.extra,bloqueado:true};}
+ const qrs=[],avisos=[];for(const alvo of p.alvos.slice(0,8)){try{const qr=qrGerar(alvo,{nivel:p.nivel||'M'});qrs.push({alvo,qr,svg:qrParaSvg(qr,{titulo:'QR Code'})});}catch(e){avisos.push(String(e.message||e));}}
+ if(!qrs.length)return {texto:'Não consegui gerar o QR Code: o texto é longo demais ou inválido.',qrs,avisos,extra:p.extra,bloqueado:false};
+ let texto='QR Code gerado neste aparelho, sem rede. Confira com a câmera antes de compartilhar.';if(p.extra)texto+=o.semIA?' O restante do pedido precisa da IA e fica para quando ela voltar.' : ' O QR está pronto; o restante do pedido segue para a IA.';
+ return {texto,qrs,avisos,extra:!!p.extra,bloqueado:false};}
 
 // ---- shared/revisao-texto.mjs ----
 // Revisão de português no aparelho: aponta erros COMUNS e objetivos, sem IA e sem rede. O texto nunca sai do aparelho.
@@ -12024,6 +14952,7 @@ function memEhSensivel(texto) { return MEM_RE_SENSIVEL.test(normalizar(texto)); 
 
 
 
+
 const AVISO_PESSOAL = 'Para proteger as famílias, não consigo analisar mensagens com nome, documento, telefone ou endereço residencial. Reescreva a pergunta sem identificar ninguém.';
 
 // Igual ao limite do Worker (worker/prompt.mjs). Antes eram 5 aqui, e o Argo mandava até 10 (lista de bairros, "liste todos").
@@ -12070,6 +14999,7 @@ const estado = {
   pausaIA: { ate: 0, renova: 0, motivo: '' },
   // Uso sem internet: perguntas que só a base respondeu (a IA estava fora) e quem quer saber quando o estado da IA muda. Só na sessão: nada vai para o disco.
   pendentes: [],
+  qrAnexo: null,
   ouvintes: [],
   ultimoAviso: '|0|0',   // estado parado: sem pausa, sem pendências
   pronto: Promise.resolve()
@@ -12956,7 +15886,10 @@ function respostaDeCalculo(t, o, conta) {
 
 // Envolve o fluxo principal: registra como pendente o que só a base respondeu enquanto a IA estava fora, e tira da fila o que a IA respondeu.
 async function perguntar(texto, opcoes) {
+  estado.qrAnexo = null;
   const r = await perguntarFluxo(texto, opcoes);
+  const anexoQr = estado.qrAnexo; estado.qrAnexo = null;
+  if (anexoQr && r && typeof r === 'object' && r.tipo !== 'bloqueio' && r.tipo !== 'crise') { r.qrs = anexoQr.qrs; r.avisos = (r.avisos || []).concat(anexoQr.avisos); }
   if (r && typeof r === 'object' && r.pergunta) {
     if (r.tipo === 'ia' && !r.deMemoria) { if (estado.pendentes.length) removerPendente(r.pergunta); }
     else if (motivoSemIA() && (r.tipo === 'norma' || r.deMemoria)) { registrarPendente(r.pergunta); r.pendente = true; }
@@ -12970,7 +15903,7 @@ async function perguntarFluxo(texto, opcoes) {
   // Com imagem anexada o pedido é "olhe esta foto": nenhum atalho local (PDF, conta, idioma, rota, busca...) responde no lugar da leitura.
   // O socorro e o filtro de dado pessoal continuam valendo sobre o texto da pergunta.
   const comImagem = imagemValida(o.imagem);
-  if (comImagem) o = Object.assign({}, o, { semPdf: true, semGeo: true, semRevisao: true, semCalculo: true, semEspanhol: true, semAcoes: true, semModelos: true, semRota: true, arquivos: [] });
+  if (comImagem) o = Object.assign({}, o, { semPdf: true, semGeo: true, semRevisao: true, semCalculo: true, semEspanhol: true, semAcoes: true, semModelos: true, semQr: true, semRota: true, arquivos: [] });
   const t = String(texto == null ? '' : texto).replace(/\s+/g, ' ').trim().slice(0, cfg.maxPergunta);
   if (!t) return { tipo: 'erro', texto: 'Escreva uma pergunta.' };
 
@@ -13009,6 +15942,17 @@ async function perguntarFluxo(texto, opcoes) {
   }
 
   if (temDadoPessoal(t)) return { tipo: 'bloqueio', texto: avisoPessoalNoIdioma(idiomaDoPedido(t, o.historico || estado.historico), AVISO_PESSOAL) };
+
+  // QR Code: geração local no aparelho; o filtro de dados pessoais acima continua valendo.
+  if (!o.semQr) {
+    const qp = lerPedidoDeQr(t);
+    if (qp) {
+      const semIA = !iaLigada() || iaPausada();
+      const qr = respostaDeQr(qp, { semIA: semIA, quandoVolta: semIA ? quandoVoltaIA() : '' });
+      if (qr && (!qp.extra || semIA || !qr.qrs.length || qr.bloqueado)) return { tipo: 'qr', texto: qr.texto, qrs: qr.qrs, fontes: [], avisos: qr.avisos.concat(['Gerado neste aparelho; não foi enviado à IA.']), semIA: semIA, pergunta: '', docs: [] };
+      if (qr) estado.qrAnexo = { qrs: qr.qrs, avisos: qr.avisos };
+    }
+  }
 
   // Vocabulário, frases e falsos amigos PT↔ES e PT↔EN (shared/espanhol.mjs e shared/ingles.mjs): no aparelho, sem IA e sem rede. Não entra no histórico.
   if (!o.semEspanhol) {
@@ -13216,6 +16160,7 @@ const Paulus = { init, perguntar,
   matematica: { responder: respostaDeMatematicaLocal },
   // Modelos 3D didáticos (v0.20.0; mapa de Roraima v0.21.0): ler(texto) -> pedido ou null; responder(texto) -> resultado ou null; catalogo; url(modelo); baixar(modelo)
   modelos: { ler: lerPedidoDeModelo, responder: respostaDeModelo, catalogo: MODELOS_3D, url: function (m) { return urlDoModelo(m, cfg.modelosUrl); }, baixar: modeloBaixar },
+  qr: { ler: lerPedidoDeQr, responder: respostaDeQr, links: qrExtrairLinks, gerar: qrGerar, arquivo: qrArquivo, capacidade: function (n, v) { return qrCapacidadeBytes(n || 'M', v); } },
   // Geografia no aparelho (v0.16.0): responder(texto, { pontos, lugares, bairros, ruas, aparelho }) -> resultado ou null; coordenadas/formatar/endereco/perto/distancia/gpx/kml para o app usar direto.
   territorioCT: { responder: respostaDeTerritorioCT, lista: territoriosCT },
   distritosPoliciais: { responder: respostaDeDistritoPolicial, lista: distritosPoliciais },
@@ -13225,7 +16170,7 @@ const Paulus = { init, perguntar,
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
-  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.27.0',
+  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.29.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,

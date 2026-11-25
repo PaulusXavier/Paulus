@@ -360,8 +360,8 @@
 
   // ------------------------------------------------------------ mensagens
   function limparBoasVindas() { var o = log.querySelector('.hi'); if (o) o.remove(); document.body.classList.remove('vazio'); }
-  var KIND = { ia: 'IA', norma: 'NORMA', busca: 'BUSCA', acao: 'AÇÃO', acao_desconhecida: 'AÇÃO', calculo: 'CÁLCULO', rota: 'ROTA', geo: 'GEO', pdf: 'PDF', modelo: 'MODELO 3D', revisao: 'REVISÃO', espanhol: 'IDIOMA', ingles: 'IDIOMA', crise: 'SOCORRO', bloqueio: 'PRIVACIDADE', erro: 'ERRO', sem_resposta: 'SEM RESPOSTA', pens: 'PROCESSANDO' };
-  var LOCAL = { norma: 1, busca: 1, acao: 1, acao_desconhecida: 1, calculo: 1, rota: 1, geo: 1, pdf: 1, modelo: 1, revisao: 1, espanhol: 1, ingles: 1, crise: 1, bloqueio: 1, sem_resposta: 1 };
+  var KIND = { ia: 'IA', norma: 'NORMA', busca: 'BUSCA', acao: 'AÇÃO', acao_desconhecida: 'AÇÃO', calculo: 'CÁLCULO', matematica: 'MATEMÁTICA', rota: 'ROTA', geo: 'GEO', pdf: 'PDF', modelo: 'MODELO 3D', qr: 'QR CODE', revisao: 'REVISÃO', espanhol: 'IDIOMA', ingles: 'IDIOMA', crise: 'SOCORRO', bloqueio: 'PRIVACIDADE', erro: 'ERRO', sem_resposta: 'SEM RESPOSTA', pens: 'PROCESSANDO' };
+  var LOCAL = { norma: 1, busca: 1, acao: 1, acao_desconhecida: 1, calculo: 1, matematica: 1, rota: 1, geo: 1, pdf: 1, modelo: 1, qr: 1, revisao: 1, espanhol: 1, ingles: 1, crise: 1, bloqueio: 1, sem_resposta: 1 };
   var nResp = 0, vozPendente = false;
   function cabeca(quem, kind, id) {
     var c = h('div', { class: 'mh' }, [h('span', { class: 'q', text: quem })]);
@@ -591,6 +591,18 @@
         if (a.url && !/^[a-z]+:/i.test(a.url)) am.appendChild(h('a', { href: a.url, target: '_blank', rel: 'noopener noreferrer', text: 'Abrir agora' }));
       });
       if (am.childNodes.length) x.m.appendChild(am);
+    }
+    if (r.qrs && r.qrs.length) {
+      r.qrs.forEach(function (q, i) {
+        var box = h('div', { class: 'qrbox' });
+        var img = h('img', { alt: 'QR Code de ' + q.alvo, src: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(q.svg) });
+        img.style.cssText = 'width:200px;max-width:100%;background:#fff;border-radius:8px;margin-top:6px;display:block'; box.appendChild(img);
+        box.appendChild(h('div', { class: 'f', text: q.alvo.length > 90 ? q.alvo.slice(0,87)+'...' : q.alvo }));
+        var acts = h('div', { class: 'ac' }), suffix = r.qrs.length > 1 ? '-' + (i+1) : '';
+        acts.appendChild(btn('⤓ PNG', function () { var a=P.qr.arquivo(q.qr,'png'); baixarTexto(a.nome.replace('.png',suffix+'.png'),a.bytes,a.tipo); }));
+        acts.appendChild(btn('⤓ SVG', function () { var a=P.qr.arquivo(q.qr,'svg',{alvo:q.alvo}); baixarTexto(a.nome.replace('.svg',suffix+'.svg'),a.texto,a.tipo); }));
+        box.appendChild(acts); x.m.appendChild(box);
+      });
     }
     if (r.tipo === 'pdf') {
       var ap = h('div', { class: 'ac' });
@@ -1309,6 +1321,29 @@
         var h0 = inicio.getHours();
         c.appendChild(h('div', { class: 'cq-hl' }, [h('span', { text: ('0' + h0).slice(-2) + 'h' }), h('span', { text: ('0' + ((h0 + 12) % 24)).slice(-2) + 'h' }), h('span', { text: ('0' + ((h0 + 23) % 24)).slice(-2) + 'h' })]));
       }
+      var hs = dados.historico;
+      if (hs && Array.isArray(hs.dias) && hs.dias.length) {
+        c.appendChild(h('h3', { text: 'Últimos ' + hs.dias.length + ' dias (cada dia renova às ' + quando(dados.renova).hora + ')' }));
+        var topo = Math.max(dados.franquia, 1); hs.dias.forEach(function (d) { if (d.neurons > topo) topo = d.neurons; });
+        var gd = h('div', { class: 'cq-h', 'aria-hidden': 'true' });
+        hs.dias.forEach(function (d, i) {
+          var rot = d.dia.slice(8, 10) + '/' + d.dia.slice(5, 7);
+          var b = h('i', { class: i === hs.dias.length - 1 ? 'agora' : '', title: rot + ' · ' + fmt(d.neurons) + ' neurons' + (d.esgotou ? ' (franquia esgotada)' : '') });
+          b.style.height = Math.max(2, Math.round(d.neurons / topo * 46)) + 'px';
+          gd.appendChild(b);
+        });
+        c.appendChild(gd);
+        var pri = hs.dias[0].dia, ult = hs.dias[hs.dias.length - 1].dia;
+        c.appendChild(h('div', { class: 'cq-hl' }, [h('span', { text: pri.slice(8, 10) + '/' + pri.slice(5, 7) }), h('span', { text: 'hoje ' + ult.slice(8, 10) + '/' + ult.slice(5, 7) })]));
+        var pct = hs.hojeVsNormalPct;
+        c.appendChild(h('dl', {}, [].concat(
+          [linha('ONTEM', fmt(hs.ontem) + ' neurons')],
+          [linha('MÉDIA DIÁRIA', fmt(hs.mediaDiaria) + ' neurons', '', 'em ' + hs.diasComDados + (hs.diasComDados === 1 ? ' dia anterior com uso' : ' dias anteriores com uso') + '; maior: ' + fmt(hs.maiorDia))],
+          pct != null ? [linha('HOJE x NORMAL', (pct > 0 ? '+' : '') + pct + '%', pct >= 50 ? 'av' : 'ok', 'comparado ao mesmo ponto do dia, nas horas já fechadas')] : [],
+          hs.diasEsgotados ? [linha('FRANQUIA ESGOTADA', hs.diasEsgotados + (hs.diasEsgotados === 1 ? ' dia' : ' dias'), 'av', 'nos dias anteriores desta janela')] : []
+        )));
+        if (dados.historicoParcial) c.appendChild(h('p', { class: 'vn', text: 'A Cloudflare cortou a lista de leituras; o histórico pode estar incompleto.' }));
+      }
       if (dados.modelos && dados.modelos.length) {
         c.appendChild(h('h3', { text: 'O que mais gastou' }));
         var ul = h('ul', { class: 'cq-m' });
@@ -1379,6 +1414,41 @@
     }
     return { painel: painel, buscar: buscar, ehPergunta: ehPergunta, responder: responder, trilho: trilho };
   })();
+  // ------------------------------------------------------------ uso sem internet (aviso de estado e /refazer)
+  // Quando a IA fica fora (sem internet ou sinal fraco), o Paulus responde pela base e guarda a pergunta como pendente (só nesta sessão).
+  // Quando a IA volta, o console avisa e o /refazer pede de novo, com a IA, o que ficou só na base.
+  (function () {
+    if (!P.ia || !P.ia.aoMudar) return;
+    var ofertado = false, antes = '';
+    function refazer() {
+      var n = P.ia.pendentes().length;
+      if (!n) { aviso('Nenhuma pergunta esperando a IA.'); return; }
+      var x = msgPaulus(); pintar(x.corpo, 'Refazendo ' + n + (n === 1 ? ' pergunta' : ' perguntas') + ' com a IA…'); rolar(true);
+      P.ia.refazerPendentes().then(function (lista) {
+        if (!lista.length) { pintar(x.corpo, 'A IA ainda não está disponível. Tente de novo quando a conexão voltar.'); return; }
+        pintar(x.corpo, lista.length === 1 ? 'Aqui está a resposta com a IA:' : 'Aqui estão as ' + lista.length + ' respostas com a IA:');
+        lista.forEach(function (it) {
+          msgUsuario(it.pergunta);
+          var y = msgPaulus(); pintar(y.corpo, it.resposta.texto);
+          transcricao.push({ papel: 'Paulus', texto: it.resposta.texto });
+        });
+        rolar(true);
+      }, function () { pintar(x.corpo, 'Não consegui refazer agora. Tente de novo em instantes.'); });
+    }
+    ATALHOS.push({ c: '/refazer', d: 'Refaz com a IA as perguntas que só a base respondeu enquanto ela estava fora', f: refazer });
+    P.ia.aoMudar(function (e) {
+      if (e.motivo === 'rede' && antes !== 'rede') aviso('Sem internet: respondo com a base de normas e com o que está no aparelho.');
+      if (!e.motivo && antes === 'rede') aviso('Conexão de volta: a IA voltou a responder.');
+      if (!e.motivo && e.pendentes > 0 && !ofertado) {
+        ofertado = true;
+        var x = msgPaulus();
+        pintar(x.corpo, 'A IA voltou. ' + e.pendentes + (e.pendentes === 1 ? ' pergunta foi respondida' : ' perguntas foram respondidas') + ' só pela base enquanto eu estava sem ela. Digite **/refazer** para pedir de novo com a IA.');
+        rolar(true);
+      }
+      if (!e.pendentes) ofertado = false;
+      antes = e.motivo || '';
+    });
+  })();
   (function () {
     var bx = $('cq'); if (bx) bx.addEventListener('click', function (e) { e.stopPropagation(); cota.painel(); });
     ATALHOS.push({ c: '/cota', d: 'Cota da IA: quanto resta, quando acaba e quando renova', f: function () { cota.painel(true); } });
@@ -1408,7 +1478,7 @@
     var e = temaEfetivo();
     document.body.classList.toggle('claro', e === 'claro');
     document.documentElement.setAttribute('data-tam', tam);
-    var mt = document.querySelector('meta[name="theme-color"]'); if (mt) mt.setAttribute('content', e === 'claro' ? '#eef5f8' : '#02070c');
+    var mt = document.querySelector('meta[name="theme-color"]'); if (mt) mt.setAttribute('content', e === 'claro' ? '#f4f7f8' : '#0c1216');
     if (apn) Array.prototype.forEach.call(apn.querySelectorAll('[data-g]'), function (b) { var on = (b.getAttribute('data-g') === 'tema' ? tema : tam) === b.getAttribute('data-v'); b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1; });
   }
   function montarAparencia() {
@@ -1472,6 +1542,24 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) { fecharMenu(); MN.focus(); } });
     if (mm.addEventListener) mm.addEventListener('change', ajustar); else if (mm.addListener) mm.addListener(ajustar);
     ajustar();
+  })();
+
+  // Celular: painéis viram folhas na parte de baixo. Toque no fundo escuro fecha; o botão "voltar" do Android fecha a folha em vez de sair do app.
+  (function () {
+    var scrim = $('scrim'); if (!scrim || !window.matchMedia) return;
+    var IDS = ['mnp', 'apn', 'sxp', 'cqp', 'vp', 'nt-p'], mm = matchMedia('(max-width:700px)'), marcado = false, agenda = 0;
+    function abertos() { return IDS.map($).filter(function (e) { return e && !e.hidden; }); }
+    function fechar() { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); abertos().forEach(function (e) { if (!e.hidden) e.hidden = true; }); }
+    function atualizar() {
+      agenda = 0; var tem = mm.matches && abertos().length > 0; scrim.classList.toggle('on', tem);
+      try {
+        if (tem && !marcado) { history.pushState({ paulusFolha: 1 }, ''); marcado = true; }
+        else if (!tem && marcado) { marcado = false; if (history.state && history.state.paulusFolha) history.back(); }
+      } catch (_) { /* sem histórico: só perde o botão voltar */ }
+    }
+    new MutationObserver(function () { if (!agenda) agenda = requestAnimationFrame(atualizar); }).observe(document.body, { attributes: true, attributeFilter: ['hidden'], subtree: true, childList: true });
+    scrim.addEventListener('click', fechar);
+    window.addEventListener('popstate', function () { if (marcado) { marcado = false; fechar(); } });
   })();
 
   // modo foco: esconde painéis e efeitos de fundo; a escolha fica neste aparelho

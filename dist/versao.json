@@ -1,23 +1,23 @@
 {
- "versao": "0.27.0",
- "build": "d752124afc13",
+ "versao": "0.29.0",
+ "build": "e07f1bbacf3a",
  "commit": null,
  "arquivos": {
   "paulus.v1.js": {
-   "sha256": "33e7c4efb7e004ab",
-   "bytes": 911357
+   "sha256": "5cd49a78e3ab392a",
+   "bytes": 1018843
   },
   "conhecimento.json": {
-   "sha256": "300efeb08de92482",
-   "bytes": 13245982
+   "sha256": "f1fc25a0cd5a5906",
+   "bytes": 13300974
   },
   "conhecimento-geral.json": {
-   "sha256": "0d3ace45c2c98b7c",
-   "bytes": 5084956
+   "sha256": "4a7b49d3dcb6577d",
+   "bytes": 5090815
   },
   "conhecimento-psicologia.json": {
-   "sha256": "543c28702c193ce6",
-   "bytes": 8161025
+   "sha256": "ec7f92f6d2000803",
+   "bytes": 8210160
   },
   "pdf-lib.min.js": {
    "sha256": "0f9a5cad07941f08",
@@ -32,8 +32,8 @@
    "bytes": 36926
   },
   "console.js": {
-   "sha256": "680638e572472e39",
-   "bytes": 137367
+   "sha256": "c1dd552f5002c931",
+   "bytes": 139809
   },
   "notas.js": {
    "sha256": "06fc87015e78d8ff",
@@ -44,8 +44,8 @@
    "bytes": 8085
   },
   "index.html": {
-   "sha256": "11599e454e21ae5d",
-   "bytes": 121803
+   "sha256": "ae7bf99697b5590b",
+   "bytes": 126215
   }
  }
 }
