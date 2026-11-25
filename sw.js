@@ -4,7 +4,7 @@ var V = 'paulus-console-v4';
 var BASE = ['./', 'index.html', 'paulus.v1.js', 'login.js', 'console.js', 'notas.js', 'docs.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
 // Para funcionar sem internet logo na primeira vez: a base de normas, o editor de PDF e o mapa também ficam guardados na instalação.
 // Um a um e sem derrubar a instalação se algum falhar (arquivo pesado, rede lenta, ainda não publicado): o que faltar entra no cache quando for usado.
-var EXTRAS = ['conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'pdf.min.mjs', 'pdf.worker.min.mjs', 'leaflet.js', 'lugares-boa-vista.json'];
+var EXTRAS = ['conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'pdf-encrypt.umd.js', 'pdf.min.mjs', 'pdf.worker.min.mjs', 'leaflet.js', 'lugares-boa-vista.json'];
 // Rede ruim (sinal que "existe" mas não anda): depois deste tempo, se já há cópia guardada, ela é usada em vez de esperar a rede. Sem cópia, espera a rede.
 var ESPERA_REDE_MS = 4000;
 self.addEventListener('install', function (e) {
