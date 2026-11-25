@@ -21,6 +21,16 @@
     "caracteres": 3891
   },
   {
+    "doc": "anona-guia-apoio",
+    "titulo": "Anona — Acompanhamento de Condicionalidades: guia de apoio (não é norma)",
+    "norma": "Descrição própria do app Anona (calendário, notas, planilhas do Território Volante, rotas, mapa, calculadora de faltas, cartões e mascote), escrita a partir do código e do README do app em novembro de 2026. Não é norma nem manual oficial: o app muda, e prazos, valores e regras do programa vêm das normas e do normativo vigente, não deste guia.",
+    "ano": 2026,
+    "tipo": "apoio",
+    "revisao": "pendente",
+    "trechos": 6,
+    "caracteres": 2317
+  },
+  {
     "doc": "apa-glossario-clinica",
     "titulo": "Glossário APA (EN→PT): psicopatologia, substâncias, psicoterapias e emoções",
     "norma": "Síntese própria, em português, de verbetes do APA Dictionary of Psychology (2ª ed., 2015). Não reproduz o texto do dicionário, que é protegido por direitos autorais. Resumo conceitual com o termo em inglês; não traz critérios diagnósticos operacionais, doses nem condutas clínicas, e não substitui CID, DSM ou avaliação por profissional de saúde. A edição é de 2015 (DSM-IV-TR e DSM-5; não traz DSM-5-TR nem CID-11).",
@@ -609,6 +619,17 @@
     "revisao": "pendente",
     "trechos": 482,
     "caracteres": 243636
+  },
+  {
+    "doc": "dsm5tr-guia-apoio",
+    "titulo": "DSM-5-TR: guia compacto de consulta (resumo com palavras próprias)",
+    "norma": "Resumo de apoio, com palavras próprias, da organização e dos limiares de tempo e de número de sintomas do Manual Diagnóstico e Estatístico de Transtornos Mentais, 5ª edição, texto revisado (DSM-5-TR), da American Psychiatric Association, na tradução em português. Não reproduz os critérios, não substitui o manual e não serve para diagnosticar pessoa real.",
+    "ano": 2022,
+    "tipo": "apoio",
+    "pacote": "psicologia",
+    "revisao": "pendente",
+    "trechos": 42,
+    "caracteres": 21632
   },
   {
     "doc": "espanhol-guia-apoio",
