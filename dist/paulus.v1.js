@@ -2853,10 +2853,13 @@ function trechosParaOPedido(modo, pergunta, padrao) {
 // para a resposta de rotina não mudar; o que muda é o que precisa mudar.
 //   pref.tamanho === 'curto' (memória do aparelho) continua mandando no teto de respostas comuns.
 // Pedido de DESENHO ("desenhe um fluxograma", "faça um esquema do PAIF", "ilustre"): a IA responde com um bloco ```svg que o console desenha na tela.
-const RE_DESENHO = /\b(desenh(a|e|ar|o|os|ando)|ilustr(a|e|ar|acao|acoes)|esbo(c|ç)(a|e|ar|o)|croqui|fluxograma|organograma|diagrama|infografico|mapa mental|mapa conceitual|linha do tempo|cartaz|banner|logotipo|logomarca|icone|pictograma|svg)\b/;
+const RE_DESENHO = /\b(desenh(a|e|ar|o|os|ando)|draw(ing)?|sketch(es)?|ilustr(a|e|ar|acao|acoes)|illustrat(e|ion)|esbo(c|ç)(a|e|ar|o)|croqui|fluxograma|organograma|diagrama|infografico|mapa mental|mapa conceitual|linha do tempo|cartaz|banner|logotipo|logomarca|icone|pictograma|imagem|arte|grafico|chart|poster|cena|personagem|paisagem|capa|convite|svg)\b/;
 function pedidoDeDesenho(texto) {
   const t = String(texto == null ? '' : texto).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   if (!RE_DESENHO.test(t)) return false;
+  // Um substantivo visual precisa estar em contexto de pedido; não acione por alguém só mencionar uma imagem ou gráfico.
+  const temAcao = /\b(desenh(a|e|ar)|draw|sketch|ilustr(a|e|ar)|illustrat|esbo(c|ç)(a|e|ar)|faca|faz|crie|criar|gere|gerar|monte|montar|produza|produzir|cria|make|create|design|renderize)\b/.test(t);
+  if (!temAcao && !/\b(fluxograma|organograma|diagrama|infografico|mapa mental|mapa conceitual|linha do tempo|cartaz|banner|logotipo|logomarca|icone|pictograma|croqui|svg)\b/.test(t)) return false;
   // "desenho institucional", "desenho do programa/serviço/política" é assunto do SUAS, não pedido de imagem
   if (/\bdesenho (institucional|do (programa|servico|projeto|sistema|estudo)|da (politica|rede|pesquisa))\b/.test(t) && !/\b(desenh(a|e|ar)|faca|faz|crie|gere|monte)\b/.test(t)) return false;
   return true;
@@ -2881,7 +2884,7 @@ function perfilDaIA({ modo, tema = false, comTextoPronto = false, pref = null, q
   if (modo === 'saudacao') return { max_tokens: 160, temperature: 0.5 };
   if (tema) return { max_tokens: 900, temperature: 0.4 };
   // Desenho: o SVG ocupa muito mais que um texto; sem este teto o código é cortado no meio e o desenho não aparece.
-  if (comDesenho) return { max_tokens: 3200, temperature: 0.3 };
+  if (comDesenho) return { max_tokens: 5000, temperature: 0.3 };
   // Questão de prova: a resolução em passos e a conferência das alternativas ocupam bem mais que uma resposta comum (várias questões, mais ainda).
   if (comMatematica) return { max_tokens: 4096, temperature: 0.1 };
   // Pergunta de conta: o número vem do programa, a IA só explica. Temperatura baixa para não reescrever o resultado.
@@ -16170,7 +16173,7 @@ const Paulus = { init, perguntar,
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
-  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.29.0',
+  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.30.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
