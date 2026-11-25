@@ -76,10 +76,12 @@ test('pdf: junta PDFs e fotos, divide em partes', async () => {
   const a = { nome: 'a.pdf', bytes: await pdfComPaginas(2) }, b = { nome: 'b.pdf', bytes: await pdfComPaginas(3) };
   let r = await R('juntar os pdfs', [a, b]);
   assert.equal((await abrir(r)).getPageCount(), 5); assert.equal(r.arquivos[0].nome, 'a-unido.pdf');
+  r = await R('unifique os pdfs', [a, b]);
+  assert.equal((await abrir(r)).getPageCount(), 5); assert.equal(r.arquivos[0].nome, 'a-unido.pdf');
   const png = Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
   r = await R('transformar as fotos em pdf', [{ nome: 'foto.png', bytes: png }]);
   assert.equal((await abrir(r)).getPageCount(), 1);
-  r = await R('dividir a cada 2 páginas', [{ nome: 'b.pdf', bytes: b.bytes }]);
+  r = await R('divida o pdf a cada 2 páginas', [{ nome: 'b.pdf', bytes: b.bytes }]);
   assert.equal(r.arquivos.length, 2); assert.deepEqual(r.arquivos.map(x => x.paginas), [2, 1]);
   r = await R('dividir o pdf na página 1', [b]);
   assert.deepEqual(r.arquivos.map(x => x.paginas), [1, 2]);
