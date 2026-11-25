@@ -87,9 +87,11 @@ export function montarCota(linhas, agora, franquia) {
     saida += numero(s.totalOutputTokens);
     if (Number.isFinite(t)) porHora[Math.floor((t - inicio) / HORA)] += n;
     const m = nomeCurto(d.modelId);
-    const atual = porModelo.get(m) || { modelo: m, neurons: 0, chamadas: 0 };
+    const atual = porModelo.get(m) || { modelo: m, neurons: 0, chamadas: 0, entrada: 0, saida: 0 };
     atual.neurons += n;
     atual.chamadas += numero(l.count);
+    atual.entrada += numero(s.totalInputTokens);
+    atual.saida += numero(s.totalOutputTokens);
     porModelo.set(m, atual);
   });
 
@@ -97,7 +99,17 @@ export function montarCota(linhas, agora, franquia) {
   const restam = Math.max(0, franquia - usados);
   const acima = Math.max(0, usados - franquia);
   const modelos = Array.from(porModelo.values())
-    .map(function (m) { return { modelo: m.modelo, neurons: Math.round(m.neurons), chamadas: m.chamadas }; })
+    .map(function (m) {
+      return {
+        modelo: m.modelo,
+        neurons: Math.round(m.neurons),
+        chamadas: m.chamadas,
+        percentual: usados > 0 ? Math.round(m.neurons / usados * 1000) / 10 : 0,
+        neuronsPorChamada: m.chamadas > 0 ? Math.round(m.neurons / m.chamadas * 10) / 10 : 0,
+        tokensEntrada: Math.round(m.entrada),
+        tokensSaida: Math.round(m.saida)
+      };
+    })
     .sort(function (a, b) { return b.neurons - a.neurons; })
     .slice(0, 8);
 
@@ -120,9 +132,38 @@ export function montarCota(linhas, agora, franquia) {
     renova: new Date(fim).toISOString(),
     esgotaEm: null
   };
+  // Dados derivados (só contas sobre o que a Cloudflare devolveu; nada é inventado):
+  const porChamada = chamadas > 0 ? usados / chamadas : 0;
+  r.neuronsPorChamada = porChamada > 0 ? Math.round(porChamada * 10) / 10 : null;
+  r.chamadasRestantes = porChamada > 0 ? Math.floor(restam / porChamada) : null;   // quantas chamadas ainda cabem, no gasto médio de hoje
+  const ritmo = ritmoRecentePorHora(porHora, usados, agora);
+  r.ritmoPorHora = ritmo > 0 ? Math.round(ritmo) : null;
+  r.projecaoDoDia = (ritmo > 0 && !r.esgotada) ? Math.round(usados + ritmo * Math.max(0, fim - agora) / HORA) : null; // total no fim do dia, SE o ritmo continuar
+  let pico = -1;
+  porHora.forEach(function (n, i) { if (n > 0 && (pico < 0 || n > porHora[pico])) pico = i; });
+  r.horaDePico = pico >= 0 ? { hora: new Date(inicio + pico * HORA).toISOString(), neurons: Math.round(porHora[pico]) } : null;
+  let ultima = -1;
+  porHora.forEach(function (n, i) { if (n > 0) ultima = i; });
+  r.dadosAte = ultima >= 0 ? new Date(inicio + (ultima + 1) * HORA).toISOString() : null; // fim da última hora que já tem consumo
   if (acima > 0) r.custoExcedenteUSD = Math.round(acima / 1000 * PRECO_POR_MIL_NEURONS * 100) / 100;
   r.esgotaEm = projetarEsgotamento(porHora, usados, franquia, agora);
   return r;
+}
+
+// Ritmo recente em neurons por hora: média das últimas 3 horas cheias mais a hora corrente (até agora).
+// Se a janela recente não tem consumo, usa a média do dia inteiro. 0 quando não há como estimar.
+export function ritmoRecentePorHora(porHora, usados, agora) {
+  if (!(usados > 0)) return 0;
+  const inicio = inicioDoDiaUTC(agora);
+  const decorrido = agora - inicio;
+  const horaAtual = Math.min(23, Math.floor(decorrido / HORA));
+  const janelaHoras = Math.min(3, horaAtual) + (decorrido - horaAtual * HORA) / HORA;
+  if (!(janelaHoras > 0.05)) return 0;
+  let soma = 0;
+  for (let h = Math.max(0, horaAtual - 3); h <= horaAtual; h++) soma += numero(porHora[h]);
+  let porMs = soma / (janelaHoras * HORA);
+  if (!(porMs > 0)) porMs = usados / decorrido;
+  return porMs > 0 ? porMs * HORA : 0;
 }
 
 // Quando a franquia acaba SE o ritmo recente continuar. Devolve ISO, ou null quando:
