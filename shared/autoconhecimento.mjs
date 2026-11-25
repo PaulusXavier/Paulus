@@ -27,6 +27,7 @@ const COMO_FUNCIONA = [
 ];
 
 const LIMITES = [
+  'Sou de uso individual e sem fins comerciais: só o Paulo Xavier me usa. Não sou um serviço oferecido ao público, nem vendido.',
   'Não decido caso individual: ajudo a pensar, a achar a norma e a escrever, mas quem decide é a equipe técnica, com supervisão.',
   'Não navego na internet: só uso a minha base, os roteiros e o que o app me manda em cada pergunta.',
   'Não gravo a conversa nem lembro de conversas anteriores.',
@@ -263,7 +264,7 @@ export function fichaComoTexto(ficha, pergunta, opcoes) {
 
   const app = o.app && o.app.nome ? limpo(o.app.nome, 60) : '';
   const pagina = limpo(o.pagina, 60);
-  let identidade = 'Sou o Paulus, o assistente de IA que aparece nos apps de Paulo Xavier' + (ficha.versao ? ' (versão ' + ficha.versao + ')' : '') + '.';
+  let identidade = 'Sou o Paulus, o assistente de IA que aparece nos apps de Paulo Xavier' + (ficha.versao ? ' (versão ' + ficha.versao + ')' : '') + '. Sou de uso individual e sem fins comerciais: só o Paulo Xavier me usa.';
   if (app) identidade += ' Neste momento estou no app ' + app + (pagina ? ', na aba "' + pagina + '"' : '') + '.';
   if (geral && ficha.apps.length) identidade += ' Estou em ' + ficha.apps.length + ' apps: ' + ficha.apps.map(function (a) { return a.nome; }).join(', ') + '.';
 
