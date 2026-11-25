@@ -2862,11 +2862,28 @@ function pedidoDeDesenho(texto) {
   return true;
 }
 
-function perfilDaIA({ modo, tema = false, comTextoPronto = false, pref = null, quantitativo = false, partes = 0, comDesenho = false }) {
+// Questão de MATEMÁTICA de prova (vestibular, concurso, olimpíada, estudo): polinômio, geometria analítica, trigonometria, contagem...
+// Resolve-se por raciocínio em passos (não por regra pronta), então a IA precisa de mais espaço, temperatura baixa e o roteiro de métodos.
+const RE_MAT_FORTE = /\b(polinomio|raizes|raiz real|parabola|circunferencias?|hiperbole|elipse|reta tangente|tangente a|trigonometri\w*|seno|cosseno|tg|logaritm\w*|progressao (?:aritmetica|geometrica)|pa|pg|bijec\w*|injetora|sobrejetora|permutac\w*|combinac\w*|arranjos?|anagramas?|matriz|matrizes|determinante|sistema linear|numeros? complexos?|derivada|integral|vertice|baricentro|incentro|circuncentro|triangulo|esfera|cilindro|piramide|inequacao|equacao|funcao (?:quadratica|afim|exponencial|modular|inversa|composta)|binomio|vetores?|coeficiente angular|angulo|abscissa|ordenada|sen|cos|tan|sec|cossec|cotg)\b/g;
+// Termos de complexos, logaritmo com base escrita (log45), geometria plana e espacial: a prova de matemática não é só álgebra.
+const RE_MAT_FORTE_2 = /\blog\s*[_₀-₉{]?\s*\d|ℂ|∈\s*[cℂℝ]\b|\bparte (?:real|imaginaria)\b|\bconjugado\b|\bmodulo\s+\d|\bargumento\s+(?:principal\b|\S*pi\b|\S*π)|\bcubo\b|\bprisma\b|\bhexagono\b|\bpentagono\b|\bhexagrama\b|\bpoliedro\b|\btetraedro\b|\bsecao plana\b|\bplanos? (?:distintos|secantes|perpendiculares|paralelos|concorrentes)\b|\bretas? (?:paralelas|concorrentes|reversas)\b|\bquadrado inscrito\b|\binscrit[oa]\b|\bequilatero\b|\bisosceles\b/g;
+const RE_MAT_PEDIDO = /\b(questao|questoes|alternativas?|gabarito|resolva|calcule|determine|demonstre|prove|qual (?:e )?o valor|valor possivel|seja|sejam|considere|satisfaz\w*|e igual a|vestibular|concurso|prova|ime|ita|enem|olimpiada)\b|\(\s*\)\s*[-−]?\d|\b[a-e]\s*\(\s*\)/;
+function pedidoDeMatematica(texto) {
+  const t = String(texto == null ? '' : texto).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().slice(0, 6000);
+  const fortes = (t.match(RE_MAT_FORTE) || []).length + (t.match(RE_MAT_FORTE_2) || []).length;
+  if (fortes >= 3) return true;
+  // Um termo de matemática só conta com sinal de conta (igualdade, potência, F(1), seta) ou com dois termos juntos; "triângulo de proteção" não é questão.
+  if (fortes >= 1 && (RE_MAT_PEDIDO.test(t) || /[=<>^]|->|\bx\s*\^?\s*\d|\bf\s*\(/.test(t))) return fortes >= 2 || /[=<>^]|->|\bx\b|\bf\s*\(/.test(t);
+  return false;
+}
+
+function perfilDaIA({ modo, tema = false, comTextoPronto = false, pref = null, quantitativo = false, partes = 0, comDesenho = false, comMatematica = false }) {
   if (modo === 'saudacao') return { max_tokens: 160, temperature: 0.5 };
   if (tema) return { max_tokens: 900, temperature: 0.4 };
   // Desenho: o SVG ocupa muito mais que um texto; sem este teto o código é cortado no meio e o desenho não aparece.
   if (comDesenho) return { max_tokens: 3200, temperature: 0.3 };
+  // Questão de prova: a resolução em passos e a conferência das alternativas ocupam bem mais que uma resposta comum (várias questões, mais ainda).
+  if (comMatematica) return { max_tokens: 4096, temperature: 0.1 };
   // Pergunta de conta: o número vem do programa, a IA só explica. Temperatura baixa para não reescrever o resultado.
   if (comTextoPronto) return { max_tokens: 1400, temperature: quantitativo ? 0.3 : 0.5 };
   if (quantitativo && modo !== 'refinamento') return { max_tokens: pref && pref.tamanho === 'curto' ? 600 : 1000, temperature: 0.2 };
@@ -3216,14 +3233,18 @@ const CALC_FUNCOES = {
   mediana: 'mediana', moda: 'moda', desvio: 'desvio', desviop: 'desviop', variancia: 'variancia', variancip: 'variancip',
   amplitude: 'amplitude', produto: 'produto', contar: 'contar', percentil: 'percentil', quartil: 'quartil',
   ponderada: 'ponderada', mediageo: 'mediageo', cv: 'cv', escorez: 'escorez',
-  montante: 'montante', parcela: 'parcela', vp: 'vp'
+  montante: 'montante', parcela: 'parcela', vp: 'vp',
+  atan: 'atan', arctan: 'atan', asin: 'asin', arcsen: 'asin', acos: 'acos', arccos: 'acos', cbrt: 'cbrt', raizcubica: 'cbrt',
+  sec: 'sec', cossec: 'cossec', cotg: 'cotg', dist: 'dist', areatri: 'areatri', raizmenor: 'raizmenor', raizmaior: 'raizmaior'
 };
 const CALC_ROTULO_FUNCAO = {
   raiz: 'raiz', media: 'média', min: 'mín', max: 'máx', arred: 'arred', teto: 'teto', piso: 'piso', abs: 'abs', soma: 'soma',
   mediana: 'mediana', desvio: 'desvio padrão', desviop: 'desvio padrão (população)', variancia: 'variância', variancip: 'variância (população)',
   fatorial: 'fatorial', resto: 'resto', mdc: 'mdc', mmc: 'mmc', comb: 'combinação', perm: 'arranjo', ponderada: 'média ponderada',
   mediageo: 'média geométrica', escorez: 'escore z', cv: 'coef. de variação', seno: 'seno', cosseno: 'cosseno', tangente: 'tangente',
-  montante: 'montante', parcela: 'parcela', vp: 'valor presente', trunc: 'trunc', hipot: 'hipotenusa'
+  montante: 'montante', parcela: 'parcela', vp: 'valor presente', trunc: 'trunc', hipot: 'hipotenusa',
+  atan: 'arco tangente', asin: 'arco seno', acos: 'arco cosseno', cbrt: 'raiz cúbica', sec: 'secante', cossec: 'cossecante', cotg: 'cotangente',
+  dist: 'distância', areatri: 'área do triângulo', raizmenor: 'menor raiz', raizmaior: 'maior raiz'
 };
 // Constantes: pi sempre; "e" só na conta escrita pela IA (em texto de gente "e" é a conjunção).
 const CALC_CONSTANTES = { pi: Math.PI, e: Math.E };
@@ -3580,6 +3601,23 @@ function calcFuncao(f, a) {
     const x = um();
     if (Math.abs(Math.cos(rad(x))) < 1e-12) throw calcErro('tangente não existe nesse ângulo');
     return calcTrig(Math.tan(rad(x)));
+  }
+  // Matemática de prova: ângulos em graus (como seno, cosseno e tangente acima); arco-funções devolvem graus.
+  if (f === 'atan') return calcLimpar(Math.round(Math.atan(um()) * 180 / Math.PI * 1e9) / 1e9);
+  if (f === 'asin') { const x = um(); if (Math.abs(x) > 1) throw calcErro('arco seno pede número entre -1 e 1'); return calcLimpar(Math.round(Math.asin(x) * 180 / Math.PI * 1e9) / 1e9); }
+  if (f === 'acos') { const x = um(); if (Math.abs(x) > 1) throw calcErro('arco cosseno pede número entre -1 e 1'); return calcLimpar(Math.round(Math.acos(x) * 180 / Math.PI * 1e9) / 1e9); }
+  if (f === 'cbrt') return calcLimpar(Math.round(Math.cbrt(um()) * 1e10) / 1e10);
+  if (f === 'sec') { const c = Math.cos(rad(um())); if (Math.abs(c) < 1e-12) throw calcErro('secante não existe nesse ângulo'); return calcTrig(1 / c); }
+  if (f === 'cossec') { const s = Math.sin(rad(um())); if (Math.abs(s) < 1e-12) throw calcErro('cossecante não existe nesse ângulo'); return calcTrig(1 / s); }
+  if (f === 'cotg') { const s = Math.sin(rad(um())); if (Math.abs(s) < 1e-12) throw calcErro('cotangente não existe nesse ângulo'); return calcTrig(Math.cos(rad(a[0])) / s); }
+  if (f === 'dist') { if (a.length !== 4) throw calcErro('dist pede x1; y1; x2; y2'); return calcLimpar(Math.sqrt(Math.pow(a[2] - a[0], 2) + Math.pow(a[3] - a[1], 2))); }
+  if (f === 'areatri') { if (a.length !== 6) throw calcErro('areatri pede x1; y1; x2; y2; x3; y3'); return calcLimpar(Math.abs(a[0] * (a[3] - a[5]) + a[2] * (a[5] - a[1]) + a[4] * (a[1] - a[3])) / 2); }
+  if (f === 'raizmenor' || f === 'raizmaior') {
+    const t = tres(), d = t[1] * t[1] - 4 * t[0] * t[2];
+    if (t[0] === 0) throw calcErro('equação do 2º grau pede a diferente de 0');
+    if (d < 0) throw calcErro('sem raiz real (delta negativo)');
+    const r1 = (-t[1] - Math.sqrt(d)) / (2 * t[0]), r2 = (-t[1] + Math.sqrt(d)) / (2 * t[0]);
+    return calcLimpar(f === 'raizmenor' ? Math.min(r1, r2) : Math.max(r1, r2));
   }
   if (f === 'fatorial') return calcFatorial(um());
   if (f === 'resto') { const d = dois(); if (d[1] === 0) throw calcErro('divisão por zero'); return calcLimpar(d[0] - d[1] * Math.floor(d[0] / d[1])); }
@@ -5021,9 +5059,465 @@ function cmxEstatistica(n) {
   return null;
 }
 
+// ------------------------------------------------------------------ mais matemática (exata, no aparelho)
+// Frações e razões, porcentagem inversa e sucessiva, progressões (PA e PG), análise combinatória, probabilidade simples, sistema 2x2,
+// moda e amplitude, média necessária, taxa equivalente, valor presente, prazo para dobrar, rateio proporcional e alguns atalhos.
+// Cada regra só responde quando reconhece o pedido por inteiro; na dúvida devolve null e a pergunta segue para a IA.
+
+const CMX_NS = '-?' + CMX_NUM;
+
+function cmxMdc(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { const t = a % b; a = b; b = t; } return a; }
+
+function cmxFracaoTexto(num, den) {
+  const g = cmxMdc(num, den) || 1;
+  let a = num / g, b = den / g;
+  if (b < 0) { a = -a; b = -b; }
+  return { a: a, b: b, texto: b === 1 ? cmxF(a) : cmxF(a) + '/' + cmxF(b) };
+}
+
+function cmxFracoes(n) {
+  if (/\d+\s*\/\s*\d+\s*\/\s*\d+/.test(n)) return null;                              // data, não fração
+  let m = new RegExp('(' + CMX_NUM + ')\\s*/\\s*(' + CMX_NUM + ')\\s*([+\\-x*×÷:]|mais|menos|vezes)\\s*(' + CMX_NUM + ')\\s*/\\s*(' + CMX_NUM + ')').exec(n);
+  if (m && /fracao|fracoes|some|soma|subtra|multipl|divid|calcul|quanto|\+|-|×|\*|x/.test(n) && !/\d\s*%/.test(n)) {
+    const a = cmxNum(m[1]), b = cmxNum(m[2]), c = cmxNum(m[4]), d = cmxNum(m[5]);
+    if (b === 0 || d === 0 || ![a, b, c, d].every(Number.isInteger)) return null;
+    const op = m[3];
+    let num, den, sinal;
+    if (op === '+' || op === 'mais') { num = a * d + c * b; den = b * d; sinal = '+'; }
+    else if (op === '-' || op === 'menos') { num = a * d - c * b; den = b * d; sinal = '−'; }
+    else if (op === '÷' || op === ':') { if (c === 0) return [cmxErro('Divisão por zero.')]; num = a * d; den = b * c; sinal = '÷'; }
+    else { num = a * c; den = b * d; sinal = '×'; }
+    const f = cmxFracaoTexto(num, den);
+    return [cmxItem('fração', a + '/' + b + ' ' + sinal + ' ' + c + '/' + d, num / den, f.texto + (f.b !== 1 ? ' (' + cmxF(num / den) + ')' : ''))];
+  }
+  m = new RegExp('(?:simplifi\\w+|reduz\\w+|irredutivel)\\D{0,25}(' + CMX_NUM + ')\\s*/\\s*(' + CMX_NUM + ')').exec(n);
+  if (m) {
+    const a = cmxNum(m[1]), b = cmxNum(m[2]);
+    if (b === 0 || !Number.isInteger(a) || !Number.isInteger(b)) return null;
+    const f = cmxFracaoTexto(a, b), g = cmxMdc(a, b);
+    return [cmxItem('fração simplificada', a + '/' + b + ' ÷ mdc ' + g, a / b, f.texto + (f.b !== 1 ? ' (' + cmxF(a / b) + ')' : ''))];
+  }
+  m = new RegExp('razao\\s+entre\\s+(' + CMX_NUM + ')\\s+e\\s+(' + CMX_NUM + ')').exec(n);
+  if (m) {
+    const a = cmxNum(m[1]), b = cmxNum(m[2]);
+    if (b === 0) return [cmxErro('Divisão por zero: o segundo número não pode ser 0.')];
+    const itens = [];
+    if (Number.isInteger(a) && Number.isInteger(b)) { const f = cmxFracaoTexto(a, b); itens.push(cmxItem('razão', a + ' ÷ ' + b, a / b, f.texto.replace('/', ' para ') + ' (' + f.texto + ')')); }
+    itens.push(cmxItem('razão em decimal e %', cmxF(a) + ' ÷ ' + cmxF(b), a / b, cmxF(a / b) + ' = ' + cmxF(a / b * 100) + '%'));
+    return itens;
+  }
+  m = new RegExp('(' + CMX_NUM + ')\\s*/\\s*(' + CMX_NUM + ')\\s+(?:em|para|como)\\s+(?:numero\\s+)?(?:decimal|porcentagem|percentual|por\\s*cento|%)').exec(n);
+  if (m) {
+    const a = cmxNum(m[1]), b = cmxNum(m[2]);
+    if (b === 0) return [cmxErro('Divisão por zero.')];
+    return [cmxItem('fração em decimal', cmxF(a) + ' ÷ ' + cmxF(b), a / b, cmxF(a / b) + ' = ' + cmxF(a / b * 100) + '%')];
+  }
+  m = new RegExp('(' + CMX_NUM + ')\\s*%?\\s+(?:em|para|como|virar)\\s+fracao').exec(n);
+  if (m) {
+    const txt = m[1].replace(/\./g, ''), pct = /%/.test(n.slice(n.indexOf(m[1]), n.indexOf(m[1]) + m[1].length + 2));
+    const dec = cmxNum(m[1]);
+    const casas = (txt.split(',')[1] || '').length;
+    if (!isFinite(dec) || casas > 6) return null;
+    const den = Math.pow(10, casas) * (pct ? 100 : 1), num = Math.round(dec * Math.pow(10, casas));
+    const f = cmxFracaoTexto(num, den);
+    return [cmxItem('decimal em fração', cmxF(dec) + (pct ? '% = ' : ' = ') + num + '/' + den, dec, f.texto)];
+  }
+  return null;
+}
+
+// Preço original antes de aumento ou desconto: valor final ÷ (1 ± p).
+function cmxPercentualInverso(n) {
+  if (!/%/.test(n) || !/\b(?:original|inicial|antes|custava|era|valia|sem\s+(?:o\s+)?(?:aumento|desconto|reajuste|acrescimo)|base)\b/.test(n)) return null;
+  const mp = new RegExp('(' + CMX_NUM + ')\\s*%').exec(n);
+  if (!mp) return null;
+  const resto = n.replace(mp[0], ' ');
+  if (new RegExp('%').test(resto)) return null;
+  const nums = cmxNumeros(resto);
+  if (nums.length !== 1) return null;
+  const desc = /desconto|abatimento|queda|reducao|barate|diminu|promocao|liquidacao/.test(n);
+  const aum = /aumento|acrescimo|reajuste|alta|encarec|imposto|taxa|juros|majora/.test(n);
+  if (desc === aum) return null;
+  const p = cmxNum(mp[1]) / 100, fim = nums[0];
+  const f = desc ? 1 - p : 1 + p;
+  if (f <= 0) return [cmxErro('Com esse percentual o valor original não existe (desconto de 100% ou mais).')];
+  const orig = fim / f;
+  return [cmxItem('valor original', cmxF(fim) + ' ÷ (1 ' + (desc ? '−' : '+') + ' ' + cmxF(p * 100) + '%)', orig, cmxF(orig))];
+}
+
+// Aumentos/descontos em sequência e inflação acumulada: os fatores se multiplicam, os percentuais não se somam.
+function cmxSucessivos(n) {
+  const pcts = [];
+  const re = new RegExp('(' + CMX_NUM + ')\\s*%', 'g');
+  let m;
+  while ((m = re.exec(n))) pcts.push({ v: cmxNum(m[1]), ini: m.index, fim: re.lastIndex });
+  if (pcts.length < 2 || !/(?:sucessiv\w*|acumulad\w*|depois|em\s+seguida|seguid\w+|e\s+mais|outro|novo|inflacao)/.test(n)) return null;
+  if (!/(?:desconto|aumento|acrescimo|reajuste|inflacao|variacao|queda|reducao|alta|taxa)/.test(n)) return null;
+  let sinal = /desconto|queda|reducao|abatimento|barate/.test(n.slice(0, pcts[0].ini + 30)) ? -1 : 1;
+  const fatores = [], partes = [];
+  pcts.forEach(function (p, i) {
+    const antes = n.slice(i ? pcts[i - 1].fim : 0, p.ini);
+    if (/desconto|queda|reducao|abatimento|barate|diminu/.test(antes)) sinal = -1;
+    else if (/aumento|acrescimo|reajuste|alta|majora/.test(antes)) sinal = 1;
+    fatores.push(1 + sinal * p.v / 100);
+    partes.push('(1 ' + (sinal < 0 ? '−' : '+') + ' ' + cmxF(p.v) + '%)');
+  });
+  if (fatores.some(function (f) { return f < 0; })) return null;
+  const total = fatores.reduce(function (x, y) { return x * y; }, 1);
+  const itens = [cmxItem('variação acumulada', partes.join(' × ') + ' − 1', total - 1, cmxF((total - 1) * 100) + '% (fator ' + cmxF(total) + ')')];
+  let resto = n; pcts.slice().reverse().forEach(function (p) { resto = resto.slice(0, p.ini) + ' ' + resto.slice(p.fim); });
+  const base = cmxNumeros(resto);
+  if (base.length === 1) itens.push(cmxItem('valor final', cmxF(base[0]) + ' × ' + cmxF(total), base[0] * total, cmxF(base[0] * total)));
+  return itens;
+}
+
+const CMX_ORD = { primeiro: 1, segundo: 2, terceiro: 3, quarto: 4, quinto: 5, sexto: 6, setimo: 7, oitavo: 8, nono: 9, decimo: 10, vigesimo: 20, trigesimo: 30 };
+
+function cmxProgressao(n) {
+  const pa = /\bpa\b|progressao\s+aritmetica/.test(n), pg = /\bpg\b|progressao\s+geometrica/.test(n);
+  if (pa === pg) return null;
+  const a1m = new RegExp('(?:primeiro\\s+termo|\\ba\\s*1\\b|\\ba1\\b)\\s*(?:=|de|e|igual\\s+a|:)?\\s*(' + CMX_NS + ')').exec(n);
+  const rm = new RegExp('(?:razao|\\br\\b|\\bq\\b)\\s*(?:=|de|e|igual\\s+a|:)?\\s*(' + CMX_NS + ')').exec(n);
+  if (!a1m || !rm) return null;
+  const a1 = cmxNum(a1m[1]), r = cmxNum(rm[1]);
+  const itens = [];
+  const termo = function (k) { return pa ? a1 + (k - 1) * r : a1 * Math.pow(r, k - 1); };
+  const soma = function (k) { return pa ? (a1 + termo(k)) * k / 2 : (r === 1 ? a1 * k : a1 * (Math.pow(r, k) - 1) / (r - 1)); };
+  const sm = /soma\s+d\w+\s+(?:(?:os|as)\s+)?(?:(\d+)|primeir\w+\s+(\d+))\s*(?:primeiros\s+)?termos/.exec(n);
+  const sem1 = n.replace(a1m[0], ' ').replace(rm[0], ' ');
+  const km = /(?:termo\s+(?:de\s+)?(?:numero\s+|posicao\s+)?(\d+)\b|(\d+)\s*(?:o|º|°)?\s*termo|\ba(?:\s*_?)(\d+)\b(?!\s*=))/.exec(sem1);
+  let k = null;
+  if (km) k = Number(km[1] || km[2] || km[3]);
+  else { const om = /\b(primeiro|segundo|terceiro|quarto|quinto|sexto|setimo|oitavo|nono|decimo|vigesimo|trigesimo)\s+termo/.exec(sem1); if (om) k = CMX_ORD[om[1]]; }
+  const ks = sm ? Number(sm[1] || sm[2]) : null;
+  if (!k && !ks) return null;
+  const rot = pa ? 'PA' : 'PG';
+  if (k) {
+    if (k < 1 || k > 1000) return [cmxErro('A posição do termo precisa ficar entre 1 e 1000.')];
+    const t = termo(k);
+    if (!isFinite(t) || Math.abs(t) > 1e15) return [cmxErro('O termo passa de 1 quatrilhão; confira os dados.')];
+    itens.push(cmxItem('termo ' + k + ' da ' + rot, pa ? cmxF(a1) + ' + ' + (k - 1) + ' × ' + cmxP(r) : cmxF(a1) + ' × ' + cmxP(r) + '^' + (k - 1), t, cmxF(t)));
+  }
+  if (ks) {
+    if (ks < 1 || ks > 1000) return [cmxErro('A quantidade de termos precisa ficar entre 1 e 1000.')];
+    const s = soma(ks);
+    if (!isFinite(s) || Math.abs(s) > 1e15) return [cmxErro('A soma passa de 1 quatrilhão; confira os dados.')];
+    itens.push(cmxItem('soma dos ' + ks + ' primeiros termos da ' + rot, pa ? '(' + cmxF(a1) + ' + ' + cmxF(termo(ks)) + ') × ' + ks + ' ÷ 2' : cmxF(a1) + ' × (' + cmxP(r) + '^' + ks + ' − 1) ÷ (' + cmxP(r) + ' − 1)', s, cmxF(s)));
+  }
+  return itens;
+}
+
+function cmxFatorialExato(k) { let f = 1; for (let i = 2; i <= k; i++) f *= i; return f; }
+
+// C(n,p), A(n,p) e permutação. Só com palavra de análise combinatória; produto passo a passo para não estourar.
+function cmxCombinatoria(n) {
+  const comb = /combinac\w+|\bc\s*\(\s*\d+\s*,\s*\d+\s*\)|tomados?\s+\d+\s+a\s+\d+|escolher\s+\d+\s+de\s+\d+|escolhe\s+\d+/.test(n);
+  const arr = /arranjos?|\ba\s*\(\s*\d+\s*,\s*\d+\s*\)/.test(n);
+  const perm = /permutac\w+|anagramas?\s+d[ea]\s+\d+/.test(n);
+  if (!comb && !arr && !perm) return null;
+  const nums = (n.match(/\d+/g) || []).map(Number);
+  if (perm && !comb && !arr) {
+    if (nums.length < 1) return null;
+    const k = nums[0];
+    if (k > 170) return [cmxErro('Acima de 170 elementos o resultado passa do limite.')];
+    const v = cmxFatorialExato(k);
+    if (v > 1e15) return [cmxItem('permutação', k + '!', v, cmxF(v) + ' (valor aproximado)')];
+    return [cmxItem('permutação simples', k + '!', v, cmxF(v) + (k > 1 ? ' maneiras' : ''))];
+  }
+  if (nums.length < 2) return null;
+  let a = nums[0], b = nums[1];
+  // "combinações de 10 escolhe 3", "tomados 3 a 3 de 10": o maior número é o total
+  if (b > a) { const t = a; a = b; b = t; }
+  if (a > 1000) return [cmxErro('Use no máximo 1000 elementos.')];
+  let r = 1;
+  const kk = comb && !arr ? Math.min(b, a - b) : b;
+  for (let i = 1; i <= kk; i++) { r = comb && !arr ? r * (a - kk + i) / i : r * (a - i + 1); if (r > 9e15) return [cmxErro('O resultado passa de 9 quatrilhões; use uma calculadora científica.')]; }
+  r = Math.round(r);
+  if (comb && !arr) return [cmxItem('combinação C(' + a + ', ' + b + ')', a + '! ÷ (' + b + '! × ' + (a - b) + '!)', r, cmxF(r) + ' maneiras (a ordem não importa)')];
+  return [cmxItem('arranjo A(' + a + ', ' + b + ')', a + '! ÷ ' + (a - b) + '!', r, cmxF(r) + ' maneiras (a ordem importa)')];
+}
+
+function cmxProbTexto(fav, tot, rot) {
+  const f = cmxFracaoTexto(fav, tot);
+  return cmxItem(rot || 'probabilidade', fav + ' ÷ ' + tot, fav / tot, f.texto + ' = ' + cmxF(fav / tot) + ' = ' + cmxF(fav / tot * 100) + '%');
+}
+
+function cmxProbabilidade(n) {
+  if (!/probabilidade|chance/.test(n)) return null;
+  let m = new RegExp('(\\d+)\\s+(?:casos?\\s+)?favoravei?s?\\b[^\\d]{0,30}(\\d+)').exec(n);
+  if (m) { const a = Number(m[1]), b = Number(m[2]); if (b > 0 && a <= b) return [cmxProbTexto(a, b)]; return [cmxErro('Os casos favoráveis não podem passar do total.')]; }
+  if (/\bdado\b/.test(n) && !/\bdois\b|\b2\s+dados|dados/.test(n)) {
+    const comp = /(maior|acima)\s+(?:que|do\s+que|de)\s+(\d)/.exec(n) || null, menor = /(menor|abaixo)\s+(?:que|do\s+que|de)\s+(\d)/.exec(n);
+    if (comp) return [cmxProbTexto(Math.max(0, 6 - Number(comp[2])), 6, 'probabilidade (dado de 6 faces)')];
+    if (menor) return [cmxProbTexto(Math.max(0, Number(menor[2]) - 1), 6, 'probabilidade (dado de 6 faces)')];
+    if (/\bpar\b/.test(n) || /\bimpar\b/.test(n)) return [cmxProbTexto(3, 6, 'probabilidade (dado de 6 faces)')];
+    const f = /\b([1-6])\b/.exec(n);
+    if (f) return [cmxProbTexto(1, 6, 'probabilidade (dado de 6 faces)')];
+  }
+  if (/\bmoeda\b|\bcara\b|\bcoroa\b/.test(n)) {
+    const v = /(\d+)\s+vezes/.exec(n);
+    const k = v ? Number(v[1]) : 1;
+    if (k < 1 || k > 30) return null;
+    return [cmxProbTexto(1, Math.pow(2, k), 'probabilidade (moeda' + (k > 1 ? ', ' + k + ' vezes seguidas, mesmo resultado' : '') + ')')];
+  }
+  m = /(?:sortear|sorteado|sorteio|ganhar)[^\d]{0,20}(\d+)[^\d]{1,25}(?:entre|de|dentre)\s+(\d+)/.exec(n);
+  if (m) { const a = Number(m[1]), b = Number(m[2]); if (b > 0 && a <= b) return [cmxProbTexto(a, b, 'probabilidade (sorteio)')]; }
+  return null;
+}
+
+// Sistema 2x2 (x e y) por Cramer.
+function cmxSistema(n) {
+  if ((n.match(/=/g) || []).length < 2 || !/[xy]/.test(n)) return null;
+  const re = new RegExp('((?:[+\\-]?\\s*(?:' + CMX_NUM + ')?\\s*[xy]\\s*)+)=\\s*(' + CMX_NS + ')', 'g');
+  const eqs = []; let m;
+  while ((m = re.exec(n.replace(/\s+/g, ' ')))) {
+    const lado = m[1].replace(/\s+/g, ''); let cx = 0, cy = 0, ok = true;
+    const tr = /([+\-]?)(\d[\d.]*(?:,\d+)?)?([xy])/g; let t, resto = lado;
+    while ((t = tr.exec(lado))) { const c = (t[2] ? cmxNum(t[2]) : 1) * (t[1] === '-' ? -1 : 1); if (t[3] === 'x') cx += c; else cy += c; resto = resto.replace(t[0], ''); }
+    if (resto || !isFinite(cx + cy)) ok = false;
+    if (ok) eqs.push({ a: cx, b: cy, c: cmxNum(m[2]) });
+  }
+  if (eqs.length !== 2) return null;
+  const e1 = eqs[0], e2 = eqs[1], d = e1.a * e2.b - e2.a * e1.b;
+  if (d === 0) return [cmxErro('O sistema não tem solução única (as retas são paralelas ou iguais).')];
+  const x = (e1.c * e2.b - e2.c * e1.b) / d, y = (e1.a * e2.c - e2.a * e1.c) / d;
+  return [cmxItem('x', '(' + cmxF(e1.c) + ' × ' + cmxP(e2.b) + ' − ' + cmxF(e2.c) + ' × ' + cmxP(e1.b) + ') ÷ ' + cmxP(d), x, cmxF(x)),
+    cmxItem('y', '(' + cmxP(e1.a) + ' × ' + cmxF(e2.c) + ' − ' + cmxP(e2.a) + ' × ' + cmxF(e1.c) + ') ÷ ' + cmxP(d), y, cmxF(y))];
+}
+
+// "2,3,3,5" (vírgula sem espaço, três ou mais números) é lista; "2,5" sozinho é decimal.
+function cmxNumerosLista(t) {
+  return /\d,\d+,\d/.test(t) && !/,\s/.test(t) ? t.split(',').map(cmxNum).filter(isFinite) : cmxNumeros(t);
+}
+
+function cmxLista(n) {
+  let m = /\bmoda\b\s*(?:de|dos|das|:)?\s*([\d.,\s;e]+)/.exec(n);
+  if (m) {
+    const v = cmxNumerosLista(m[1].trim()); if (v.length < 2) return null;
+    const cont = {}; v.forEach(function (x) { cont[x] = (cont[x] || 0) + 1; });
+    const max = Math.max.apply(null, Object.keys(cont).map(function (k) { return cont[k]; }));
+    if (max === 1) return [cmxItem('moda', 'valores: ' + v.map(function (x) { return cmxF(x); }).join('; '), null, 'não há moda (nenhum valor se repete)')];
+    const modas = Object.keys(cont).filter(function (k) { return cont[k] === max; }).map(Number).sort(function (a, b) { return a - b; });
+    return [cmxItem(modas.length > 1 ? 'moda (multimodal)' : 'moda', 'valor mais frequente', modas[0], modas.map(function (x) { return cmxF(x); }).join(' e ') + ' (aparece ' + max + ' vezes)')];
+  }
+  m = /amplitude\s*(?:de|dos|das|:)?\s*([\d.,\s;e-]+)/.exec(n);
+  if (m) {
+    const v = cmxNumerosLista(m[1].trim()); if (v.length < 2) return null;
+    const mx = Math.max.apply(null, v), mn = Math.min.apply(null, v);
+    return [cmxItem('amplitude', cmxF(mx) + ' − ' + cmxP(mn), mx - mn, cmxF(mx - mn))];
+  }
+  // nota necessária: "preciso de média 7, tirei 6 e 8, quanto preciso na 3ª?"
+  if (/media/.test(n) && /(?:quanto|que\s+nota|nota\s+necessaria|qual\s+nota)[^.?]*(?:preciso|devo|tenho\s+que|falta|tirar|necessari)|(?:preciso|devo|tenho\s+que)[^.?]*(?:tirar|nota)/.test(n)) {
+    const mm = new RegExp('media\\s+(?:minima\\s+|final\\s+)?(?:de\\s+|igual\\s+a\\s+|para\\s+)?(' + CMX_NUM + ')').exec(n);
+    if (!mm) return null;
+    let resto = n.replace(mm[0], ' ');
+    const tm = new RegExp('(?:em|de|total\\s+de)\\s+(\\d+)\\s+(?:provas|avaliacoes|bimestres|trimestres|notas|testes|trabalhos)').exec(resto);
+    if (tm) resto = resto.replace(tm[0], ' ');
+    const notas = cmxNumeros(resto.replace(/\b\d+\s*(?:a|o|º|°|ª)\b/g, ' ')).filter(function (x) { return x >= 0 && x <= 100; });
+    if (!notas.length) return null;
+    const alvo = cmxNum(mm[1]), tot = tm ? Number(tm[1]) : notas.length + 1;
+    if (tot <= notas.length) return null;
+    const soma = notas.reduce(function (x, y) { return x + y; }, 0);
+    const falta = (alvo * tot - soma) / (tot - notas.length);
+    return [cmxItem('nota necessária', '(' + cmxF(alvo) + ' × ' + tot + ' − ' + cmxF(soma) + ') ÷ ' + (tot - notas.length), falta, cmxF(falta) + (falta > 10 && alvo <= 10 ? ' (acima de 10: com essas notas a média não é alcançável se a escala for de 0 a 10)' : falta < 0 ? ' (negativo: a média já está garantida)' : ''))];
+  }
+  return null;
+}
+
+function cmxJurosMais(n) {
+  let m = new RegExp('taxa\\s+equivalente\\s+(?:a\\s+|de\\s+)?(mensal|anual|ao\\s+mes|ao\\s+ano)?\\s*(?:de\\s+)?(' + CMX_NUM + ')\\s*%\\s*(?:ao|por|a\\.?)\\s*(mes|ano)').exec(n);
+  if (m) {
+    const i = cmxNum(m[2]) / 100, de = m[3];
+    if (de === 'ano') { const r = Math.pow(1 + i, 1 / 12) - 1; return [cmxItem('taxa mensal equivalente', '(1 + ' + cmxF(i * 100) + '%)^(1/12) − 1', r, cmxF(r * 100) + '% ao mês')]; }
+    const r = Math.pow(1 + i, 12) - 1; return [cmxItem('taxa anual equivalente', '(1 + ' + cmxF(i * 100) + '%)^12 − 1', r, cmxF(r * 100) + '% ao ano (não é 12 × ' + cmxF(i * 100) + '%)')];
+  }
+  m = new RegExp('valor\\s+presente\\D{0,20}(' + CMX_NUM + ')\\D{1,40}?(' + CMX_NUM + ')\\s*(meses|mes|anos|ano)\\D{1,30}?(' + CMX_NUM + ')\\s*%\\s*(?:ao|por|a\\.?)\\s*(mes|ano)').exec(n);
+  if (m) {
+    const vf = cmxNum(m[1]), t = cmxNum(m[2]), i = cmxNum(m[4]) / 100;
+    const k = cmxPrazoEmPeriodos(t, m[3], m[5]);
+    if (k === null) return null;
+    const vp = vf / Math.pow(1 + i, k);
+    return [cmxItem('valor presente', cmxF(vf) + ' ÷ (1 + ' + cmxF(i * 100) + '%)^' + cmxF(k), vp, cmxM(vp), { moeda: true })];
+  }
+  m = new RegExp('(dobrar|triplicar|quadruplicar)\\D{0,40}?(' + CMX_NUM + ')\\s*%\\s*(?:ao|por|a\\.?)\\s*(mes|ano)').exec(n);
+  if (m) {
+    const i = cmxNum(m[2]) / 100, f = { dobrar: 2, triplicar: 3, quadruplicar: 4 }[m[1]];
+    if (i <= 0) return null;
+    const k = Math.log(f) / Math.log(1 + i);
+    return [cmxItem('prazo para ' + m[1], 'ln(' + f + ') ÷ ln(1 + ' + cmxF(i * 100) + '%)', k, cmxF(k, 2) + (m[3] === 'mes' ? ' meses' : ' anos') + ' (juros compostos)')];
+  }
+  return null;
+}
+
+function cmxProporcionais(n) {
+  const m = new RegExp('(?:pessoas?\\s+)?(?:dividem|dividir|dividido|repartem|repartir|ratear|rateiam|distribuir|distribuem|partilham)\\D{0,30}?(' + CMX_NUM + ')\\D{0,40}?proporciona\\w*\\s+(?:a|aos|as|ao)\\s+(.+)').exec(n)
+    || new RegExp('(' + CMX_NUM + ')\\D{0,40}?(?:dividid\\w+|repartid\\w+|distribuid\\w+)\\D{0,40}?proporciona\\w*\\s+(?:a|aos|as|ao)\\s+(.+)').exec(n);
+  if (!m) return null;
+  const v = cmxNum(m[1]), pesos = cmxNumeros(m[2]), soma = pesos.reduce(function (x, y) { return x + y; }, 0);
+  if (pesos.length < 2 || soma <= 0 || pesos.length > 10) return null;
+  return pesos.map(function (pe, i) { const r = v * pe / soma; return cmxItem('parte ' + (i + 1), cmxF(v) + ' × ' + cmxF(pe) + ' ÷ ' + cmxF(soma), r, cmxF(r)); });
+}
+
+function cmxAtalhos(n) {
+  let m = new RegExp('quantas\\s+vezes\\s+(' + CMX_NUM + ')\\s+(?:cabe|cabem|entra|entram|ha)\\s+(?:em|no|na|dentro\\s+d\\w+)\\s+(' + CMX_NUM + ')').exec(n);
+  if (m) {
+    const a = cmxNum(m[1]), b = cmxNum(m[2]); if (a <= 0) return [cmxErro('O divisor precisa ser maior que 0.')];
+    const q = Math.floor(b / a), r = calcSemRuido(b - q * a);
+    return [cmxItem('vezes inteiras', cmxF(b) + ' ÷ ' + cmxF(a), q, cmxF(q) + (r ? ' (sobram ' + cmxF(r) + ')' : ' (sem resto)'))];
+  }
+  m = new RegExp('pontos?\\s+percentuais?\\D{0,25}(' + CMX_NUM + ')\\s*%?\\D{1,12}(' + CMX_NUM + ')\\s*%').exec(n);
+  if (m) {
+    const a = cmxNum(m[1]), b = cmxNum(m[2]), pp = calcSemRuido(b - a);
+    const itens = [cmxItem('diferença em pontos percentuais', cmxF(b) + '% − ' + cmxF(a) + '%', pp, cmxF(pp) + ' p.p.')];
+    if (a !== 0) itens.push(cmxItem('variação relativa', '(' + cmxF(b) + ' − ' + cmxF(a) + ') ÷ ' + cmxF(a), (b - a) / a, cmxF((b - a) / a * 100) + '% (não confundir com p.p.)'));
+    return itens;
+  }
+  m = new RegExp('notacao\\s+cientifica\\s+(?:de|do|da)?\\s*(' + CMX_NS + ')').exec(n);
+  if (m) {
+    const v = cmxNum(m[1]); if (!isFinite(v) || v === 0) return null;
+    const e = Math.floor(Math.log10(Math.abs(v))), mant = calcSemRuido(v / Math.pow(10, e));
+    return [cmxItem('notação científica', cmxF(v), v, cmxF(mant, 6) + ' × 10^' + e)];
+  }
+  m = new RegExp('raiz\\s+(?:cubica|quarta|quinta)\\s+(?:de|do|da)?\\s*(' + CMX_NS + ')').exec(n);
+  if (m) {
+    const v = cmxNum(m[1]), idx = /cubica/.test(n) ? 3 : /quarta/.test(n) ? 4 : 5;
+    if (!isFinite(v) || (v < 0 && idx % 2 === 0)) return [cmxErro('Raiz de índice par não existe para número negativo.')];
+    const r = (v < 0 ? -1 : 1) * Math.pow(Math.abs(v), 1 / idx), rr = Math.round(r);
+    const exato = Math.abs(Math.pow(rr, idx) - v) < 1e-9 * Math.max(1, Math.abs(v));
+    return [cmxItem('raiz de índice ' + idx, idx + '√' + cmxF(v), exato ? rr : r, exato ? cmxF(rr) : cmxF(r))];
+  }
+  return null;
+}
+
+// Bijeções (permutações) com restrições de ordem: "F: A→A bijetora, F(1)<F(5)<F(3) e F(7)<F(2)", A = {1,...,8}.
+// Conta por força bruta (até 9 elementos), então não depende de a IA acertar a combinatória.
+function cmxBijecoes(n) {
+  if (!/bijec|bijetora|permutac|injetora/.test(n) || !/\bf\s*\(\s*\d+\s*\)\s*[<>]/.test(n)) return null;
+  const conj = /\{\s*([\d\s,.;]+)\s*\}/.exec(n);
+  let elementos = conj ? (conj[1].match(/\d+/g) || []).map(Number) : [];
+  if (conj && /\.\.\./.test(conj[1])) return null;
+  if (!elementos.length) { const k = /(\d+)\s+elementos/.exec(n); if (k) for (let i = 1; i <= Number(k[1]); i++) elementos.push(i); }
+  const N = elementos.length;
+  if (N < 2 || N > 9) return null;
+  const marcado = n.replace(/\bf\s*\(\s*(\d+)\s*\)/g, 'F#$1');
+  const cadeias = [], re = /F#\d+(?:\s*[<>]=?\s*F#\d+)+/g; let m;
+  while ((m = re.exec(marcado))) {
+    const idx = m[0].match(/F#(\d+)/g).map(function (x) { return Number(x.slice(2)); });
+    const ops = m[0].match(/[<>]/g);
+    cadeias.push({ idx: idx, ops: ops });
+  }
+  if (!cadeias.length) return null;
+  if (cadeias.some(function (c) { return c.idx.some(function (i) { return elementos.indexOf(i) < 0; }); })) return null;
+  const pos = {}; elementos.forEach(function (e, i) { pos[e] = i; });
+  const val = new Array(N), usado = new Array(N).fill(false);
+  let total = 0, bons = 0;
+  function ok() {
+    return cadeias.every(function (c) {
+      for (let i = 0; i < c.ops.length; i++) { const a = val[pos[c.idx[i]]], b = val[pos[c.idx[i + 1]]]; if (c.ops[i] === '<' ? !(a < b) : !(a > b)) return false; }
+      return true;
+    });
+  }
+  (function gera(i) {
+    if (i === N) { total++; if (ok()) bons++; return; }
+    for (let v = 0; v < N; v++) if (!usado[v]) { usado[v] = true; val[i] = v; gera(i + 1); usado[v] = false; }
+  })(0);
+  // Cadeias que não dividem índices: cada uma de k elementos reduz a conta em k! (a ordem dela é uma entre k!).
+  const todos = [].concat.apply([], cadeias.map(function (c) { return c.idx; }));
+  const disjuntas = new Set(todos).size === todos.length;
+  const expr = disjuntas ? N + '! ÷ (' + cadeias.map(function (c) { return c.idx.length + '!'; }).join(' × ') + ')' : 'contagem direta de ' + total + ' permutações';
+  return [cmxItem('bijeções com a ordem pedida', expr, bons, cmxF(bons) + ' de ' + cmxF(total) + ' permutações de ' + N + ' elementos')];
+}
+
+// Logaritmo de um número a partir de logaritmos APROXIMADOS dados no enunciado (estilo ITA/IME):
+// "usando log45 13,72 = 0,6880 e log45 6125 = 2,2908, o valor mais próximo de log45 7 é...".
+// Fatora tudo em primos (inclusive a base), monta o sistema linear e acha a combinação dos dados que dá o alvo.
+function cmxFatorar(n) {
+  const f = {};
+  if (!(n >= 1) || n > 1e9 || Math.floor(n) !== n) return null;
+  for (let p = 2; p * p <= n; p += (p === 2 ? 1 : 2)) while (n % p === 0) { f[p] = (f[p] || 0) + 1; n /= p; }
+  if (n > 1) f[n] = (f[n] || 0) + 1;
+  return f;
+}
+
+// "13,72" -> {num: 1372, den: 100}; "6.125" é lido como decimal só se não houver vírgula.
+function cmxDecimal(txt) {
+  let t = String(txt).trim();
+  if (t.indexOf(',') >= 0) t = t.replace(/\./g, '').replace(',', '.');
+  const partes = t.split('.');
+  const dec = partes[1] || '';
+  if (partes.length > 2 || dec.length > 6) return null;
+  const num = Number(partes[0] + dec), den = Math.pow(10, dec.length);
+  return Number.isFinite(num) && num > 0 ? { num: num, den: den, valor: num / den } : null;
+}
+
+function cmxExpoentes(num, den) {
+  const a = cmxFatorar(num), b = cmxFatorar(den);
+  if (!a || !b) return null;
+  const e = {};
+  Object.keys(a).forEach(function (p) { e[p] = (e[p] || 0) + a[p]; });
+  Object.keys(b).forEach(function (p) { e[p] = (e[p] || 0) - b[p]; });
+  return e;
+}
+
+function cmxLogaritmos(n) {
+  const t = String(n).replace(/[₀-₉]/g, function (d) { return String(d.charCodeAt(0) - 0x2080); }).replace(/[_{}]/g, '').replace(/log\s+(\d)/g, 'log$1');
+  if (!/log\s*\d/.test(t)) return null;
+  const re = /log\s*(\d+)\s+(\d+(?:[.,]\d+)*)(?:\s*=\s*(\d+(?:[.,]\d+)?))?/g;
+  const dados = [], alvos = []; let m, base = null;
+  while ((m = re.exec(t))) {
+    if (base === null) base = m[1]; else if (m[1] !== base) return null;
+    const arg = cmxDecimal(m[2]);
+    if (!arg) return null;
+    if (m[3] !== undefined) { const v = cmxDecimal(m[3]); if (!v) return null; dados.push({ arg: arg, valor: v.valor, txt: m[0] }); }
+    else alvos.push({ arg: arg, txt: m[0] });
+  }
+  if (!dados.length || !alvos.length || Number(base) < 2) return null;
+  const alvo = alvos[alvos.length - 1];
+  const linhas = [];
+  const eb = cmxExpoentes(Number(base), 1);
+  if (!eb) return null;
+  linhas.push({ e: eb, valor: 1 });
+  for (let i = 0; i < dados.length; i++) { const e = cmxExpoentes(dados[i].arg.num, dados[i].arg.den); if (!e) return null; linhas.push({ e: e, valor: dados[i].valor }); }
+  const ea = cmxExpoentes(alvo.arg.num, alvo.arg.den);
+  if (!ea) return null;
+  const primos = [];
+  linhas.concat([{ e: ea }]).forEach(function (l) { Object.keys(l.e).forEach(function (p) { if (primos.indexOf(p) < 0) primos.push(p); }); });
+  // Sistema: sum_i c_i * linha_i = alvo  (uma equação por primo, uma incógnita por dado)
+  const R = linhas.length;
+  const M = primos.map(function (p) { return linhas.map(function (l) { return l.e[p] || 0; }).concat([ea[p] || 0]); });
+  const col = [];
+  let r = 0;
+  for (let c = 0; c < R && r < M.length; c++) {
+    let piv = r;
+    for (let i = r + 1; i < M.length; i++) if (Math.abs(M[i][c]) > Math.abs(M[piv][c])) piv = i;
+    if (Math.abs(M[piv][c]) < 1e-12) continue;
+    const tmp = M[r]; M[r] = M[piv]; M[piv] = tmp;
+    for (let i = 0; i < M.length; i++) if (i !== r) { const f = M[i][c] / M[r][c]; for (let k = c; k <= R; k++) M[i][k] -= f * M[r][k]; }
+    col.push(c); r++;
+  }
+  for (let i = r; i < M.length; i++) if (Math.abs(M[i][R]) > 1e-9) return null;   // o alvo não é combinação dos dados
+  const coef = new Array(R).fill(0);
+  col.forEach(function (c, i) { coef[c] = M[i][R] / M[i][c]; });
+  let valor = 0;
+  for (let i = 0; i < R; i++) valor += coef[i] * linhas[i].valor;
+  if (!Number.isFinite(valor)) return null;
+  const expr = 'log' + base + ' ' + cmxF(alvo.arg.valor, 6);
+  return [cmxItem('logaritmo pelos dados (fatorados em primos)', expr, valor, cmxF(valor, 4) + ' (' + dados.length + ' dado(s) e a base ' + base + ' = ' + Object.keys(eb).map(function (p) { return p + (eb[p] > 1 ? '^' + eb[p] : ''); }).join('·') + ' resolvidos como sistema linear)')];
+}
+
+// Texto lido de uma foto de prova: só as regras que não confundem questões vizinhas (bijeções com ordem e logaritmos com dados).
+function contasDeProva(texto) {
+  const n = cmxSemAcentos(String(texto == null ? '' : texto).slice(0, 6000)).toLowerCase().replace(/\s+/g, ' ').trim();
+  const itens = [];
+  [cmxBijecoes, cmxLogaritmos].forEach(function (regra) {
+    let r = null; try { r = regra(n); } catch (e) { r = null; }
+    if (r && r.length) r.forEach(function (i) { itens.push(i); });
+  });
+  return itens.length ? { itens: itens, soConta: false, sensivel: false, origem: 'especial' } : null;
+}
+
 // ------------------------------------------------------------------ painel de regras
 
-const CMX_REGRAS = [cmxExtenso, cmxAcrescimo, cmxRegraDeTres, cmxRateio, cmxPerCapita, cmxFrequencia, cmxImc, cmxTaxa, cmxEstatistica, cmxEquacao, cmxFinanceiro, cmxHoras, cmxViagem, cmxNumerico, cmxGeometria, cmxPorcentagem, cmxConversao];
+const CMX_REGRAS = [cmxBijecoes, cmxLogaritmos, cmxExtenso, cmxJurosMais, cmxSucessivos, cmxPercentualInverso, cmxProporcionais, cmxProgressao, cmxCombinatoria, cmxProbabilidade, cmxSistema, cmxLista, cmxFracoes, cmxAtalhos, cmxAcrescimo, cmxRegraDeTres, cmxRateio, cmxPerCapita, cmxFrequencia, cmxImc, cmxTaxa, cmxEstatistica, cmxEquacao, cmxFinanceiro, cmxHoras, cmxViagem, cmxNumerico, cmxGeometria, cmxPorcentagem, cmxConversao];
 
 // Resolve pedidos "de cálculo pronto". Devolve null se nenhuma regra reconhece a mensagem.
 function resolverEspecial(texto) {
@@ -5047,13 +5541,21 @@ function linhaDeItem(item) {
 // Datas, depois cálculos prontos, depois aritmética. origem diz de onde veio (o cliente trata idade como dado sensível).
 function contasDoPedido(texto, opc) {
   let r = null;
-  try { r = resolverDatas(texto, opc); } catch (e) { r = null; }
+  const financeiro = /%|juros|valor\s+presente|taxa\s+equivalente|inflac/i.test(String(texto == null ? '' : texto));
+  if (!financeiro) { try { r = resolverDatas(texto, opc); } catch (e) { r = null; } }
   if (r) return r;
   r = resolverEspecial(texto);
   if (r) return r;
   const a = contasConfiaveis(texto);
   if (a) return Object.assign({}, a, { origem: 'aritmetica', sensivel: false });
   return null;
+}
+
+// Só a contagem de bijeções (usada no texto lido de uma foto de prova, onde as outras regras poderiam confundir questões vizinhas).
+function contagemPorOrdem(texto) {
+  const n = cmxSemAcentos(String(texto == null ? '' : texto).slice(0, 6000)).toLowerCase().replace(/\s+/g, ' ').trim();
+  let r = null; try { r = cmxBijecoes(n); } catch (e) { r = null; }
+  return r && r.length ? { itens: r, soConta: false, sensivel: false, origem: 'especial' } : null;
 }
 
 // Resposta direta, sem IA e sem rede, SÓ quando a mensagem é o pedido. Mais assunto na mensagem: null (a IA responde com a conta pronta).
@@ -10260,7 +10762,10 @@ const REG_ACAO = /^(abrir|abra|abre|ir para|ir pra|va para|va pra|me leve|leve m
 // (verbo + nome de uma ação registrada + palavras de ligação). Qualquer outra palavra manda a frase para a IA,
 // para "chamar o conselho tutelar, como faço?" ou "acessar o PAIF para quê?" não virarem abertura de tela.
 const REG_ACAO_SOLTO = /^(chamar|chame|chama|acessar|acesse|acessa|entrar no|entrar na|entrar nos|entrar nas|entrar em|entre no|entre na|entre nos|entre nas|entre em|iniciar|inicie|lancar|lance|carregar|carregue|vai para|vai pra|ir ao|ir a|va ao|va a)\b\s*(.*)$/;
-const REG_FECHAR = /^(fechar|feche|encerrar|encerre|sair|saia)\b\s*(.*)$/;
+const REG_FECHAR = /^(fechar|feche|fecha|encerrar|encerre|encerra|terminar|termine|termina|finalizar|finalize|finaliza|sair|saia)\b\s*(.*)$/;
+// Palavras que podem sobrar numa frase que é SÓ o pedido de fechar ("terminar esta conversa agora"). Qualquer outra manda a frase para a IA:
+// "terminar a conversa com o cidadão, como faço?" é pergunta, não comando, e não pode apagar a conversa.
+const SOBRA_FECHAR = { esta: 1, essa: 1, este: 1, esse: 1, atual: 1, aberta: 1, aberto: 1, ja: 1, logo: 1, aqui: 1, com: 1, paulus: 1, boa: 1, vista: 1, rota: 1, rotas: 1 };
 const REG_BUSCA = /^(buscar|busque|procurar|procure|achar|ache|encontrar|encontre)\b\s*(.*)$/;
 
 function acharPorRotulo(lista, alvo) {
@@ -10314,6 +10819,16 @@ function tratarAcaoSolta(resto) {
   return tratarAcao(resto);
 }
 
+// Verbo de fechar: só vale se a frase for SÓ o pedido e houver ação de fechar registrada com aquele rótulo; senão null (segue para a IA).
+function tratarFechar(resto) {
+  const a = acharPorRotulo(estado.acoes.filter(function (x) { return x.fechar; }), resto);
+  if (!a) return null;
+  let sobra = ' ' + resto + ' ';
+  a.rotulos.slice().sort(function (x, y) { return y.length - x.length; }).forEach(function (r) { sobra = sobra.split(' ' + r + ' ').join(' '); });
+  if (sobra.split(/\s+/).filter(Boolean).some(function (w) { return !LIGACAO[w] && !SOBRA_FECHAR[w]; })) return null;
+  return tratarAcao(resto, true);
+}
+
 function tratarAcao(resto, fechando) {
   const varias = tratarVariasAcoes(resto, fechando);
   if (varias) return varias;
@@ -10334,9 +10849,10 @@ function tratarAcao(resto, fechando) {
   if (a.confirmar) {
     return { tipo: 'acao', acao: a.id, texto: 'Posso fazer isso, mas preciso da sua confirmação.', pedeConfirmacao: true, confirmar: function () { estado.mem.aprenderAcao(a.id); return a.executar(); } };
   }
-  a.executar();
+  const dito = a.executar();
   estado.mem.aprenderAcao(a.id);
-  return { tipo: 'acao', acao: a.id, texto: 'Pronto.', executada: true };
+  // executar() pode devolver o texto da resposta ("Mapa fechado.", "Não há mapa aberto."); sem texto, "Pronto."
+  return { tipo: 'acao', acao: a.id, texto: typeof dito === 'string' && dito ? dito : 'Pronto.', executada: true };
 }
 
 async function tratarBusca(resto) {
@@ -10925,13 +11441,14 @@ async function perguntar(texto, opcoes) {
   }
 
   if (!o.semAcoes) {
-    const alvo = normalizar(t);
+    // cortesia no começo não atrapalha o comando: "por favor, termine a conversa", "pode fechar o mapa", "paulus, abre o argo"
+    const alvo = normalizar(t).replace(/^((por favor|paulus|pode|poderia|voce pode|voce poderia|quero que voce|preciso que voce|vamos|vamo|entao|agora)\s+)+/, '');
     let m = REG_ACAO.exec(alvo);
     if (m) return tratarAcao(m[2]);
     m = REG_ACAO_SOLTO.exec(alvo);
     if (m) { const solta = tratarAcaoSolta(m[2]); if (solta) return solta; }
     m = REG_FECHAR.exec(alvo);
-    if (m && acharPorRotulo(estado.acoes.filter(function (x) { return x.fechar; }), m[2])) return tratarAcao(m[2], true);
+    if (m) { const fecha = tratarFechar(m[2]); if (fecha) return fecha; }
     m = REG_BUSCA.exec(alvo);
     if (m) return tratarBusca(m[2]);
   }
@@ -11068,7 +11585,7 @@ const Paulus = { init, perguntar, rota: { ler: lerPedidoDeRota, responder: respo
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
-  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.23.0',
+  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.24.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
