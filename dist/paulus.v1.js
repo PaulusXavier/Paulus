@@ -12259,7 +12259,7 @@ const PDF_MAX_PAGINAS = 3000;
 const PDF_MAX_PARTES = 200;
 const PDF_MARGEM = 28;
 
-const PDF_VERBOS = 'remov|exclu|apag|retir|elimin|descart|tire|tirar|gir|rotacion|vire|virar|numer|pagin|coloc|escrev|insir|adicion|inclu|marc|desmarc|carimb|preench|complet|achat|invert|reorden|mov|extra|separ|dividi|fatie|junt|unir|une |mescl|combin|defin|troc|mud|alter|salv|anot|aplic|renome|converta|transform|assin';
+const PDF_VERBOS = 'remov|exclu|apag|retir|elimin|descart|tire|tirar|gir|rotacion|vire|virar|numer|pagin|coloc|escrev|insir|adicion|inclu|marc|desmarc|carimb|preench|complet|achat|invert|reorden|mov|extra|separ|divid|fatie|junt|unir|unifi|une |mescl|combin|defin|troc|mud|alter|salv|anot|aplic|renome|converta|transform|assin';
 
 const PDF_COR = {
   preto: [0, 0, 0], preta: [0, 0, 0], vermelho: [0.8, 0.1, 0.1], vermelha: [0.8, 0.1, 0.1], azul: [0.1, 0.25, 0.75],
@@ -12468,13 +12468,13 @@ function pdfClausula(o, n, citados) {
   if (T(/quantas paginas|numero de paginas|informac(ao|oes)|propriedades|detalhes d[oa]|que tamanho|inspecion\w+|analis\w+ (o )?(pdf|arquivo)|dados do (pdf|arquivo)/)) return { op: 'info' };
 
   // 4) juntar
-  if (T(/\b(junt\w+|uni[rt]\w*|une|mescl\w+|combin\w+|concaten\w+)\b/) && (T(/\b(pdfs?|arquivos|documentos|fichas|fotos|imagens|paginas|um so|num so|em um|em uma|numa|so arquivo|tudo|todos)\b/) || n.split(' ').length <= 2)) return { op: 'juntar' };
+  if (T(/\b(junt\w+|uni[rt]\w*|unifi\w*|une|mescl\w+|combin\w+|concaten\w+)\b/) && (T(/\b(pdfs?|arquivos|documentos|fichas|fotos|imagens|paginas|um so|num so|em um|em uma|numa|so arquivo|tudo|todos)\b/) || n.split(' ').length <= 2)) return { op: 'juntar' };
   if (T(/\b(converter|converta|transformar|transforme|gerar|crie|criar|montar|monte|fazer|faca)\b/) && T(/\b(fotos?|imagens?|jpg|jpeg|png|prints?)\b/) && T(/\bpdf\b/)) return { op: 'juntar' };
 
   // 5) dividir e extrair
   const spec = lerPaginasPdf(n.replace(/§\d+§/g, ' '));
   const temSpec = !!(spec && (spec.itens.length || spec.filtro));
-  if (T(/\b(dividi\w*|fatiar|fatie|quebr\w+|particionar|desmembr\w+|picotar)\b/) || (T(/\bseparar?\b|\bseparem?\b|\bseparad\w+\b/) && !temSpec)) {
+  if (T(/\b(divid\w*|fatiar|fatie|quebr\w+|particionar|desmembr\w+|picotar)\b/) || (T(/\bseparar?\b|\bseparem?\b|\bseparad\w+\b/) && !temSpec)) {
     const cada = /a cada\s+(\d+|duas|dois|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+paginas?/.exec(n);
     if (cada) return { op: 'dividir', cada: pdfNumero(cada[1]) };
     const partes = pdfPartesDe(n);
@@ -16182,7 +16182,7 @@ const Paulus = { init, perguntar,
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
-  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.31.0',
+  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.32.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,

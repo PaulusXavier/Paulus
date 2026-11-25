@@ -1,11 +1,11 @@
 {
- "versao": "0.31.0",
- "build": "c32953822458",
+ "versao": "0.32.0",
+ "build": "0ea9254fdd50",
  "commit": null,
  "arquivos": {
   "paulus.v1.js": {
-   "sha256": "c275c2312ba7da46",
-   "bytes": 1020755
+   "sha256": "7ef833d77951a479",
+   "bytes": 1020768
   },
   "conhecimento.json": {
    "sha256": "f1fc25a0cd5a5906",
