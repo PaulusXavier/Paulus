@@ -50,7 +50,7 @@ import { ehPerguntaSobreSi, temasDaPergunta, montarAutoconhecimento, fichaComoTe
 import { montarMensagens, montarMensagensSaudacao, preferenciasValidas, fichasComoTexto, baseAppComoTexto, panoramaComoTexto } from './prompt.mjs';
 import { montarMensagensInterpretacao, lerInterpretacao } from './interpretar.mjs';
 import { pareceProblemaDeCalculo, temNumeroPorExtenso } from '../shared/calculo.mjs';
-import { contasDoPedido, contagemPorOrdem } from '../shared/calculo-mais.mjs';
+import { contasDoPedido, contasDeProva } from '../shared/calculo-mais.mjs';
 import { pedeAnalise, montarMensagensRaciocinio, lerRaciocinio, raciocinioComoTexto, buscaDoRaciocinio, completarAchados, conferirRaciocinio, calibrarSeguranca, tipoDeAnalise, disseSemAnalise, montarMensagensReformatar, limparPensamento } from './raciocinar.mjs';
 import { tratarVoz } from './voz.mjs';
 import { imagemSaneada, lerImagem, sanearLeitura, CORPO_MAX_COM_IMAGEM } from './visao.mjs';
@@ -580,8 +580,9 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       comMatematica = !tema && !sobreSi && (pedidoDeMatematica(pergunta) || (!!imagemLida && pedidoDeMatematica(imagemLida.texto)));
       if (!tema && !sobreSi && modo !== 'refinamento' && modo !== 'continuar' && modo !== 'porque') {
         textosDaPessoa = [pergunta].concat(anteriores.map(function (h) { return String(h.texto || ''); }));
-        // Na foto de uma prova o programa só confere a contagem de bijeções; as demais regras olhariam questões vizinhas como se fossem uma só.
-        const diretas = contasDoPedido(pergunta, { hoje: Math.floor((Date.now() - 4 * 3600000) / 86400000) }) || (comMatematica && imagemLida ? contagemPorOrdem(imagemLida.texto) : null); // dia de Boa Vista (UTC-4)
+        // Questão ou prova de matemática (texto ou foto): o programa só confere o que a IA erra com frequência e que outras questões vizinhas não confundem
+        // (bijeções com ordem e logaritmos com dados aproximados); as regras do SUAS olhariam várias questões como se fossem uma só.
+        const diretas = (comMatematica ? contasDeProva(String(pergunta || '') + ' ' + (imagemLida ? imagemLida.texto : '')) : null) || contasDoPedido(pergunta, { hoje: Math.floor((Date.now() - 4 * 3600000) / 86400000) }); // dia de Boa Vista (UTC-4)
         const problema = !comMatematica && pareceProblemaDeCalculo(pergunta, hist);
         quantitativo = !!diretas || problema;
         if (diretas && diretas.soConta) {
