@@ -11,7 +11,8 @@ No console, o clipe anexa **PDF com texto, DOCX, TXT, MD ou CSV**. Depois é só
 - O texto do documento é tratado como dado: ordens escritas dentro dele são ignoradas.
 - O Worker não grava nada. Os trechos vão à IA (Cloudflare Workers AI) só na hora da pergunta.
 - **Páginas escaneadas em PDF**: as páginas sem texto extraível são renderizadas no aparelho; até cinco delas são enviadas por pergunta para a IA de visão. Em PDF misto, texto selecionável continua sendo extraído localmente. Antes de enviar as páginas em imagem, o console pede confirmação explícita. Não prossiga com cópias que contenham dados pessoais ou identificáveis; páginas além do limite não são lidas nessa pergunta.
-- Pedidos de **editar PDF** (juntar, girar, numerar...) continuam sendo feitos no aparelho, sem IA, e não leem o texto.
+- Pedidos de **editar PDF** (escrever/colocar elementos, preencher campos, juntar, dividir, extrair, girar, numerar...) continuam sendo feitos no aparelho, sem IA, e não leem o texto. O original não é alterado; o resultado é um novo arquivo para baixar.
+- Conversões **PDF → Word** e **Word → PDF** ficam na Central de PDF do Argo SUAS. Quando o app não tiver a Central, o Paulus indica o Argo; não envia o documento ao Worker nem à IA para converter.
 
 ## Anexar foto, print ou página escaneada (o Paulus "enxerga")
 O clipe também aceita **JPG, PNG e WebP**: cartaz, print de tela, tabela, gráfico, formulário em branco, foto de um local. Páginas de PDFs sem texto selecionável podem ser enviadas para OCR e descrição visual após confirmação (até cinco por pergunta). Pergunte normalmente ("o que diz este cartaz?", "resuma esta tabela", "explique este gráfico"). Sem texto, o Paulus descreve a imagem.
