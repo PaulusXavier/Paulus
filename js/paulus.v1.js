@@ -2865,10 +2865,12 @@ function pedidoDeDesenho(texto) {
 // Questão de MATEMÁTICA de prova (vestibular, concurso, olimpíada, estudo): polinômio, geometria analítica, trigonometria, contagem...
 // Resolve-se por raciocínio em passos (não por regra pronta), então a IA precisa de mais espaço, temperatura baixa e o roteiro de métodos.
 const RE_MAT_FORTE = /\b(polinomio|raizes|raiz real|parabola|circunferencias?|hiperbole|elipse|reta tangente|tangente a|trigonometri\w*|seno|cosseno|tg|logaritm\w*|progressao (?:aritmetica|geometrica)|pa|pg|bijec\w*|injetora|sobrejetora|permutac\w*|combinac\w*|arranjos?|anagramas?|matriz|matrizes|determinante|sistema linear|numeros? complexos?|derivada|integral|vertice|baricentro|incentro|circuncentro|triangulo|esfera|cilindro|piramide|inequacao|equacao|funcao (?:quadratica|afim|exponencial|modular|inversa|composta)|binomio|vetores?|coeficiente angular|angulo|abscissa|ordenada|sen|cos|tan|sec|cossec|cotg)\b/g;
+// Termos de complexos, logaritmo com base escrita (log45), geometria plana e espacial: a prova de matemática não é só álgebra.
+const RE_MAT_FORTE_2 = /\blog\s*[_₀-₉{]?\s*\d|ℂ|∈\s*[cℂℝ]\b|\bparte (?:real|imaginaria)\b|\bconjugado\b|\bmodulo\s+\d|\bargumento\s+(?:principal\b|\S*pi\b|\S*π)|\bcubo\b|\bprisma\b|\bhexagono\b|\bpentagono\b|\bhexagrama\b|\bpoliedro\b|\btetraedro\b|\bsecao plana\b|\bplanos? (?:distintos|secantes|perpendiculares|paralelos|concorrentes)\b|\bretas? (?:paralelas|concorrentes|reversas)\b|\bquadrado inscrito\b|\binscrit[oa]\b|\bequilatero\b|\bisosceles\b|\btermo independente\b|\bexcentricidade\b|\bsolido de revolucao\b|\bdivisores inteiros\b|\braiz comum\b|\bsistemas equivalentes\b|\bsistemas abaixo\b|\bmaior comprimento\b|\bquadrado perfeito\b|\bfatores primos\b/g;
 const RE_MAT_PEDIDO = /\b(questao|questoes|alternativas?|gabarito|resolva|calcule|determine|demonstre|prove|qual (?:e )?o valor|valor possivel|seja|sejam|considere|satisfaz\w*|e igual a|vestibular|concurso|prova|ime|ita|enem|olimpiada)\b|\(\s*\)\s*[-−]?\d|\b[a-e]\s*\(\s*\)/;
 function pedidoDeMatematica(texto) {
   const t = String(texto == null ? '' : texto).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().slice(0, 6000);
-  const fortes = (t.match(RE_MAT_FORTE) || []).length;
+  const fortes = (t.match(RE_MAT_FORTE) || []).length + (t.match(RE_MAT_FORTE_2) || []).length;
   if (fortes >= 3) return true;
   // Um termo de matemática só conta com sinal de conta (igualdade, potência, F(1), seta) ou com dois termos juntos; "triângulo de proteção" não é questão.
   if (fortes >= 1 && (RE_MAT_PEDIDO.test(t) || /[=<>^]|->|\bx\s*\^?\s*\d|\bf\s*\(/.test(t))) return fortes >= 2 || /[=<>^]|->|\bx\b|\bf\s*\(/.test(t);
@@ -5425,9 +5427,97 @@ function cmxBijecoes(n) {
   return [cmxItem('bijeções com a ordem pedida', expr, bons, cmxF(bons) + ' de ' + cmxF(total) + ' permutações de ' + N + ' elementos')];
 }
 
+// Logaritmo de um número a partir de logaritmos APROXIMADOS dados no enunciado (estilo ITA/IME):
+// "usando log45 13,72 = 0,6880 e log45 6125 = 2,2908, o valor mais próximo de log45 7 é...".
+// Fatora tudo em primos (inclusive a base), monta o sistema linear e acha a combinação dos dados que dá o alvo.
+function cmxFatorar(n) {
+  const f = {};
+  if (!(n >= 1) || n > 1e9 || Math.floor(n) !== n) return null;
+  for (let p = 2; p * p <= n; p += (p === 2 ? 1 : 2)) while (n % p === 0) { f[p] = (f[p] || 0) + 1; n /= p; }
+  if (n > 1) f[n] = (f[n] || 0) + 1;
+  return f;
+}
+
+// "13,72" -> {num: 1372, den: 100}; "6.125" é lido como decimal só se não houver vírgula.
+function cmxDecimal(txt) {
+  let t = String(txt).trim();
+  if (t.indexOf(',') >= 0) t = t.replace(/\./g, '').replace(',', '.');
+  const partes = t.split('.');
+  const dec = partes[1] || '';
+  if (partes.length > 2 || dec.length > 6) return null;
+  const num = Number(partes[0] + dec), den = Math.pow(10, dec.length);
+  return Number.isFinite(num) && num > 0 ? { num: num, den: den, valor: num / den } : null;
+}
+
+function cmxExpoentes(num, den) {
+  const a = cmxFatorar(num), b = cmxFatorar(den);
+  if (!a || !b) return null;
+  const e = {};
+  Object.keys(a).forEach(function (p) { e[p] = (e[p] || 0) + a[p]; });
+  Object.keys(b).forEach(function (p) { e[p] = (e[p] || 0) - b[p]; });
+  return e;
+}
+
+function cmxLogaritmos(n) {
+  const t = String(n).replace(/[₀-₉]/g, function (d) { return String(d.charCodeAt(0) - 0x2080); }).replace(/[_{}]/g, '').replace(/log\s+(\d)/g, 'log$1');
+  if (!/log\s*\d/.test(t)) return null;
+  const re = /log\s*(\d+)\s+(\d+(?:[.,]\d+)*)(?:\s*=\s*(\d+(?:[.,]\d+)?))?/g;
+  const dados = [], alvos = []; let m, base = null;
+  while ((m = re.exec(t))) {
+    if (base === null) base = m[1]; else if (m[1] !== base) return null;
+    const arg = cmxDecimal(m[2]);
+    if (!arg) return null;
+    if (m[3] !== undefined) { const v = cmxDecimal(m[3]); if (!v) return null; dados.push({ arg: arg, valor: v.valor, txt: m[0] }); }
+    else alvos.push({ arg: arg, txt: m[0] });
+  }
+  if (!dados.length || !alvos.length || Number(base) < 2) return null;
+  const alvo = alvos[alvos.length - 1];
+  const linhas = [];
+  const eb = cmxExpoentes(Number(base), 1);
+  if (!eb) return null;
+  linhas.push({ e: eb, valor: 1 });
+  for (let i = 0; i < dados.length; i++) { const e = cmxExpoentes(dados[i].arg.num, dados[i].arg.den); if (!e) return null; linhas.push({ e: e, valor: dados[i].valor }); }
+  const ea = cmxExpoentes(alvo.arg.num, alvo.arg.den);
+  if (!ea) return null;
+  const primos = [];
+  linhas.concat([{ e: ea }]).forEach(function (l) { Object.keys(l.e).forEach(function (p) { if (primos.indexOf(p) < 0) primos.push(p); }); });
+  // Sistema: sum_i c_i * linha_i = alvo  (uma equação por primo, uma incógnita por dado)
+  const R = linhas.length;
+  const M = primos.map(function (p) { return linhas.map(function (l) { return l.e[p] || 0; }).concat([ea[p] || 0]); });
+  const col = [];
+  let r = 0;
+  for (let c = 0; c < R && r < M.length; c++) {
+    let piv = r;
+    for (let i = r + 1; i < M.length; i++) if (Math.abs(M[i][c]) > Math.abs(M[piv][c])) piv = i;
+    if (Math.abs(M[piv][c]) < 1e-12) continue;
+    const tmp = M[r]; M[r] = M[piv]; M[piv] = tmp;
+    for (let i = 0; i < M.length; i++) if (i !== r) { const f = M[i][c] / M[r][c]; for (let k = c; k <= R; k++) M[i][k] -= f * M[r][k]; }
+    col.push(c); r++;
+  }
+  for (let i = r; i < M.length; i++) if (Math.abs(M[i][R]) > 1e-9) return null;   // o alvo não é combinação dos dados
+  const coef = new Array(R).fill(0);
+  col.forEach(function (c, i) { coef[c] = M[i][R] / M[i][c]; });
+  let valor = 0;
+  for (let i = 0; i < R; i++) valor += coef[i] * linhas[i].valor;
+  if (!Number.isFinite(valor)) return null;
+  const expr = 'log' + base + ' ' + cmxF(alvo.arg.valor, 6);
+  return [cmxItem('logaritmo pelos dados (fatorados em primos)', expr, valor, cmxF(valor, 4) + ' (' + dados.length + ' dado(s) e a base ' + base + ' = ' + Object.keys(eb).map(function (p) { return p + (eb[p] > 1 ? '^' + eb[p] : ''); }).join('·') + ' resolvidos como sistema linear)')];
+}
+
+// Texto lido de uma foto de prova: só as regras que não confundem questões vizinhas (bijeções com ordem e logaritmos com dados).
+function contasDeProva(texto) {
+  const n = cmxSemAcentos(String(texto == null ? '' : texto).slice(0, 6000)).toLowerCase().replace(/\s+/g, ' ').trim();
+  const itens = [];
+  [cmxBijecoes, cmxLogaritmos].forEach(function (regra) {
+    let r = null; try { r = regra(n); } catch (e) { r = null; }
+    if (r && r.length) r.forEach(function (i) { itens.push(i); });
+  });
+  return itens.length ? { itens: itens, soConta: false, sensivel: false, origem: 'especial' } : null;
+}
+
 // ------------------------------------------------------------------ painel de regras
 
-const CMX_REGRAS = [cmxBijecoes, cmxExtenso, cmxJurosMais, cmxSucessivos, cmxPercentualInverso, cmxProporcionais, cmxProgressao, cmxCombinatoria, cmxProbabilidade, cmxSistema, cmxLista, cmxFracoes, cmxAtalhos, cmxAcrescimo, cmxRegraDeTres, cmxRateio, cmxPerCapita, cmxFrequencia, cmxImc, cmxTaxa, cmxEstatistica, cmxEquacao, cmxFinanceiro, cmxHoras, cmxViagem, cmxNumerico, cmxGeometria, cmxPorcentagem, cmxConversao];
+const CMX_REGRAS = [cmxBijecoes, cmxLogaritmos, cmxExtenso, cmxJurosMais, cmxSucessivos, cmxPercentualInverso, cmxProporcionais, cmxProgressao, cmxCombinatoria, cmxProbabilidade, cmxSistema, cmxLista, cmxFracoes, cmxAtalhos, cmxAcrescimo, cmxRegraDeTres, cmxRateio, cmxPerCapita, cmxFrequencia, cmxImc, cmxTaxa, cmxEstatistica, cmxEquacao, cmxFinanceiro, cmxHoras, cmxViagem, cmxNumerico, cmxGeometria, cmxPorcentagem, cmxConversao];
 
 // Resolve pedidos "de cálculo pronto". Devolve null se nenhuma regra reconhece a mensagem.
 function resolverEspecial(texto) {
@@ -5480,6 +5570,2005 @@ function respostaDoPedido(texto, opc) {
     return { expressao: i.expressao || '', valor: i.valor == null ? null : i.valor, bool: !!i.bool, moeda: !!i.moeda, texto: i.texto, rotulo: i.rotulo || '', erro: !!i.erro, sensivel: !!i.sensivel };
   });
   return { texto: itens.map(linhaDeItem).join('\n'), itens: itens, sensivel: !!r.sensivel, origem: r.origem };
+}
+
+// ---- shared/matematica.mjs ----
+// Conhecimento de MATEMÁTICA de prova (ITA, IME, vestibular, concurso): arsenal por assunto + modelos resolvidos.
+// Só o que combina com a questão entra no prompt (cota gratuita da IA): uma questão de polinômio não carrega complexos, e uma prova inteira
+// (foto com 12 questões) carrega os assuntos de todas, cortados por um teto de caracteres. Cada modelo foi conferido por conta independente
+// em tests/matematica-prova.test.mjs. Para ensinar um assunto novo: acrescente um item em TOPICOS (id, nome, detecta, arsenal, modelos).
+
+const SEM_ACENTO = function (s) { return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); };
+
+// detecta: expressões sobre o texto SEM acento e em minúsculas; cada acerto soma um ponto ao assunto.
+const TOPICOS = [
+  {
+    id: 'complexos', nome: 'Números complexos',
+    detecta: [/complex/, /conjugad/, /argumento/, /\bmodulo\b/, /\bz\b/, /\bw\b/, /ℂ/, /de moivre/, /\bcis\b/, /\bi\s*z\b/, /\bz\s*\^?\s*2/],
+    arsenal: '· Complexos: z = a+bi = |z|(cos θ + i sen θ) = r·cis θ; |z|² = z·z̄; z̄ tem o mesmo módulo e argumento −θ; |z₁z₂| = |z₁||z₂| e os argumentos somam; De Moivre: zⁿ = rⁿ·cis nθ; as n raízes n-ésimas de z ficam na circunferência de raio r^(1/n), com ângulos (θ+2kπ)/n, e são vértices de um polígono regular de n lados. Parte real = r cos θ, parte imaginária = r sen θ. Equação com z e z̄ (z ≠ 0): escreva z = r·cis θ, iguale MÓDULOS (acha r) e ARGUMENTOS a menos de 2kπ (acha θ, com k = 0, 1, 2... até repetir); i = cis 90°. Dados "z − w" e os argumentos/módulos: escreva w = t·cis θ (t > 0), monte z = w − d e imponha |z|. Polígono regular de n lados inscrito em raio R: área (n/2)·R²·sen(360°/n); triângulo equilátero de lado ℓ: ℓ²√3/4. TRIÂNGULO com vértices complexos: troque cada número por seu ponto (Re, Im) e use a área ½|x₁(y₂−y₃)+x₂(y₃−y₁)+x₃(y₁−y₂)|; z = a+bi dá z² = (a²−b²) + 2ab·i.',
+    modelos: 'MODELO (complexos A) z − w = −2√3, |z| = 2√3, arg w = π/6, w ≠ 0: w = t(√3/2 + i/2), t > 0; z = w − 2√3 = (t√3/2 − 2√3) + i·t/2. |z|² = 12 ⇒ 3t²/4 − 6t + 12 + t²/4 = 12 ⇒ t² − 6t = 0 ⇒ t = 6. Re z = 6·√3/2 − 2√3 = √3. Confere: z = √3 + 3i, |z|² = 12. Resposta: √3.\nMODELO (complexos B) i z² = 2 z̄, z ≠ 0: z = r·cis θ ⇒ i r² cis 2θ = 2r cis(−θ). Módulos: r² = 2r ⇒ r = 2. Argumentos: π/2 + 2θ = −θ + 2kπ ⇒ θ = −π/6 + 2kπ/3 ⇒ θ = −π/6, π/2, 7π/6 (k = 0, 1, 2; depois repete). Três vértices a 120° na circunferência de raio 2: triângulo equilátero inscrito, lado 2√3, área (2√3)²√3/4 = 3√3. Confere: z = 2i dá i(2i)² = −4i = 2·conj(2i). Resposta: 3√3.\nMODELO (complexos C) z = a+2i, a > 0, vértices 1, z, z² com área 200: z² = (a²−4) + 4a·i, pontos (1,0), (a,2), (a²−4, 4a). Área = ½|(a−1)(4a) − (a²−5)(2)| = a²−2a+5. a²−2a+5 = 200 ⇒ a²−2a−195 = 0 ⇒ a = 15 (a > 0). Resposta: 15.',
+  },
+  {
+    id: 'logaritmos', nome: 'Logaritmos e exponenciais',
+    detecta: [/\blog/, /logaritm/, /\bln\b/, /exponencia/, /\b\d+\s*\^\s*x\b/],
+    arsenal: '· Logaritmos: log_b a = ln a/ln b; log(ab) = log a + log b; log(a/b) = log a − log b; log aⁿ = n·log a; log_b b = 1; log_b 1 = 0. Existência: base > 0 e ≠ 1, logaritmando > 0. Base > 1 mantém o sentido da desigualdade; base entre 0 e 1 inverte. DADOS APROXIMADOS DE LOGARITMOS ("usando log 13,72 = 0,6880 e log 6125 = 2,2908, ache log 7"): FATORE cada número em primos (13,72 = 1372/100 = 2²·7³/(2²·5²) = 7³/5²; 6125 = 5³·7²) e a base (45 = 3²·5), escreva cada dado como combinação linear dos logaritmos dos primos, use também log_b b = 1, resolva o SISTEMA e arredonde só no fim; confira nos dados. Exponencial: iguale as bases; aˣ = b ⇒ x = log_a b; use a substituição t = aˣ (t > 0) em equações do segundo grau. Com parâmetro: cada raiz t > 0 dá UM x; duas soluções em x ⇔ duas raízes t positivas e distintas (Δ > 0, soma > 0, produto > 0, ou ache as raízes se Δ for quadrado perfeito).',
+    modelos: 'MODELO (exponencial com parâmetro) 9ˣ − (3a+4)·3ˣ + 2a²+9a−5 = 0, t = 3ˣ > 0: Δ = (3a+4)² − 4(2a²+9a−5) = (a−6)², t = (3a+4 ± |a−6|)/2 = 2a−1 ou a+5. Positivas: a > 1/2; distintas: 2a−1 ≠ a+5 ⇒ a ≠ 6. Resposta: (1/2, ∞) \\ {6}.\nMODELO (logaritmos) log₄₅ 13,72 = 0,6880 e log₄₅ 6125 = 2,2908; achar log₄₅ 7. Com L₅ = log₄₅ 5 e L₇ = log₄₅ 7: 13,72 = 7³/5² ⇒ 3L₇ − 2L₅ = 0,6880; 6125 = 5³·7² ⇒ 3L₅ + 2L₇ = 2,2908. Elimine L₅ (×3 e ×2): 9L₇ − 6L₅ = 2,0640 e 4L₇ + 6L₅ = 4,5816; soma: 13·L₇ = 6,6456 ⇒ L₇ = 0,5112. Confere: L₅ = (2,2908 − 1,0224)/3 = 0,4228 e 3·0,5112 − 2·0,4228 = 0,6880. Resposta: 0,5112.',
+  },
+  {
+    id: 'matrizes', nome: 'Matrizes, determinantes e sistemas',
+    detecta: [/matriz/, /matrizes/, /determinante/, /\bdet\b/, /singular/, /simetric/, /\ba\s*\^\s*\d+/, /ordem\s*\d+\s*x\s*\d+/, /sistema linear/, /equivalentes/, /escalonamento/, /\bijk\b|a_?\{?ij/],
+    arsenal: '· Matrizes: simétrica ⇔ aᵢⱼ = aⱼᵢ (A = Aᵗ): troque i por j na fórmula do termo geral e compare. Linha (ou coluna) é PA quando, com a linha fixa, o termo é função afim do outro índice (diferença constante, a razão pode variar de linha para linha e valer 0). Singular ⇔ det = 0 ⇔ linhas linearmente dependentes ⇔ posto < ordem. Termo aᵢⱼ = c + f(i)·g(j) é a soma de duas matrizes de posto 1 (a de 1s e a de f·g), logo tem posto ≤ 2: para ordem ≥ 3, det = 0 (confira numa 3×3). det(AB) = det A·det B; det Aᵗ = det A; det(kA) = kⁿ det A; inversa existe ⇔ det ≠ 0. ROTAÇÃO: R(θ) = [cos θ, −sen θ; sen θ, cos θ]; R(α)R(β) = R(α+β); R(θ)ⁿ = R(nθ); R(θ)·(cos φ, sen φ)ᵗ = (cos(φ+θ), sen(φ+θ))ᵗ. Reduza nθ módulo 360° antes de calcular. Reconheça a rotação pelos elementos (√3/2 e 1/2 → 30°; √2/2 → 45°); quando a matriz não é rotação, calcule A², A³ e procure o ciclo (Aᵏ = I). Cramer: det ≠ 0 dá solução única. SISTEMAS EQUIVALENTES (mesmo conjunto solução): resolva o primeiro; se for indeterminado, a solução é uma reta (x, y, z em função de t) e o segundo tem de ser satisfeito por TODOS os pontos dela: substitua em dois pontos da reta (que não zerem o coeficiente que você vai isolar) e resolva as incógnitas.',
+    modelos: 'MODELO (matriz de termo geral) aᵢⱼ = 1 + (1−i)(1−j), ordem 100. I) trocar i por j não muda a expressão: simétrica (V). II) na linha i, aᵢⱼ = 1 + (1−i)(1−j) é afim em j com razão i−1: cada linha é PA (V; a linha 1 é constante, razão 0). III) aᵢⱼ = 1 + uᵢuⱼ, uᵢ = 1−i, é soma de duas matrizes de posto 1: posto ≤ 2 < 100, det = 0 (V). Confere em 3×3: [1 1 1; 1 2 3; 1 3 5] tem det = 1(10−9) − 1(5−3) + 1(3−2) = 0. Resposta: I, II e III.\nMODELO (potência de rotação) A = [√3/2, −1/2; 1/2, √3/2] = R(30°), B = (√2/2, √2/2)ᵗ = (cos 45°, sen 45°)ᵗ. A³¹ = R(930°) = R(210°) (930 = 2·360 + 210). A³¹B = (cos 255°, sen 255°)ᵗ; cos 255° = −cos 75° = −(√6−√2)/4 = −(√2/4)(√3−1); sen 255° = −sen 75° = −(√6+√2)/4 = −(√2/4)(√3+1). Confere: cos 255° ≈ −0,2588 e −(√2/4)(0,732) ≈ −0,2588. Resposta: o vetor com −(√2/4)(√3−1) em cima e −(√2/4)(√3+1) embaixo.\nMODELO (sistemas equivalentes) I: x+y+z=1, x+2y−z=2, 2x+y+4z=1; II: x+y+z=1, x+my+nz=5, kx+y−z=3m+2n. L₁+L₂: 2x+3y=3; com z=1−x−y a L₃ vira a mesma: reta x=(3−3t)/2, y=t, z=(t−1)/2. Em II: t=0 e t=2 dão m=5, n=−7; então 3m+2n=1 e kx+y−z=1 dá k=1/3 em qualquer t. Resposta: 1/3.',
+  },
+  {
+    id: 'plana', nome: 'Geometria plana',
+    detecta: [/triangul/, /quadrado/, /hexagon/, /hexagrama/, /poligono/, /inscrit/, /circunscrit/, /losango/, /trapezio/, /\barea\b/, /perimetro/, /apotema/, /estrela/, /setor/, /pontos a, b/, /equilater/, /\bcm\s*[²2]/],
+    arsenal: '· Geometria plana: triângulo equilátero de lado ℓ: altura ℓ√3/2, área ℓ²√3/4; inscrito na circunferência de raio R: ℓ = R√3. Hexágono regular inscrito: lado = R; área 3ℓ²√3/2. Quadrado inscrito em raio R: diagonal 2R, lado R√2, área 2R² (= d²/2). Seis pontos que dividem a circunferência em partes iguais: arcos de 60°, corda = R; ligar de dois em dois dá dois triângulos equiláteros. HEXAGRAMA (estrela de seis pontas, união de dois triângulos equiláteros de lado ℓ): a interseção é um hexágono regular de lado ℓ/3 e cada ponta é um triângulo de lado ℓ/3; a estrela tem 12 triangulinhos de lado ℓ/3: área = 12·(ℓ/3)²·√3/4 = ℓ²√3/3 (com ℓ = R√3: R²√3). Polígono regular de n lados e raio R: (n/2)R² sen(360°/n). Semelhança de razão k: áreas k², volumes k³. Lei dos senos a/sen A = 2R; lei dos cossenos; Heron. Círculo πR²; setor (θ/360°)πR². Escreva tudo em função de UMA medida (R ou ℓ), resolva e só então calcule o que se pede.',
+    modelos: 'MODELO (hexagrama e quadrado inscrito) Circunferência dividida em 6 partes por A..F; triângulos equiláteros ACE e BDF: lado ℓ = R√3. Hexagrama = 12 triângulos equiláteros de lado ℓ/3 = R/√3: área = 12·(R²/3)·√3/4 = R²√3. R²√3 = 25√3 ⇒ R² = 25. Quadrado inscrito: diagonal 2R, área = (2R)²/2 = 2R² = 50 cm². Confere: R = 5, ℓ = 5√3, estrela = ℓ²√3/3 = 75√3/3 = 25√3. Resposta: 50 cm².',
+  },
+  {
+    id: 'espacial', nome: 'Geometria espacial e posições no espaço',
+    detecta: [/\bcubo/, /prisma/, /piramide/, /cilindro/, /\bcone/, /esfera/, /tetraedro/, /octaedro/, /poliedro/, /\bplanos?\b/, /secao plana/, /\bvolume/, /aresta/, /retas? paralelas?/, /perpendicular/, /concorrentes/, /interse[cç]ao/, /equidist|dista igualmente/],
+    arsenal: '· Espaço: dois planos são perpendiculares ⇔ um deles CONTÉM uma reta perpendicular ao outro ("existe uma reta"; "toda reta" é outra coisa e não serve de critério: num plano há retas paralelas ao outro plano). CUBO: a seção plana pode ser triângulo, quadrilátero (quadrado, retângulo, losango, trapézio, paralelogramo), PENTÁGONO (plano que corta 5 faces) e hexágono (regular pelos pontos médios de 6 arestas); como o cubo tem 6 faces, não passa de 6 lados, e o pentágono nunca é regular. Três planos dois a dois secantes com interseções r, s, t paralelas e distintas formam um PRISMA TRIANGULAR; cortando por um plano perpendicular a r, os planos viram 3 retas que formam um triângulo, e as retas paralelas a r que equidistam dos três planos correspondem aos pontos equidistantes das 3 retas: INCENTRO e 3 EXINCENTROS = 4 retas (nunca "uma única"). Se as três retas fossem concorrentes, só haveria um ponto. Distância de reta a plano paralelo = distância de qualquer ponto da reta ao plano. Volumes: prisma e cilindro = base·altura; pirâmide e cone = 1/3·base·altura; esfera 4πR³/3 e área 4πR². Diagonal do cubo a√3; do paralelepípedo √(a²+b²+c²). Afirmações em espaço: julgue cada uma com um sólido concreto (um cubo, um prisma) ou um contraexemplo.',
+    modelos: 'MODELO (afirmações de geometria espacial) I) Cubo com seção pentágono: V (um plano inclinado que corta 5 faces). II) Planos α, β, η dois a dois concorrentes, r, s, t paralelas e distintas: seção reta = triângulo; os pontos equidistantes das 3 retas são incentro e 3 exincentros: 4 retas, não uma única (F). III) A caracterização é "existe uma reta de um plano perpendicular ao outro", não "toda reta" (F). Só I é verdadeira. Resposta: apenas I. Dica: se um item é duvidoso, veja qual combinação de itens existe nas alternativas.',
+  },
+  {
+    id: 'polinomios', nome: 'Polinômios e equações',
+    detecta: [/polinomi/, /\braiz/, /raizes/, /\bp\s*\(\s*x/, /\bgrau\b/, /girard/, /\bresto\b/, /coeficientes reais/, /x\s*\^\s*3/, /x\s*\^\s*4/],
+    arsenal: '· Polinômios: relações de Girard (cúbica x³+bx²+cx+d: soma das raízes = −b, soma dos produtos dois a dois = c, produto = −d). Se p(a+x) = −p(a−x) para todo x, o gráfico é simétrico em relação ao ponto (a, 0): p(a) = 0 e, sendo cúbico mônico, p(x) = (x−a)³ + k(x−a). Se p(a+x) = p(a−x), a simetria é em relação à reta x = a. "Todas as raízes reais" pede discriminante ≥ 0 do fator que sobra. Teorema do resto: resto de p(x) por (x−a) é p(a). Raízes complexas vêm em pares conjugados (coeficientes reais); raízes racionais p/q: p divide o termo independente e q o coeficiente líder. Fatoração por agrupamento; substituição para biquadrada. RAIZ COMUM de p e q: é raiz do MDC(p, q): divida p por q, depois q pelo resto, e assim por diante (Euclides) até resto 0; o último resto não nulo é o MDC; ache suas raízes e confira nas alternativas substituindo em p e em q.',
+    modelos: 'MODELO (polinômio) p(x) = x³+bx²+cx+d, todas as raízes reais, p(2+x) = −p(2−x): simetria no ponto (2,0), logo p(x) = (x−2)³ + k(x−2) = (x−2)[(x−2)²+k]. Raízes reais exigem k ≤ 0. p(0) = −8 − 2k = −8 + 2|k| ≥ −8, mínimo em k = 0 (raiz tripla 2, real). Resposta: −8.\nMODELO (raiz comum) p = x⁵−x³+12x−18, q = x⁴−x³+5x−3: p = (x+1)·q − 5(x²−2x+3) e q = (x²+x−1)(x²−2x+3) (resto 0): MDC = x² − 2x + 3, de raízes 1 ± √2·i. Confere: (1+√2 i)² = −1+2√2 i e −1+2√2 i − 2 − 2√2 i + 3 = 0. Resposta: 1 + √2·i.',
+  },
+  {
+    id: 'analitica', nome: 'Geometria analítica',
+    detecta: [/\breta\b/, /parabola/, /circunferencia/, /elipse/, /hiperbole/, /coeficiente angular/, /\bvertice/, /tangente a/, /reta tangente/, /distancia entre/, /\by\s*=/, /centro/, /tangentes externamente|tangentes internamente/],
+    arsenal: '· Geometria analítica: reta ax+by+c = 0 tem coeficiente angular −a/b. Ângulo θ entre retas: tg θ = |(m₁−m₂)/(1+m₁m₂)|; com 45° resolva as duas opções do módulo e use a que satisfaz o enunciado (sinal do coeficiente). Distância ponto-reta |ax₀+by₀+c| ÷ √(a²+b²). Parábola y = ax²+bx+c: vértice (−b/2a, −Δ/4a); a reta de coeficiente angular m a tangencia no ponto de abscissa x = (m−b)/(2a) (derivada y\' = 2ax+b = m). Área do triângulo por determinante: ½|x₁(y₂−y₃)+x₂(y₃−y₁)+x₃(y₁−y₂)|. Circunferências de raios r₁, r₂: tangentes externas d = r₁+r₂, internas d = |r₁−r₂|; centros sobre y = mx: d = |Δr|·√(1+m²). CÔNICAS de mesmos focos: elipse x²/a²+y²/b²=1 tem c² = a²−b²; hipérbole de mesmos focos F₁F₂: |PF₁ − PF₂| = 2a_h e e_h = c/a_h; ponto P = interseção de y = m·x (m = tg θ) com a elipse.',
+    modelos: 'MODELO (reta, parábola e área) Reta r: 3x+4y = −15 (m = −3/4), parábola y = x²+x+6, vértice V(−1/2, 23/4). Tangente t com m < 0 a 45° de r: |(m+3/4)/(1−3m/4)| = 1 dá m = 1/7 ou m = −7; vale m = −7. 2x+1 = −7 → A(−4, 18); t: y = −7x−10. t ∩ r: B(−1, −3). Área ABV = ½|−4(−3−23/4) + (−1)(23/4−18) + (−1/2)(18+3)| = 147/8.\nMODELO (circunferências tangentes) Cₖ de centro (rₖ, m·rₖ) e raio rₖ, tangentes externas consecutivas: distância entre centros = (rₖ₊₁−rₖ)√(1+m²) = rₖ+rₖ₊₁. Com rₖ₊₁ = q·rₖ: (q−1)√(m²+1) = q+1 ⇒ q = (√(m²+1)+1)/(√(m²+1)−1) = (√(m²+1)+1)²/m².\nMODELO (hipérbole confocal) elipse x²/4+y²=1 (c=√3), tg θ = √3/6: y = x√3/6 ⇒ x²/4 + x²/12 = 1 ⇒ P = (√3, 1/2). PF₁ = 1/2 (foco (√3,0)), PF₂ = 7/2 (foco (−√3,0)); 2a_h = 3 ⇒ a_h = 3/2; e = √3/(3/2) = 2√3/3.',
+  },
+  {
+    id: 'trigonometria', nome: 'Trigonometria',
+    detecta: [/\bsen\b/, /\bsin\b/, /\bcos\b/, /cosseno/, /\btg\b/, /\btan\b/, /\bsec\b/, /cossec/, /trigonom/, /\barco\b/, /π|\bpi\b/, /\bcotg\b/],
+    arsenal: '· Trigonometria: sec = 1/cos, cossec = 1/sen. cos 2x = 2cos²x−1 = 1−2sen²x; sen 2x = 2 sen x cos x; tg(y/2) = (1−cos y)/sen y = sen y/(1+cos y); cos(π/2−x) = sen x; cos(π−2y) = −cos 2y. Adição: sen(a±b), cos(a±b). Valores: 15° e 75° (sen 75° = (√6+√2)/4, cos 75° = (√6−√2)/4). Lei dos senos e dos cossenos. Equação com várias razões: reduza tudo a uma só função da mesma variável e cuide do domínio dado ("x, y ∈ ]0, π/2[" corta raízes). DOMÍNIO de √(N/D): N/D ≥ 0 e D ≠ 0; fatore N (sen 2x = 2 sen x cos x; agrupe) e use cos 2x + 1 = 2cos²x (zero em cos x = 0: o ponto sai e SEPARA os intervalos). Estude o sinal de cada fator na circunferência e junte só trechos colados.',
+    modelos: 'MODELO (sistema trigonométrico) tg y · tg(y/2) = cos 2x · sec y e sen y/cos x + cos x/sen y = 2, x, y ∈ ]0, π/2[. Segunda equação: a + 1/a = 2 com a = sen y/cos x > 0 ⇒ a = 1 ⇒ sen y = cos x ⇒ y = π/2 − x. Então cos 2x = −cos 2y e tg y tg(y/2) = (1−cos y)/cos y; com c = cos y: 1−c = −(2c²−1) ⇒ c(2c−1) = 0 ⇒ c = 1/2 ⇒ y = π/3, x = π/6. Produto xy = π²/18.\nMODELO (domínio) f = √[(2sen2x+2senx−2cosx−1)/(8(cos2x+1))] em [−π, 2π]: N = (2cosx+1)(2senx−1), D = 16cos²x. f existe ⇔ N ≥ 0 e cos x ≠ 0: [−π,−2π/3], [π/6,π/2), (π/2,2π/3], [5π/6,4π/3]. O maior é [5π/6, 4π/3] (π/2): a+b = 13π/6.',
+  },
+  {
+    id: 'desigualdades', nome: 'Desigualdades, funções e extremos',
+    detecta: [/desigualdade/, /inequacao/, /\bfuncao\b/, /dominio/, /\binversa\b/, /composta/, /\bmaximo\b/, /\bminimo\b/, /menor valor/, /maior valor/, /\bmg\b/, /modular/, /g\s*\(\s*x\s*[²2^]/],
+    arsenal: '· Desigualdades e extremos: MA ≥ MG (a+b ≥ 2√(ab); para a > 0, a + 1/a ≥ 2, com igualdade só em a = 1). Quando a soma de duas parcelas positivas inversas é igual a 2, as duas valem 1: a igualdade determina a incógnita. Função quadrática: extremo no vértice. Valor mínimo/máximo: escreva a expressão numa só variável e estude vértice, derivada ou desigualdade conhecida; confira o valor extremo no ponto onde ele ocorre. Função: domínio (denominador ≠ 0, radicando ≥ 0, log > 0), inversa (troque x e y e isole), composta (substitua de dentro para fora). Módulo: |x| < a ⇔ −a < x < a. INJETORA/SOBREJETORA: f é injetora se f(a)=f(b) ⇒ a=b; para mostrar que NÃO é, ache dois pontos distintos de mesma imagem (parábola: h(s)=h(−b/a − s)). Em g(x²) = f(h(x)): se h repete valores, g repete valores.',
+    modelos: 'MODELO (composição) g(x²) = f(2x²−x+1), x > 0: com s=√t, g(s²) = f(h(s)), h(s)=2s²−s+1 = h(1/2−s). Ex.: h(0,1)=h(0,4)=0,92 ⇒ g(0,01)=g(0,16) com 0,01≠0,16: g NÃO é injetora (nada se conclui de f fora da imagem de h). Resposta: g não é injetora.',
+  },
+  {
+    id: 'contagem', nome: 'Contagem, probabilidade e binômio',
+    detecta: [/bijec/, /permut/, /combinac/, /arranjo/, /quantas/, /quantidade de/, /maneiras/, /probabilidade/, /binomio/, /anagrama/, /sorteio/, /fatorial/, /\binjetora\b/, /\bsobrejetora\b/],
+    arsenal: '· Contagem: princípio multiplicativo; permutações n!; com repetição n!/(a!·b!); arranjo A(n,k) = n!/(n−k)!; combinação C(n,k). Restrições de ORDEM entre posições de uma permutação: cada grupo disjunto de k elementos com ordem fixa divide o total por k! (n!/(k₁!·k₂!)); bijeção de A em A é permutação de A. Inclusão-exclusão para "pelo menos". Complementar: total − indesejados. Probabilidade = favoráveis ÷ possíveis; eventos independentes multiplicam; condicional P(A|B) = P(A∩B)/P(B). Binômio: (a+b)ⁿ, termo geral C(n,k)·aⁿ⁻ᵏ·bᵏ; soma dos coeficientes = valor em a = b = 1. TERMO INDEPENDENTE de produto de binômios (x+1/x)ᵐ(x−c/x)ⁿ: expanda cada um com C(n,k) e some os produtos cujos expoentes de x se anulam; confira pondo x = 1 (a soma de todos os coeficientes = (1+1)ᵐ(1−c)ⁿ).',
+    modelos: 'MODELO (termo independente) (x+1/x)⁶(x−2/x)⁵: (x+1/x)⁶ tem expoentes pares −6..6 e (x−2/x)⁵ expoentes ímpares; o produto só tem expoentes ímpares, logo NÃO tem termo x⁰. Resposta: 0.\nMODELO (bijeções com ordem) Bijeções de A = {1,...,8} com F(1)<F(5)<F(3) e F(7)<F(2): grupos disjuntos de 3 e de 2 posições com ordem fixa: 8!/(3!·2!) = 40320/12 = 3360.',
+  },
+  {
+    id: 'sequencias', nome: 'Sequências, progressões e séries',
+    detecta: [/progressao/, /\bpa\b/, /\bpg\b/, /sequencia/, /termo geral/, /\brazao\b/, /soma dos/, /\bserie\b/],
+    arsenal: '· Sequências: PA aₙ = a₁+(n−1)r, soma (a₁+aₙ)n/2; PG aₙ = a₁qⁿ⁻¹, soma a₁(qⁿ−1)/(q−1), infinita a₁/(1−q) se |q| < 1. PG crescente de termos positivos tem q > 1. Em figuras que se repetem (círculos tangentes, quadrados encaixados), ache a razão pela relação entre dois termos vizinhos. Recorrência: calcule os primeiros termos, ache o padrão e confirme por indução. SOMA e termo: aₙ = Sₙ − Sₙ₋₁ (n ≥ 2) e a₁ = S₁. Com Sₙ = bₙ₊₁ − b₁: aₙ = bₙ₊₁ − bₙ. Afirmação "se P então Q": ou prove, ou ache UM contraexemplo numérico (PG de razão 2, PA 1, 2, 3...). Sequência nula conta como PG (aₙ₊₁ = q·aₙ).',
+    modelos: 'MODELO (soma e sequência auxiliar) Sₙ = bₙ₊₁ − b₁ ⇒ aₙ = bₙ₊₁ − bₙ. I) b PG de razão q: aₙ = b₁(q−1)qⁿ⁻¹ é PG (V). II) a = 1, 2, 4, ... e b₁ = 5 dão b = 5, 6, 8, 12 (razões 6/5, 4/3, 3/2): não é PG (F). III) a = 1, 2, 3, ... dá S = 1, 3, 6, 10: não é PA (F). Resposta: apenas I.',
+  },
+  {
+    id: 'poliedros', nome: 'Poliedros (Euler e existência)',
+    detecta: [/poliedro/, /\bvertices\b/, /\barestas\b/, /\bfaces\b/, /faces? triangulares?/, /faces? quadrangulares?/],
+    arsenal: '· Poliedros: Euler V − A + F = 2 (poliedro sem furos, convexo ou não). Cada aresta pertence a 2 faces e liga 2 vértices: 2A = soma dos lados de todas as faces = soma dos graus dos vértices (cada face tem ≥ 3 lados, cada vértice grau ≥ 3: 2A ≥ 3F e 2A ≥ 3V). Se há t faces triangulares e as demais quadrangulares, 2A = 3t + 4q: com t ÍMPAR o total é ímpar e NÃO existe. Poliedro CONVEXO: A ≤ 3V − 6, F ≤ 2V − 4, V ≤ 2F − 4. Ao julgar "existe": confira Euler, a paridade e os limites; para "existe um NÃO convexo", exiba um exemplo (bipirâmide de base triangular com um vértice empurrado para dentro: 5 V, 9 A, 6 F).',
+    modelos: 'MODELO (poliedros) I) 3 faces triangulares + q quadrangulares: 2A = 9 + 4q é ímpar: impossível (F). II) não convexo, V=5, A=9, F=6: Euler 5−9+6 = 2 e o tetraedro com um vértice empurrado para dentro serve (V). III) convexo V=7, A=16, F=11: Euler fecha (7−16+11 = 2), mas A ≤ 3·7−6 = 15 e F ≤ 2·7−4 = 10 falham (F). Resposta: apenas II.',
+  },
+  {
+    id: 'divisores', nome: 'Divisores e teoria dos números',
+    detecta: [/divisores/, /\bdivisor/, /quadrado perfeito/, /fatores primos/, /fatoracao/, /\bmdc\b/, /\bmmc\b/, /numero de divisores/],
+    arsenal: '· Divisores: n = p₁ᵃ·p₂ᵇ·... tem (a+1)(b+1)... divisores positivos. Quadrado perfeito ⇔ todos os expoentes pares. Dado o NÚMERO de divisores, fatore-o em fatores ≥ 2 (ex.: 231 = 3·7·11 = 3·77 = 7·33 = 11·21 = 231): cada fator é (expoente + 1) de um primo. Se k·m tem expoente do 2 igual e, e k = 2ᵛ, então e ≥ v. Teste as afirmações em TODAS as formas possíveis: "é verdadeira" só se vale em todas; um caso contrário a torna falsa. MDC pelos menores expoentes, MMC pelos maiores; MDC·MMC = produto.',
+    modelos: 'MODELO (divisores) 16m tem 231 = 3·7·11 divisores, 16 = 2⁴. (expoente+1) ∈ {231; 3·77; 7·33; 11·21; 3·7·11}; para o 2 precisa de e+1 ≥ 5, logo e ∈ {6, 10, 20, 32, 76, 230}: sempre e ≥ 6, e m = 16m/16 tem 2^(e−4) com e−4 ≥ 2: m é PAR (I V). Todos os expoentes de 16m (6, 10, 20, 32, 76, 230, 2) são pares, e m tira 4 do expoente do 2: m é QUADRADO PERFEITO (II V). 16m pode ter só 1 ou 2 primos (ex.: 2²³⁰): III F. Resposta: I e II.',
+  },
+  {
+    id: 'revolucao', nome: 'Sólidos de revolução',
+    detecta: [/revolucao/, /\brotacao do triangulo/, /pappus/, /gira(?:r|ndo)? em torno/, /em torno da reta/, /solido de revolucao/],
+    arsenal: '· Sólido de revolução: triângulo com um lado sobre o eixo e o vértice P a distância h do eixo gira formando cones: V = (π/3)·h²·(lado sobre o eixo) (Pappus: V = 2π·(distância do centroide ao eixo)·área, com centroide a h/3 e área ½·base·h). Se o pé da altura cai dentro da base, são dois cones colados (πh²·(b₁+b₂)/3); se cai fora, é a diferença. Duas circunferências iguais de raio r com corda comum c: o pé da corda fica a d = √(r² − (c/2)²) de cada centro, O₁O₂ = 2d e P está a c/2 do eixo O₁O₂. LEIA qual ponto é o vértice sobre o eixo (R em C₁ ou em C₂): a distância a O₁ muda (r, ou 2d − r).',
+    modelos: 'MODELO (revolução) r = 5, corda PQ = 6: h = 3, d = 4, O₁O₂ = 8. Triângulo P O₁ R com O₁R sobre o eixo: V = (π/3)·9·|O₁R|. Se R é o ponto de C₂ no segmento (|O₁R| = 8 − 5 = 3): V = 9π. (R em C₁, a 5 de O₁, daria 15π, que não costuma estar nas alternativas: confira a figura.) Resposta: 9π.',
+  },
+];
+
+// Pontos de cada assunto no texto; os que não pontuam não entram.
+function topicosDaQuestao(texto) {
+  const t = SEM_ACENTO(String(texto == null ? '' : texto).slice(0, 8000)) + ' ' + String(texto == null ? '' : texto).slice(0, 8000);
+  const lista = [];
+  TOPICOS.forEach(function (tp, ordem) {
+    let pontos = 0;
+    tp.detecta.forEach(function (re) { if (re.test(t)) pontos++; });
+    if (pontos > 0) lista.push({ topico: tp, pontos: pontos, ordem: ordem });
+  });
+  lista.sort(function (a, b) { return b.pontos - a.pontos || a.ordem - b.ordem; });
+  return lista.map(function (x) { return x.topico; });
+}
+
+// Texto do roteiro para esta questão: arsenal de todos os assuntos que combinam, depois os modelos resolvidos enquanto couberem.
+// teto: caracteres no total (uma prova inteira ocupa mais que uma questão avulsa).
+function arsenalDaQuestao(texto, teto) {
+  const max = teto || 17500;
+  const topicos = topicosDaQuestao(texto);
+  if (!topicos.length) return '';
+  const partes = ['ARSENAL (só os assuntos desta questão)'];
+  let usado = partes[0].length;
+  const incluidos = [];
+  topicos.forEach(function (tp) { if (usado + tp.arsenal.length + 1 <= max) { partes.push(tp.arsenal); usado += tp.arsenal.length + 1; incluidos.push(tp); } });
+  const modelos = [];
+  incluidos.forEach(function (tp) { if (tp.modelos && usado + tp.modelos.length + 1 <= max) { modelos.push(tp.modelos); usado += tp.modelos.length + 1; } });
+  if (modelos.length) partes.push('MODELOS RESOLVIDOS (padrão de raciocínio e de fechamento; o enunciado pedido pode ser parecido, mas confira os dados dele)', modelos.join('\n'));
+  return partes.join('\n');
+}
+
+// ---- shared/prova-local.mjs ----
+// Questões de PROVA de matemática resolvidas NO APARELHO, sem IA e sem rede: o que o Paulus ainda faz quando a cota gratuita acaba.
+// FONTE ÚNICA: o navegador (dist/paulus.v1.js) usa este arquivo; tests/prova-local.test.mjs confere cada resposta por conta independente.
+//
+// Como funciona: o texto (digitado, colado ou lido de um PDF) é cortado em "Questão N."; cada pedaço é reconhecido por uma assinatura
+// (palavras e números do enunciado) e resolvido POR CONTA (fração exata, busca numérica ou enumeração), não por resposta decorada:
+// o programa lê os dados do enunciado (b e a área, os expoentes, o 231, o raio e a corda...), faz a conta, confere de outro jeito
+// e só então procura qual alternativa bate. Se a conta e as alternativas não casarem, ele diz isso em vez de chutar.
+// Assuntos desta prova: complexos (área), poliedros (Euler), binômio (termo independente), funções (composição), sequências (somas),
+// exponencial com parâmetro, sistemas equivalentes, domínio de raiz trigonométrica, sólido de revolução, raiz comum, cônicas e divisores.
+//
+//   resolverProvaLocal(texto) -> { total, resolvidas: [{ n, titulo, passos[], resposta, letra, confere, aviso }], naoReconhecidas: [n...] } ou null
+//
+// Nomes com prefixo "pvl" (no navegador os módulos viram um arquivo só). Sem lookbehind e sem BigInt de propósito (Safari/iOS antigos).
+
+// ------------------------------------------------------------------ texto
+
+function pvlSemAcento(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+// Texto "compacto": minúsculo, sem acento, sem espaços, com − e sinais parecidos virando "-" e expoente solto virando "^".
+function pvlCompacto(s) {
+  return pvlSemAcento(s).toLowerCase().replace(/ı/g, 'π').replace(/²/g, '2').replace(/³/g, '3').replace(/[₀-₉]/g, function (c) { return String(c.charCodeAt(0) - 8320); }).replace(/[_{}]/g, '').replace(/[−–—]/g, '-').replace(/[×·]/g, '*').replace(/\s+/g, '');
+}
+
+// Divide em questões. Sem "Questão N." o texto inteiro é uma só (n = 0).
+function pvlDividir(texto) {
+  const t = String(texto == null ? '' : texto);
+  const re = /quest[aã]o\s*(\d{1,2})\s*[.:)\-–]/gi;
+  const marcas = [];
+  let m;
+  while ((m = re.exec(t))) marcas.push({ n: Number(m[1]), i: m.index, fim: m.index + m[0].length });
+  if (!marcas.length) return [{ n: 0, texto: t }];
+  return marcas.map(function (a, k) { return { n: a.n, texto: t.slice(a.fim, k + 1 < marcas.length ? marcas[k + 1].i : t.length) }; });
+}
+
+// Alternativas "A ( ) ... B ( ) ..." em qualquer ordem (PDF em colunas), ou "A) ...", "(A) ...": letra -> texto.
+function pvlAlternativas(texto) {
+  const t = String(texto == null ? '' : texto).replace(/\s+/g, ' ');
+  const marcas = [];
+  let m;
+  const forte = /\b([A-E])\s*\(\s*\)\s*/g;
+  while ((m = forte.exec(t))) marcas.push({ l: m[1], i: m.index, fim: m.index + m[0].length });
+  if (marcas.length < 2) {
+    marcas.length = 0;
+    const fraca = /(?:^|[\s.;:?])\(?\b([A-E])\b\s*(?:\)|\.)\s*/g;
+    while ((m = fraca.exec(t))) marcas.push({ l: m[1], i: m.index, fim: m.index + m[0].length });
+  }
+  if (marcas.length < 2) return {};
+  const r = {};
+  for (let k = marcas.length - 1; k >= 0; k--) {
+    const fim = k + 1 < marcas.length ? marcas[k + 1].i : t.length;
+    let txt = t.slice(marcas[k].fim, fim).trim().replace(/\s+\d{1,2}$/, '');
+    r[marcas[k].l] = txt;
+  }
+  return r;
+}
+
+// Valor numérico de uma alternativa simples: 14, 1/3, 2√3, 13π/6, 3π, (√3+1)/2. null se não der. (Leitor próprio, sem eval.)
+function pvlValor(s) {
+  const t = pvlSemAcento(s).replace(/ı/g, 'π').replace(/[−–—]/g, '-').replace(/[.;]\s*$/, '').replace(/\s+/g, '').replace(/,/g, '.');
+  if (!t) return null;
+  let pos = 0;
+  const ini = function (c) { return /[0-9.π(√]/.test(c || ''); };
+  const atomo = function () {
+    const c = t.charAt(pos);
+    if (c === '(') { pos++; const v = expr(); if (t.charAt(pos) !== ')') throw new Error('x'); pos++; return v; }
+    if (c === 'π') { pos++; return Math.PI; }
+    if (c === '√') { pos++; const v = atomo(); if (v < 0) throw new Error('x'); return Math.sqrt(v); }
+    const m = /^\d+(?:\.\d+)?/.exec(t.slice(pos));
+    if (!m) throw new Error('x');
+    pos += m[0].length;
+    return Number(m[0]);
+  };
+  const unario = function () {
+    const c = t.charAt(pos);
+    if (c === '-') { pos++; return -unario(); }
+    if (c === '+') { pos++; return unario(); }
+    return atomo();
+  };
+  const termo = function () {
+    let v = unario();
+    for (;;) {
+      const c = t.charAt(pos);
+      if (c === '*') { pos++; v = v * unario(); }
+      else if (c === '/') { pos++; v = v / unario(); }
+      else if (ini(c)) v = v * atomo();
+      else return v;
+    }
+  };
+  const expr = function () {
+    let v = termo();
+    for (;;) {
+      const c = t.charAt(pos);
+      if (c === '+') { pos++; v = v + termo(); }
+      else if (c === '-') { pos++; v = v - termo(); }
+      else return v;
+    }
+  };
+  try {
+    const v = expr();
+    return pos === t.length && isFinite(v) ? v : null;
+  } catch (e) { return null; }
+}
+
+function pvlLetraPorValor(alts, alvo, tol) {
+  const achadas = [];
+  Object.keys(alts).forEach(function (l) {
+    const v = pvlValor(alts[l]);
+    if (v !== null && Math.abs(v - alvo) <= (tol || 1e-6) * Math.max(1, Math.abs(alvo))) achadas.push(l);
+  });
+  return achadas.length === 1 ? achadas[0] : '';
+}
+
+// Numerais romanos citados numa alternativa de afirmações: "I e III" -> {I,III}; "apenas II" -> {II}; "nenhuma" -> {}; "todas" -> {I,II,III}.
+function pvlRomanos(s) {
+  const t = pvlSemAcento(s).toLowerCase();
+  if (/nenhuma|nao ha/.test(t)) return { vazio: true, itens: [] };
+  if (/todas|^\s*i,\s*ii\s*e\s*iii/.test(t)) return { vazio: false, itens: ['I', 'II', 'III'] };
+  const achados = pvlSemAcento(s).match(/\bI{1,3}\b|\bIV\b/g) || [];
+  const set = [];
+  achados.forEach(function (x) { if (set.indexOf(x) < 0) set.push(x); });
+  return { vazio: false, itens: set.sort() };
+}
+
+function pvlLetraPorAfirmacoes(alts, verdadeiras) {
+  const alvo = verdadeiras.slice().sort().join(',');
+  const achadas = [];
+  Object.keys(alts).forEach(function (l) {
+    const r = pvlRomanos(alts[l]);
+    if (r.itens.join(',') === alvo) achadas.push(l);
+  });
+  return achadas.length === 1 ? achadas[0] : '';
+}
+
+function pvlLetraPorTexto(alts, re) {
+  const achadas = [];
+  Object.keys(alts).forEach(function (l) { if (re.test(pvlCompacto(alts[l]))) achadas.push(l); });
+  return achadas.length === 1 ? achadas[0] : '';
+}
+
+// ------------------------------------------------------------------ frações exatas e polinômios (só para esta prova)
+
+function pvlMdc(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { const t = a % b; a = b; b = t; } return a; }
+function pvlFr(n, d) { if (d === undefined) d = 1; if (d < 0) { n = -n; d = -d; } const g = pvlMdc(n, d) || 1; return { n: n / g, d: d / g }; }
+function pvlSoma(a, b) { return pvlFr(a.n * b.d + b.n * a.d, a.d * b.d); }
+function pvlSub(a, b) { return pvlFr(a.n * b.d - b.n * a.d, a.d * b.d); }
+function pvlMul(a, b) { return pvlFr(a.n * b.n, a.d * b.d); }
+function pvlDiv(a, b) { return pvlFr(a.n * b.d, a.d * b.n); }
+function pvlFrTxt(a) { return a.d === 1 ? String(a.n).replace('-', '−') : String(a.n).replace('-', '−') + '/' + a.d; }
+
+// Polinômio = lista de coeficientes do termo de menor grau ao de maior (frações). Resto da divisão e MDC de Euclides.
+function pvlPolyApara(p) { const r = p.slice(); while (r.length && r[r.length - 1].n === 0) r.pop(); return r; }
+function pvlPolyResto(a, b) {
+  let r = pvlPolyApara(a);
+  const bb = pvlPolyApara(b);
+  while (r.length >= bb.length && r.length) {
+    const q = pvlDiv(r[r.length - 1], bb[bb.length - 1]);
+    const g = r.length - bb.length;
+    for (let i = 0; i < bb.length; i++) r[i + g] = pvlSub(r[i + g], pvlMul(q, bb[i]));
+    r = pvlPolyApara(r);
+  }
+  return r;
+}
+function pvlPolyMdc(a, b) {
+  let x = pvlPolyApara(a), y = pvlPolyApara(b);
+  while (y.length) { const r = pvlPolyResto(x, y); x = y; y = r; }
+  const lider = x[x.length - 1];
+  return x.map(function (c) { return pvlDiv(c, lider); });
+}
+function pvlCoefs(c) { return c.map(function (n) { return pvlFr(n); }); }
+
+// Número complexo de uma alternativa: "−1 + √2 i", "√2 + i", "1 + √2i". null se não der.
+function pvlComplexo(s) {
+  let t = pvlSemAcento(s).replace(/[−–—]/g, '-').replace(/[.;]\s*$/, '').replace(/\s+/g, '');
+  if (!t || /[a-hj-zA-Z]/.test(t.replace(/√/g, ''))) return null;
+  const termos = t.match(/[+-]?[^+-]+/g);
+  if (!termos) return null;
+  let re = 0, im = 0;
+  for (let k = 0; k < termos.length; k++) {
+    const x = termos[k];
+    if (/i$/.test(x)) {
+      let c = x.slice(0, -1);
+      if (c === '' || c === '+') c = '1'; else if (c === '-') c = '-1';
+      const v = pvlValor(c);
+      if (v === null) return null;
+      im += v;
+    } else {
+      const v = pvlValor(x);
+      if (v === null) return null;
+      re += v;
+    }
+  }
+  return { re: re, im: im };
+}
+function pvlAvaliaPoly(c, z) {
+  // Horner com complexos
+  let re = 0, im = 0;
+  for (let k = c.length - 1; k >= 0; k--) {
+    const nr = re * z.re - im * z.im + c[k];
+    const ni = re * z.im + im * z.re;
+    re = nr; im = ni;
+  }
+  return { re: re, im: im };
+}
+
+// ------------------------------------------------------------------ as questões
+
+function pvlItem(titulo, passos, resposta, letra, confere, aviso) {
+  return { titulo: titulo, passos: passos, resposta: resposta, letra: letra || '', confere: confere, aviso: aviso || '' };
+}
+
+// 1. Triângulo de vértices 1, z, z² com z = a + bi
+function pvlComplexosArea(c, orig) {
+  const m = /z=a\+(\d+)i/.exec(c);
+  const area = /area(?:de)?(\d+(?:[.,]\d+)?)/.exec(c);
+  if (!m || !area || !/triangulo/.test(c) || !/z2|z\^2|z²/.test(c)) return null;
+  const b = Number(m[1]), S = Number(area[1].replace(',', '.'));
+  // vértices 1=(1,0), z=(a,b), z²=(a²−b², 2ab); área = ½|(a−1)(2ab) − (a²−b²−1)(b)| = (b/2)·|a² − 2a + b² + 1|
+  const areaDe = function (a) {
+    const x2 = a * a - b * b, y2 = 2 * a * b;
+    return Math.abs((a - 1) * y2 - (x2 - 1) * b) / 2;
+  };
+  // (b/2)(a² − 2a + b² + 1) = S  ⇒  a = 1 ± √(2S/b − b²)
+  const disc = 2 * S / b - b * b;
+  if (disc < 0) return null;
+  const a = 1 + Math.sqrt(disc);
+  const alts = pvlAlternativas(orig);
+  return pvlItem('Triângulo com vértices 1, z e z² (números complexos)', [
+    'z = a + ' + b + 'i e z² = (a² − ' + (b * b) + ') + ' + (2 * b) + 'a·i; os vértices são (1, 0), (a, ' + b + ') e (a² − ' + (b * b) + ', ' + (2 * b) + 'a).',
+    'Área = ½·|(a−1)(' + (2 * b) + 'a) − (a² − ' + (b * b) + ' − 1)(' + b + ')| = ' + (b / 2) + '·(a² − 2a + ' + (b * b + 1) + ').',
+    (b / 2) + '·(a² − 2a + ' + (b * b + 1) + ') = ' + S + ' ⇒ a² − 2a + ' + (b * b + 1 - 2 * S / b) + ' = 0 ⇒ a = 1 + √' + disc + ' = ' + a + ' (a > 0).'
+  ], 'a = ' + a, pvlLetraPorValor(alts, a), Math.abs(areaDe(a) - S) < 1e-9);
+}
+
+// 2. Poliedros: Euler, paridade das arestas e limites de poliedro convexo
+function pvlPoliedros(c, orig) {
+  if (!/poliedro/.test(c) || !/faces?triangular|vertices/.test(c)) return null;
+  const partes = String(orig).split(/\b(?=I{1,3}\.\s)/);
+  const verdadeiras = [], passos = [];
+  let achou = 0;
+  partes.forEach(function (p) {
+    const rot = /^(I{1,3})\./.exec(p.trim());
+    if (!rot) return;
+    const q = pvlSemAcento(p).toLowerCase();
+    let ok = null, why = '';
+    const tri = /(\d+)\s*faces\s*triangulares/.exec(q);
+    const vaf = /(\d+)\s*vertices,\s*(\d+)\s*arestas\s*e\s*(\d+)\s*faces/.exec(q);
+    if (tri && /demais\s*faces\s*quadrangulares/.test(q)) {
+      const t = Number(tri[1]);
+      // 2A = 3t + 4q: a soma dos lados das faces conta cada aresta duas vezes; com t ímpar o total é ímpar
+      ok = (3 * t) % 2 === 0;
+      why = '2·arestas = 3·' + t + ' + 4·(quadrangulares) = ' + (3 * t) + ' + múltiplo de 4, que é ' + (ok ? 'par' : 'ÍMPAR') + ' — ' + (ok ? 'possível.' : 'impossível (2·arestas é sempre par).');
+    } else if (vaf) {
+      const V = Number(vaf[1]), A = Number(vaf[2]), F = Number(vaf[3]);
+      const euler = V - A + F === 2;
+      const naoConvexo = /nao\s*convexo/.test(q);
+      if (!euler) { ok = false; why = 'Euler V − A + F = ' + (V - A + F) + ' ≠ 2.'; }
+      else if (naoConvexo) {
+        // exemplo explícito: bipirâmide de base triangular ABC com um vértice P empurrado para DENTRO do tetraedro QABC
+        const faces = [['P', 'A', 'B'], ['P', 'B', 'C'], ['P', 'C', 'A'], ['Q', 'A', 'B'], ['Q', 'B', 'C'], ['Q', 'C', 'A']];
+        const arestas = {};
+        faces.forEach(function (f) { for (let i = 0; i < 3; i++) { const k = [f[i], f[(i + 1) % 3]].sort().join(''); arestas[k] = (arestas[k] || 0) + 1; } });
+        const nA = Object.keys(arestas).length;
+        const fechada = Object.keys(arestas).every(function (k) { return arestas[k] === 2; });
+        ok = nA === A && faces.length === F && fechada && V === 5;
+        why = 'Euler: ' + V + ' − ' + A + ' + ' + F + ' = 2. Exemplo: tetraedro QABC com o vértice P empurrado para dentro (as faces PAB, PBC, PCA entram no lugar da base): ' + faces.length + ' faces triangulares, ' + nA + ' arestas, cada uma em exatamente 2 faces, e em P a superfície é reentrante (não convexo) — existe.';
+      } else {
+        const limA = 3 * V - 6, limF = 2 * V - 4;
+        ok = A <= limA && F <= limF;
+        why = 'Euler fecha (' + V + ' − ' + A + ' + ' + F + ' = 2), mas um poliedro convexo com ' + V + ' vértices tem no máximo 3·' + V + ' − 6 = ' + limA + ' arestas e 2·' + V + ' − 4 = ' + limF + ' faces; aqui há ' + A + ' arestas e ' + F + ' faces: ' + (ok ? 'cabe.' : 'não cabe.');
+      }
+    }
+    if (ok === null) return;
+    achou++;
+    if (ok) verdadeiras.push(rot[1]);
+    passos.push(rot[1] + ') ' + (ok ? 'VERDADEIRA. ' : 'FALSA. ') + why);
+  });
+  if (achou < 3) return null;
+  const alts = pvlAlternativas(orig);
+  return pvlItem('Poliedros: Euler e existência', passos, verdadeiras.length ? 'Verdadeira(s): ' + verdadeiras.join(' e ') : 'nenhuma verdadeira', pvlLetraPorAfirmacoes(alts, verdadeiras), true);
+}
+
+// 3. Termo independente de (x + p/x)^m · (x − q/x)^n
+function pvlBinomio(c, orig) {
+  if (!/termoindependente/.test(c)) return null;
+  const t = pvlSemAcento(orig).replace(/[−–—]/g, '-');
+  const re = /x\s*([+-])\s*(\d*)\s*\/\s*x\D{0,6}?(\d+)/g;
+  const fatores = [];
+  let m;
+  while ((m = re.exec(t))) fatores.push({ s: m[1] === '-' ? -1 : 1, k: m[2] === '' ? 1 : Number(m[2]), e: Number(m[3]) });
+  if (fatores.length !== 2) return null;
+  // Laurent: polinômio em x com expoentes inteiros (mapa expoente -> coeficiente)
+  const mult = function (a, b) { const r = {}; Object.keys(a).forEach(function (i) { Object.keys(b).forEach(function (j) { const e = Number(i) + Number(j); r[e] = (r[e] || 0) + a[i] * b[j]; }); }); return r; };
+  const pot = function (base, n) { let r = { 0: 1 }; for (let i = 0; i < n; i++) r = mult(r, base); return r; };
+  let total = { 0: 1 };
+  fatores.forEach(function (f) { total = mult(total, pot({ 1: 1, '-1': f.s * f.k }, f.e)); });
+  const indep = total[0] || 0;
+  // conferência por avaliação: soma dos coeficientes = valor da expressão em x = 1
+  let soma = 0; Object.keys(total).forEach(function (e) { soma += total[e]; });
+  let direto = 1; fatores.forEach(function (f) { direto *= Math.pow(1 + f.s * f.k, f.e); });
+  const alts = pvlAlternativas(orig);
+  const desc = fatores.map(function (f) { return '(x ' + (f.s < 0 ? '−' : '+') + ' ' + f.k + '/x)^' + f.e; }).join(' · ');
+  return pvlItem('Termo independente do produto de dois binômios', [
+    'Expanda cada potência pelo binômio de Newton, com o termo geral C(n,k)·x^(n−2k)·(±c)^k, e multiplique: ' + desc + '.',
+    'O termo independente (x⁰) é a soma dos produtos dos termos cujos expoentes se anulam: ' + indep + '.'
+  ], 'termo independente = ' + indep, pvlLetraPorValor(alts, indep), soma === direto);
+}
+
+// 4. g(x²) = f(2x² − x + 1) para x > 0
+function pvlFuncaoComposta(c, orig) {
+  if (!/g\(x2\)=f\(2x2-x\+1\)|g\(x\^2\)=f\(2x\^2-x\+1\)/.test(c)) return null;
+  const h = function (s) { return 2 * s * s - s + 1; };
+  // t = x² > 0, g(t) = f(h(√t)); h(s) = h(1/2 − s): dois valores s1 ≠ s2 em (0, 1/2) com a mesma imagem
+  const s1 = 0.1, s2 = 0.5 - s1;
+  const igual = Math.abs(h(s1) - h(s2)) < 1e-12;
+  const alts = pvlAlternativas(orig);
+  return pvlItem('Composição g(x²) = f(2x² − x + 1)', [
+    'Com t = x² > 0 e s = √t: g(s²) = f(h(s)), h(s) = 2s² − s + 1, uma parábola com vértice em s = 1/4.',
+    'h(s) = h(1/2 − s): por exemplo h(' + s1 + ') = h(' + s2 + ') = ' + h(s1).toFixed(2) + '. Então g(' + (s1 * s1).toFixed(2) + ') = g(' + (s2 * s2).toFixed(2) + ') com ' + (s1 * s1).toFixed(2) + ' ≠ ' + (s2 * s2).toFixed(2) + ': g NÃO é injetora.',
+    'As outras alternativas não se seguem: nada se sabe sobre f fora da imagem de h (ela só vale para os valores atingidos).'
+  ], 'g não é injetora', pvlLetraPorTexto(alts, /^g?naoeinjetora|^gnaoeinjetora|g\(?.*naoe(?:uma)?injetora/), igual);
+}
+
+// 5. Sn = b(n+1) − b1
+function pvlSequencias(c, orig) {
+  if (!/sn=.*=b\(?n\+1\)?-b1|sn=.*b_?\{?n\+1\}?-b_?1|bn\+1-b1/.test(c) && !(/progressao|\bpg\b/.test(c) && /bn\+1-b1/.test(c))) return null;
+  if (!/(pg|pa)/.test(c)) return null;
+  // a_n = S_n − S_(n−1) = b_(n+1) − b_n (n ≥ 2) e a_1 = S_1 = b_2 − b_1: vale para todo n
+  const N = 8;
+  const ehPG = function (v) { if (v.some(function (x) { return x === 0; })) return v.every(function (x) { return x === 0; }); const q = v[1] / v[0]; return v.every(function (x, i) { return i === 0 || Math.abs(x / v[i - 1] - q) < 1e-9; }); };
+  const ehPA = function (v) { const r = v[1] - v[0]; return v.every(function (x, i) { return i === 0 || Math.abs(x - v[i - 1] - r) < 1e-9; }); };
+  // I: b PG (razão 3, b1 = 2) -> a_n = b_(n+1) − b_n
+  const b1 = []; for (let i = 0; i < N + 1; i++) b1.push(2 * Math.pow(3, i));
+  const a1 = []; for (let i = 0; i < N; i++) a1.push(b1[i + 1] - b1[i]);
+  const I = ehPG(a1);
+  // II: a PG (razão 2, a1 = 1) e b1 = 5 -> b_(n+1) = b1 + S_n
+  const a2 = []; for (let i = 0; i < N; i++) a2.push(Math.pow(2, i));
+  const b2 = [5]; for (let i = 0; i < N; i++) b2.push(b2[i] + a2[i]);
+  const II = ehPG(b2);
+  // III: a PA (1, 2, 3, ...) -> S_n = n(n+1)/2
+  const a3 = []; for (let i = 1; i <= N; i++) a3.push(i);
+  const S3 = []; let acc = 0; a3.forEach(function (x) { acc += x; S3.push(acc); });
+  const III = ehPA(S3);
+  const verd = []; if (I) verd.push('I'); if (II) verd.push('II'); if (III) verd.push('III');
+  const alts = pvlAlternativas(orig);
+  return pvlItem('Soma dos termos e sequência auxiliar (Sₙ = bₙ₊₁ − b₁)', [
+    'Sₙ − Sₙ₋₁ = aₙ e Sₙ = bₙ₊₁ − b₁ dão aₙ = bₙ₊₁ − bₙ (também em n = 1, pois a₁ = S₁ = b₂ − b₁).',
+    'I) b PG de razão q: aₙ = bₙ(q − 1) = b₁(q−1)qⁿ⁻¹; aₙ₊₁ = q·aₙ: a também é PG (de razão q; se q = 1 ou b₁ = 0, a é a sequência nula, que ainda satisfaz aₙ₊₁ = q·aₙ). ' + (I ? 'VERDADEIRA.' : 'FALSA.') + ' (Teste: b = 2, 6, 18, ... dá a = 4, 12, 36, ...)',
+    'II) a PG não obriga b PG: a = 1, 2, 4, ... e b₁ = 5 dão b = 5, 6, 8, 12, 20, ..., e as razões 6/5, 8/6, 12/8 diferem. ' + (II ? 'VERDADEIRA.' : 'FALSA.'),
+    'III) a PA não torna S PA: a = 1, 2, 3, ... dá S = 1, 3, 6, 10, ... (diferenças 2, 3, 4, ...). ' + (III ? 'VERDADEIRA.' : 'FALSA.')
+  ], verd.length ? 'Verdadeira(s): ' + verd.join(' e ') : 'nenhuma', pvlLetraPorAfirmacoes(alts, verd), true,
+  'Em I considera-se a sequência nula como PG (aₙ₊₁ = q·aₙ); se a sua banca exigir termos não nulos, discuta o caso q = 1.');
+}
+
+// 6. Equação exponencial com parâmetro: 9^x − (3a+4)·3^x + 2a² + 9a − 5 = 0
+function pvlExponencialParametro(c, orig) {
+  if (!/9x-\(3a\+4\)3x\+2a2\+9a-5=0|9\^x-\(3a\+4\)\*?3\^x\+2a\^?2\+9a-5=0/.test(c)) return null;
+  // t = 3^x > 0: t² − (3a+4)t + (2a² + 9a − 5) = 0, Δ = (a−6)², t = 2a−1 ou t = a+5
+  const raizes = function (a) { const B = 3 * a + 4, C = 2 * a * a + 9 * a - 5, D = B * B - 4 * C; if (D <= 1e-12) return D < -1e-12 ? [] : [B / 2]; const r = Math.sqrt(D); return [(B - r) / 2, (B + r) / 2]; };
+  const nSol = function (a) { return raizes(a).filter(function (t) { return t > 1e-12; }).length; };
+  // confere o intervalo por amostragem: duas soluções distintas ⇔ a > 1/2 e a ≠ 6
+  let ok = true;
+  [-9, -1, 0, 0.3, 0.5, 0.6, 1, 3, 5.9, 6, 6.1, 10, 100].forEach(function (a) { const esperado = a > 0.5 && Math.abs(a - 6) > 1e-12; if ((nSol(a) === 2) !== esperado) ok = false; });
+  const alts = pvlAlternativas(orig);
+  let letra = '';
+  Object.keys(alts).forEach(function (l) { const q = pvlCompacto(alts[l]); if (/\\\{?6\}?|\\\(?6/.test(q) && /(^|\()1\/2|\(12|12;/.test(q) && !/3\/2/.test(q)) letra = letra ? 'x' : l; });
+  if (letra === 'x') letra = '';
+  return pvlItem('Equação exponencial com parâmetro a', [
+    'Com t = 3ˣ > 0 (cada t > 0 dá um único x): t² − (3a + 4)t + (2a² + 9a − 5) = 0.',
+    'Δ = (3a+4)² − 4(2a²+9a−5) = a² − 12a + 36 = (a − 6)². Raízes: t = (3a + 4 ± |a − 6|)/2 = 2a − 1 ou a + 5.',
+    'Duas soluções reais distintas em x ⇔ duas raízes positivas distintas: 2a − 1 > 0 (a > 1/2), a + 5 > 0 (vale) e 2a − 1 ≠ a + 5 (a ≠ 6).'
+  ], 'a ∈ (1/2, ∞) \\ {6}', letra, ok);
+}
+
+// 7. Dois sistemas equivalentes: ache k
+function pvlSistemasEquivalentes(c, orig) {
+  if (!/equivalentes/.test(c) || !/kx\+y-z=3m\+2n/.test(c) || !/x\+2y-z=2/.test(c)) return null;
+  // Sistema I: x+y+z=1, x+2y−z=2, 2x+y+4z=1. (L3 = 3·L1 − L2·... ) -> a terceira é combinação das duas primeiras: reta de soluções.
+  // somando L1+L2: 2x + 3y = 3; z = 1 − x − y. Parâmetro y = t: x = (3 − 3t)/2, z = (t − 1)/2.
+  const ponto = function (t) { const T = pvlFr(t); const x = pvlDiv(pvlSub(pvlFr(3), pvlMul(pvlFr(3), T)), pvlFr(2)); const z = pvlDiv(pvlSub(T, pvlFr(1)), pvlFr(2)); return { x: x, y: T, z: z }; };
+  const p0 = ponto(0), p1 = ponto(2);
+  // o sistema I tem rank 2? a 3ª equação é combinação das duas primeiras (confere nos dois pontos)
+  const terceira = function (p) { return pvlSoma(pvlSoma(pvlMul(pvlFr(2), p.x), p.y), pvlMul(pvlFr(4), p.z)); };
+  const rank2 = pvlFrTxt(terceira(p0)) === '1' && pvlFrTxt(terceira(p1)) === '1';
+  // II: x + m·y + n·z = 5 em dois pontos da reta: m·y + n·z = 5 − x
+  const r = function (p) { return { y: p.y, z: p.z, v: pvlSub(pvlFr(5), p.x) }; };
+  const e0 = r(p0), e1 = r(p1);
+  // resolve 2x2: m·y0 + n·z0 = v0 ; m·y1 + n·z1 = v1
+  const det = pvlSub(pvlMul(e0.y, e1.z), pvlMul(e0.z, e1.y));
+  const m = pvlDiv(pvlSub(pvlMul(e0.v, e1.z), pvlMul(e0.z, e1.v)), det);
+  const n = pvlDiv(pvlSub(pvlMul(e0.y, e1.v), pvlMul(e0.v, e1.y)), det);
+  // 3ª de II: k·x + y − z = 3m + 2n  ⇒  k·x = 3m + 2n − y + z, em dois pontos
+  const rhs = pvlSoma(pvlMul(pvlFr(3), m), pvlMul(pvlFr(2), n));
+  const kDe = function (p) { return pvlDiv(pvlSoma(pvlSub(rhs, p.y), p.z), p.x); };
+  const k0 = kDe(p0), k1 = kDe(p1);
+  const ok = rank2 && pvlFrTxt(k0) === pvlFrTxt(k1);
+  const alts = pvlAlternativas(orig);
+  const kv = k0.n / k0.d;
+  return pvlItem('Sistemas lineares equivalentes: valor de k', [
+    'No sistema I, L₁ + L₂ dá 2x + 3y = 3 e, com z = 1 − x − y, a terceira equação vira a mesma 2x + 3y = 3: ela é combinação das outras. O sistema é possível e INDETERMINADO: uma reta de soluções, x = (3 − 3t)/2, y = t, z = (t − 1)/2.',
+    'II precisa ter exatamente essa reta como conjunto solução. Substituindo em x + m·y + n·z = 5 para dois pontos da reta: m = ' + pvlFrTxt(m) + ' e n = ' + pvlFrTxt(n) + '.',
+    'Então 3m + 2n = ' + pvlFrTxt(rhs) + ', e k·x + y − z = ' + pvlFrTxt(rhs) + ' em toda a reta dá k = ' + pvlFrTxt(k0) + ' (o mesmo k em dois pontos distintos da reta).'
+  ], 'k = ' + pvlFrTxt(k0), pvlLetraPorValor(alts, kv), ok);
+}
+
+// 8. Domínio de f(x) = √[ (2 sen 2x + 2 sen x − 2 cos x − 1) / (8(cos 2x + 1)) ]
+function pvlDominioTrig(c, orig) {
+  if (!/maiorcomprimento/.test(c) || !/8\(cos\(2x\)\+1\)|8\(cos2x\+1\)/.test(c)) return null;
+  // numerador = (2cos x + 1)(2 sen x − 1); denominador = 16cos²x (≥ 0, zero em cos x = 0)
+  const num = function (x) { return 2 * Math.sin(2 * x) + 2 * Math.sin(x) - 2 * Math.cos(x) - 1; };
+  const fat = function (x) { return (2 * Math.cos(x) + 1) * (2 * Math.sin(x) - 1); };
+  const def = function (x) { return Math.abs(Math.cos(x)) > 1e-9 && fat(x) >= -1e-12; };
+  let fatoraOk = true;
+  for (let x = -3; x < 6; x += 0.37) if (Math.abs(num(x) - fat(x)) > 1e-9) fatoraOk = false;
+  const LO = -Math.PI, HI = 2 * Math.PI, PASSO = Math.PI / 6000;
+  // pontos de quebra: raízes do numerador e zeros do cosseno, achados por varredura + bissecção
+  const quebras = [LO];
+  const g = function (x) { return def(x) ? 1 : 0; };
+  let ant = LO;
+  for (let x = LO + PASSO; x <= HI + 1e-12; x += PASSO) {
+    if (g(x) !== g(ant)) {
+      let a = ant, b = x;
+      for (let i = 0; i < 60; i++) { const mid = (a + b) / 2; if (g(mid) === g(a)) a = mid; else b = mid; }
+      quebras.push((a + b) / 2);
+    }
+    ant = x;
+  }
+  quebras.push(HI);
+  // o cosseno zera em π/2 + kπ: ali f não existe, e o ponto separa dois trechos mesmo que os dois lados sejam definidos
+  for (let k = -2; k <= 3; k++) { const z = Math.PI / 2 + k * Math.PI; if (z > LO && z < HI) quebras.push(z); }
+  quebras.sort(function (a, b) { return a - b; });
+  const pedacos = [];
+  for (let i = 0; i + 1 < quebras.length; i++) {
+    const meio = (quebras[i] + quebras[i + 1]) / 2;
+    if (quebras[i + 1] - quebras[i] > 1e-6 && def(meio)) pedacos.push({ a: quebras[i], b: quebras[i + 1] });
+  }
+  // junta pedaços colados (a quebra era só o ponto isolado onde a função não é definida = cos 0 separa)
+  if (!pedacos.length) return null;
+  let melhor = pedacos[0];
+  pedacos.forEach(function (p) { if (p.b - p.a > melhor.b - melhor.a + 1e-9) melhor = p; });
+  const soma = melhor.a + melhor.b;
+  const emPi = function (x) { const k = x / (Math.PI / 6); return Math.abs(k - Math.round(k)) < 1e-4 ? Math.round(k) + 'π/6' : (x / Math.PI).toFixed(4) + 'π'; };
+  const alts = pvlAlternativas(orig);
+  return pvlItem('Domínio da função com raiz (trigonometria)', [
+    'Numerador: 2·sen 2x + 2 sen x − 2 cos x − 1 = 2 sen x(2 cos x + 1) − (2 cos x + 1) = (2 cos x + 1)(2 sen x − 1).',
+    'Denominador: 8(cos 2x + 1) = 16 cos²x: nunca negativo e igual a 0 em cos x = 0 (aí f não existe).',
+    'f existe ⇔ (2 cos x + 1)(2 sen x − 1) ≥ 0 e cos x ≠ 0. Em [−π, 2π] os trechos onde isso vale são ' + pedacos.map(function (p) { return '[' + emPi(p.a) + ', ' + emPi(p.b) + ']'; }).join(', ') + ' (o ponto π/2 sai).',
+    'O de maior comprimento é de ' + emPi(melhor.a) + ' a ' + emPi(melhor.b) + ' (comprimento ' + emPi(melhor.b - melhor.a) + '); a + b = ' + emPi(soma) + '.'
+  ], 'a + b = ' + emPi(soma), pvlLetraPorValor(alts, soma, 1e-6), fatoraOk);
+}
+
+// 9. Volume do sólido de revolução do triângulo P O1 R em torno de O1O2
+function pvlSolidoRevolucao(c, orig) {
+  if (!/solidoderevolucao|volumedosolido/.test(c) || !/corda/.test(c) || !/po1r/.test(c)) return null;
+  const rr = /raioigual[a]?(\d+(?:[.,]\d+)?)/.exec(c);
+  const cc = /cordacomum.{0,12}?(?:tamanho|medindo|de)?(\d+(?:[.,]\d+)?)/.exec(c);
+  if (!rr || !cc) return null;
+  const r = Number(rr[1].replace(',', '.')), corda = Number(cc[1].replace(',', '.'));
+  const h = corda / 2;                       // distância de P ao eixo O1O2
+  const d = Math.sqrt(r * r - h * h);        // distância de O1 ao pé da corda
+  const dist = 2 * d;                        // O1O2 (circunferências iguais)
+  // triângulo com a base O1R sobre o eixo e o vértice P a distância h: V = (π/3)·h²·|O1R| (Pappus: 2π·(h/3)·(½·|O1R|·h))
+  const vol = function (L) { return Math.PI * h * h * L / 3; };
+  const Rliteral = r;                        // R em C1 (a r de O1)
+  const Rsegundo = dist - r;                 // ponto de C2 sobre o segmento (a dist − r de O1)
+  const alts = pvlAlternativas(orig);
+  const rd = function (x) { return Math.round(x * 1e6) / 1e6; };
+  const v1 = vol(Rliteral), v2 = vol(Rsegundo);
+  const l1 = pvlLetraPorValor(alts, v1), l2 = pvlLetraPorValor(alts, v2);
+  const aviso = l1 ? '' : 'ATENÇÃO: lido ao pé da letra (R em C₁, a ' + r + ' cm de O₁) o volume é ' + rd(v1 / Math.PI) + 'π, que NÃO está nas alternativas. A alternativa que existe só aparece se R for o ponto de C₂ sobre O₁O₂ (a ' + Rsegundo + ' cm de O₁), que dá ' + rd(v2 / Math.PI) + 'π. Parece haver troca de rótulo (R/S) no enunciado: confira a figura original.';
+  return pvlItem('Sólido de revolução de um triângulo em torno da reta dos centros', [
+    'P está a ' + h + ' cm do eixo O₁O₂ (metade da corda) e o pé da corda está a √(' + r + '² − ' + h + '²) = ' + d + ' cm de O₁; logo O₁O₂ = ' + dist + ' cm.',
+    'Triângulo com base sobre o eixo e vértice P a ' + h + ' cm: V = (π/3)·h²·base (Pappus: 2π · centroide h/3 · área). Com base O₁R = ' + Rliteral + ' (R em C₁): V = ' + rd(v1 / Math.PI) + 'π.',
+    'Com base ' + Rsegundo + ' (ponto de C₂ sobre O₁O₂, a ' + dist + ' − ' + r + ' de O₁): V = ' + rd(v2 / Math.PI) + 'π.'
+  ], l1 ? 'V = ' + rd(v1 / Math.PI) + 'π cm³' : 'V = ' + rd(v1 / Math.PI) + 'π cm³ (leitura literal); ' + rd(v2 / Math.PI) + 'π cm³ se R for o ponto de C₂', l1 || l2, true, aviso);
+}
+
+// 10. Raiz comum de dois polinômios
+function pvlRaizComum(c, orig) {
+  if (!/raizcomum/.test(c)) return null;
+  const pOk = /x5-x3\+12x-18|x\^5-x\^3\+12x-18/.test(c), qOk = /x4-x3\+5x-3|x\^4-x\^3\+5x-3/.test(c);
+  if (!pOk || !qOk) return null;
+  const P = [-18, 12, 0, -1, 0, 1], Q = [-3, 5, 0, -1, 1];
+  const g = pvlPolyMdc(pvlCoefs(P), pvlCoefs(Q));
+  const gn = g.map(function (f) { return f.n / f.d; });
+  const gtxt = 'x²' + (gn.length === 3 ? ' ' + (gn[1] < 0 ? '−' : '+') + ' ' + Math.abs(gn[1]) + 'x ' + (gn[0] < 0 ? '−' : '+') + ' ' + Math.abs(gn[0]) : '');
+  const alts = pvlAlternativas(orig);
+  let letra = '';
+  const bate = [];
+  Object.keys(alts).forEach(function (l) {
+    const z = pvlComplexo(alts[l]);
+    if (!z) return;
+    const a = pvlAvaliaPoly(P, z), b = pvlAvaliaPoly(Q, z);
+    if (Math.hypot(a.re, a.im) < 1e-6 && Math.hypot(b.re, b.im) < 1e-6) bate.push(l);
+  });
+  if (bate.length === 1) letra = bate[0];
+  // raízes do MDC quadrático
+  let raizes = '';
+  if (gn.length === 3) { const B = gn[1], C = gn[0], D = B * B - 4 * C; raizes = D < 0 ? (-B / 2) + ' ± √' + (-D / 4) + '·i' : ''; }
+  return pvlItem('Raiz comum de dois polinômios (MDC por divisões sucessivas)', [
+    'Toda raiz comum é raiz do MDC. Pelo algoritmo de Euclides (frações exatas), MDC(p, q) = ' + gtxt + '.',
+    'As raízes de ' + gtxt + ' são ' + (raizes || 'as do trinômio') + '.',
+    'Conferência: cada alternativa foi substituída em p e em q; só ' + (letra ? 'a alternativa ' + letra : 'uma delas') + ' zera os dois polinômios.'
+  ], raizes ? 'raiz comum: ' + raizes.replace('±', '+').replace('1 +', '1 +') : 'veja o MDC', letra, g.length === 3);
+}
+
+// 11. Hipérbole confocal com a elipse x²/A + y² = 1
+function pvlHiperboleConfocal(c, orig) {
+  if (!/hiperbole/.test(c) || !/elipse/.test(c) || !/excentricidade/.test(c)) return null;
+  const e = /x2\/(\d+)\+y2=1|x\^2\/(\d+)\+y\^2=1/.exec(c);
+  const tg = /tan\(?.{0,3}\)?=(√?\d+)\/?(\d+)/.exec(c);
+  if (!e || !tg) return null;
+  const a2 = Number(e[1] || e[2]);
+  const num = tg[1].charAt(0) === '√' ? Math.sqrt(Number(tg[1].slice(1))) : Number(tg[1]);
+  const m = num / Number(tg[2]);              // coeficiente angular de OP
+  // elipse x²/a² + y² = 1 (b = 1), P = (x, m x): x² (1/a² + m²) = 1
+  const x = 1 / Math.sqrt(1 / a2 + m * m), y = m * x;
+  const cf = Math.sqrt(a2 - 1);               // focos (±c, 0)
+  const d1 = Math.hypot(x - cf, y), d2 = Math.hypot(x + cf, y);
+  const ah = Math.abs(d1 - d2) / 2;           // hipérbole: |d1 − d2| = 2a
+  const exc = cf / ah;
+  // conferência: P está na hipérbole x²/ah² − y²/(c²−ah²) = 1
+  const bh2 = cf * cf - ah * ah;
+  const naHip = Math.abs(x * x / (ah * ah) - y * y / bh2 - 1) < 1e-9;
+  const alts = pvlAlternativas(orig);
+  return pvlItem('Hipérbole com os mesmos focos da elipse', [
+    'Elipse x²/' + a2 + ' + y² = 1: focos (±√' + (a2 - 1) + ', 0), c = ' + cf.toFixed(4) + '.',
+    'OP tem coeficiente angular ' + m.toFixed(4) + ' (= tg θ); em y = m·x: x² (1/' + a2 + ' + m²) = 1 ⇒ P = (' + x.toFixed(4) + ', ' + y.toFixed(4) + ').',
+    'Distâncias de P aos focos: ' + d1.toFixed(4) + ' e ' + d2.toFixed(4) + '. Na hipérbole |d₁ − d₂| = 2a ⇒ a = ' + ah.toFixed(4) + '.',
+    'Excentricidade e = c/a = ' + cf.toFixed(4) + '/' + ah.toFixed(4) + ' = ' + exc.toFixed(6) + ' (= 2√3/3 quando a elipse é x²/4 + y² = 1).'
+  ], 'e = ' + exc.toFixed(4), pvlLetraPorValor(alts, exc, 1e-6), naHip);
+}
+
+// 12. Número de divisores de k·m
+function pvlDivisores(c, orig) {
+  const mN = /(\d+)divisores/.exec(c), mK = /multiplicadopor(\d+)/.exec(c);
+  if (!mN || !mK || !/divisoresinteirospositivos|divisores/.test(c)) return null;
+  const N = Number(mN[1]), K = Number(mK[1]);
+  // K = 2^v (a prova usa 16); para outro K com vários primos o programa não generaliza
+  let v = 0, kk = K; while (kk % 2 === 0) { kk = kk / 2; v++; }
+  if (kk !== 1 || v < 1) return null;
+  // fatorações de N em fatores >= 2 (partições multiplicativas); o fator do primo 2 deve ser >= v + 1
+  const particoes = [];
+  const gera = function (resto, min, atual) {
+    if (resto === 1) { particoes.push(atual.slice()); return; }
+    for (let f = min; f <= resto; f++) { if (resto % f === 0) { atual.push(f); gera(resto / f, f, atual); atual.pop(); } }
+  };
+  gera(N, 2, []);
+  const casos = [];
+  particoes.forEach(function (p) {
+    // qual fator é o expoente do 2 em k·m (cada fator distinto como candidato)
+    const vistos = {};
+    p.forEach(function (f, i) {
+      if (vistos[f]) return; vistos[f] = true;
+      if (f - 1 < v) return;                       // 2^(f−1) tem de conter 2^v
+      const outros = p.slice(0, i).concat(p.slice(i + 1)).map(function (x) { return x - 1; });
+      casos.push({ e2: f - 1, outros: outros });   // k·m = 2^e2 · (outros primos ímpares)^(...)
+    });
+  });
+  const par = casos.every(function (k) { return k.e2 - v >= 1; });                          // m par
+  const quad = casos.every(function (k) { return (k.e2 - v) % 2 === 0 && k.outros.every(function (e) { return e % 2 === 0; }); });  // m quadrado perfeito
+  const tres = casos.every(function (k) { return k.outros.length + 1 === 3; });             // k·m tem 3 primos distintos
+  const algumTres = casos.some(function (k) { return k.outros.length + 1 === 3; });
+  const verd = []; if (par) verd.push('I'); if (quad) verd.push('II'); if (tres) verd.push('III');
+  const alts = pvlAlternativas(orig);
+  return pvlItem('Número de divisores de ' + K + '·m = ' + N, [
+    N + ' = ' + particoes.map(function (p) { return p.join('·'); }).join(' = ') + ' (o número de divisores é o produto dos (expoente + 1)). Em ' + K + 'm o expoente do 2 é pelo menos ' + v + ', então seu fator (expoente + 1) é pelo menos ' + (v + 1) + '.',
+    'Foram enumeradas as ' + casos.length + ' formas possíveis de ' + K + 'm; em todas, o expoente do 2 em m é ' + (par ? '≥ 1: m é PAR (I verdadeira)' : 'às vezes 0') + ', e todos os expoentes de m (do 2 e dos outros primos) são ' + (quad ? 'PARES: m é quadrado perfeito (II verdadeira)' : 'nem sempre pares') + '.',
+    'III: ' + K + 'm pode ter ' + (algumTres ? 'um número de primos diferente de 3 (ex.: ' + casos.filter(function (k) { return k.outros.length + 1 !== 3; }).slice(0, 1).map(function (k) { return (k.outros.length + 1) + ' primo(s)'; }).join('') + ')' : 'sempre 3 primos') + ': ' + (tres ? 'VERDADEIRA.' : 'FALSA (não é obrigatório).')
+  ], 'Verdadeira(s): ' + verd.join(' e '), pvlLetraPorAfirmacoes(alts, verd), true);
+}
+
+const PVL_REGRAS = [pvlComplexosArea, pvlPoliedros, pvlBinomio, pvlFuncaoComposta, pvlSequencias, pvlExponencialParametro, pvlSistemasEquivalentes, pvlDominioTrig, pvlSolidoRevolucao, pvlRaizComum, pvlHiperboleConfocal, pvlDivisores];
+
+// ------------------------------------------------------------------ fachada
+
+function resolverProvaLocal(texto) {
+  const t = String(texto == null ? '' : texto).slice(0, 60000);
+  const pedacos = pvlDividir(t);
+  const resolvidas = [], naoReconhecidas = [];
+  pedacos.forEach(function (p, idx) {
+    const c = pvlCompacto(p.texto);
+    let r = null;
+    for (let i = 0; i < PVL_REGRAS.length && !r; i++) {
+      try { r = PVL_REGRAS[i](c, p.texto); } catch (e) { r = null; }
+    }
+    if (r) resolvidas.push(Object.assign({ n: p.n || idx + 1 }, r));
+    else if (p.n) naoReconhecidas.push(p.n);
+  });
+  if (!resolvidas.length) return null;
+  return { total: pedacos.length, resolvidas: resolvidas, naoReconhecidas: naoReconhecidas };
+}
+
+// Texto para o app.
+function textoDaProvaLocal(r) {
+  const linhas = [];
+  r.resolvidas.forEach(function (q) {
+    linhas.push('Questão ' + q.n + ' — ' + q.titulo);
+    q.passos.forEach(function (s, i) { linhas.push((i + 1) + '. ' + s); });
+    linhas.push('Resposta: ' + q.resposta + (q.letra ? ' → alternativa ' + q.letra : ' (não achei a alternativa exata; compare com as opções)'));
+    if (q.aviso) linhas.push(q.aviso);
+    if (!q.confere) linhas.push('Atenção: a conferência automática desta questão não fechou; refaça a conta.');
+    linhas.push('');
+  });
+  if (r.naoReconhecidas.length) linhas.push('Sem IA não resolvi a(s) questão(ões) ' + r.naoReconhecidas.join(', ') + ' (formato que o programa do aparelho não reconhece); use o roteiro do assunto ou espere a IA voltar.');
+  return linhas.join('\n').trim();
+}
+
+// ---- shared/matematica-local.mjs ----
+// Matemática NO APARELHO, sem IA e sem rede: o que o Paulus ainda resolve quando a cota gratuita da IA acaba (ou a internet cai).
+// FONTE ÚNICA: o navegador (dist/paulus.v1.js) usa este arquivo; os testes conferem cada resolução por conta independente.
+//
+// O que resolve, com passos e conferência (tudo em frações exatas; raiz irracional ou complexa sai em forma fechada e em decimal):
+//   · equação e raízes de polinômio de qualquer grau (fatores, Briot-Ruffini, Bhaskara, biquadrada, complexas, Girard);
+//   · função do 2º grau: vértice, máximo/mínimo, raízes, f(k);
+//   · sistema linear (2 a 3 incógnitas, escalonamento: possível determinado, indeterminado ou impossível);
+//   · matriz: determinante, inversa, transposta, soma, produto, potência, posto e traço;
+//   · números complexos: expressão, módulo, conjugado, forma polar, potência;
+//   · derivada e integral de polinômio (indefinida e definida), reta tangente;
+//   · trigonometria: sen, cos, tg, sec, cossec, cotg de ângulos notáveis (múltiplos de 15°) e valor aproximado dos demais.
+// O que NÃO faz: interpretar enunciado em linguagem corrente. Quando não reconhece uma conta escrita em símbolos, entrega o ROTEIRO do assunto
+// (fórmulas e modelos resolvidos de shared/matematica.mjs) e diz com franqueza que a resolução completa precisa da IA.
+//
+//   resolverMatematicaLocal(texto)      -> { titulo, passos[], resposta, conferencia, aproximado } ou null
+//   respostaDeMatematicaLocal(texto)    -> { texto, itens, resolvida, topicos[], avisos[] } ou null (nem resolve nem tem roteiro para o assunto)
+//
+// Nomes com prefixo "mtl" (no navegador os módulos viram um arquivo só). Sem lookbehind e sem BigInt de propósito (Safari/iOS antigos).
+
+
+
+
+
+// ------------------------------------------------------------------ frações exatas
+
+const MTL_LIM = 9007199254740991;
+
+function mtlMdc(a, b) {
+  a = Math.abs(a); b = Math.abs(b);
+  while (b) { const t = a % b; a = b; b = t; }
+  return a;
+}
+
+function mtlFr(n, d) {
+  if (d === undefined) d = 1;
+  if (d === 0) throw new Error('div0');
+  if (d < 0) { n = -n; d = -d; }
+  const g = mtlMdc(n, d) || 1;
+  n = n / g; d = d / g;
+  if (Math.abs(n) > MTL_LIM || d > MTL_LIM) throw new Error('grande');
+  return { n: n === 0 ? 0 : n, d: d };
+}
+
+function mtlSoma(a, b) { return mtlFr(a.n * b.d + b.n * a.d, a.d * b.d); }
+function mtlSub(a, b) { return mtlFr(a.n * b.d - b.n * a.d, a.d * b.d); }
+function mtlMul(a, b) { return mtlFr(a.n * b.n, a.d * b.d); }
+function mtlDiv(a, b) { return mtlFr(a.n * b.d, a.d * b.n); }
+function mtlNeg(a) { return mtlFr(-a.n, a.d); }
+function mtlZero(a) { return a.n === 0; }
+function mtlIgual(a, b) { return a.n === b.n && a.d === b.d; }
+function mtlVal(a) { return a.n / a.d; }
+function mtlPotF(a, k) { let r = mtlFr(1); for (let i = 0; i < k; i++) r = mtlMul(r, a); return r; }
+
+// Texto de uma fração com o sinal de menos verdadeiro: "−3", "1/2".
+function mtlTxt(a) {
+  const s = Math.abs(a.n) + (a.d === 1 ? '' : '/' + a.d);
+  return a.n < 0 ? '−' + s : s;
+}
+
+// Número aproximado no formato do app ("≈ 1,4142").
+function mtlAprox(x) { return formatarNumero(x, { casas: 4 }).replace('-', '−'); }
+
+// Decimal ou fração escrita ("2,5", "0.25") para fração exata.
+function mtlLerNumero(s) {
+  const m = /^(\d+)(?:[.,](\d+))?$/.exec(s);
+  if (!m) throw new Error('numero');
+  const dec = m[2] || '';
+  if (dec.length > 9) throw new Error('longo');
+  return mtlFr(Number(m[1] + dec), Math.pow(10, dec.length));
+}
+
+// ------------------------------------------------------------------ texto
+
+function mtlNorm(t) {
+  return String(t == null ? '' : t).slice(0, 4000).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/²/g, '^2').replace(/³/g, '^3').replace(/⁴/g, '^4').replace(/⁵/g, '^5')
+    .replace(/[−–—]/g, '-').replace(/[×·]/g, '*').replace(/÷/g, '/').replace(/π/g, 'pi').replace(/∙/g, '*')
+    .replace(/\s+/g, ' ');
+}
+
+const MTL_SUP = { 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+function mtlSup(k) { return String(k).split('').map(function (c) { return MTL_SUP[c]; }).join(''); }
+
+// Maiores trechos de texto feitos só de caracteres permitidos. Trecho que encosta em letra (o "x" de "texto") não vale.
+function mtlTrechos(n, permitidos) {
+  const lista = [];
+  let i = 0;
+  while (i < n.length) {
+    if (permitidos.indexOf(n.charAt(i)) < 0) { i++; continue; }
+    let j = i;
+    while (j < n.length && permitidos.indexOf(n.charAt(j)) >= 0) j++;
+    let a = i, b = j;
+    while (a < b && n.charAt(a) === ' ') a++;
+    while (b > a && n.charAt(b - 1) === ' ') b--;
+    const txt = n.slice(a, b);
+    const antes = a > 0 ? n.charAt(a - 1) : ' ';
+    const depois = b < n.length ? n.charAt(b) : ' ';
+    const colaAntes = /[a-z]/.test(antes) && /^[a-z]/.test(txt);
+    const colaDepois = /[a-z]/.test(depois) && /[a-z]$/.test(txt);
+    if (txt && !colaAntes && !colaDepois) lista.push({ ini: a, fim: b, txt: txt });
+    i = j;
+  }
+  return lista;
+}
+
+// ------------------------------------------------------------------ analisador de expressões (uma gramática, várias álgebras)
+
+// alg: { vars: 'x', num(fr), variavel(letra), soma, sub, neg, mul, div, pot(a, k) }. Multiplicação implícita ("2x", "(x-1)(x+2)", "3i").
+function mtlAnalisar(str, alg) {
+  const s = str;
+  let p = 0, ultimoNumero = false;
+  function espiar() { while (s.charAt(p) === ' ') p++; return s.charAt(p); }
+  function falha() { throw new Error('sintaxe'); }
+  function expressao() {
+    let v = termo();
+    for (;;) {
+      const c = espiar();
+      if (c === '+') { p++; v = alg.soma(v, termo()); }
+      else if (c === '-') { p++; v = alg.sub(v, termo()); }
+      else return v;
+    }
+  }
+  function comecaFator(c) { return /[0-9(]/.test(c) || (c !== '' && alg.vars.indexOf(c) >= 0); }
+  function termo() {
+    let v = unario();
+    for (;;) {
+      const c = espiar();
+      if (c === '*') { p++; v = alg.mul(v, unario()); }
+      else if (c === '/') { p++; v = alg.div(v, unario()); }
+      else if (comecaFator(c)) {
+        if (ultimoNumero && /[0-9]/.test(c)) falha();
+        v = alg.mul(v, potencia());
+      } else return v;
+    }
+  }
+  function unario() {
+    const c = espiar();
+    if (c === '-') { p++; return alg.neg(unario()); }
+    if (c === '+') { p++; return unario(); }
+    return potencia();
+  }
+  function potencia() {
+    const b = atomo();
+    if (espiar() === '^') {
+      p++;
+      let k = '', sinal = 1;
+      if (espiar() === '(') { p++; if (espiar() === '-') { sinal = -1; p++; } }
+      else if (espiar() === '-') { sinal = -1; p++; }
+      while (/[0-9]/.test(s.charAt(p))) { k += s.charAt(p); p++; }
+      if (!k) falha();
+      if (s.charAt(p) === ')' && /\(\s*-?$/.test(s.slice(0, p - k.length))) p++;
+      ultimoNumero = false;
+      return alg.pot(b, sinal * Number(k));
+    }
+    return b;
+  }
+  function atomo() {
+    const c = espiar();
+    if (c === '(') {
+      p++;
+      const v = expressao();
+      if (espiar() !== ')') falha();
+      p++; ultimoNumero = false;
+      return v;
+    }
+    if (/[0-9]/.test(c)) {
+      const m = /^\d+(?:[.,]\d+)?/.exec(s.slice(p));
+      p += m[0].length; ultimoNumero = true;
+      return alg.num(mtlLerNumero(m[0]));
+    }
+    if (c !== '' && alg.vars.indexOf(c) >= 0) { p++; ultimoNumero = false; return alg.variavel(c); }
+    return falha();
+  }
+  const r = expressao();
+  if (espiar() !== '') falha();
+  return r;
+}
+
+function mtlTenta(f) { try { return f(); } catch (e) { return null; } }
+
+// ------------------------------------------------------------------ polinômios em x (vetor de frações, grau crescente)
+
+function mtlPAparar(a) {
+  const r = a.slice();
+  while (r.length > 1 && mtlZero(r[r.length - 1])) r.pop();
+  return r;
+}
+function mtlPSoma(a, b) { const r = []; for (let i = 0; i < Math.max(a.length, b.length); i++) r.push(mtlSoma(a[i] || mtlFr(0), b[i] || mtlFr(0))); return mtlPAparar(r); }
+function mtlPNeg(a) { return a.map(mtlNeg); }
+function mtlPMul(a, b) {
+  const r = [];
+  for (let i = 0; i < a.length + b.length - 1; i++) r.push(mtlFr(0));
+  a.forEach(function (x, i) { b.forEach(function (y, j) { r[i + j] = mtlSoma(r[i + j], mtlMul(x, y)); }); });
+  return mtlPAparar(r);
+}
+
+const MTL_ALG_X = {
+  vars: 'x',
+  num: function (f) { return [f]; },
+  variavel: function () { return [mtlFr(0), mtlFr(1)]; },
+  soma: mtlPSoma,
+  sub: function (a, b) { return mtlPSoma(a, mtlPNeg(b)); },
+  neg: mtlPNeg,
+  mul: mtlPMul,
+  div: function (a, b) { if (b.length !== 1 || mtlZero(b[0])) throw new Error('div'); return mtlPAparar(a.map(function (c) { return mtlDiv(c, b[0]); })); },
+  pot: function (a, k) {
+    if (k < 0 || k > 12) throw new Error('pot');
+    let r = [mtlFr(1)];
+    for (let i = 0; i < k; i++) { r = mtlPMul(r, a); if (r.length > 14) throw new Error('grau'); }
+    return r;
+  }
+};
+
+function mtlLerPoli(s) { return mtlTenta(function () { return mtlAnalisar(s, MTL_ALG_X); }); }
+function mtlGrau(p) { return mtlPAparar(p).length - 1; }
+
+// "x³ − 6x² + 11x − 6"
+function mtlPoliTxt(p, v) {
+  v = v || 'x';
+  let s = '';
+  for (let k = p.length - 1; k >= 0; k--) {
+    const c = p[k];
+    if (mtlZero(c)) continue;
+    const neg = c.n < 0, abs = mtlFr(Math.abs(c.n), c.d);
+    const unit = mtlIgual(abs, mtlFr(1));
+    let corpo;
+    if (k === 0) corpo = mtlTxt(abs);
+    else corpo = (unit ? '' : (abs.d === 1 ? mtlTxt(abs) : '(' + mtlTxt(abs) + ')')) + v + (k > 1 ? mtlSup(k) : '');
+    s += s ? (neg ? ' − ' : ' + ') + corpo : (neg ? '−' : '') + corpo;
+  }
+  return s || '0';
+}
+
+function mtlPAval(p, x) { let r = mtlFr(0); for (let k = p.length - 1; k >= 0; k--) r = mtlSoma(mtlMul(r, x), p[k]); return r; }
+
+// ------------------------------------------------------------------ raízes: radicais, 2º grau, racionais, numéricas
+
+function mtlRadical(m) {
+  let k = 1, r = m;
+  for (let f = Math.floor(Math.sqrt(m)); f > 1; f--) { if (m % (f * f) === 0) { k = f; r = m / (f * f); break; } }
+  return { k: k, r: r };
+}
+
+// (B ± K√R)/D em texto; para raiz complexa, imag = true troca √R por i√R.
+function mtlRaizTxt(B, K, R, D, imag, sinal) {
+  const raiz = imag ? (R === 1 ? 'i' : 'i√' + R) : '√' + R;
+  const parte = (K === 1 ? '' : K) + raiz;
+  const num = (B !== 0 ? (B < 0 ? '−' + (-B) : String(B)) + (sinal === 0 ? ' ± ' : sinal > 0 ? ' + ' : ' − ') : (sinal === 0 ? '±' : sinal > 0 ? '' : '−')) + parte;
+  if (D === 1) return num;
+  return B !== 0 ? '(' + num + ')/' + D : num + '/' + D;
+}
+
+// Equação a·x² + b·x + c = 0 com a, b, c inteiros. Devolve { passos, raizes:[{txt, re, im, exata}] }.
+function mtlBhaskara(a, b, c, rotuloX) {
+  rotuloX = rotuloX || 'x';
+  const passos = [];
+  const delta = b * b - 4 * a * c;
+  passos.push('a = ' + mtlTxt(mtlFr(a)) + ', b = ' + mtlTxt(mtlFr(b)) + ', c = ' + mtlTxt(mtlFr(c)) + '. Δ = b² − 4ac = ' + (b < 0 ? '(' + mtlTxt(mtlFr(b)) + ')' : b) + '² − 4·' + (a < 0 ? '(' + a + ')' : a) + '·' + (c < 0 ? '(' + c + ')' : c) + ' = ' + mtlTxt(mtlFr(delta)) + '.');
+  const raizes = [];
+  if (delta === 0) {
+    const x = mtlFr(-b, 2 * a);
+    passos.push('Δ = 0: raiz dupla, ' + rotuloX + ' = −b/2a = ' + mtlTxt(x) + '.');
+    raizes.push({ txt: mtlTxt(x), re: mtlVal(x), im: 0, exata: true });
+    raizes.push({ txt: mtlTxt(x), re: mtlVal(x), im: 0, exata: true });
+    return { passos: passos, raizes: raizes, delta: delta };
+  }
+  const raizDelta = Math.sqrt(Math.abs(delta));
+  const quadrado = Math.round(raizDelta) * Math.round(raizDelta) === Math.abs(delta);
+  if (delta > 0 && quadrado) {
+    const s = Math.round(raizDelta);
+    const x1 = mtlFr(-b + s, 2 * a), x2 = mtlFr(-b - s, 2 * a);
+    passos.push('√Δ = ' + s + ', então ' + rotuloX + ' = (−b ± √Δ)/2a = (' + mtlTxt(mtlFr(-b)) + ' ± ' + s + ')/' + (2 * a) + '.');
+    raizes.push({ txt: mtlTxt(x1), re: mtlVal(x1), im: 0, exata: true, fr: x1 });
+    raizes.push({ txt: mtlTxt(x2), re: mtlVal(x2), im: 0, exata: true, fr: x2 });
+    return { passos: passos, raizes: raizes, delta: delta };
+  }
+  const rad = mtlRadical(Math.abs(delta));
+  let g = mtlMdc(mtlMdc(b, rad.k), 2 * a) || 1;
+  let B = -b / g, K = rad.k / g, D = (2 * a) / g;
+  if (D < 0) { B = -B; D = -D; }
+  const forma = mtlRaizTxt(B, K, rad.r, D, delta < 0, 0);
+  if (delta > 0) {
+    passos.push('Δ não é quadrado perfeito: √Δ = ' + (rad.k > 1 ? rad.k : '') + '√' + rad.r + (rad.k > 1 ? ' (simplificado)' : '') + '. ' + rotuloX + ' = ' + forma + '.');
+    const re = B / D, im = (K * Math.sqrt(rad.r)) / D;
+    raizes.push({ txt: mtlRaizTxt(B, K, rad.r, D, false, 1) + ' ' + '(' + mtlAprox(re + im) + ')', re: re + im, im: 0, exata: false });
+    raizes.push({ txt: mtlRaizTxt(B, K, rad.r, D, false, -1) + ' ' + '(' + mtlAprox(re - im) + ')', re: re - im, im: 0, exata: false });
+  } else {
+    passos.push('Δ < 0: não há raízes reais; no conjunto dos complexos, √Δ = ' + (rad.k > 1 ? rad.k : '') + (rad.r === 1 ? '' : '√' + rad.r) + 'i. ' + rotuloX + ' = ' + forma + '.');
+    const re = B / D, im = (K * Math.sqrt(rad.r)) / D;
+    raizes.push({ txt: mtlRaizTxt(B, K, rad.r, D, true, 1), re: re, im: im, exata: false });
+    raizes.push({ txt: mtlRaizTxt(B, K, rad.r, D, true, -1), re: re, im: -im, exata: false });
+  }
+  return { passos: passos, raizes: raizes, delta: delta };
+}
+
+// Polinômio de frações para coeficientes inteiros (multiplica pelo mmc e divide pelo mdc). Devolve { inteiros:[...], fator }.
+function mtlInteiros(p) {
+  let mmc = 1;
+  p.forEach(function (c) { mmc = mmc / mtlMdc(mmc, c.d) * c.d; if (mmc > 1e12) throw new Error('grande'); });
+  let r = p.map(function (c) { return c.n * (mmc / c.d); });
+  let g = 0;
+  r.forEach(function (x) { g = mtlMdc(g, x); });
+  if (g > 1) r = r.map(function (x) { return x / g; });
+  return { inteiros: r, fator: mmc / (g || 1) };
+}
+
+function mtlDivisores(n) {
+  n = Math.abs(n);
+  const d = [];
+  for (let i = 1; i * i <= n; i++) { if (n % i === 0) { d.push(i); if (i * i !== n) d.push(n / i); } }
+  return d.sort(function (a, b) { return a - b; });
+}
+
+// Briot-Ruffini: divide p (grau crescente) por (x − r). Devolve { q, resto }.
+function mtlBriot(p, r) {
+  const n = p.length - 1;
+  const q = new Array(n);
+  let acc = p[n];
+  for (let k = n - 1; k >= 0; k--) { q[k] = acc; acc = mtlSoma(mtlMul(acc, r), p[k]); }
+  return { q: q, resto: acc };
+}
+
+function mtlComplexoPoli(p, re, im) {
+  let a = 0, b = 0;
+  for (let k = p.length - 1; k >= 0; k--) { const na = a * re - b * im + mtlVal(p[k]); b = a * im + b * re; a = na; }
+  return Math.sqrt(a * a + b * b);
+}
+
+// Durand-Kerner: raízes (complexas) aproximadas de um polinômio sem raízes racionais.
+function mtlRaizesNumericas(p) {
+  const n = p.length - 1;
+  const lider = mtlVal(p[n]);
+  const c = p.map(function (x) { return mtlVal(x) / lider; });
+  let raio = 0;
+  for (let k = 0; k < n; k++) raio = Math.max(raio, Math.abs(c[k]));
+  raio = 1 + raio;
+  let z = [];
+  for (let k = 0; k < n; k++) { const ang = 2 * Math.PI * k / n + 0.4; z.push({ re: raio * 0.7 * Math.cos(ang), im: raio * 0.7 * Math.sin(ang) }); }
+  for (let it = 0; it < 500; it++) {
+    let maior = 0;
+    for (let i = 0; i < n; i++) {
+      let pr = 1, pi = 0;
+      for (let k = n - 1; k >= 0; k--) { const nr = pr * z[i].re - pi * z[i].im + c[k]; pi = pr * z[i].im + pi * z[i].re; pr = nr; }
+      let dr = 1, di = 0;
+      for (let j = 0; j < n; j++) { if (j === i) continue; const ar = z[i].re - z[j].re, ai = z[i].im - z[j].im; const nr = dr * ar - di * ai; di = dr * ai + di * ar; dr = nr; }
+      const den = dr * dr + di * di || 1e-300;
+      const qr = (pr * dr + pi * di) / den, qi = (pi * dr - pr * di) / den;
+      z[i] = { re: z[i].re - qr, im: z[i].im - qi };
+      maior = Math.max(maior, Math.abs(qr) + Math.abs(qi));
+    }
+    if (maior < 1e-13) break;
+  }
+  return z.map(function (w) { return { re: Math.abs(w.re) < 1e-9 ? 0 : w.re, im: Math.abs(w.im) < 1e-9 ? 0 : w.im }; });
+}
+
+function mtlNumeroComplexoTxt(re, im) {
+  const a = mtlAprox(re), b = mtlAprox(Math.abs(im));
+  if (im === 0) return a;
+  return (re === 0 ? '' : a + ' ') + (im < 0 ? '− ' : (re === 0 ? '' : '+ ')) + (Math.abs(im) === 1 ? '' : b.replace('≈ ', '')) + 'i';
+}
+
+// Resolve p(x) = 0. Devolve { passos, raizes:[{txt, re, im, exata, mult}], todasRacionais, aproximado }.
+function mtlResolverPoli(p) {
+  p = mtlPAparar(p);
+  const grau = p.length - 1;
+  const passos = [];
+  const raizes = [];
+  let aproximado = false;
+  if (grau === 1) {
+    const x = mtlDiv(mtlNeg(p[0]), p[1]);
+    passos.push('Equação do 1º grau: ' + mtlPoliTxt(p) + ' = 0 ⇒ x = −b/a = ' + mtlTxt(x) + '.');
+    return { passos: passos, raizes: [{ txt: mtlTxt(x), re: mtlVal(x), im: 0, exata: true, fr: x }], todasRacionais: true, aproximado: false };
+  }
+  const conv = mtlInteiros(p);
+  let c = conv.inteiros;
+  if (conv.fator !== 1 || c.some(function (x, i) { return !mtlIgual(mtlFr(x), mtlMul(p[i], mtlFr(conv.fator))); })) {
+    passos.push('Coeficientes inteiros (multiplicando por ' + mtlTxt(mtlFr(conv.fator)) + ' ou dividindo pelo fator comum): ' + mtlPoliTxt(c.map(function (x) { return mtlFr(x); })) + ' = 0.');
+  }
+  let atual = c.map(function (x) { return mtlFr(x); });
+  // fator x (raiz zero)
+  let zeros = 0;
+  while (atual.length > 1 && mtlZero(atual[0])) { atual = atual.slice(1); zeros++; }
+  if (zeros) {
+    passos.push('O termo independente é 0: x é fator ' + (zeros > 1 ? zeros + ' vezes' : '') + ', logo x = 0 é raiz' + (zeros > 1 ? ' de multiplicidade ' + zeros : '') + '. Sobra ' + mtlPoliTxt(atual) + ' = 0.');
+    raizes.push({ txt: '0', re: 0, im: 0, exata: true, fr: mtlFr(0), mult: zeros });
+  }
+  // raízes racionais (teorema das raízes racionais + Briot-Ruffini)
+  let teste = 0;
+  let procurar = atual.length > 3;
+  let candidatasMostradas = false;
+  while (procurar && atual.length > 3) {
+    const ints = mtlTenta(function () { return mtlInteiros(atual).inteiros; });
+    if (!ints) break;
+    const a0 = Math.abs(ints[0]), an = Math.abs(ints[ints.length - 1]);
+    if (a0 > 1e9 || an > 1e9) break;
+    const dp = mtlDivisores(a0), dq = mtlDivisores(an);
+    if (dp.length * dq.length > 4000) break;   // número grande demais para testar um a um: segue para o método numérico
+    const cands = [];
+    dp.forEach(function (pp) { dq.forEach(function (qq) { if (mtlMdc(pp, qq) === 1) { cands.push(mtlFr(pp, qq)); cands.push(mtlFr(-pp, qq)); } }); });
+    cands.sort(function (u, v) { return Math.abs(mtlVal(u)) - Math.abs(mtlVal(v)) || mtlVal(v) - mtlVal(u); });
+    if (!candidatasMostradas) {
+      passos.push('Raízes racionais possíveis: ±(divisores de ' + a0 + ') ÷ (divisores de ' + an + ') = ' + cands.slice(0, 14).map(mtlTxt).join(', ') + (cands.length > 14 ? ', …' : '') + '.');
+      candidatasMostradas = true;
+    }
+    let achou = null;
+    for (let i = 0; i < cands.length && i < 400; i++) {
+      teste++;
+      const r = mtlTenta(function () { return mtlBriot(atual, cands[i]); });
+      if (r && mtlZero(r.resto)) { achou = { r: cands[i], q: r.q }; break; }
+    }
+    if (!achou) break;
+    passos.push('Teste: p(' + mtlTxt(achou.r) + ') = 0, então ' + mtlTxt(achou.r) + ' é raiz. Briot-Ruffini por (x ' + (achou.r.n < 0 ? '+ ' + mtlTxt(mtlNeg(achou.r)) : '− ' + mtlTxt(achou.r)) + '): quociente ' + mtlPoliTxt(achou.q) + '.');
+    const existente = raizes.filter(function (z) { return z.fr && mtlIgual(z.fr, achou.r); })[0];
+    if (existente) existente.mult = (existente.mult || 1) + 1;
+    else raizes.push({ txt: mtlTxt(achou.r), re: mtlVal(achou.r), im: 0, exata: true, fr: achou.r, mult: 1 });
+    atual = achou.q;
+  }
+  // o que sobrou
+  const m = atual.length - 1;
+  if (m === 2) {
+    const ints = mtlInteiros(atual).inteiros;
+    const q = mtlBhaskara(ints[2], ints[1], ints[0]);
+    passos.push('Resta ' + mtlPoliTxt(atual) + ' = 0 (2º grau). ' + q.passos.join(' '));
+    q.raizes.forEach(function (z) { raizes.push(z); });
+    if (q.raizes.some(function (z) { return !z.exata; })) aproximado = aproximado || false;
+  } else if (m === 1) {
+    const x = mtlDiv(mtlNeg(atual[0]), atual[1]);
+    passos.push('Resta ' + mtlPoliTxt(atual) + ' = 0 ⇒ x = ' + mtlTxt(x) + '.');
+    const ex = raizes.filter(function (z) { return z.fr && mtlIgual(z.fr, x); })[0];
+    if (ex) ex.mult = (ex.mult || 1) + 1; else raizes.push({ txt: mtlTxt(x), re: mtlVal(x), im: 0, exata: true, fr: x, mult: 1 });
+  } else if (m >= 3) {
+    const par = atual.every(function (c2, k) { return k % 2 === 0 || mtlZero(c2); });
+    if (m === 4 && par) {
+      const ints = mtlInteiros([atual[0], atual[2], atual[4]]).inteiros;
+      const q = mtlBhaskara(ints[2], ints[1], ints[0], 't');
+      passos.push('Biquadrada: com t = x², ' + mtlPoliTxt(ints.map(function (x) { return mtlFr(x); }), 't') + ' = 0. ' + q.passos.join(' '));
+      q.raizes.forEach(function (tz) {
+        if (tz.im === 0) {
+          if (tz.re > 1e-12) {
+            const rt = Math.sqrt(tz.re);
+            const exato = tz.exata && Math.round(rt) * Math.round(rt) === Math.round(tz.re) && Number.isInteger(tz.re);
+            const txtR = exato ? String(Math.round(rt)) : (tz.fr ? '√(' + tz.txt + ')' : '√t');
+            passos.push('x² = ' + tz.txt.replace(/\s*\(.*$/, '') + ' ⇒ x = ±' + txtR + (exato ? '' : ' (≈ ±' + mtlAprox(rt).replace('≈ ', '') + ')') + '.');
+            raizes.push({ txt: (exato ? '' : '') + txtR, re: rt, im: 0, exata: exato });
+            raizes.push({ txt: '−' + txtR, re: -rt, im: 0, exata: exato });
+          } else if (Math.abs(tz.re) <= 1e-12) { raizes.push({ txt: '0', re: 0, im: 0, exata: true }); raizes.push({ txt: '0', re: 0, im: 0, exata: true }); }
+          else {
+            const rt = Math.sqrt(-tz.re);
+            passos.push('x² = ' + tz.txt.replace(/\s*\(.*$/, '') + ' < 0: x = ±i√' + mtlAprox(-tz.re).replace('≈ ', '') + ' (complexas).');
+            raizes.push({ txt: mtlNumeroComplexoTxt(0, rt), re: 0, im: rt, exata: false });
+            raizes.push({ txt: mtlNumeroComplexoTxt(0, -rt), re: 0, im: -rt, exata: false });
+          }
+        } else {
+          mtlRaizesNumericas(atual).forEach(function (w) { raizes.push({ txt: mtlNumeroComplexoTxt(w.re, w.im), re: w.re, im: w.im, exata: false }); });
+          aproximado = true;
+        }
+      });
+    } else {
+      passos.push('Sem mais raízes racionais: o fator ' + mtlPoliTxt(atual) + ' não se resolve por fórmula simples. Raízes aproximadas (método numérico de Durand-Kerner):');
+      mtlRaizesNumericas(atual).forEach(function (w) { raizes.push({ txt: mtlNumeroComplexoTxt(w.re, w.im), re: w.re, im: w.im, exata: false }); });
+      aproximado = true;
+    }
+  }
+  // expande multiplicidade em lista final
+  const lista = [];
+  raizes.forEach(function (z) { const mult = z.mult || 1; for (let k = 0; k < mult; k++) lista.push(z); });
+  lista.sort(function (a, b) { return (a.im !== 0) - (b.im !== 0) || a.re - b.re || a.im - b.im; });
+  const todasRacionais = lista.length === grau && lista.every(function (z) { return z.fr; });
+  return { passos: passos, raizes: lista, todasRacionais: todasRacionais, aproximado: aproximado, testes: teste };
+}
+
+// Confere as raízes no polinômio original e, se todas são racionais, por Girard.
+function mtlConferirRaizes(p, r) {
+  const grau = p.length - 1;
+  const partes = [];
+  let ok = true;
+  r.raizes.forEach(function (z) {
+    const erro = mtlComplexoPoli(p, z.re, z.im);
+    const esc = Math.max(1, Math.abs(z.re) + Math.abs(z.im));
+    if (!(erro <= 1e-6 * Math.pow(esc, grau) * (1 + p.reduce(function (a, c) { return a + Math.abs(mtlVal(c)); }, 0)))) ok = false;
+  });
+  partes.push(ok ? 'cada raiz, posta no polinômio, dá 0 (conferido por substituição)' : 'verifique: alguma raiz não zerou o polinômio na conferência numérica');
+  if (r.todasRacionais && r.raizes.length === grau) {
+    let soma = mtlFr(0), prod = mtlFr(1);
+    r.raizes.forEach(function (z) { soma = mtlSoma(soma, z.fr); prod = mtlMul(prod, z.fr); });
+    const esperadaSoma = mtlNeg(mtlDiv(p[grau - 1], p[grau]));
+    const esperadoProd = mtlDiv(p[0], p[grau]);
+    const prodCorreto = grau % 2 === 0 ? esperadoProd : mtlNeg(esperadoProd);
+    partes.push('Girard: soma ' + mtlTxt(soma) + (mtlIgual(soma, esperadaSoma) ? ' = −' + 'b/a' : ' ≠ −b/a') + ', produto ' + mtlTxt(prod) + (mtlIgual(prod, prodCorreto) ? ' = (−1)ⁿ·a₀/aₙ' : ' ≠ (−1)ⁿ·a₀/aₙ'));
+  }
+  return partes.join('; ') + '.';
+}
+
+function mtlFatorado(p, raizes) {
+  const an = p[p.length - 1];
+  const partes = raizes.map(function (z) { return '(x ' + (z.fr.n < 0 ? '+ ' + mtlTxt(mtlNeg(z.fr)) : '− ' + mtlTxt(z.fr)) + ')'; });
+  const lider = mtlIgual(an, mtlFr(1)) ? '' : (an.d === 1 ? mtlTxt(an) : '(' + mtlTxt(an) + ')') + '·';
+  const cont = {};
+  const ordem = [];
+  partes.forEach(function (s) { if (!cont[s]) { cont[s] = 0; ordem.push(s); } cont[s]++; });
+  return lider + ordem.map(function (s) { return s + (cont[s] > 1 ? mtlSup(cont[s]) : ''); }).join('');
+}
+
+// ------------------------------------------------------------------ localizar equação e função no texto
+
+const MTL_PERM_X = '0123456789x^+-*/.,() ';
+
+// Equações "esq = dir" (só em x). Devolve { esq, dir } do primeiro par que lê como polinômio, ou null.
+function mtlAcharEquacaoX(n) {
+  const trechos = mtlTrechos(n, MTL_PERM_X + '=');
+  for (let i = 0; i < trechos.length; i++) {
+    const t = trechos[i].txt;
+    if (t.indexOf('=') < 0 || t.split('=').length !== 2) continue;
+    if (/^\(\s*x\s*\)/.test(t)) continue;   // "f(x) = ..." é definição de função, não equação
+    const lados = t.split('=');
+    // vírgula que separa frases ("x²−4=0, ache...") não é decimal
+    const esq = mtlLerPoli(lados[0].replace(/,\s*$/, '')), dir = mtlLerPoli(lados[1].replace(/[,.]\s*$/, ''));
+    if (esq && dir && (esq.length > 1 || dir.length > 1)) return { esq: esq, dir: dir };
+  }
+  return null;
+}
+
+// Definições de função: "f(x) = ...", "p(x) = ...", "y = ..." (nome de uma letra). Devolve { nome, poli, total } da primeira, com o total de nomes
+// diferentes definidos no texto (mais de um: a pergunta pode ser sobre outra função), ou null.
+function mtlAcharFuncao(n) {
+  const re = /(?:^|[^a-z0-9])([a-z])\s*(?:\(\s*x\s*\))?\s*=\s*/g;
+  let m;
+  let primeira = null;
+  const nomes = [];
+  while ((m = re.exec(n))) {
+    if (m[1] === 'x') continue;
+    const resto = n.slice(m.index + m[0].length);
+    const tr = mtlTrechos(' ' + resto, MTL_PERM_X);
+    if (!tr.length || tr[0].ini > 1) continue;
+    const txt = tr[0].txt.replace(/[.,]\s*$/, '');
+    const poli = mtlLerPoli(txt);
+    if (poli && poli.length > 1) {
+      if (nomes.indexOf(m[1]) < 0) nomes.push(m[1]);
+      if (!primeira) primeira = { nome: m[1], poli: poli };
+    }
+  }
+  return primeira ? { nome: primeira.nome, poli: primeira.poli, total: nomes.length } : null;
+}
+
+// Qualquer polinômio em x que apareça no texto (o mais longo que se lê); para "derivada de x^3 - 4x".
+function mtlAcharPoliQualquer(n) {
+  const trechos = mtlTrechos(n, MTL_PERM_X).filter(function (t) { return t.txt.indexOf('x') >= 0; });
+  trechos.sort(function (a, b) { return b.txt.length - a.txt.length; });
+  for (let i = 0; i < trechos.length; i++) {
+    const limpo = trechos[i].txt.replace(/[.,]\s*$/, '');
+    const p = mtlLerPoli(limpo);
+    if (p && p.length >= 1) return { poli: p, ini: trechos[i].ini, fim: trechos[i].fim };
+  }
+  return null;
+}
+
+const MTL_FUNCAO_ESTRANHA = /\b(sen|cos|tg|tan|sec|cossec|cotg|log|ln|sqrt|exp|mod|lim|sen[oh])\b|\braiz (?:quadrada|cubica|de)\b|\||∑|∫/;
+
+// ------------------------------------------------------------------ solvers: polinômios e funções
+
+function mtlSolverEquacao(n) {
+  if (MTL_FUNCAO_ESTRANHA.test(n)) return null;
+  let p = null, titulo = '';
+  const eq = mtlAcharEquacaoX(n);
+  const fn = mtlAcharFuncao(n);
+  const pedeRaiz = /\b(raiz|raizes|zero|zeros|resolva|resolver|equacao|solucao|conjunto|determine as|encontre as|ache as)\b/.test(n);
+  if (fn && fn.total === 1 && mtlGrau(fn.poli) >= 2 && /\braiz|zeros?\b/.test(n) && !/=\s*[-0-9x(]*\s*=/.test(n)) { p = fn.poli; titulo = 'Raízes de ' + fn.nome + '(x) = ' + mtlPoliTxt(fn.poli); }
+  else if (eq) {
+    p = mtlPSoma(eq.esq, mtlPNeg(eq.dir));
+    if (mtlGrau(p) < 1) return null;
+    titulo = 'Equação ' + mtlPoliTxt(eq.esq) + ' = ' + mtlPoliTxt(eq.dir);
+  } else if (fn && fn.total === 1 && pedeRaiz) { p = fn.poli; titulo = 'Raízes de ' + fn.nome + '(x) = ' + mtlPoliTxt(fn.poli); }
+  if (!p) return null;
+  const grau = mtlGrau(p);
+  if (grau < 1 || grau > 8) return null;
+  const r = mtlTenta(function () { return mtlResolverPoli(p); });
+  if (!r || !r.raizes.length) return null;
+  const passos = [];
+  if (eq) passos.push('Passando tudo para um lado: ' + mtlPoliTxt(p) + ' = 0 (grau ' + grau + ').');
+  r.passos.forEach(function (s) { passos.push(s); });
+  const reais = r.raizes.filter(function (z) { return z.im === 0; });
+  const dist = [];
+  r.raizes.forEach(function (z) { if (!dist.some(function (w) { return w.txt === z.txt; })) dist.push(z); });
+  let resposta = 'x ∈ {' + dist.map(function (z) { return z.txt; }).join('; ') + '}';
+  const mult = r.raizes.length - dist.length;
+  if (r.todasRacionais) resposta += '. Forma fatorada: p(x) = ' + mtlFatorado(p, r.raizes);
+  if (mult > 0) resposta += ' (há raiz repetida: ' + r.raizes.length + ' raízes contando multiplicidade)';
+  if (reais.length < r.raizes.length) resposta += '. Raízes reais: ' + (reais.length ? Array.from(new Set(reais.map(function (z) { return z.txt; }))).join('; ') : 'nenhuma');
+  return { titulo: titulo, passos: passos, resposta: resposta, conferencia: mtlConferirRaizes(p, r), aproximado: r.aproximado || r.raizes.some(function (z) { return !z.exata; }) };
+}
+
+function mtlSolverFuncao2(n) {
+  if (MTL_FUNCAO_ESTRANHA.test(n)) return null;
+  const fn = mtlAcharFuncao(n);
+  if (!fn) return null;
+  const p = fn.poli;
+  const semDef = n.replace(/(?:^|[^a-z0-9])[a-z]\s*\(\s*x\s*\)/g, ' ');
+  const reK = /(?:^|[^a-z0-9])([a-z])\s*\(\s*(-?\d+(?:[.,]\d+)?)\s*\)/g;
+  let pontual = null, mk;
+  while ((mk = reK.exec(semDef))) { if (mk[1] === fn.nome) { pontual = [mk[0], mk[2]]; break; } }
+  const quer = /\b(vertice|maximo|minimo|ponto de maximo|ponto de minimo|eixo de simetria|valor maximo|valor minimo|imagem)\b/.test(n);
+  const passos = [];
+  const respostas = [];
+  let titulo = 'Função ' + fn.nome + '(x) = ' + mtlPoliTxt(p);
+  let feito = false;
+  if (pontual && !/vertice/.test(n)) {
+    const k = mtlLerNumero(pontual[1].replace('-', ''));
+    const kk = pontual[1].charAt(0) === '-' ? mtlNeg(k) : k;
+    const v = mtlPAval(p, kk);
+    passos.push('Substituindo x = ' + mtlTxt(kk) + ': ' + fn.nome + '(' + mtlTxt(kk) + ') = ' + mtlPoliTxt(p).replace(/x/g, '(' + mtlTxt(kk) + ')') + ' = ' + mtlTxt(v) + '.');
+    respostas.push(fn.nome + '(' + mtlTxt(kk) + ') = ' + mtlTxt(v));
+    feito = true;
+  }
+  const analise = /\b(raiz|raizes|zero|zeros|grafico|parabola|concavidade|estude|analise|discuta|sinal)\b/.test(n);
+  if (mtlGrau(p) === 2 && (quer || (analise && !feito))) {
+    const a = p[2], b = p[1] || mtlFr(0), c = p[0] || mtlFr(0);
+    const xv = mtlDiv(mtlNeg(b), mtlMul(mtlFr(2), a));
+    const yv = mtlPAval(p, xv);
+    const delta = mtlSub(mtlMul(b, b), mtlMul(mtlFr(4), mtlMul(a, c)));
+    passos.push('a = ' + mtlTxt(a) + ', b = ' + mtlTxt(b) + ', c = ' + mtlTxt(c) + '. Concavidade para ' + (a.n > 0 ? 'cima (a > 0): tem MÍNIMO' : 'baixo (a < 0): tem MÁXIMO') + '.');
+    passos.push('Vértice: xᵥ = −b/2a = ' + mtlTxt(xv) + ' e yᵥ = ' + fn.nome + '(xᵥ) = ' + mtlTxt(yv) + ' (também yᵥ = −Δ/4a = ' + mtlTxt(mtlDiv(mtlNeg(delta), mtlMul(mtlFr(4), a))) + ' com Δ = ' + mtlTxt(delta) + ').');
+    respostas.push('vértice V(' + mtlTxt(xv) + '; ' + mtlTxt(yv) + '), ' + (a.n > 0 ? 'valor mínimo ' : 'valor máximo ') + mtlTxt(yv) + ', eixo de simetria x = ' + mtlTxt(xv) + ', corta o eixo y em ' + mtlTxt(c));
+    const r = mtlTenta(function () { return mtlResolverPoli(p); });
+    if (r && r.raizes.every(function (z) { return z.im === 0; })) respostas.push('raízes ' + Array.from(new Set(r.raizes.map(function (z) { return z.txt; }))).join('; '));
+    else if (r) respostas.push('sem raízes reais (Δ < 0), a parábola não toca o eixo x');
+    feito = true;
+  }
+  if (!feito) return null;
+  if (fn.total > 1 && !pontual) return null;
+  return { titulo: titulo, passos: passos, resposta: respostas.join('; '), conferencia: 'o vértice é o ponto onde f deixa de crescer e passa a decrescer (ou o contrário); yᵥ foi calculado de duas formas e coincide.', aproximado: false };
+}
+
+// ------------------------------------------------------------------ derivada e integral de polinômio
+
+function mtlDerivada(p) { const r = []; for (let k = 1; k < p.length; k++) r.push(mtlMul(p[k], mtlFr(k))); return r.length ? mtlPAparar(r) : [mtlFr(0)]; }
+function mtlPrimitiva(p) { const r = [mtlFr(0)]; for (let k = 0; k < p.length; k++) r.push(mtlDiv(p[k], mtlFr(k + 1))); return r; }
+
+function mtlSolverCalculo(n) {
+  const deriv = /\b(deriv\w*|taxa de variacao|reta tangente|tangente a)\b/.test(n);
+  const integ = /\b(integra\w*|primitiva|antiderivada|area sob|area abaixo)\b/.test(n);
+  if (!deriv && !integ) return null;
+  if (MTL_FUNCAO_ESTRANHA.test(n)) return null;
+  const fn = mtlAcharFuncao(n);
+  let limpo = n;
+  // limites "de 0 a 2" / "entre 0 e 3" saem do texto antes de procurar o polinômio
+  let lim = null;
+  let mm = /\b(?:de|entre|no intervalo de)\s*\[?\s*(-?\d+(?:[.,]\d+)?(?:\/\d+)?)\s*(?:a|ate|e|,|;)\s*(-?\d+(?:[.,]\d+)?(?:\/\d+)?)\s*\]?/.exec(n);
+  if (integ && mm) { lim = [mm[1], mm[2]]; limpo = n.replace(mm[0], ' '); }
+  let ponto = null;
+  const mp = /\b(?:em|no ponto|para|quando|se)\s*x\s*=\s*(-?\d+(?:[.,]\d+)?(?:\/\d+)?)/.exec(n);
+  if (mp) ponto = mp[1];
+  let poli = null;
+  if (fn && mtlGrau(fn.poli) >= 1) poli = fn.poli;
+  else {
+    const t = mtlAcharPoliQualquer(limpo.replace(/\bx\s*=\s*-?\d+(?:[.,]\d+)?/, ' '));
+    if (t) poli = t.poli;
+  }
+  if (!poli) return null;
+  const lerFr = function (s) { const m = /^(-?)(\d+(?:[.,]\d+)?)(?:\/(\d+))?$/.exec(s); if (!m) throw new Error('n'); let v = mtlLerNumero(m[2]); if (m[3]) v = mtlDiv(v, mtlFr(Number(m[3]))); return m[1] ? mtlNeg(v) : v; };
+  const passos = [];
+  if (deriv) {
+    const d = mtlDerivada(poli);
+    const termos = [];
+    poli.forEach(function (c, k) { if (k >= 1 && !mtlZero(c)) termos.push('(' + mtlPoliTxt([].concat(new Array(k).fill(mtlFr(0)), [c])) + ')′ = ' + mtlPoliTxt([].concat(new Array(k - 1).fill(mtlFr(0)), [mtlMul(c, mtlFr(k))]))); });
+    passos.push('Regra do tombo, (c·xⁿ)′ = c·n·xⁿ⁻¹, termo a termo (constante deriva para 0): ' + (termos.length ? termos.join('; ') : 'só constante') + '.');
+    let resposta = 'f′(x) = ' + mtlPoliTxt(d);
+    if (ponto) {
+      const a = mtlTenta(function () { return lerFr(ponto); });
+      if (a) {
+        const fa = mtlPAval(poli, a), da = mtlPAval(d, a);
+        passos.push('Em x = ' + mtlTxt(a) + ': f(' + mtlTxt(a) + ') = ' + mtlTxt(fa) + ' e f′(' + mtlTxt(a) + ') = ' + mtlTxt(da) + '.');
+        resposta += '; f′(' + mtlTxt(a) + ') = ' + mtlTxt(da);
+        if (/tangente/.test(n)) {
+          // y = f'(a)(x − a) + f(a) = f'(a)·x + (f(a) − f'(a)·a)
+          const b0 = mtlSub(fa, mtlMul(da, a));
+          passos.push('Reta tangente: y − f(a) = f′(a)(x − a) ⇒ y = ' + mtlPoliTxt([b0, da]) + '.');
+          resposta += '; reta tangente: y = ' + mtlPoliTxt([b0, da]) + ' (coeficiente angular ' + mtlTxt(da) + ')';
+        }
+      }
+    }
+    return { titulo: 'Derivada de f(x) = ' + mtlPoliTxt(poli), passos: passos, resposta: resposta, conferencia: 'a derivada de um polinômio de grau ' + mtlGrau(poli) + ' tem grau ' + Math.max(0, mtlGrau(poli) - 1) + '; derivando o resultado de uma primitiva volta ao original.', aproximado: false };
+  }
+  const F = mtlPrimitiva(poli);
+  passos.push('Regra da potência, ∫c·xⁿ dx = c·xⁿ⁺¹/(n+1), termo a termo: F(x) = ' + mtlPoliTxt(F) + (lim ? '' : ' + C') + '.');
+  if (lim) {
+    const a = mtlTenta(function () { return lerFr(lim[0].replace(',', '.')); }), b = mtlTenta(function () { return lerFr(lim[1].replace(',', '.')); });
+    if (a && b) {
+      const Fb = mtlPAval(F, b), Fa = mtlPAval(F, a);
+      const v = mtlSub(Fb, Fa);
+      passos.push('Teorema fundamental: ∫ de ' + mtlTxt(a) + ' a ' + mtlTxt(b) + ' = F(' + mtlTxt(b) + ') − F(' + mtlTxt(a) + ') = ' + mtlTxt(Fb) + ' − (' + mtlTxt(Fa) + ') = ' + mtlTxt(v) + '.');
+      return { titulo: 'Integral definida de ' + mtlPoliTxt(poli), passos: passos, resposta: mtlTxt(v) + (v.d !== 1 ? ' (≈ ' + mtlAprox(mtlVal(v)).replace('≈ ', '') + ')' : ''), conferencia: 'derivar F devolve o integrando; o valor é a área com sinal entre o gráfico e o eixo x (negativa onde f < 0).', aproximado: false };
+    }
+  }
+  return { titulo: 'Integral indefinida de ' + mtlPoliTxt(poli), passos: passos, resposta: '∫ ' + mtlPoliTxt(poli) + ' dx = ' + mtlPoliTxt(F) + ' + C', conferencia: 'derivando F(x) obtém-se ' + mtlPoliTxt(mtlDerivada(F)) + ', o integrando.', aproximado: false };
+}
+
+// ------------------------------------------------------------------ sistemas lineares
+
+const MTL_ALG_LIN = {
+  vars: 'xyz',
+  num: function (f) { return { c: f, x: mtlFr(0), y: mtlFr(0), z: mtlFr(0), cte: true }; },
+  variavel: function (v) { const r = { c: mtlFr(0), x: mtlFr(0), y: mtlFr(0), z: mtlFr(0), cte: false }; r[v] = mtlFr(1); return r; },
+  soma: function (a, b) { return { c: mtlSoma(a.c, b.c), x: mtlSoma(a.x, b.x), y: mtlSoma(a.y, b.y), z: mtlSoma(a.z, b.z), cte: a.cte && b.cte }; },
+  sub: function (a, b) { return MTL_ALG_LIN.soma(a, MTL_ALG_LIN.neg(b)); },
+  neg: function (a) { return { c: mtlNeg(a.c), x: mtlNeg(a.x), y: mtlNeg(a.y), z: mtlNeg(a.z), cte: a.cte }; },
+  mul: function (a, b) {
+    if (a.cte) return { c: mtlMul(a.c, b.c), x: mtlMul(a.c, b.x), y: mtlMul(a.c, b.y), z: mtlMul(a.c, b.z), cte: b.cte };
+    if (b.cte) return { c: mtlMul(b.c, a.c), x: mtlMul(b.c, a.x), y: mtlMul(b.c, a.y), z: mtlMul(b.c, a.z), cte: a.cte };
+    throw new Error('nao-linear');
+  },
+  div: function (a, b) { if (!b.cte || mtlZero(b.c)) throw new Error('div'); return MTL_ALG_LIN.mul(a, { c: mtlDiv(mtlFr(1), b.c), x: mtlFr(0), y: mtlFr(0), z: mtlFr(0), cte: true }); },
+  pot: function (a, k) { if (k === 1) return a; if (a.cte) return { c: mtlPotF(a.c, k), x: mtlFr(0), y: mtlFr(0), z: mtlFr(0), cte: true }; throw new Error('nao-linear'); }
+};
+
+// Equações lineares em x, y, z. Devolve { eqs:[{x,y,z,c}], vars:['x','y'] } ou null.
+function mtlLerSistema(n) {
+  // separadores: ";", ", ", " e ", e a quebra implícita "10 x-y" (dois operandos sem operador no meio)
+  const base = ' ' + n.replace(/\be\b/g, ' ; ').replace(/;/g, ' ; ').replace(/,\s/g, ' ; ').replace(/[{}]/g, ' ') + ' ';
+  const trechos = mtlTrechos(base, '0123456789xyz^+-*/.,() =;');
+  const eqs = [];
+  trechos.forEach(function (t) {
+    t.txt.split(';').forEach(function (seg) {
+      seg = seg.replace(/^[\s,.]+|[\s,.]+$/g, '');
+      if (seg.indexOf('=') < 0) return;
+      // dois "=" no mesmo segmento: o que vem depois do 1º lado direito é outra equação
+      let partes = seg.split('=');
+      if (partes.length > 2) {
+        const novas = [partes[0]];
+        for (let i = 1; i < partes.length; i++) {
+          if (i === partes.length - 1) { novas.push(partes[i]); break; }
+          const tok = partes[i].trim().split(' ');
+          const corte = tok.findIndex ? tok.findIndex(function (w, j) { return j > 0 && /^[0-9xyz(]/.test(w) && /[0-9xyz)]$/.test(tok[j - 1]); }) : -1;
+          if (corte < 0) throw new Error('fronteira');
+          novas.push(tok.slice(0, corte).join(' '));
+          novas.push('#');
+          novas.push(tok.slice(corte).join(' '));
+        }
+        let atual = [];
+        const grupos = [];
+        novas.forEach(function (x) { if (x === '#') { grupos.push(atual.join('=')); atual = []; } else atual.push(x); });
+        grupos.push(atual.join('='));
+        grupos.forEach(function (g) { eqs.push(g); });
+      } else eqs.push(seg);
+    });
+  });
+  const lidas = [];
+  for (let i = 0; i < eqs.length; i++) {
+    const lados = eqs[i].split('=');
+    if (lados.length !== 2) return null;
+    const e = mtlTenta(function () { return mtlAnalisar(lados[0], MTL_ALG_LIN); });
+    const d = mtlTenta(function () { return mtlAnalisar(lados[1], MTL_ALG_LIN); });
+    if (!e || !d) return null;
+    const dif = MTL_ALG_LIN.sub(e, d);
+    lidas.push({ x: dif.x, y: dif.y, z: dif.z, c: mtlNeg(dif.c), txt: eqs[i].trim() });
+  }
+  if (lidas.length < 2) return null;
+  const usa = ['x', 'y', 'z'].filter(function (v) { return lidas.some(function (e) { return !mtlZero(e[v]); }); });
+  if (usa.length < 2) return null;
+  return { eqs: lidas, vars: usa };
+}
+
+function mtlLinhaEq(e, vars) {
+  let s = '';
+  vars.forEach(function (v) {
+    const c = e[v];
+    if (mtlZero(c)) return;
+    const neg = c.n < 0, ab = mtlFr(Math.abs(c.n), c.d);
+    const corpo = (mtlIgual(ab, mtlFr(1)) ? '' : (ab.d === 1 ? mtlTxt(ab) : '(' + mtlTxt(ab) + ')')) + v;
+    s += s ? (neg ? ' − ' : ' + ') + corpo : (neg ? '−' : '') + corpo;
+  });
+  return (s || '0') + ' = ' + mtlTxt(e.c);
+}
+
+function mtlSolverSistema(n) {
+  if (MTL_FUNCAO_ESTRANHA.test(n)) return null;
+  const S = mtlTenta(function () { return mtlLerSistema(n); });
+  if (!S) return null;
+  const vars = S.vars, nv = vars.length;
+  let M = S.eqs.map(function (e) { return vars.map(function (v) { return e[v]; }).concat([e.c]); });
+  const passos = [];
+  passos.push('Sistema: ' + S.eqs.map(function (e) { return mtlLinhaEq(e, vars); }).join('; ') + '.');
+  // Gauss-Jordan
+  let linha = 0;
+  const pivos = [];
+  for (let col = 0; col < nv && linha < M.length; col++) {
+    let sel = -1;
+    for (let i = linha; i < M.length; i++) { if (!mtlZero(M[i][col])) { sel = i; break; } }
+    if (sel < 0) continue;
+    if (sel !== linha) { const t = M[sel]; M[sel] = M[linha]; M[linha] = t; passos.push('Troca L' + (linha + 1) + ' ↔ L' + (sel + 1) + '.'); }
+    const pv = M[linha][col];
+    if (!mtlIgual(pv, mtlFr(1))) { M[linha] = M[linha].map(function (x) { return mtlDiv(x, pv); }); passos.push('L' + (linha + 1) + ' ← L' + (linha + 1) + ' ÷ ' + mtlTxt(pv) + '.'); }
+    for (let i = 0; i < M.length; i++) {
+      if (i === linha || mtlZero(M[i][col])) continue;
+      const f = M[i][col];
+      M[i] = M[i].map(function (x, j) { return mtlSub(x, mtlMul(f, M[linha][j])); });
+      passos.push('L' + (i + 1) + ' ← L' + (i + 1) + (f.n > 0 ? ' − ' : ' + ') + (mtlIgual(mtlFr(Math.abs(f.n), f.d), mtlFr(1)) ? '' : mtlTxt(mtlFr(Math.abs(f.n), f.d)) + '·') + 'L' + (linha + 1) + '.');
+    }
+    pivos.push(col);
+    linha++;
+  }
+  // impossível: linha 0 = c ≠ 0
+  const impossivel = M.some(function (r) { return r.slice(0, nv).every(mtlZero) && !mtlZero(r[nv]); });
+  passos.push('Forma escalonada: ' + M.filter(function (r) { return !r.every(mtlZero); }).map(function (r) { return '[' + r.slice(0, nv).map(mtlTxt).join(' ') + ' | ' + mtlTxt(r[nv]) + ']'; }).join(' '));
+  if (impossivel) {
+    return { titulo: 'Sistema linear', passos: passos, resposta: 'sistema impossível (SI): uma linha ficou 0 = ' + 'número diferente de 0; não há solução', conferencia: 'duas equações se contradizem.', aproximado: false };
+  }
+  if (pivos.length === nv) {
+    const sol = {};
+    pivos.forEach(function (col, k) { sol[vars[col]] = M[k][nv]; });
+    // conferência em todas as equações originais
+    const ok = S.eqs.every(function (e) { let t = mtlFr(0); vars.forEach(function (v) { t = mtlSoma(t, mtlMul(e[v], sol[v])); }); return mtlIgual(t, e.c); });
+    return { titulo: 'Sistema linear ' + nv + '×' + nv, passos: passos, resposta: 'sistema possível e determinado (SPD): ' + vars.map(function (v) { return v + ' = ' + mtlTxt(sol[v]); }).join(', '), conferencia: ok ? 'substituindo nas equações originais, todas se verificam.' : 'atenção: a substituição não fechou; revise os dados.', aproximado: false };
+  }
+  // indeterminado: variáveis livres como parâmetros
+  const livres = vars.filter(function (v, i) { return pivos.indexOf(i) < 0; });
+  const param = ['t', 's', 'u'];
+  const expr = vars.map(function (v, i) {
+    const k = pivos.indexOf(i);
+    if (k < 0) return v + ' = ' + param[livres.indexOf(v)];
+    let s = mtlTxt(M[k][nv]);
+    livres.forEach(function (lv, j) { const c = M[k][vars.indexOf(lv)]; if (!mtlZero(c)) s += (c.n > 0 ? ' − ' : ' + ') + (mtlIgual(mtlFr(Math.abs(c.n), c.d), mtlFr(1)) ? '' : mtlTxt(mtlFr(Math.abs(c.n), c.d)) + '·') + param[j]; });
+    return v + ' = ' + s;
+  });
+  return { titulo: 'Sistema linear', passos: passos, resposta: 'sistema possível e indeterminado (SPI), infinitas soluções com ' + livres.length + ' parâmetro(s): ' + expr.join(', '), conferencia: 'o posto (' + pivos.length + ') é menor que o número de incógnitas (' + nv + ').', aproximado: false };
+}
+
+// ------------------------------------------------------------------ matrizes
+
+function mtlLerMatrizes(t) {
+  // [[1,2],[3,4]]  [1 2; 3 4]  (1 2; 3 4); entradas com ponto decimal
+  const s = String(t).replace(/−/g, '-');
+  const achadas = [];
+  const re = /\[\s*\[[^\]]*\](?:\s*,?\s*\[[^\]]*\])*\s*\]|\[[^\[\]]*;[^\[\]]*\]|\([^()]*;[^()]*\)/g;
+  let m;
+  while ((m = re.exec(s))) {
+    let corpo = m[0];
+    let linhas;
+    if (/^\[\s*\[/.test(corpo)) linhas = (corpo.match(/\[[^\[\]]*\]/g) || []).map(function (x) { return x.slice(1, -1); });
+    else linhas = corpo.slice(1, -1).split(';');
+    const M = [];
+    for (let i = 0; i < linhas.length; i++) {
+      const ent = linhas[i].trim().split(/[\s,]+/).filter(Boolean);
+      if (!ent.length) return null;
+      const row = [];
+      for (let j = 0; j < ent.length; j++) {
+        const q = /^(-?)(\d+(?:\.\d+)?)(?:\/(\d+))?$/.exec(ent[j]);
+        if (!q) return null;
+        let v = mtlLerNumero(q[2]);
+        if (q[3]) v = mtlDiv(v, mtlFr(Number(q[3])));
+        row.push(q[1] ? mtlNeg(v) : v);
+      }
+      M.push(row);
+    }
+    if (M.some(function (r) { return r.length !== M[0].length; }) || M.length > 6 || M[0].length > 6) return null;
+    achadas.push({ M: M, ini: m.index, fim: m.index + m[0].length });
+  }
+  return achadas;
+}
+
+function mtlMatTxt(M) {
+  const cel = M.map(function (r) { return r.map(mtlTxt); });
+  const larg = [];
+  for (let j = 0; j < cel[0].length; j++) larg.push(Math.max.apply(null, cel.map(function (r) { return r[j].length; })));
+  return cel.map(function (r) { return '[ ' + r.map(function (x, j) { return new Array(larg[j] - x.length + 1).join(' ') + x; }).join('  ') + ' ]'; }).join('\n');
+}
+
+function mtlMatMul(A, B) {
+  const R = [];
+  for (let i = 0; i < A.length; i++) { R.push([]); for (let j = 0; j < B[0].length; j++) { let s = mtlFr(0); for (let k = 0; k < B.length; k++) s = mtlSoma(s, mtlMul(A[i][k], B[k][j])); R[i].push(s); } }
+  return R;
+}
+
+function mtlTransp(A) { return A[0].map(function (_, j) { return A.map(function (r) { return r[j]; }); }); }
+function mtlIdent(k) { const I = []; for (let i = 0; i < k; i++) { I.push([]); for (let j = 0; j < k; j++) I[i].push(mtlFr(i === j ? 1 : 0)); } return I; }
+
+// determinante e posto por eliminação (frações exatas)
+function mtlEliminar(A) {
+  const M = A.map(function (r) { return r.slice(); });
+  let det = mtlFr(1), posto = 0;
+  const linhas = M.length, cols = M[0].length;
+  let l = 0;
+  for (let c = 0; c < cols && l < linhas; c++) {
+    let s = -1;
+    for (let i = l; i < linhas; i++) { if (!mtlZero(M[i][c])) { s = i; break; } }
+    if (s < 0) { det = mtlFr(0); continue; }
+    if (s !== l) { const t = M[s]; M[s] = M[l]; M[l] = t; det = mtlNeg(det); }
+    det = mtlMul(det, M[l][c]);
+    for (let i = l + 1; i < linhas; i++) { const f = mtlDiv(M[i][c], M[l][c]); for (let j = c; j < cols; j++) M[i][j] = mtlSub(M[i][j], mtlMul(f, M[l][j])); }
+    l++; posto++;
+  }
+  return { det: linhas === cols ? (posto === linhas ? det : mtlFr(0)) : null, posto: posto };
+}
+
+function mtlInversa(A) {
+  const k = A.length;
+  const M = A.map(function (r, i) { return r.concat(mtlIdent(k)[i]); });
+  for (let c = 0; c < k; c++) {
+    let s = -1;
+    for (let i = c; i < k; i++) { if (!mtlZero(M[i][c])) { s = i; break; } }
+    if (s < 0) return null;
+    if (s !== c) { const t = M[s]; M[s] = M[c]; M[c] = t; }
+    const pv = M[c][c];
+    M[c] = M[c].map(function (x) { return mtlDiv(x, pv); });
+    for (let i = 0; i < k; i++) { if (i === c || mtlZero(M[i][c])) continue; const f = M[i][c]; M[i] = M[i].map(function (x, j) { return mtlSub(x, mtlMul(f, M[c][j])); }); }
+  }
+  return M.map(function (r) { return r.slice(k); });
+}
+
+function mtlSolverMatriz(texto, n) {
+  const mats = mtlTenta(function () { return mtlLerMatrizes(texto); });
+  if (!mats || !mats.length) return null;
+  const quer = {
+    det: /\b(determinante|det)\b|\bdet\s*\(/.test(n) || /\|\s*\[/.test(texto),
+    inv: /\b(inversa|invertivel|inv)\b|\^\s*\(?\s*-\s*1\s*\)?/.test(n),
+    transp: /\btransposta\b|\^\s*t\b/.test(n),
+    soma: /\b(soma|somar|adicao)\b|\ba\s*\+\s*b\b/.test(n),
+    subt: /\b(subtracao|diferenca)\b|\ba\s*-\s*b\b/.test(n),
+    prod: /\b(produto|multipli\w*)\b|\ba\s*\*\s*b\b|\ba\s*b\b/.test(n),
+    pot: /\^\s*(\d+)/.exec(n.replace(/\^\s*\(?\s*-\s*1/, '')) || /\b(?:elevad[ao]|potencia)\s*(?:a|de)?\s*(\d+)/.exec(n),
+    posto: /\b(posto|rank|singular|linearmente)\b/.test(n),
+    traco: /\btraco\b/.test(n)
+  };
+  const A = mats[0].M, B = mats[1] ? mats[1].M : null;
+  const passos = [];
+  const dim = A.length + '×' + A[0].length;
+  const partes = [];
+  let feito = false;
+  if (quer.det || quer.posto) {
+    if (A.length !== A[0].length && quer.det) return { titulo: 'Matriz ' + dim, passos: [], resposta: 'determinante só existe para matriz quadrada; esta é ' + dim, conferencia: '', aproximado: false };
+    const e = mtlEliminar(A);
+    if (A.length === A[0].length && quer.det) {
+      let desc = '';
+      if (A.length === 2) desc = 'Matriz 2×2: det = ad − bc = ' + mtlTxt(A[0][0]) + '·' + mtlTxt(A[1][1]) + ' − ' + (A[0][1].n < 0 ? '(' + mtlTxt(A[0][1]) + ')' : mtlTxt(A[0][1])) + '·' + (A[1][0].n < 0 ? '(' + mtlTxt(A[1][0]) + ')' : mtlTxt(A[1][0])) + ' = ' + mtlTxt(e.det) + '.';
+      else if (A.length === 3) {
+        const pos = mtlSoma(mtlSoma(mtlMul(mtlMul(A[0][0], A[1][1]), A[2][2]), mtlMul(mtlMul(A[0][1], A[1][2]), A[2][0])), mtlMul(mtlMul(A[0][2], A[1][0]), A[2][1]));
+        const neg = mtlSoma(mtlSoma(mtlMul(mtlMul(A[0][2], A[1][1]), A[2][0]), mtlMul(mtlMul(A[0][0], A[1][2]), A[2][1])), mtlMul(mtlMul(A[0][1], A[1][0]), A[2][2]));
+        desc = 'Regra de Sarrus: diagonais principais somam ' + mtlTxt(pos) + ' e as secundárias somam ' + mtlTxt(neg) + '; det = ' + mtlTxt(pos) + ' − ' + (neg.n < 0 ? '(' + mtlTxt(neg) + ')' : mtlTxt(neg)) + ' = ' + mtlTxt(e.det) + '.';
+      } else desc = 'Eliminação de Gauss (determinante = produto dos pivôs, com sinal trocado a cada troca de linhas): det = ' + mtlTxt(e.det) + '.';
+      passos.push(desc);
+      partes.push('det = ' + mtlTxt(e.det) + (mtlZero(e.det) ? ' (matriz singular: sem inversa)' : ' (matriz inversível)'));
+      feito = true;
+    }
+    if (quer.posto || mtlZero(e.det || mtlFr(1))) { passos.push('Posto (número de linhas independentes após escalonar) = ' + e.posto + '.'); partes.push('posto ' + e.posto); feito = true; }
+  }
+  if (quer.inv) {
+    if (A.length !== A[0].length) return null;
+    const e = mtlEliminar(A);
+    if (mtlZero(e.det)) { partes.push('det = 0: a matriz é singular e não tem inversa'); passos.push('det A = 0, logo A não é inversível.'); }
+    else {
+      const I = mtlInversa(A);
+      if (A.length === 2) passos.push('Matriz 2×2: A⁻¹ = (1/det)·[d −b; −c a], com det = ' + mtlTxt(e.det) + '.');
+      else passos.push('Gauss-Jordan em [A | I] até chegar a [I | A⁻¹]; det A = ' + mtlTxt(e.det) + ' ≠ 0.');
+      partes.push('A⁻¹ =\n' + mtlMatTxt(I));
+      const prova = mtlMatMul(A, I);
+      passos.push('Conferência: A·A⁻¹ = I → ' + (prova.every(function (r, i) { return r.every(function (x, j) { return mtlIgual(x, mtlFr(i === j ? 1 : 0)); }); }) ? 'confere' : 'NÃO confere') + '.');
+    }
+    feito = true;
+  }
+  if (quer.transp) { partes.push('Aᵗ =\n' + mtlMatTxt(mtlTransp(A))); passos.push('Transposta: linhas viram colunas.'); feito = true; }
+  if (quer.traco && A.length === A[0].length) { let t = mtlFr(0); for (let i = 0; i < A.length; i++) t = mtlSoma(t, A[i][i]); partes.push('traço = ' + mtlTxt(t)); passos.push('Traço = soma da diagonal principal.'); feito = true; }
+  if (B && (quer.soma || quer.subt) && A.length === B.length && A[0].length === B[0].length) {
+    const R = A.map(function (r, i) { return r.map(function (x, j) { return quer.subt && !quer.soma ? mtlSub(x, B[i][j]) : mtlSoma(x, B[i][j]); }); });
+    partes.push((quer.subt && !quer.soma ? 'A − B' : 'A + B') + ' =\n' + mtlMatTxt(R)); passos.push('Operação elemento a elemento.'); feito = true;
+  } else if (B && quer.prod && A[0].length === B.length) {
+    const R = mtlMatMul(A, B);
+    partes.push('A·B =\n' + mtlMatTxt(R)); passos.push('Produto: cada elemento (i, j) é a soma dos produtos da linha i de A pela coluna j de B; o número de colunas de A (' + A[0].length + ') é igual ao de linhas de B (' + B.length + ').'); feito = true;
+  } else if (B && quer.prod) { return { titulo: 'Matrizes', passos: [], resposta: 'o produto A·B não existe: A tem ' + A[0].length + ' colunas e B tem ' + B.length + ' linhas', conferencia: '', aproximado: false }; }
+  if (!B && quer.pot && A.length === A[0].length && !quer.inv) {
+    const k = Number(quer.pot[1]);
+    if (k >= 1 && k <= 64) {
+      let R = mtlIdent(A.length);
+      let ciclo = null;
+      for (let i = 1; i <= k; i++) { R = mtlMatMul(R, A); if (!ciclo && R.every(function (r, a) { return r.every(function (x, b) { return mtlIgual(x, mtlFr(a === b ? 1 : 0)); }); })) ciclo = i; }
+      partes.push('A^' + k + ' =\n' + mtlMatTxt(R)); passos.push('Potência calculada multiplicando A por ela mesma ' + k + ' vez(es).' + (ciclo ? ' Atenção: Aᵏ = I já em k = ' + ciclo + ', então as potências se repetem de ' + ciclo + ' em ' + ciclo + '.' : ''));
+      feito = true;
+    }
+  }
+  if (!feito) return null;
+  return { titulo: 'Matriz ' + dim + (B ? ' e ' + B.length + '×' + B[0].length : ''), passos: passos, resposta: partes.join('; ').replace(/; (?=[A-Za-z]\S* =\n)/g, '\n'), conferencia: 'operações em frações exatas, sem arredondamento.', aproximado: false };
+}
+
+// ------------------------------------------------------------------ números complexos
+
+function mtlC(re, im) { return { re: re, im: im }; }
+function mtlCSoma(a, b) { return mtlC(mtlSoma(a.re, b.re), mtlSoma(a.im, b.im)); }
+function mtlCMul(a, b) { return mtlC(mtlSub(mtlMul(a.re, b.re), mtlMul(a.im, b.im)), mtlSoma(mtlMul(a.re, b.im), mtlMul(a.im, b.re))); }
+function mtlCConj(a) { return mtlC(a.re, mtlNeg(a.im)); }
+function mtlCDiv(a, b) {
+  const d = mtlSoma(mtlMul(b.re, b.re), mtlMul(b.im, b.im));
+  if (mtlZero(d)) throw new Error('div0');
+  const num = mtlCMul(a, mtlCConj(b));
+  return mtlC(mtlDiv(num.re, d), mtlDiv(num.im, d));
+}
+
+const MTL_ALG_C = {
+  vars: 'i',
+  num: function (f) { return mtlC(f, mtlFr(0)); },
+  variavel: function () { return mtlC(mtlFr(0), mtlFr(1)); },
+  soma: mtlCSoma,
+  sub: function (a, b) { return mtlCSoma(a, mtlC(mtlNeg(b.re), mtlNeg(b.im))); },
+  neg: function (a) { return mtlC(mtlNeg(a.re), mtlNeg(a.im)); },
+  mul: mtlCMul,
+  div: mtlCDiv,
+  pot: function (a, k) {
+    if (Math.abs(k) > 200) throw new Error('pot');
+    let r = mtlC(mtlFr(1), mtlFr(0));
+    // quadrados repetidos: (z²)... para expoentes grandes sem estourar passo a passo
+    for (let i = 0; i < Math.abs(k); i++) r = mtlCMul(r, a);
+    return k < 0 ? mtlCDiv(mtlC(mtlFr(1), mtlFr(0)), r) : r;
+  }
+};
+
+function mtlCTxt(z) {
+  const re = z.re, im = z.im;
+  const parteIm = function (ab) { return mtlIgual(ab, mtlFr(1)) ? 'i' : (ab.d === 1 ? mtlTxt(ab) + 'i' : '(' + mtlTxt(ab) + ')i'); };
+  if (mtlZero(im)) return mtlTxt(re);
+  const ab = mtlFr(Math.abs(im.n), im.d);
+  if (mtlZero(re)) return (im.n < 0 ? '−' : '') + parteIm(ab);
+  return mtlTxt(re) + (im.n < 0 ? ' − ' : ' + ') + parteIm(ab);
+}
+
+// módulo: √(a²+b²) em forma exata
+function mtlModuloTxt(z) {
+  const m2 = mtlSoma(mtlMul(z.re, z.re), mtlMul(z.im, z.im));
+  if (m2.d === 1) {
+    const rad = mtlRadical(m2.n);
+    if (rad.r === 1) return { txt: String(rad.k), valor: rad.k, m2: m2 };
+    return { txt: (rad.k > 1 ? rad.k : '') + '√' + rad.r, valor: Math.sqrt(m2.n), m2: m2 };
+  }
+  return { txt: '√(' + mtlTxt(m2) + ')', valor: Math.sqrt(mtlVal(m2)), m2: m2 };
+}
+
+function mtlAnguloTxt(graus) {
+  const g = Math.round(graus * 1e9) / 1e9;
+  if (Math.abs(g - Math.round(g)) < 1e-9 && Math.round(g) % 15 === 0) {
+    const gi = Math.round(g);
+    const fr = mtlFr(gi, 180);
+    return mtlTxt(fr).replace(/^(−?)1\//, '$1π/').replace(/^(−?)(\d+)\/(\d+)$/, '$1$2π/$3').replace(/^(−?)1$/, '$1π').replace(/^(−?)0$/, '0') + ' rad (' + gi + '°)';
+  }
+  return mtlAprox(g).replace('≈ ', '≈ ') + '°';
+}
+
+function mtlSolverComplexos(n, original) {
+  const pede = /\b(complex\w*|modulo|conjugad\w*|polar|trigonometric\w*|argumento|forma algebrica|parte real|parte imaginaria)\b/.test(n);
+  const trechos = mtlTrechos(n, '0123456789i+-*/^.,() ');
+  const comI = trechos.filter(function (t) { return /(?:^|[^a-z])i(?:[^a-z]|$)/.test(t.txt) && /[0-9(]/.test(t.txt) || /^i\s*\^/.test(t.txt); });
+  const sinal = /\d\s*[+-]\s*\d*\s*i\b|\bi\s*\^\s*\d|\(\s*[^()]*\bi\b[^()]*\)/.test(n);
+  if (!pede && !sinal) return null;
+  if (!comI.length && !/\bi\b/.test(n)) return null;
+  // atribuições z1 = ..., z2 = ...
+  const env = {};
+  const re = /(?:^|[^a-z0-9])([a-hj-wyz]\d?)\s*=\s*/g;
+  let m;
+  while ((m = re.exec(n))) {
+    const resto = n.slice(m.index + m[0].length);
+    const tr = mtlTrechos(' ' + resto, '0123456789i+-*/^.,() ');
+    if (!tr.length || tr[0].ini > 1) continue;
+    const v = mtlTenta(function () { return mtlAnalisar(tr[0].txt.replace(/[.,]\s*$/, ''), MTL_ALG_C); });
+    if (v) env[m[1]] = { z: v, txt: tr[0].txt.replace(/[.,]\s*$/, '') };
+  }
+  const nomes = Object.keys(env);
+  let expr = null, z = null, titulo = '';
+  const passos = [];
+  if (nomes.length >= 2) {
+    const mo = /\b([a-hj-wyz]\d?)\s*([+\-*\/])\s*([a-hj-wyz]\d?)\b/.exec(n.replace(/=\s*[^a-z]*/g, '='));
+    const q = /\b([a-hj-wyz]\d?)\s*([+\-*\/])\s*([a-hj-wyz]\d?)\b/g;
+    let ok = null, mm;
+    while ((mm = q.exec(n))) { if (env[mm[1]] && env[mm[3]] && !/=/.test(n.slice(mm.index + mm[0].length, mm.index + mm[0].length + 1))) { ok = mm; } }
+    if (ok) {
+      const a = env[ok[1]], b = env[ok[3]];
+      const op = ok[2];
+      z = op === '+' ? mtlCSoma(a.z, b.z) : op === '-' ? MTL_ALG_C.sub(a.z, b.z) : op === '*' ? mtlCMul(a.z, b.z) : mtlCDiv(a.z, b.z);
+      expr = ok[1] + ' ' + op + ' ' + ok[3];
+      passos.push(ok[1] + ' = ' + mtlCTxt(a.z) + ' e ' + ok[3] + ' = ' + mtlCTxt(b.z) + '.');
+      if (op === '*') passos.push('Distributiva, com i² = −1: (a+bi)(c+di) = (ac − bd) + (ad + bc)i.');
+      if (op === '/') passos.push('Divisão: multiplique numerador e denominador pelo conjugado do denominador; o denominador vira c² + d².');
+      titulo = 'Números complexos: ' + expr;
+    }
+  }
+  if (!z) {
+    const alvo = nomes.length === 1 ? env[nomes[0]].txt : (comI.length ? comI.slice().sort(function (a, b) { return b.txt.length - a.txt.length; })[0].txt : null);
+    if (!alvo) return null;
+    z = nomes.length === 1 ? env[nomes[0]].z : mtlTenta(function () { return mtlAnalisar(alvo.replace(/[.,]\s*$/, ''), MTL_ALG_C); });
+    if (!z) return null;
+    expr = alvo.replace(/[.,]\s*$/, '');
+    titulo = 'Números complexos: ' + expr;
+    // potência: mostra De Moivre quando o ângulo é notável
+    const pot = /^\s*\(?([^()]*(?:\([^()]*\))?[^()]*)\)?\s*\^\s*(\d+)\s*$/.exec(expr);
+    if (pot) {
+      const base = mtlTenta(function () { return mtlAnalisar(pot[1].replace(/^\(|\)$/g, ''), MTL_ALG_C); });
+      const k = Number(pot[2]);
+      if (base && k >= 2 && !mtlZero(base.im) && !mtlZero(base.re)) {
+        const mod = mtlModuloTxt(base);
+        const ang = Math.atan2(mtlVal(base.im), mtlVal(base.re)) * 180 / Math.PI;
+        const angN = ((ang * k) % 360 + 360) % 360;
+        passos.push('Forma polar da base: |z| = ' + mod.txt + ', θ = ' + mtlAnguloTxt(ang) + '. De Moivre: zⁿ = |z|ⁿ·(cos nθ + i sen nθ), com n = ' + k + ': |z|ⁿ = ' + (mod.m2.d === 1 ? (k % 2 === 0 ? String(Math.pow(mod.m2.n, k / 2)) : String(Math.pow(mod.m2.n, (k - 1) / 2)) + '√' + mod.m2.n) : mtlAprox(Math.pow(mod.valor, k))) + ' e nθ ≡ ' + mtlAprox(angN).replace('≈ ', '') + '° (mod 360°).');
+      }
+    }
+  }
+  const mod = mtlModuloTxt(z);
+  const quer = {
+    mod: /\bmodulo\b|\|\s*z\s*\|/.test(n),
+    conj: /\bconjugad\w*/.test(n),
+    polar: /\b(polar|trigonometric\w*|argumento)\b/.test(n),
+    re: /\bparte real\b/.test(n), im: /\bparte imaginaria\b/.test(n)
+  };
+  const respostas = [];
+  respostas.push('z = ' + mtlCTxt(z));
+  if (quer.mod || quer.polar) respostas.push('|z| = ' + mod.txt + (mod.m2.d === 1 && mtlRadical(mod.m2.n).r !== 1 ? ' (≈ ' + mtlAprox(mod.valor).replace('≈ ', '') + ')' : ''));
+  if (quer.conj) respostas.push('conjugado z̄ = ' + mtlCTxt(mtlCConj(z)));
+  if (quer.polar && !(mtlZero(z.re) && mtlZero(z.im))) {
+    const ang = Math.atan2(mtlVal(z.im), mtlVal(z.re)) * 180 / Math.PI;
+    const angPos = ang < 0 ? ang + 360 : ang;
+    respostas.push('argumento θ = ' + mtlAnguloTxt(angPos) + '; forma polar z = ' + mod.txt + '·(cos θ + i sen θ)');
+    passos.push('Forma polar: |z| = √(a² + b²) = √(' + mtlTxt(mod.m2) + ') e tg θ = b/a, com θ no quadrante de (' + mtlTxt(z.re) + ', ' + mtlTxt(z.im) + ').');
+  }
+  if (quer.re) respostas.push('parte real = ' + mtlTxt(z.re));
+  if (quer.im) respostas.push('parte imaginária = ' + mtlTxt(z.im));
+  if (quer.mod) passos.push('Módulo: |z| = √(a² + b²) = √(' + mtlTxt(mtlMul(z.re, z.re)) + ' + ' + mtlTxt(mtlMul(z.im, z.im)) + ') = ' + mod.txt + '.');
+  if (quer.conj) passos.push('Conjugado: troca o sinal da parte imaginária.');
+  if (!passos.length || (expr.replace(/\s+/g, '') !== mtlCTxt(z).replace(/\s+/g, '') && !passos.some(function (x) { return /^Efetuando/.test(x); }) && !nomes.length && !/\^/.test(expr))) passos.unshift('Efetuando as operações com i² = −1: ' + expr + ' = ' + mtlCTxt(z) + '.');
+  return { titulo: titulo, passos: passos, resposta: respostas.join('; '), conferencia: 'conta feita em frações exatas (parte real e parte imaginária separadas); z·z̄ = |z|² = ' + mtlTxt(mod.m2) + '.', aproximado: false };
+}
+
+// ------------------------------------------------------------------ trigonometria de ângulos notáveis
+
+// valores para ângulos do 1º quadrante: [sen, tg, sec] em forma exata (null = não definido)
+const MTL_TRIG = {
+  0: ['0', '0', '1'],
+  15: ['(√6 − √2)/4', '2 − √3', '√6 − √2'],
+  30: ['1/2', '√3/3', '2√3/3'],
+  45: ['√2/2', '1', '√2'],
+  60: ['√3/2', '√3', '2'],
+  75: ['(√6 + √2)/4', '2 + √3', '√6 + √2'],
+  90: ['1', null, null]
+};
+
+function mtlTrigExato(f, alfa) {
+  // f: 'sen' | 'cos' | 'tg' | 'sec' | 'cossec' | 'cotg'; alfa: ângulo de referência 0..90 (múltiplo de 15)
+  const t = MTL_TRIG;
+  if (f === 'sen') return t[alfa][0];
+  if (f === 'cos') return t[90 - alfa][0];
+  if (f === 'tg') return t[alfa][1];
+  if (f === 'sec') return t[alfa][2];
+  if (f === 'cossec') return t[90 - alfa][2];
+  if (f === 'cotg') return t[90 - alfa][1];
+  return null;
+}
+
+function mtlSolverTrig(n) {
+  const re = /\b(sen|seno|cos|cosseno|tg|tan|tangente|sec|secante|cossec|cossecante|cotg|cotan)\s*\(?\s*(-?\s*\d*\s*\*?\s*pi\s*(?:\/\s*\d+)?|-?\d+(?:[.,]\d+)?)(?:\s*(°|º|graus?|rad)\b)?/g;
+  const resultados = [];
+  const passos = [];
+  const notaveis = [];
+  let m;
+  while ((m = re.exec(n)) && resultados.length < 6) {
+    // "cos 2x", "sen 2^k": o 2 é coeficiente de uma incógnita, não um ângulo
+    const depois = n.charAt(m.index + m[0].length);
+    if (/[a-z^*]/.test(depois) && !/(°|º|graus?|rad)$/.test(m[0])) continue;
+    const nome = { seno: 'sen', cosseno: 'cos', tangente: 'tg', tan: 'tg', secante: 'sec', cossecante: 'cossec', cotan: 'cotg' }[m[1]] || m[1];
+    let arg = m[2].replace(/\s+/g, '');
+    let graus;
+    if (/pi/.test(arg)) {
+      const q = /^(-?)(\d*)\*?pi(?:\/(\d+))?$/.exec(arg);
+      if (!q) continue;
+      const k = q[2] === '' ? 1 : Number(q[2]);
+      graus = (q[1] ? -1 : 1) * k * 180 / (q[3] ? Number(q[3]) : 1);
+    } else {
+      graus = Number(arg.replace(',', '.'));
+      if (m[3] === 'rad') graus = graus * 180 / Math.PI;
+    }
+    if (!isFinite(graus)) continue;
+    const red = ((graus % 360) + 360) % 360;
+    const quad = red < 90 ? 1 : red < 180 ? 2 : red < 270 ? 3 : 4;
+    const alfa = quad === 1 ? red : quad === 2 ? 180 - red : quad === 3 ? red - 180 : 360 - red;
+    const rad = red * Math.PI / 180;
+    const valor = { sen: Math.sin(rad), cos: Math.cos(rad), tg: Math.tan(rad), sec: 1 / Math.cos(rad), cossec: 1 / Math.sin(rad), cotg: 1 / Math.tan(rad) }[nome];
+    const sinal = { sen: [1, 1, -1, -1], cos: [1, -1, -1, 1], tg: [1, -1, 1, -1], sec: [1, -1, -1, 1], cossec: [1, 1, -1, -1], cotg: [1, -1, 1, -1] }[nome][quad - 1];
+    const notavel = Math.abs(alfa - Math.round(alfa)) < 1e-9 && Math.round(alfa) % 15 === 0;
+    const texto = nome + ' ' + (Math.abs(graus - Math.round(graus)) < 1e-9 ? Math.round(graus) : mtlAprox(graus).replace('≈ ', '')) + '°';
+    const indefinido = !isFinite(valor) || Math.abs(valor) > 1e12;
+    if (indefinido) { resultados.push(texto + ' não é definido'); notaveis.push(true); passos.push('Em ' + red + '° o ' + (nome === 'tg' || nome === 'sec' ? 'cos' : 'sen') + ' vale 0, então ' + nome + ' não existe.'); continue; }
+    const ex = notavel ? mtlTrigExato(nome, Math.round(alfa)) : null;
+    if (ex) {
+      passos.push(red + '° está no ' + quad + 'º quadrante: ângulo de referência ' + Math.round(alfa) + '°, e ' + nome + ' é ' + (sinal > 0 ? 'positivo' : 'negativo') + ' nesse quadrante.');
+      const composto = /[+−\-]/.test(ex.replace(/^−/, ''));
+      const exSinal = ex === '0' ? ex : (sinal < 0 ? '−' + (composto && !/^\(/.test(ex) ? '(' + ex + ')' : ex) : ex);
+      resultados.push(texto + ' = ' + exSinal + ' (≈ ' + mtlAprox(valor).replace('≈ ', '') + ')');
+      notaveis.push(true);
+      continue;
+    }
+    passos.push(red + '° no ' + quad + 'º quadrante (ângulo não notável: valor calculado numericamente).');
+    resultados.push(texto + ' ≈ ' + mtlAprox(valor).replace('≈ ', ''));
+    notaveis.push(false);
+  }
+  if (!resultados.length) return null;
+  const todos = notaveis.every(Boolean);
+  return { titulo: 'Trigonometria', passos: passos, resposta: resultados.join('; '), conferencia: todos ? 'sen² + cos² = 1 vale para os valores exatos (sen 15° = (√6 − √2)/4 e sen 75° = (√6 + √2)/4 vêm de sen(45° ∓ 30°)).' : 'ângulo que não é múltiplo de 15°: o valor é decimal aproximado (calculadora).', aproximado: false };
+}
+
+// ------------------------------------------------------------------ fachada
+
+function resolverMatematicaLocal(texto) {
+  const n = mtlNorm(texto);
+  if (!n) return null;
+  const ordem = [
+    function () { return mtlSolverMatriz(String(texto), n); },
+    function () { return mtlSolverSistema(n); },
+    function () { return mtlSolverComplexos(n, texto); },
+    function () { return mtlSolverTrig(n); },
+    function () { return mtlSolverCalculo(n); },
+    function () { return mtlSolverFuncao2(n); },
+    function () { return mtlSolverEquacao(n); }
+  ];
+  for (let i = 0; i < ordem.length; i++) {
+    const r = mtlTenta(ordem[i]);
+    if (r && r.resposta) return r;
+  }
+  return null;
+}
+
+const MTL_AVISO = 'Resolvido neste aparelho, sem IA e sem rede, em frações exatas. Confira os dados que você digitou; o programa só lê contas escritas em símbolos (equação, matriz, sistema), não enunciado em linguagem corrente.';
+
+// Resposta para o app. resolvida=true quando uma conta foi feita; resolvida=false quando só há o roteiro do assunto (fórmulas e modelo resolvido).
+// parcial=true quando o texto é um enunciado maior que a conta reconhecida: o resultado é um passo da questão, não a resposta final dela.
+function respostaDeMatematicaLocal(texto) {
+  // Questões de PROVA (várias ou uma só) que o aparelho sabe resolver por conta, com a alternativa: shared/prova-local.mjs
+  let prova = null;
+  try { prova = resolverProvaLocal(texto); } catch (e) { prova = null; }
+  if (prova) {
+    const tp = topicosDaQuestao(texto).map(function (t) { return t.nome; });
+    const faltam = prova.naoReconhecidas.length > 0;
+    return {
+      texto: textoDaProvaLocal(prova),
+      itens: prova.resolvidas.map(function (q) { return { rotulo: 'Questão ' + q.n, expressao: '', valor: null, texto: q.resposta + (q.letra ? ' (alternativa ' + q.letra + ')' : ''), moeda: false, bool: false, erro: false, sensivel: false }; }),
+      resolvida: true, parcial: faltam, topicos: tp,
+      avisos: ['Resolvido neste aparelho, sem IA e sem rede, por conta (frações exatas, busca numérica e enumeração), com conferência automática. Confira o enunciado: se a alternativa não aparece, compare o valor com as opções.']
+    };
+  }
+  const r = resolverMatematicaLocal(texto);
+  const topicos = topicosDaQuestao(texto).map(function (t) { return t.nome; });
+  const palavras = mtlNorm(texto).replace(/[^a-z ]/g, ' ').split(' ').filter(function (w) { return w.length >= 3; }).length;
+  const parcial = !!r && palavras > 22;
+  if (r) {
+    const linhas = [(parcial ? 'Conta intermediária (o enunciado pede mais do que isto): ' : '') + r.titulo + (r.aproximado ? ' (valores aproximados onde marcado ≈)' : '')];
+    r.passos.forEach(function (s, i) { linhas.push((i + 1) + '. ' + s); });
+    linhas.push((parcial ? 'Resultado desta parte: ' : 'Resposta: ') + r.resposta);
+    if (r.conferencia) linhas.push('Conferência: ' + r.conferencia);
+    let corpo = linhas.join('\n');
+    if (parcial) {
+      const roteiro = arsenalDaQuestao(texto, 4500);
+      if (roteiro) corpo += '\n\nA conta acima é só um passo: a questão inteira precisa de raciocínio que só a IA monta. Roteiro do assunto para você seguir:\n' + roteiro;
+    }
+    return { texto: corpo, itens: [{ rotulo: parcial ? 'Resultado parcial' : 'Resposta', expressao: '', valor: null, texto: r.resposta, moeda: false, bool: false, erro: false, sensivel: false }], resolvida: true, parcial: parcial, topicos: topicos, avisos: [parcial ? 'Só uma conta da questão foi resolvida aqui (sem IA); o resultado final precisa do seu raciocínio ou da IA. Confira os dados.' : MTL_AVISO] };
+  }
+  if (!topicos.length) return null;
+  const roteiro = arsenalDaQuestao(texto, 6000);
+  if (!roteiro) return null;
+  return {
+    texto: 'Não consigo resolver esta questão sem a IA: ela pede raciocínio em passos que o programa do aparelho não faz. O que posso dar agora é o roteiro dos assuntos que aparecem nela (' + topicos.slice(0, 4).join(', ') + '), com as fórmulas e, quando há, um modelo resolvido parecido. Monte a resolução com ele e, se quiser, escreva só a equação ou a matriz em símbolos (ex.: "x^3 - 6x^2 + 11x - 6 = 0", "det [1 2; 3 4]", "x + y = 10; x - y = 2") que eu resolvo aqui, com passos.\n\n' + roteiro,
+    itens: [], resolvida: false, parcial: false, topicos: topicos,
+    avisos: ['Roteiro de fórmulas, sem a IA. Não é a resolução da questão: confira cada passo com o enunciado.']
+  };
 }
 
 // ---- shared/territorio-ct.mjs ----
@@ -10090,6 +12179,7 @@ const SKINS = {
 //   perguntas   as que se repetem viram sugestões do mascote
 //   apelidos    "abrir cadunico" -> a tela que a pessoa disse ser essa (ensinado uma vez, vale sempre)
 //   aprovadas   respostas que a pessoa aprovou com 👍; servem quando a IA ou a internet falham
+//   recentes    últimas respostas da IA (mesmo sem 👍), para repetir a pergunta sem internet; valem menos que as aprovadas e vencem em 30 dias
 //   acoes       telas que a pessoa mais abre
 //
 // Regras: nada aqui contém dado de pessoa (cada texto passa de novo por temDadoPessoal ao gravar, ao ler e ao importar);
@@ -10108,7 +12198,8 @@ const MEM_MEIA_VIDA_ESTILO = 60 * MEM_DIA;   // o estilo muda devagar
 const MEM_MEIA_VIDA_TEMAS = 45 * MEM_DIA;
 const MEM_MEIA_VIDA_PERGUNTAS = 90 * MEM_DIA;
 const MEM_VALIDADE_APROVADA = 180 * MEM_DIA; // resposta aprovada antiga pode ter perdido a validade (norma muda)
-const MEM_LIM = { perguntas: 150, temas: 40, acoes: 40, apelidos: 40, aprovadas: 30, textoPergunta: 140, textoResposta: 1800, apelido: 40 };
+const MEM_VALIDADE_RECENTE = 30 * MEM_DIA;   // sem 👍, a resposta guardada vence antes
+const MEM_LIM = { perguntas: 150, temas: 40, acoes: 40, apelidos: 40, aprovadas: 30, recentes: 40, textoPergunta: 140, textoResposta: 1800, apelido: 40 };
 const MEM_LIMIAR_ESTILO = 1.5;               // pontos (com decaimento) para o estilo mudar
 const MEM_SINAIS = ['bom', 'ruim', 'mais_curto', 'mais_detalhe', 'outro_jeito', 'copiou'];
 const MEM_RE_SENSIVEL = /suicid|ideacao|autolesao|automutil|me matar|tirar a propria vida/;
@@ -10117,7 +12208,7 @@ const MEM_RE_DOC = /^[a-z0-9_.-]{1,100}$/i;
 const MEM_RE_CHAVE_ACAO = /^[a-z0-9_-]{1,20}\/[a-z0-9_-]{1,40}$/i;
 
 function memVazia() {
-  return { v: MEM_VERSAO, criadoEm: 0, estilo: { curto: [0, 0], detalhe: [0, 0], exemplos: [0, 0] }, temas: {}, perguntas: {}, acoes: {}, apelidos: {}, aprovadas: [] };
+  return { v: MEM_VERSAO, criadoEm: 0, estilo: { curto: [0, 0], detalhe: [0, 0], exemplos: [0, 0] }, temas: {}, perguntas: {}, acoes: {}, apelidos: {}, aprovadas: [], recentes: [] };
 }
 
 // ------------------------------------------------------------------ peso com decaimento
@@ -10153,6 +12244,23 @@ function memLista(a) { return Array.isArray(a) ? a : []; }
 function memObj(o) { return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; }
 
 // Reconstrói a memória campo a campo: nada do que vem de fora (armazenamento adulterado, arquivo importado) passa sem conferência.
+// Lista de respostas guardadas (aprovadas ou recentes): cada uma passa de novo pela limpeza (sem sensível, sem marcação, tamanho fixo).
+function memLimparRespostas(lista, max) {
+  const saida = [];
+  memLista(lista).slice(0, max).forEach(function (x) {
+    const a = memObj(x);
+    const q = memTextoLimpo(a.q, MEM_LIM.textoPergunta);
+    const r = String(a.r == null ? '' : a.r).replace(/[<>]/g, ' ').trim().slice(0, MEM_LIM.textoResposta);
+    if (!q || !r || MEM_RE_SENSIVEL.test(normalizar(q))) return;
+    const fontes = memLista(a.f).slice(0, 4).map(function (f) {
+      const o = memObj(f);
+      return { documento: memTextoLimpo(o.documento, 160), norma: memTextoLimpo(o.norma, 240), ano: memNum(o.ano, 0, 3000, 0) || undefined, referencia: memTextoLimpo(o.referencia, 200) };
+    });
+    saida.push({ q: q, r: r, f: fontes, d: memLista(a.d).filter(function (d) { return MEM_RE_DOC.test(String(d)); }).slice(0, 6).map(String), app: MEM_RE_ID.test(String(a.app || '')) ? String(a.app) : '', ts: memNum(a.ts, 0, 4102444800000, 0) });
+  });
+  return saida;
+}
+
 function memSanear(bruto) {
   const b = memObj(bruto);
   const m = memVazia();
@@ -10178,17 +12286,8 @@ function memSanear(bruto) {
     const frase = i > 0 ? memTextoLimpo(String(k).slice(0, i), MEM_LIM.apelido) : '';
     if (frase && MEM_RE_CHAVE_ACAO.test(alvo) && String(k).slice(i + 1) === alvo) m.apelidos[normalizar(frase) + '|' + alvo] = alvo;
   });
-  memLista(b.aprovadas).slice(0, MEM_LIM.aprovadas).forEach(function (x) {
-    const a = memObj(x);
-    const q = memTextoLimpo(a.q, MEM_LIM.textoPergunta);
-    const r = String(a.r == null ? '' : a.r).replace(/[<>]/g, ' ').trim().slice(0, MEM_LIM.textoResposta);
-    if (!q || !r || MEM_RE_SENSIVEL.test(normalizar(q))) return;
-    const fontes = memLista(a.f).slice(0, 4).map(function (f) {
-      const o = memObj(f);
-      return { documento: memTextoLimpo(o.documento, 160), norma: memTextoLimpo(o.norma, 240), ano: memNum(o.ano, 0, 3000, 0) || undefined, referencia: memTextoLimpo(o.referencia, 200) };
-    });
-    m.aprovadas.push({ q: q, r: r, f: fontes, d: memLista(a.d).filter(function (d) { return MEM_RE_DOC.test(String(d)); }).slice(0, 6).map(String), app: MEM_RE_ID.test(String(a.app || '')) ? String(a.app) : '', ts: memNum(a.ts, 0, 4102444800000, 0) });
-  });
+  m.aprovadas = memLimparRespostas(b.aprovadas, MEM_LIM.aprovadas);
+  m.recentes = memLimparRespostas(b.recentes, MEM_LIM.recentes);
   return m;
 }
 
@@ -10245,6 +12344,7 @@ function criarMemoria(cfgMem) {
     cortar(dados.acoes, MEM_LIM.acoes, function (p) { return memPeso(p, t, MEM_MEIA_VIDA_TEMAS); });
     Object.keys(dados.temas).forEach(function (k) { if (memPeso(dados.temas[k], t, MEM_MEIA_VIDA_TEMAS) < 0.05) delete dados.temas[k]; });
     dados.aprovadas = dados.aprovadas.filter(function (a) { return t - a.ts < MEM_VALIDADE_APROVADA; }).slice(-MEM_LIM.aprovadas);
+    dados.recentes = dados.recentes.filter(function (a) { return t - a.ts < MEM_VALIDADE_RECENTE; }).slice(-MEM_LIM.recentes);
   }
 
   function mexer(fn) {
@@ -10330,9 +12430,26 @@ function criarMemoria(cfgMem) {
     m.aprovadas.push(limpa);
   }
 
+  // Guarda a resposta que a IA acabou de dar (sem esperar 👍), para a mesma pergunta ter resposta sem internet. A mais nova substitui a de mesma pergunta.
+  // r: resultado de perguntar() com tipo 'ia'. Não guarda resposta vinda da memória, nem de pergunta sensível.
+  function guardarResposta(r) {
+    if (!r || r.tipo !== 'ia' || r.deMemoria) return;
+    mexer(function (m, agoraMs) {
+      const q = memTextoLimpo(r.pergunta, MEM_LIM.textoPergunta);
+      const texto = String(r.texto || '').slice(0, MEM_LIM.textoResposta);
+      if (!q || !texto || MEM_RE_SENSIVEL.test(normalizar(q))) return;
+      const limpa = memLimparRespostas([{ q: q, r: texto, f: memLista(r.fontes), d: memLista(r.docs), app: app, ts: agoraMs }], 1)[0];
+      if (!limpa) return;
+      m.recentes = m.recentes.filter(function (a) { return normalizar(a.q) !== normalizar(q) || a.app !== app; });
+      m.recentes.push(limpa);
+    });
+  }
+
   function esquecerAprovada(m, pergunta) {
     const k = normalizar(memTextoLimpo(pergunta, MEM_LIM.textoPergunta));
     if (k) m.aprovadas = m.aprovadas.filter(function (a) { return normalizar(a.q) !== k || a.app !== app; });
+    // 👎 também tira a cópia recente: a pessoa disse que a resposta não serve, então ela não volta sem internet.
+    if (k) m.recentes = m.recentes.filter(function (a) { return normalizar(a.q) !== k || a.app !== app; });
   }
 
   // ---------------------------------------------------------------- o que se usa do que foi aprendido
@@ -10406,10 +12523,23 @@ function criarMemoria(cfgMem) {
     if (!ativa) return null;
     const t = agora();
     const validas = m.aprovadas.filter(function (a) { return a.app === app && t - a.ts < MEM_VALIDADE_APROVADA; });
+    return acharResposta(validas, pergunta);
+  }
+
+  // Resposta recente da IA (sem 👍) que combina com a pergunta; só vale quando não há aprovada. Critério mais exigente.
+  function recentePara(pergunta) {
+    const m = carregar();
+    if (!ativa) return null;
+    const t = agora();
+    const validas = m.recentes.filter(function (a) { return a.app === app && t - a.ts < MEM_VALIDADE_RECENTE; });
+    return acharResposta(validas, pergunta, 0.7);
+  }
+
+  function acharResposta(validas, pergunta, cobertura) {
     if (!validas.length) return null;
     // A pergunta aprovada pesa mais que o texto da resposta: repetida três vezes no texto indexado.
     const trechos = validas.map(function (a, i) { return { id: 'ap' + i, doc: 'aprovada-' + i, titulo: a.q, norma: '', ano: 0, referencia: '', texto: a.q + ' ' + a.q + ' ' + a.q + ' ' + a.r }; });
-    const achou = buscar(criarIndice(trechos), pergunta, { k: 1, minScore: 1.2, minCobertura: 0.6 });
+    const achou = buscar(criarIndice(trechos), pergunta, { k: 1, minScore: 1.2, minCobertura: cobertura || 0.6 });
     if (!achou.length) return null;
     return validas[Number(achou[0].trecho.id.slice(2))];
   }
@@ -10437,6 +12567,8 @@ function criarMemoria(cfgMem) {
     if (apelidos.length) linhas.push('Apelidos que você me ensinou para telas: ' + apelidos.join(', ') + '.');
     const aprovadas = m.aprovadas.filter(function (a) { return a.app === app; }).length;
     if (aprovadas) linhas.push('Guardo ' + aprovadas + ' resposta(s) que você aprovou, para uso sem internet.');
+    const recentes = m.recentes.filter(function (a) { return a.app === app; }).length;
+    if (recentes) linhas.push('Guardo as ' + recentes + ' últimas respostas da IA, para repetir a pergunta sem internet.');
     return { ativa: ativa, linhas: linhas, vazia: !linhas.length, estilo: e, desde: m.criadoEm };
   }
 
@@ -10454,7 +12586,7 @@ function criarMemoria(cfgMem) {
     return true;
   }
 
-  // esquecer() apaga tudo; esquecer('estilo'|'temas'|'perguntas'|'apelidos'|'aprovadas'|'acoes') apaga só aquela parte.
+  // esquecer() apaga tudo; esquecer('estilo'|'temas'|'perguntas'|'apelidos'|'aprovadas'|'recentes'|'acoes') apaga só aquela parte.
   function esquecer(parte) {
     const m = carregar();
     const vazia = memVazia();
@@ -10476,7 +12608,7 @@ function criarMemoria(cfgMem) {
   return {
     aprenderPergunta: aprenderPergunta, aprenderAcao: aprenderAcao, vincular: vincular, apelidoDe: apelidoDe, avaliar: avaliar,
     estilo: estilo, temasTop: temasTop, preferencias: preferencias, paraEnvio: paraEnvio, frequentes: frequentes, acoesFrequentes: acoesFrequentes,
-    aprovadaPara: aprovadaPara, resumo: resumo, exportar: exportar, importar: importar, esquecer: esquecer, ligar: ligar,
+    aprovadaPara: aprovadaPara, recentePara: recentePara, guardarResposta: guardarResposta, resumo: resumo, exportar: exportar, importar: importar, esquecer: esquecer, ligar: ligar,
     ativa: function () { carregar(); return ativa; }
   };
 }
@@ -10505,6 +12637,7 @@ function memEhSensivel(texto) { return MEM_RE_SENSIVEL.test(normalizar(texto)); 
 //
 // Este arquivo é concatenado com shared/*.mjs por scripts/build.mjs (dist/paulus.v1.js).
 // Por isso: imports em UMA linha, e nomes de função sem repetir entre os módulos.
+
 
 
 
@@ -10573,6 +12706,12 @@ const estado = {
   lugaresPronto: null,
   aparelho: null,
   mem: criarMemoria({ app: '' }),
+  // Cota da IA esgotada (aviso do Worker): até quando o app não tenta a IA (ate) e quando a cota renova de verdade (renova), em ms.
+  pausaIA: { ate: 0, renova: 0, motivo: '' },
+  // Uso sem internet: perguntas que só a base respondeu (a IA estava fora) e quem quer saber quando o estado da IA muda. Só na sessão: nada vai para o disco.
+  pendentes: [],
+  ouvintes: [],
+  ultimoAviso: '|0|0',   // estado parado: sem pausa, sem pendências
   pronto: Promise.resolve()
 };
 
@@ -10658,10 +12797,121 @@ function registrarBusca(b) {
   estado.buscas.push({ id: b.id, rotulos: (b.rotulos || []).map(normalizar).filter(Boolean), buscar: b.buscar });
 }
 
-function limpar() { estado.historico = []; }
+function limpar() { estado.historico = []; estado.pendentes = []; avisarMudancaIA(); }
 function skin(app) { return SKINS[String(app || cfg.app).toLowerCase()] || null; }
 function iaLigada() {
   return !!cfg.endpoint && (typeof navigator === 'undefined' || navigator.onLine !== false);
+}
+
+// ------------------------------------------------------------------ cota da IA esgotada
+
+const PAUSA_PADRAO_MS = 10 * 60 * 1000;   // sem hora no aviso do Worker: testa a IA de novo em 10 minutos
+
+// A IA está em pausa porque o Worker avisou que a cota do dia acabou? Enquanto estiver, o app nem pergunta: responde direto com a base de normas.
+function iaPausada(agora) {
+  return (typeof agora === 'number' ? agora : Date.now()) < estado.pausaIA.ate;
+}
+
+// Guarda o aviso do Worker ({ cota, renova, tentarEm } em ISO, ou os mesmos campos no erro). A pausa nunca passa da renovação.
+function pausarIA(aviso, agora) {
+  const t = typeof agora === 'number' ? agora : Date.now();
+  const a = aviso || {};
+  const renova = Date.parse(a.renova);
+  const tentar = Date.parse(a.tentarEm);
+  let ate = Number.isFinite(tentar) && tentar > t ? tentar : t + PAUSA_PADRAO_MS;
+  if (Number.isFinite(renova) && renova > t) ate = Math.min(ate, renova);
+  estado.pausaIA = { ate: ate, renova: Number.isFinite(renova) && renova > t ? renova : 0, motivo: 'cota' };
+  avisarMudancaIA();
+}
+
+// Falha de rede (o pedido nem chegou ao Worker: sem sinal, rede cativa, tempo esgotado): por 30 s as próximas perguntas nem esperam pela rede.
+// Evita 20 s de espera a cada pergunta em rede ruim. Volta sozinha quando o navegador avisa que a internet voltou.
+const PAUSA_REDE_MS = 30 * 1000;
+function pausarPorRede(agora) {
+  const t = typeof agora === 'number' ? agora : Date.now();
+  estado.pausaIA = { ate: t + PAUSA_REDE_MS, renova: 0, motivo: 'rede' };
+  avisarMudancaIA();
+}
+
+// Por que a IA não está disponível agora? 'cota' | 'rede' | '' (disponível, ou nunca configurada).
+function motivoSemIA() {
+  if (iaPausada()) return estado.pausaIA.motivo || 'cota';
+  if (cfg.endpoint && !iaLigada()) return 'rede';
+  return '';
+}
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  // Internet voltou: a pausa por rede acaba na hora (a de cota continua até a hora dela).
+  window.addEventListener('online', function () { if (estado.pausaIA.motivo === 'rede') retomarIA(); else avisarMudancaIA(); });
+  window.addEventListener('offline', function () { avisarMudancaIA(); });
+}
+
+function retomarIA() { estado.pausaIA = { ate: 0, renova: 0, motivo: '' }; avisarMudancaIA(); }
+
+// "20:00" no horário do aparelho; '' se não souber a hora.
+function horaLocal(ms) {
+  if (!ms) return '';
+  try { return new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
+}
+
+// Frase curta para os avisos e mensagens: quando a IA volta.
+function quandoVoltaIA() {
+  if (motivoSemIA() === 'rede') return 'Estou sem conexão com a IA agora (sem internet ou sinal fraco). Volto a usá-la assim que a conexão voltar.';
+  const h = horaLocal(estado.pausaIA.renova);
+  return h ? 'A cota gratuita da IA acabou por hoje e renova às ' + h + ' (horário do aparelho). Vou testar a IA de novo de tempos em tempos.' : 'A cota gratuita da IA acabou por hoje. Vou testar a IA de novo de tempos em tempos.';
+}
+
+// Estado para o app mostrar uma faixa ("IA em pausa até 20:00"): { pausada, renova (ms ou 0), renovaEm ('HH:MM' ou '') }.
+function estadoDaIA() {
+  const m = motivoSemIA();
+  return { pausada: !!m, motivo: m, renova: m === 'cota' ? estado.pausaIA.renova : 0, renovaEm: m === 'cota' ? horaLocal(estado.pausaIA.renova) : '' };
+}
+
+// Avisos de mudança (v0.27.0): o app mostra uma faixa "sem internet" ou "IA de volta" sem ficar consultando. fn({ pausada, motivo, renova, renovaEm, pendentes }).
+// Só dispara quando o estado muda de verdade (cada resposta bem-sucedida chama retomarIA e não deve gerar aviso). Devolve a função que cancela.
+function chaveDoEstadoIA() { const e = estadoDaIA(); return e.motivo + '|' + e.renova + '|' + estado.pendentes.length; }
+function avisarMudancaIA() {
+  const chave = chaveDoEstadoIA();
+  if (chave === estado.ultimoAviso) return;
+  estado.ultimoAviso = chave;
+  const e = Object.assign({}, estadoDaIA(), { pendentes: estado.pendentes.length });
+  estado.ouvintes.slice().forEach(function (fn) { try { fn(e); } catch (x) { /* um app com erro não derruba os outros */ } });
+}
+function aoMudarIA(fn) {
+  if (typeof fn !== 'function') return function () {};
+  estado.ouvintes.push(fn);
+  return function () { estado.ouvintes = estado.ouvintes.filter(function (x) { return x !== fn; }); };
+}
+
+// Perguntas que só a base respondeu porque a IA estava fora (sem internet, sinal fraco ou cota). Até 5, sem repetir, só nesta sessão.
+// Quando a IA volta, o app pode oferecer "refazer com a IA" (refazerPendentes). A pergunta já passou pelo filtro de dados pessoais.
+const MAX_PENDENTES = 5;
+function registrarPendente(pergunta) {
+  const q = String(pergunta || '').trim().slice(0, 600);
+  if (!q) return;
+  const n = normalizar(q);
+  estado.pendentes = estado.pendentes.filter(function (p) { return normalizar(p.pergunta) !== n; });
+  estado.pendentes.push({ pergunta: q, ts: Date.now() });
+  if (estado.pendentes.length > MAX_PENDENTES) estado.pendentes = estado.pendentes.slice(-MAX_PENDENTES);
+}
+function removerPendente(pergunta) {
+  const n = normalizar(String(pergunta || ''));
+  estado.pendentes = estado.pendentes.filter(function (p) { return normalizar(p.pergunta) !== n; });
+}
+function pendentesIA() { return estado.pendentes.map(function (p) { return { pergunta: p.pergunta, ts: p.ts }; }); }
+
+// Refaz, uma a uma e em ordem, as perguntas pendentes, enquanto a IA estiver disponível. Para na primeira que a IA não puder responder.
+// Devolve [{ pergunta, resposta }] só com as que a IA respondeu de fato.
+async function refazerPendentes(opcoes) {
+  const saida = [];
+  while (estado.pendentes.length && iaLigada() && !iaPausada()) {
+    const p = estado.pendentes.shift();
+    const r = await perguntar(p.pergunta, Object.assign({}, opcoes || {}, { semAcoes: true }));
+    if (r && r.tipo === 'ia' && !r.deMemoria) saida.push({ pergunta: p.pergunta, resposta: r });
+    else if (motivoSemIA()) break;   // a IA caiu de novo: perguntar() já guardou a pergunta de volta como pendente
+  }
+  avisarMudancaIA();
+  return saida;
 }
 
 // ------------------------------------------------------------------ ações e buscas
@@ -10672,7 +12922,10 @@ const REG_ACAO = /^(abrir|abra|abre|ir para|ir pra|va para|va pra|me leve|leve m
 // (verbo + nome de uma ação registrada + palavras de ligação). Qualquer outra palavra manda a frase para a IA,
 // para "chamar o conselho tutelar, como faço?" ou "acessar o PAIF para quê?" não virarem abertura de tela.
 const REG_ACAO_SOLTO = /^(chamar|chame|chama|acessar|acesse|acessa|entrar no|entrar na|entrar nos|entrar nas|entrar em|entre no|entre na|entre nos|entre nas|entre em|iniciar|inicie|lancar|lance|carregar|carregue|vai para|vai pra|ir ao|ir a|va ao|va a)\b\s*(.*)$/;
-const REG_FECHAR = /^(fechar|feche|encerrar|encerre|sair|saia)\b\s*(.*)$/;
+const REG_FECHAR = /^(fechar|feche|fecha|encerrar|encerre|encerra|terminar|termine|termina|finalizar|finalize|finaliza|sair|saia)\b\s*(.*)$/;
+// Palavras que podem sobrar numa frase que é SÓ o pedido de fechar ("terminar esta conversa agora"). Qualquer outra manda a frase para a IA:
+// "terminar a conversa com o cidadão, como faço?" é pergunta, não comando, e não pode apagar a conversa.
+const SOBRA_FECHAR = { esta: 1, essa: 1, este: 1, esse: 1, atual: 1, aberta: 1, aberto: 1, ja: 1, logo: 1, aqui: 1, com: 1, paulus: 1, boa: 1, vista: 1, rota: 1, rotas: 1 };
 const REG_BUSCA = /^(buscar|busque|procurar|procure|achar|ache|encontrar|encontre)\b\s*(.*)$/;
 
 function acharPorRotulo(lista, alvo) {
@@ -10726,6 +12979,16 @@ function tratarAcaoSolta(resto) {
   return tratarAcao(resto);
 }
 
+// Verbo de fechar: só vale se a frase for SÓ o pedido e houver ação de fechar registrada com aquele rótulo; senão null (segue para a IA).
+function tratarFechar(resto) {
+  const a = acharPorRotulo(estado.acoes.filter(function (x) { return x.fechar; }), resto);
+  if (!a) return null;
+  let sobra = ' ' + resto + ' ';
+  a.rotulos.slice().sort(function (x, y) { return y.length - x.length; }).forEach(function (r) { sobra = sobra.split(' ' + r + ' ').join(' '); });
+  if (sobra.split(/\s+/).filter(Boolean).some(function (w) { return !LIGACAO[w] && !SOBRA_FECHAR[w]; })) return null;
+  return tratarAcao(resto, true);
+}
+
 function tratarAcao(resto, fechando) {
   const varias = tratarVariasAcoes(resto, fechando);
   if (varias) return varias;
@@ -10746,9 +13009,10 @@ function tratarAcao(resto, fechando) {
   if (a.confirmar) {
     return { tipo: 'acao', acao: a.id, texto: 'Posso fazer isso, mas preciso da sua confirmação.', pedeConfirmacao: true, confirmar: function () { estado.mem.aprenderAcao(a.id); return a.executar(); } };
   }
-  a.executar();
+  const dito = a.executar();
   estado.mem.aprenderAcao(a.id);
-  return { tipo: 'acao', acao: a.id, texto: 'Pronto.', executada: true };
+  // executar() pode devolver o texto da resposta ("Mapa fechado.", "Não há mapa aberto."); sem texto, "Pronto."
+  return { tipo: 'acao', acao: a.id, texto: typeof dito === 'string' && dito ? dito : 'Pronto.', executada: true };
 }
 
 async function tratarBusca(resto) {
@@ -10978,11 +13242,12 @@ async function pedirIA(texto, opcoes) {
     });
     if (!resp.ok) {
       // O Worker explica a falha em { erro } (limite por minuto, cota do dia...). Guarda o motivo para o app poder mostrá-lo.
-      let motivo = '';
-      try { const j = await resp.json(); motivo = j && j.erro ? String(j.erro).slice(0, 200) : ''; } catch (e) { /* corpo sem JSON */ }
+      let motivo = '', aviso = null;
+      try { const j = await resp.json(); motivo = j && j.erro ? String(j.erro).slice(0, 200) : ''; if (j && j.cota === true) aviso = { renova: j.renova, tentarEm: j.tentarEm }; } catch (e) { /* corpo sem JSON */ }
       const falha = new Error('IA indisponível (' + resp.status + ').');
       falha.status = resp.status;
       falha.motivo = motivo;
+      if (aviso) { falha.cota = true; falha.aviso = aviso; }
       if (resp.status === 401 && typeof cfg.aoNegar === 'function') { try { cfg.aoNegar(falha); } catch (e) { /* o app decide */ } }
       throw falha;
     }
@@ -11040,6 +13305,58 @@ function respostaDasNormas(achados) {
     avisos: [melhor.tipo && melhor.tipo !== 'norma'
       ? 'Trecho de ' + (melhor.tipo === 'apoio' ? 'material de apoio' : 'orientação técnica') + ' (não é norma legal: orienta, não obriga). Confira o documento original.'
       : 'Trecho da base de normas do Paulus. Confira o texto oficial vigente.']
+  };
+}
+
+// Sem IA o app não escreve resposta, só mostra a norma: então mostra a PARTE do trecho que mais fala do que foi perguntado
+// (janela de frases com mais palavras da pergunta), não o começo. Sem palavra em comum, cai no começo, como antes.
+const PALAVRAS_VAZIAS_OFFLINE = /^(para|como|qual|quais|quem|onde|quando|sobre|pode|posso|devo|deve|isso|esse|essa|esta|este|ser|tem|uma|uns|das|dos|com|que|por|nos|nas|mais|muito|fazer|preciso)$/;
+function trechoRelevante(texto, pergunta, max) {
+  const t = String(texto || '');
+  if (t.length <= max) return t;
+  const termos = normalizar(pergunta).split(/\s+/).filter(function (w) { return w.length > 3 && !PALAVRAS_VAZIAS_OFFLINE.test(w); }).map(function (w) { return w.slice(0, 6); });
+  const frases = t.match(/[^.;:!?\n]+[.;:!?]?\s*/g) || [t];
+  const pontos = frases.map(function (f) { const n = normalizar(f); return termos.filter(function (x, i) { return termos.indexOf(x) === i && n.indexOf(x) !== -1; }).length; });
+  let melhor = { ini: 0, fim: 0, pts: 0 };
+  for (let i = 0; i < frases.length; i++) {
+    let len = 0, pts = 0, j = i;
+    while (j < frases.length && (len + frases[j].length <= max || j === i)) { len += frases[j].length; pts += pontos[j]; j++; }
+    if (pts > melhor.pts) melhor = { ini: i, fim: j, pts: pts };
+  }
+  if (!melhor.pts) return resumirTrecho(t, max);
+  let r = frases.slice(melhor.ini, melhor.fim).join('').trim();
+  if (r.length > max) r = resumirTrecho(r, max);
+  return (melhor.ini > 0 ? '[...] ' : '') + r + (melhor.fim < frases.length && !/\[\.\.\.\]$/.test(r) ? ' [...]' : '');
+}
+
+// Cota da IA esgotada: em vez de um trecho só, mostra até 3 dos mais ligados à pergunta (de documentos diferentes quando dá), cada um com a sua referência,
+// e diz com franqueza que isto não é uma resposta elaborada. Mesmo formato de respostaDasNormas (tipo 'norma'), com semIA/cotaEsgotada/renova para o app.
+function respostaDasNormasSemIA(achados, pergunta) {
+  const escolhidos = [];
+  const docsVistos = [];
+  achados.forEach(function (a) {
+    if (escolhidos.length >= 3) return;
+    const d = a.trecho.doc;
+    if (d && docsVistos.indexOf(d) !== -1) return;
+    if (d) docsVistos.push(d);
+    escolhidos.push(a);
+  });
+  // Poucos documentos diferentes: completa com os próximos trechos, até 3.
+  achados.forEach(function (a) { if (escolhidos.length < 3 && escolhidos.indexOf(a) === -1) escolhidos.push(a); });
+  const porTrecho = escolhidos.length === 1 ? 900 : 550;
+  const blocos = escolhidos.map(function (a, i) {
+    const t = a.trecho;
+    const rotulo = [t.titulo || t.doc, t.referencia].filter(Boolean).join(' — ');
+    return (escolhidos.length > 1 ? (i + 1) + ') ' : '') + (rotulo ? rotulo + '\n' : '') + trechoRelevante(t.texto, pergunta, porTrecho);
+  });
+  const tecnicos = escolhidos.some(function (a) { return a.trecho.tipo && a.trecho.tipo !== 'norma'; });
+  return {
+    tipo: 'norma',
+    semIA: true, motivoSemIA: motivoSemIA(), cotaEsgotada: motivoSemIA() === 'cota', renova: estado.pausaIA.renova,
+    texto: (motivoSemIA() === 'rede' ? 'Estou sem conexão com a IA agora' : 'Estou sem a IA agora') + ', então não consigo montar uma resposta sob medida. Estes são os trechos da base de normas mais ligados à sua pergunta:\n\n' + blocos.join('\n\n'),
+    fontes: achados.map(function (a) { return fonteDe(a.trecho, a); }),
+    avisos: [quandoVoltaIA(),
+      tecnicos ? 'Parte dos trechos é material de apoio ou orientação técnica (não é norma legal: orienta, não obriga). Confira o documento original.' : 'Trechos da base de normas do Paulus, sem interpretação do seu caso. Confira o texto oficial vigente.']
   };
 }
 
@@ -11277,7 +13594,18 @@ function respostaDeCalculo(t, o, conta) {
   };
 }
 
+// Envolve o fluxo principal: registra como pendente o que só a base respondeu enquanto a IA estava fora, e tira da fila o que a IA respondeu.
 async function perguntar(texto, opcoes) {
+  const r = await perguntarFluxo(texto, opcoes);
+  if (r && typeof r === 'object' && r.pergunta) {
+    if (r.tipo === 'ia' && !r.deMemoria) { if (estado.pendentes.length) removerPendente(r.pergunta); }
+    else if (motivoSemIA() && (r.tipo === 'norma' || r.deMemoria)) { registrarPendente(r.pergunta); r.pendente = true; }
+    avisarMudancaIA();
+  }
+  return r;
+}
+
+async function perguntarFluxo(texto, opcoes) {
   let o = opcoes || {};
   // Com imagem anexada o pedido é "olhe esta foto": nenhum atalho local (PDF, conta, idioma, rota, busca...) responde no lugar da leitura.
   // O socorro e o filtro de dado pessoal continuam valendo sobre o texto da pergunta.
@@ -11337,13 +13665,14 @@ async function perguntar(texto, opcoes) {
   }
 
   if (!o.semAcoes) {
-    const alvo = normalizar(t);
+    // cortesia no começo não atrapalha o comando: "por favor, termine a conversa", "pode fechar o mapa", "paulus, abre o argo"
+    const alvo = normalizar(t).replace(/^((por favor|paulus|pode|poderia|voce pode|voce poderia|quero que voce|preciso que voce|vamos|vamo|entao|agora)\s+)+/, '');
     let m = REG_ACAO.exec(alvo);
     if (m) return tratarAcao(m[2]);
     m = REG_ACAO_SOLTO.exec(alvo);
     if (m) { const solta = tratarAcaoSolta(m[2]); if (solta) return solta; }
     m = REG_FECHAR.exec(alvo);
-    if (m && acharPorRotulo(estado.acoes.filter(function (x) { return x.fechar; }), m[2])) return tratarAcao(m[2], true);
+    if (m) { const fecha = tratarFechar(m[2]); if (fecha) return fecha; }
     m = REG_BUSCA.exec(alvo);
     if (m) return tratarBusca(m[2]);
   }
@@ -11400,15 +13729,19 @@ async function perguntar(texto, opcoes) {
 
   let motivo = '';
   if (comImagem && !iaLigada()) return { tipo: 'erro', texto: 'Para ler a imagem preciso da IA, que não está ligada agora (sem internet ou sem login).' };
-  if (iaLigada()) {
+  if (comImagem && motivoSemIA()) return { tipo: 'erro', texto: 'Para ler a imagem preciso da IA. ' + quandoVoltaIA(), semIA: true };
+  if (iaLigada() && !iaPausada()) {
     try {
       const r = await pedirIA(t, o);
+      retomarIA();
       if (r.tipo === 'ia' && !Array.isArray(o.historico)) {
         estado.historico.push({ papel: 'usuario', texto: t }, { papel: 'paulus', texto: r.texto });
         estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
       }
       // pergunta e docs ficam no resultado para o app devolver em Paulus.avaliar(r, 'bom'|'ruim'|...)
       r.pergunta = t; r.docs = docs;
+      // Guarda a resposta no aparelho (sem 👍 ainda) para a mesma pergunta ter resposta sem internet. Documento ou foto anexados: não (a resposta depende do arquivo).
+      if (r.tipo === 'ia' && !o.documento && !comImagem) estado.mem.guardarResposta(r);
       if (o.documento) { const dp = docPreparar(o.documento, t); if (dp) r.avisos = (r.avisos || []).concat(['Documento "' + dp.nome + '": ' + dp.trechos.length + ' trecho(s) lido(s)' + (dp.parcial ? ' (os mais ligados à pergunta)' : '') + (dp.omitidosPessoais ? '; ' + dp.omitidosPessoais + ' com dados pessoais ficaram de fora' : '') + '.']); }
       if (aprende) estado.mem.aprenderPergunta(t, docs);
       return r;
@@ -11417,6 +13750,15 @@ async function perguntar(texto, opcoes) {
       if (o.sinal && o.sinal.aborted) return { tipo: 'erro', texto: 'Interrompido.' };
       // Limite de perguntas: a norma offline não resolve e o motivo importa (é só esperar).
       if (e && e.status === 429) return { tipo: 'erro', texto: e.motivo || 'Muitas perguntas seguidas. Aguarde um minuto.', limite: true };
+      // Cota do dia esgotada: o app para de insistir na IA e responde pela base de normas (abaixo), dizendo quando a IA volta.
+      if (e && e.cota) {
+        pausarIA(e.aviso);
+        if (comImagem) return { tipo: 'erro', texto: 'Não consegui ler a imagem: ' + quandoVoltaIA(), semIA: true };
+      } else if (e && !e.status) {
+        // Sem status = o pedido não chegou (rede caiu, sinal fraco, tempo esgotado): pausa curta e responde pelo que há no aparelho.
+        pausarPorRede();
+        if (comImagem) return { tipo: 'erro', texto: 'Não consegui ler a imagem: ' + quandoVoltaIA(), semIA: true };
+      }
       // Foto que não foi lida: um trecho de norma no lugar dela não responderia o que a pessoa quis saber.
       if (comImagem) return { tipo: 'erro', texto: (e && e.motivo) || 'Não consegui ler a imagem agora. Tente de novo em instantes.' };
       motivo = (e && e.motivo) || '';
@@ -11424,8 +13766,17 @@ async function perguntar(texto, opcoes) {
     }
   }
 
+  // Cota do dia esgotada: a resposta diz quando a IA volta e marca o resultado (semIA) para o app poder mostrar uma faixa.
+  const semIAMotivo = motivoSemIA();
+  const pausada = !!semIAMotivo;
+  const extraCota = pausada ? { semIA: true, motivoSemIA: semIAMotivo, cotaEsgotada: semIAMotivo === 'cota', renova: semIAMotivo === 'cota' ? estado.pausaIA.renova : 0 } : {};
+
   // Sem IA, cumprimento e pedido de ajuste não têm o que responder da base de normas (um trecho de norma no lugar de "mais curto" confundiria).
   if (modo === 'saudacao' || modo === 'refinamento' || modo === 'continuar' || modo === 'porque' || modo === 'contestacao') {
+    if (pausada) {
+      const dica = 'A base de normas, os cálculos, as datas, as rotas, o PDF e a revisão de ortografia continuam funcionando sem a IA.';
+      return Object.assign({ tipo: 'sem_resposta', motivo: motivo, texto: modo === 'saudacao' ? 'Oi! ' + quandoVoltaIA() + ' ' + dica + ' Pergunte pelo assunto.' : (modo === 'refinamento' ? 'Não consegui ajustar a resposta agora (preciso da IA). ' : 'Para isso preciso da IA. ') + quandoVoltaIA() + ' Enquanto isso, pergunte pelo assunto que eu mostro o que a base de normas diz.' }, extraCota);
+    }
     return { tipo: 'sem_resposta', texto: modo === 'saudacao' ? 'Oi! Estou sem a IA agora, mas a base de normas continua disponível: pergunte pelo assunto.' : modo === 'refinamento' ? 'Não consegui ajustar a resposta agora. Tente de novo em instantes ou copie o texto e edite à mão.' : 'Não consegui retomar a resposta anterior agora (preciso da IA para isso). Tente de novo em instantes ou pergunte pelo assunto, que a base de normas continua disponível.', motivo: motivo };
   }
 
@@ -11433,13 +13784,42 @@ async function perguntar(texto, opcoes) {
   const aprovada = estado.mem.aprovadaPara(t);
   if (aprovada) {
     estado.mem.aprenderPergunta(t, aprovada.d);
-    return respostaAprovada(aprovada, t);
+    const ra = respostaAprovada(aprovada, t);
+    if (pausada) { Object.assign(ra, extraCota); ra.avisos = (ra.avisos || []).concat([quandoVoltaIA()]); }
+    return ra;
+  }
+  // Resposta recente da IA para a mesma pergunta (sem 👍): melhor que um trecho solto, mas marcada como anterior e possivelmente desatualizada.
+  const recente = estado.mem.recentePara(t);
+  if (recente) {
+    estado.mem.aprenderPergunta(t, recente.d);
+    let quando = '';
+    try { quando = ' de ' + new Date(recente.ts).toLocaleDateString('pt-BR'); } catch (e) { /* sem data */ }
+    const rr = { tipo: 'ia', texto: recente.r, fontes: recente.f, sugestoes: [], acoes: [], geradoPorIA: true, deMemoria: true, pergunta: t, docs: recente.d,
+      avisos: ['Resposta anterior da IA' + quando + ' para esta mesma pergunta, mostrada porque a IA não está disponível agora. Pode estar desatualizada: confira a norma antes de usar em atendimento.'] };
+    if (pausada) { Object.assign(rr, extraCota); rr.avisos.push(quandoVoltaIA()); }
+    return rr;
+  }
+  // Matemática sem IA (cota esgotada ou sem internet): resolve no aparelho o que está escrito em símbolos (equação, matriz, sistema, complexos,
+  // derivada...) e, quando não dá, entrega o roteiro de fórmulas do assunto em vez de um trecho de norma que não tem nada a ver.
+  if (pedidoDeMatematica(t)) {
+    const mt = respostaDeMatematicaLocal(t);
+    if (mt) {
+      const rm = { tipo: 'matematica', texto: mt.texto, itens: mt.itens, resolvida: mt.resolvida, parcial: !!mt.parcial, topicos: mt.topicos, fontes: [], avisos: mt.avisos.slice(), pergunta: t, docs: [] };
+      if (pausada) { Object.assign(rm, extraCota); rm.avisos.push(quandoVoltaIA()); }
+      return rm;
+    }
   }
   if (achados.length) {
-    const rn = respostaDasNormas(achados);
+    const rn = pausada ? respostaDasNormasSemIA(achados, t) : respostaDasNormas(achados);
     rn.pergunta = t; rn.docs = docs;
     estado.mem.aprenderPergunta(t, docs);
     return rn;
+  }
+  if (pausada) {
+    return Object.assign({
+      tipo: 'sem_resposta', motivo: motivo,
+      texto: quandoVoltaIA() + ' Não achei isso na base de normas. Tente com outras palavras ou volte quando a IA estiver disponível; cálculos, datas, rotas, PDF e revisão de ortografia seguem funcionando.'
+    }, extraCota);
   }
   return {
     tipo: 'sem_resposta',
@@ -11468,7 +13848,12 @@ async function consultarNormas(texto, opcoes) {
   return achados.length ? respostaDasNormas(achados) : null;
 }
 
-const Paulus = { init, perguntar, rota: { ler: lerPedidoDeRota, responder: respostaDeRota },
+const Paulus = { init, perguntar,
+  // Cota da IA (v0.25.0): estado() -> { pausada, renova, renovaEm } para o app mostrar "IA em pausa até 20:00"; retomar() força testar a IA de novo (ex.: botão "tentar agora").
+  ia: { estado: estadoDaIA, retomar: retomarIA, aoMudar: aoMudarIA, pendentes: pendentesIA, refazerPendentes: refazerPendentes },
+  rota: { ler: lerPedidoDeRota, responder: respostaDeRota },
+  // Matemática no aparelho, sem IA (v0.28.0): resolver(texto) -> { texto, itens, resolvida, parcial, topicos, avisos } ou null
+  matematica: { responder: respostaDeMatematicaLocal },
   // Modelos 3D didáticos (v0.20.0; mapa de Roraima v0.21.0): ler(texto) -> pedido ou null; responder(texto) -> resultado ou null; catalogo; url(modelo); baixar(modelo)
   modelos: { ler: lerPedidoDeModelo, responder: respostaDeModelo, catalogo: MODELOS_3D, url: function (m) { return urlDoModelo(m, cfg.modelosUrl); }, baixar: modeloBaixar },
   // Geografia no aparelho (v0.16.0): responder(texto, { pontos, lugares, bairros, ruas, aparelho }) -> resultado ou null; coordenadas/formatar/endereco/perto/distancia/gpx/kml para o app usar direto.
@@ -11480,7 +13865,7 @@ const Paulus = { init, perguntar, rota: { ler: lerPedidoDeRota, responder: respo
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
-  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.23.0',
+  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.28.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
