@@ -285,12 +285,17 @@ test('👍 guarda a resposta; sem IA ela volta marcada como da memória, com dat
   assert.match(de.avisos.join(' '), /aprovou em \d{2}\/\d{2}\/\d{4}.*confira/s);
 });
 
-test('sem 👍 a falha da IA continua caindo na norma, como antes', async () => {
+test('sem 👍 a falha da IA devolve a resposta recente da mesma pergunta, marcada como anterior', async () => {
   const { P, amb } = novo();
   await P.perguntar(PERGUNTA);
   amb.estado.falhar = true;
   const de = await P.perguntar(PERGUNTA);
-  assert.equal(de.tipo, 'norma');
+  assert.equal(de.tipo, 'ia');
+  assert.equal(de.deMemoria, true);
+  assert.ok(de.avisos.some(a => /Resposta anterior da IA/.test(a)));
+  // pergunta diferente, nunca vista: cai na norma, como antes
+  const outra = await P.perguntar('qual o horário do CRAS Cauamé?');
+  assert.equal(outra.deMemoria, undefined);
 });
 
 test('👎 apaga a resposta aprovada; pergunta diferente não a usa', async () => {
