@@ -1,14 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { readFileSync } from 'node:fs';
-import { lerPedidoDePdf, respostaDePdf, resolverPaginasPdf, lerPaginasPdf, listaPaginasPdf } from '../shared/pdf.mjs';
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { webcrypto } from 'node:crypto';
+import { lerPedidoDePdf, respostaDePdf, protegerPdfLocal, resolverPaginasPdf, lerPaginasPdf, listaPaginasPdf } from '../shared/pdf.mjs';
 import { juntar } from '../scripts/build.mjs';
 import { carregarPDFLib } from './pdflib-carregar.mjs';
 import { lerHabilidade, escolherHabilidades } from '../shared/habilidades.mjs';
 
 const PDFLib = carregarPDFLib();
 const { PDFDocument, StandardFonts } = PDFLib;
+const cryptoSandbox = { PDFLib, crypto: webcrypto, Uint8Array, ArrayBuffer, TextEncoder, TextDecoder };
+cryptoSandbox.self = cryptoSandbox;
+vm.runInNewContext(readFileSync(new URL('../vendor/pdf-encrypt.umd.js', import.meta.url), 'utf8'), cryptoSandbox);
+const PDFEncrypt = cryptoSandbox.PDFEncrypt;
 
 async function pdfComPaginas(n, rotulo = 'P') {
   const d = await PDFDocument.create(); const f = await d.embedFont(StandardFonts.Helvetica);
@@ -132,9 +140,45 @@ test('pdf: título e autor; salvar como; sem arquivo pede o PDF', async () => {
   assert.equal(r.precisaArquivo, true); assert.match(r.texto, /anexe o arquivo/);
 });
 
-test('pdf: o que não faz é dito com franqueza (tarja, texto existente, senha, compressão)', async () => {
+test('pdf: pedido de proteção só prepara campos locais e nunca retorna o texto da senha', async () => {
   const a = { nome: 'a.pdf', bytes: await pdfComPaginas(2) };
-  for (const [t, re] of [['tarjar o CPF do pdf', /não apaga o texto/], ['comprimir o pdf', /Comprimir/], ['colocar senha no pdf', /senha/], ['mudar o texto do pdf', /texto que já está/], ['assinar digitalmente o pdf', /certificado/]]) {
+  const raw = 'proteger o pdf com senha: NAO-REGISTRAR-ESTE-SEGREDO';
+  assert.equal(lerPedidoDePdf(raw, { temArquivo: true }).operacoes[0].op, 'proteger');
+  const r = await respostaDePdf(raw, [a], { protegerLocal: true });
+  assert.equal(r.requerSenha, true); assert.equal(r.ok, false);
+  assert.match(r.texto, /AES-256/); assert.doesNotMatch(JSON.stringify(r), /NAO-REGISTRAR-ESTE-SEGREDO/);
+  assert.equal((await respostaDePdf('proteger pdf com senha', [], { protegerLocal: true })).precisaArquivo, true);
+  assert.equal(await respostaDePdf('proteger pdf com senha', [a], { protegerLocal: false }), null);
+});
+
+test('pdf: AES-256 protege bytes no aparelho e Poppler abre a cópia somente com a senha', async () => {
+  const senha = 'SenhaDeTeste-2026!';
+  const origem = { nome: 'teste.pdf', bytes: await pdfComPaginas(2, 'CONFIDENCIAL-') };
+  const r = await protegerPdfLocal([origem], senha, PDFEncrypt);
+  assert.equal(r.ok, true, r.texto);
+  assert.equal(r.arquivos[0].nome, 'teste-protegido.pdf');
+  assert.doesNotMatch(JSON.stringify(r), /SenhaDeTeste-2026!/);
+  const dir = mkdtempSync(join(tmpdir(), 'paulus-pdf-aes-'));
+  const arquivo = join(dir, 'protegido.pdf');
+  try {
+    writeFileSync(arquivo, r.arquivos[0].bytes);
+    const semSenha = spawnSync('pdfinfo', [arquivo], { encoding: 'utf8' });
+    assert.notEqual(semSenha.status, 0, 'um leitor não deve abrir sem senha');
+    const info = spawnSync('pdfinfo', ['-upw', senha, arquivo], { encoding: 'utf8' });
+    assert.equal(info.status, 0, info.stderr || info.stdout);
+    assert.match(info.stdout, /Pages:\s+2/);
+    const texto = spawnSync('pdftotext', ['-upw', senha, arquivo, '-'], { encoding: 'utf8' });
+    assert.equal(texto.status, 0, texto.stderr || texto.stdout);
+    assert.match(texto.stdout, /CONFIDENCIAL-1/);
+    const repetido = await protegerPdfLocal([{ nome: 'protegido.pdf', bytes: r.arquivos[0].bytes }], senha, PDFEncrypt);
+    assert.equal(repetido.ok, false); assert.equal(repetido.arquivos.length, 0);
+    assert.doesNotMatch(JSON.stringify(repetido), /SenhaDeTeste-2026!/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('pdf: recursos ainda não suportados são ditos com franqueza (tarja, texto existente, compressão)', async () => {
+  const a = { nome: 'a.pdf', bytes: await pdfComPaginas(2) };
+  for (const [t, re] of [['tarjar o CPF do pdf', /não apaga o texto/], ['comprimir o pdf', /Comprimir/], ['mudar o texto do pdf', /texto que já está/], ['assinar digitalmente o pdf', /certificado/]]) {
     const r = await R(t, [a]);
     assert.equal(r.ok, false, t); assert.match(r.texto, re, t); assert.equal(r.arquivos.length, 0);
   }
@@ -165,6 +209,31 @@ test('pdf (navegador): Paulus.perguntar edita no aparelho, não chama rede e nã
   assert.equal((await P.perguntar('Maria Souza CPF 123.456.789-09 recebe bolsa?')).tipo, 'bloqueio');
 });
 
+test('pdf (cliente): proteção fica no aparelho e senha digitada no chat não entra no histórico enviado à IA', async () => {
+  const chamadas = [];
+  const sandbox = { self: {}, fetch: async (...a) => { chamadas.push(a); throw new Error('sem rede'); }, TextDecoder, AbortController, setTimeout, clearTimeout, navigator: { onLine: true }, PDFLib, PDFEncrypt, Uint8Array, ArrayBuffer, crypto: webcrypto };
+  vm.runInNewContext(juntar(), sandbox);
+  const P = sandbox.self.Paulus;
+  P.init({ app: 'paulus', endpoint: 'https://x.exemplo.workers.dev', conhecimento: [], PDFLib, PDFEncrypt, pdfProtegerLocal: true, minIntervaloMs: 0 });
+  const bytes = await pdfComPaginas(1, 'SEGREDO-DO-CONTEUDO');
+  const senha = 'NAO-VA-PARA-IA-2026';
+  const pedido = await P.perguntar('proteger o pdf com senha: ' + senha, { arquivos: [{ nome: 'ficha.pdf', bytes }] });
+  assert.equal(pedido.tipo, 'pdf'); assert.equal(pedido.requerSenha, true);
+  assert.doesNotMatch(JSON.stringify(pedido), /NAO-VA-PARA-IA-2026/);
+  assert.equal(chamadas.length, 0, 'a operação local não deve fazer chamadas de rede');
+  const protegido = await P.pdf.proteger([{ nome: 'ficha.pdf', bytes }], senha);
+  assert.equal(protegido.ok, true, protegido.texto);
+  assert.doesNotMatch(JSON.stringify(protegido), /NAO-VA-PARA-IA-2026/);
+  P.init({ app: 'argo', endpoint: 'https://x.exemplo.workers.dev', conhecimento: [], PDFLib, PDFEncrypt, pdfProtegerLocal: false, minIntervaloMs: 0 });
+  const fallback = await P.perguntar('proteger o pdf com senha: ' + senha, { arquivos: [{ nome: 'ficha.pdf', bytes }] });
+  assert.equal(fallback.tipo, 'pdf');
+  assert.doesNotMatch(JSON.stringify(fallback), /NAO-VA-PARA-IA-2026/);
+  assert.equal(chamadas.length, 0, 'apps sem formulário não devem enviar o pedido de senha à IA');
+  await P.perguntar('explique um assunto comum', { semAcoes: true });
+  assert.ok(chamadas.length > 0, 'a pergunta comum deve seguir ao Worker');
+  assert.doesNotMatch(JSON.stringify(chamadas), /NAO-VA-PARA-IA-2026/);
+});
+
 test('pdf: habilidade ensina como pedir e é escolhida para perguntas sobre editar PDF', () => {
   const md = readFileSync(new URL('../habilidades/pdf-editar-no-aparelho.md', import.meta.url), 'utf8');
   const h = lerHabilidade(md, 'pdf-editar-no-aparelho.md');
@@ -181,9 +250,9 @@ test('pdf: limpar dados ocultos apaga título, autor e programa', async () => {
   assert.equal(o.getTitle() || '', ''); assert.equal(o.getAuthor() || '', ''); assert.equal(o.getProducer() || '', '');
 });
 
-test('pdf: o que não faz aponta para a Central de PDF do Argo', async () => {
+test('pdf: operações não suportadas apontam para a Central de PDF do Argo', async () => {
   const a = { nome: 'a.pdf', bytes: await pdfComPaginas(2) };
-  for (const [t, re] of [['comprimir o pdf', /Central de PDF/], ['colocar senha no pdf', /Proteger PDF/], ['converter o pdf para word', /PDF → Word/]]) {
+  for (const [t, re] of [['comprimir o pdf', /Central de PDF/], ['converter o pdf para word', /PDF → Word/]]) {
     const r = await R(t, [a]); assert.equal(r.ok, false, t); assert.match(r.texto, re, t);
   }
 });
