@@ -88,6 +88,10 @@ const estado = {
   mem: criarMemoria({ app: '' }),
   // Cota da IA esgotada (aviso do Worker): até quando o app não tenta a IA (ate) e quando a cota renova de verdade (renova), em ms.
   pausaIA: { ate: 0, renova: 0, motivo: '' },
+  // Uso sem internet: perguntas que só a base respondeu (a IA estava fora) e quem quer saber quando o estado da IA muda. Só na sessão: nada vai para o disco.
+  pendentes: [],
+  ouvintes: [],
+  ultimoAviso: '|0|0',   // estado parado: sem pausa, sem pendências
   pronto: Promise.resolve()
 };
 
@@ -173,7 +177,7 @@ function registrarBusca(b) {
   estado.buscas.push({ id: b.id, rotulos: (b.rotulos || []).map(normalizar).filter(Boolean), buscar: b.buscar });
 }
 
-function limpar() { estado.historico = []; }
+function limpar() { estado.historico = []; estado.pendentes = []; avisarMudancaIA(); }
 function skin(app) { return SKINS[String(app || cfg.app).toLowerCase()] || null; }
 function iaLigada() {
   return !!cfg.endpoint && (typeof navigator === 'undefined' || navigator.onLine !== false);
@@ -197,6 +201,7 @@ function pausarIA(aviso, agora) {
   let ate = Number.isFinite(tentar) && tentar > t ? tentar : t + PAUSA_PADRAO_MS;
   if (Number.isFinite(renova) && renova > t) ate = Math.min(ate, renova);
   estado.pausaIA = { ate: ate, renova: Number.isFinite(renova) && renova > t ? renova : 0, motivo: 'cota' };
+  avisarMudancaIA();
 }
 
 // Falha de rede (o pedido nem chegou ao Worker: sem sinal, rede cativa, tempo esgotado): por 30 s as próximas perguntas nem esperam pela rede.
@@ -205,6 +210,7 @@ const PAUSA_REDE_MS = 30 * 1000;
 function pausarPorRede(agora) {
   const t = typeof agora === 'number' ? agora : Date.now();
   estado.pausaIA = { ate: t + PAUSA_REDE_MS, renova: 0, motivo: 'rede' };
+  avisarMudancaIA();
 }
 
 // Por que a IA não está disponível agora? 'cota' | 'rede' | '' (disponível, ou nunca configurada).
@@ -216,10 +222,11 @@ function motivoSemIA() {
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   // Internet voltou: a pausa por rede acaba na hora (a de cota continua até a hora dela).
-  window.addEventListener('online', function () { if (estado.pausaIA.motivo === 'rede') retomarIA(); });
+  window.addEventListener('online', function () { if (estado.pausaIA.motivo === 'rede') retomarIA(); else avisarMudancaIA(); });
+  window.addEventListener('offline', function () { avisarMudancaIA(); });
 }
 
-function retomarIA() { estado.pausaIA = { ate: 0, renova: 0, motivo: '' }; }
+function retomarIA() { estado.pausaIA = { ate: 0, renova: 0, motivo: '' }; avisarMudancaIA(); }
 
 // "20:00" no horário do aparelho; '' se não souber a hora.
 function horaLocal(ms) {
@@ -238,6 +245,53 @@ function quandoVoltaIA() {
 function estadoDaIA() {
   const m = motivoSemIA();
   return { pausada: !!m, motivo: m, renova: m === 'cota' ? estado.pausaIA.renova : 0, renovaEm: m === 'cota' ? horaLocal(estado.pausaIA.renova) : '' };
+}
+
+// Avisos de mudança (v0.27.0): o app mostra uma faixa "sem internet" ou "IA de volta" sem ficar consultando. fn({ pausada, motivo, renova, renovaEm, pendentes }).
+// Só dispara quando o estado muda de verdade (cada resposta bem-sucedida chama retomarIA e não deve gerar aviso). Devolve a função que cancela.
+function chaveDoEstadoIA() { const e = estadoDaIA(); return e.motivo + '|' + e.renova + '|' + estado.pendentes.length; }
+function avisarMudancaIA() {
+  const chave = chaveDoEstadoIA();
+  if (chave === estado.ultimoAviso) return;
+  estado.ultimoAviso = chave;
+  const e = Object.assign({}, estadoDaIA(), { pendentes: estado.pendentes.length });
+  estado.ouvintes.slice().forEach(function (fn) { try { fn(e); } catch (x) { /* um app com erro não derruba os outros */ } });
+}
+function aoMudarIA(fn) {
+  if (typeof fn !== 'function') return function () {};
+  estado.ouvintes.push(fn);
+  return function () { estado.ouvintes = estado.ouvintes.filter(function (x) { return x !== fn; }); };
+}
+
+// Perguntas que só a base respondeu porque a IA estava fora (sem internet, sinal fraco ou cota). Até 5, sem repetir, só nesta sessão.
+// Quando a IA volta, o app pode oferecer "refazer com a IA" (refazerPendentes). A pergunta já passou pelo filtro de dados pessoais.
+const MAX_PENDENTES = 5;
+function registrarPendente(pergunta) {
+  const q = String(pergunta || '').trim().slice(0, 600);
+  if (!q) return;
+  const n = normalizar(q);
+  estado.pendentes = estado.pendentes.filter(function (p) { return normalizar(p.pergunta) !== n; });
+  estado.pendentes.push({ pergunta: q, ts: Date.now() });
+  if (estado.pendentes.length > MAX_PENDENTES) estado.pendentes = estado.pendentes.slice(-MAX_PENDENTES);
+}
+function removerPendente(pergunta) {
+  const n = normalizar(String(pergunta || ''));
+  estado.pendentes = estado.pendentes.filter(function (p) { return normalizar(p.pergunta) !== n; });
+}
+function pendentesIA() { return estado.pendentes.map(function (p) { return { pergunta: p.pergunta, ts: p.ts }; }); }
+
+// Refaz, uma a uma e em ordem, as perguntas pendentes, enquanto a IA estiver disponível. Para na primeira que a IA não puder responder.
+// Devolve [{ pergunta, resposta }] só com as que a IA respondeu de fato.
+async function refazerPendentes(opcoes) {
+  const saida = [];
+  while (estado.pendentes.length && iaLigada() && !iaPausada()) {
+    const p = estado.pendentes.shift();
+    const r = await perguntar(p.pergunta, Object.assign({}, opcoes || {}, { semAcoes: true }));
+    if (r && r.tipo === 'ia' && !r.deMemoria) saida.push({ pergunta: p.pergunta, resposta: r });
+    else if (motivoSemIA()) break;   // a IA caiu de novo: perguntar() já guardou a pergunta de volta como pendente
+  }
+  avisarMudancaIA();
+  return saida;
 }
 
 // ------------------------------------------------------------------ ações e buscas
@@ -920,7 +974,18 @@ function respostaDeCalculo(t, o, conta) {
   };
 }
 
+// Envolve o fluxo principal: registra como pendente o que só a base respondeu enquanto a IA estava fora, e tira da fila o que a IA respondeu.
 async function perguntar(texto, opcoes) {
+  const r = await perguntarFluxo(texto, opcoes);
+  if (r && typeof r === 'object' && r.pergunta) {
+    if (r.tipo === 'ia' && !r.deMemoria) { if (estado.pendentes.length) removerPendente(r.pergunta); }
+    else if (motivoSemIA() && (r.tipo === 'norma' || r.deMemoria)) { registrarPendente(r.pergunta); r.pendente = true; }
+    avisarMudancaIA();
+  }
+  return r;
+}
+
+async function perguntarFluxo(texto, opcoes) {
   let o = opcoes || {};
   // Com imagem anexada o pedido é "olhe esta foto": nenhum atalho local (PDF, conta, idioma, rota, busca...) responde no lugar da leitura.
   // O socorro e o filtro de dado pessoal continuam valendo sobre o texto da pergunta.
@@ -1155,7 +1220,7 @@ async function consultarNormas(texto, opcoes) {
 
 const Paulus = { init, perguntar,
   // Cota da IA (v0.25.0): estado() -> { pausada, renova, renovaEm } para o app mostrar "IA em pausa até 20:00"; retomar() força testar a IA de novo (ex.: botão "tentar agora").
-  ia: { estado: estadoDaIA, retomar: retomarIA },
+  ia: { estado: estadoDaIA, retomar: retomarIA, aoMudar: aoMudarIA, pendentes: pendentesIA, refazerPendentes: refazerPendentes },
   rota: { ler: lerPedidoDeRota, responder: respostaDeRota },
   // Modelos 3D didáticos (v0.20.0; mapa de Roraima v0.21.0): ler(texto) -> pedido ou null; responder(texto) -> resultado ou null; catalogo; url(modelo); baixar(modelo)
   modelos: { ler: lerPedidoDeModelo, responder: respostaDeModelo, catalogo: MODELOS_3D, url: function (m) { return urlDoModelo(m, cfg.modelosUrl); }, baixar: modeloBaixar },
@@ -1168,7 +1233,7 @@ const Paulus = { init, perguntar,
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
-  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.26.0',
+  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.27.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
