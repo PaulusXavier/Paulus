@@ -55,7 +55,7 @@ import { contasDoPedido, contasDeProva } from '../shared/calculo-mais.mjs';
 import { pedeAnalise, montarMensagensRaciocinio, lerRaciocinio, raciocinioComoTexto, buscaDoRaciocinio, completarAchados, conferirRaciocinio, calibrarSeguranca, tipoDeAnalise, disseSemAnalise, montarMensagensReformatar, limparPensamento } from './raciocinar.mjs';
 import { tratarVoz } from './voz.mjs';
 import { consultarCota, ehErroDeCota, marcarCotaEsgotada, cotaMarcadaEsgotada, corpoCotaEsgotada } from './cota.mjs';
-import { imagemSaneada, lerImagem, sanearLeitura, CORPO_MAX_COM_IMAGEM } from './visao.mjs';
+import { imagemSaneada, lerImagem, lerImagens, sanearLeitura, CORPO_MAX_COM_IMAGEM, MAX_IMAGENS_POR_PEDIDO } from './visao.mjs';
 import { montarMensagensPlano, lerPlano, executarPlano, calculosDiretos, numerosAbonados, valoresDosCalculos, mesclarValores } from './planejar.mjs';
 
 // Padrão: modelo grande (raciocina e segue as regras muito melhor) e, se ele falhar (ex.: cota gratuita do dia),
@@ -422,10 +422,10 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     if (rota === '/cota') return json(await consultarCota(env));
     if (!env.AI || typeof env.AI.run !== 'function') return json({ erro: 'Workers AI não está ligado a este Worker.' }, 500);
 
-    // Pedido só de texto: até 64 KB. Com foto (campo "imagem", já reduzida no aparelho) o teto sobe, e só para quem traz o campo.
+    // Pedido só de texto: até 64 KB. Com foto ou até cinco páginas escaneadas, já reduzidas no aparelho, o teto sobe.
     if (Number(request.headers.get('Content-Length')) > CORPO_MAX_COM_IMAGEM) return json({ erro: 'Pedido grande demais.' }, 413);
     const texto = await request.text();
-    if (texto.length > CORPO_MAX_COM_IMAGEM || (texto.length > MAX_CORPO && texto.indexOf('"imagem"') < 0)) return json({ erro: 'Pedido grande demais.' }, 413);
+    if (texto.length > CORPO_MAX_COM_IMAGEM || (texto.length > MAX_CORPO && texto.indexOf('"imagem"') < 0 && texto.indexOf('"imagens"') < 0)) return json({ erro: 'Pedido grande demais.' }, 413);
     let corpo;
     // Chaves que redefinem a conversão para texto (ex.: {"toString":1}) fazem String()/join() estourarem em qualquer campo: saem na leitura.
     try { corpo = JSON.parse(texto, function (k, v) { return (k === 'toString' || k === 'valueOf' || k === 'toJSON') ? undefined : v; }); } catch (e) { return json({ erro: 'JSON inválido.' }, 400); }
@@ -483,27 +483,31 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       return sse('data: ' + JSON.stringify({ t: avisoD }) + '\n\ndata: [DONE]\n\n');
     }
 
-    // Imagem anexada (worker/visao.mjs): um modelo de visão lê a foto e só o texto que ele devolve, sem as linhas com dado pessoal, segue adiante.
+    // Imagem ou página escaneada (worker/visao.mjs): a visão vê o arquivo antes do filtro; só o texto saneado segue ao Paulus.
     // Fica depois do socorro, do filtro da pergunta e do limite por minuto: a leitura gasta uma chamada de IA a mais.
     let imagemLida = null;
-    if (corpo.imagem && !interpretar) {
+    const imagensDoPedido = Array.isArray(corpo.imagens) ? corpo.imagens : (corpo.imagem ? [corpo.imagem] : []);
+    if (imagensDoPedido.length && !interpretar) {
       const recusa = function (texto) {
         if (!querStream) return json({ resposta: texto, fontes: [] });
         return sse('data: ' + JSON.stringify({ t: texto }) + '\n\ndata: [DONE]\n\n');
       };
       if (String(env.VISAO || '').toLowerCase() === 'desligado') return recusa('A leitura de imagens está desligada neste Worker. Descreva o que a imagem mostra, sem dados de pessoas, ou anexe um documento de texto.');
-      const imagem = imagemSaneada(corpo.imagem);
-      if (!imagem) return recusa('Não consegui usar a imagem: aceito JPG, PNG ou WebP, de tamanho moderado. Tire outra foto ou reduza a imagem.');
+      if (imagensDoPedido.length > MAX_IMAGENS_POR_PEDIDO) return recusa('Posso ler até cinco páginas escaneadas por vez. Divida o PDF e tente novamente.');
+      const imagens = imagensDoPedido.map(imagemSaneada);
+      if (imagens.some(function (x) { return !x; })) return recusa('Não consegui usar a imagem: aceito JPG, PNG ou WebP, de tamanho moderado. Tire outra foto ou reduza a imagem.');
+      const pdfEscaneado = corpo.pdfEscaneado === true || Array.isArray(corpo.imagens);
       let bruto;
       if (cotaMarcadaEsgotada()) return json(corpoCotaEsgotada(), 503);
       try {
-        bruto = await lerImagem(env, imagem, pergunta);
+        bruto = pdfEscaneado ? await lerImagens(env, imagens, pergunta) : await lerImagem(env, imagens[0], pergunta);
       } catch (e) {
-        return falhaDaIA(e, 'Não consegui ler a imagem agora (a cota gratuita do dia pode ter acabado).');
+        return falhaDaIA(e, 'Não consegui ler a imagem ou o PDF escaneado agora (a cota gratuita do dia pode ter acabado).');
       }
       const leitura = sanearLeitura(bruto);
       if (!leitura.n) return recusa('Não consegui usar a imagem: não achei nela texto nem conteúdo que eu possa usar sem dados pessoais (nome, CPF, telefone, endereço). Anexe outra foto, sem identificação das pessoas.');
-      imagemLida = { nome: imagem.nome, texto: leitura.texto, perdidos: leitura.perdidos };
+      const paginas = pdfEscaneado ? imagens.length : 1;
+      imagemLida = { nome: pdfEscaneado ? 'PDF escaneado' : imagens[0].nome, texto: leitura.texto, perdidos: leitura.perdidos, paginas: paginas, paginasTotal: Math.max(paginas, Math.min(10000, Number(corpo.paginasTotal) || paginas)), pdfEscaneado: pdfEscaneado };
     }
 
     // Interpretação: só reescreve e classifica a pergunta (nada de busca nem resposta). Falha da IA não derruba o app.

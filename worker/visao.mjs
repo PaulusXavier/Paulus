@@ -19,7 +19,8 @@ export const MODELO_VISAO_PADRAO = '@cf/meta/llama-3.2-11b-vision-instruct';
 export const MODELO_VISAO_RESERVA_PADRAO = '@cf/meta/llama-4-scout-17b-16e-instruct';
 
 export const IMAGEM_MAX_BASE64 = 1150000;     // caracteres do base64 (cerca de 850 KB de imagem); o navegador reduz a foto para caber
-export const CORPO_MAX_COM_IMAGEM = 1300000;  // o corpo do pedido com imagem pode passar dos 64 KB de um pedido só de texto
+export const MAX_IMAGENS_POR_PEDIDO = 5;       // até cinco páginas de um PDF escaneado por leitura
+export const CORPO_MAX_COM_IMAGEM = 6000000;  // até cinco páginas JPEG reduzidas, além de pedidos de uma foto
 const LEITURA_MAX = 6000;                      // caracteres da leitura que seguem para o Paulus
 const RE_DATA_URI = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/;
 
@@ -114,6 +115,19 @@ export async function lerImagem(env, imagem, pergunta) {
     } catch (e) { ultimo = e; }
   }
   throw ultimo || new Error('Leitura vazia.');
+}
+
+// Lê páginas renderizadas localmente de um PDF escaneado, uma chamada por página. O resultado bruto ainda deve passar por sanearLeitura.
+export async function lerImagens(env, imagens, pergunta) {
+  if (!Array.isArray(imagens) || !imagens.length || imagens.length > MAX_IMAGENS_POR_PEDIDO) throw new Error('Quantidade de páginas inválida.');
+  const partes = [];
+  for (let i = 0; i < imagens.length; i++) {
+    const indicada = /^p[aá]gina ([1-9][0-9]{0,4})$/i.exec(String(imagens[i] && imagens[i].nome || ''));
+    const numero = indicada ? Number(indicada[1]) : i + 1;
+    const texto = await lerImagem(env, imagens[i], String(pergunta || '') + ' (PDF escaneado: página ' + numero + ' do arquivo; imagem ' + (i + 1) + ' de ' + imagens.length + ' enviada para leitura)');
+    partes.push('PÁGINA ' + numero + ':\n' + texto);
+  }
+  return partes.join('\n\n');
 }
 
 // Filtro linha a linha: a linha que traz nome, documento, telefone, e-mail ou endereço de residência sai e vira "[linha omitida: dado pessoal]".
