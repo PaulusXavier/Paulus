@@ -419,7 +419,7 @@
     var grade = h('div', { class: 'sg' });
     sug.forEach(function (s, i) { grade.appendChild(h('button', { type: 'button', class: 'ch', on: { click: function () { enviar(s); } } }, [h('i', { text: '\u203A' }), h('span', { text: s })])); });
     hi.appendChild(grade);
-    hi.appendChild(h('small', { text: 'Não digite nome nem documento de pessoas atendidas. Digite / para atalhos. Anexe PDF para editar no aparelho ou uma foto para eu ler (a foto vai para a IA: sem rosto, nome nem documento de pessoas).' }));
+    hi.appendChild(h('small', { text: 'Não digite nome nem documento de pessoas atendidas. Digite / para atalhos. PDFs com texto são lidos no aparelho; PDF escaneado e foto podem enviar páginas/imagens à IA: não use arquivos com dados pessoais.' }));
     log.appendChild(hi); document.body.classList.add('vazio');
     decod(eySp, 'TODOS OS SISTEMAS OPERACIONAIS', 700); decod(dtSp, dataHud(), 600);
     decod(gSp, saudacao() + (nome ? ', ' : '.'), 520); if (nSp) decod(nSp, nome + '.', 700);
@@ -806,8 +806,8 @@
     var vivo = function () { return id === envioAtual; };   // falso depois de Parar ou de um envio mais novo
     var D = window.PaulusDocs, fotos = (D && D.ehImagem) ? arqs.filter(D.ehImagem) : [];
     var pedidoPdf = P.pdf && P.pdf.ler && P.pdf.ler(texto, { temArquivo: arqs.length > 0 });
-    // Só fotos e "leia", "resuma" ou "OCR": o editor de PDF responderia "não faço OCR", mas aqui é pedido de leitura da foto (vai para a IA).
-    var soLeitura = fotos.length > 0 && fotos.length === arqs.length && !!pedidoPdf && !(pedidoPdf.operacoes || []).length && !pedidoPdf.saida && (pedidoPdf.naoSuporta || []).every(function (c) { return c === 'ocr'; });
+    // Pedido de leitura/OCR não é edição: PDF com texto é lido localmente; se for escaneado, páginas passam pelo fluxo de visão com consentimento.
+    var soLeitura = !!pedidoPdf && !(pedidoPdf.operacoes || []).length && !pedidoPdf.saida && (pedidoPdf.naoSuporta || []).every(function (c) { return c === 'ocr'; });
     var querPdf = !!pedidoPdf && !soLeitura;
     var docArqs = fotos.length ? arqs.filter(function (a) { return fotos.indexOf(a) < 0; }) : arqs;
     if (!querPdf && fotos.length > 1) aviso('Leio uma foto por pergunta: usei só a primeira (' + fotos[0].name + ').');
@@ -817,9 +817,16 @@
       var d = par[0], foto = par[1];
       if (d && d.erro) return { tipo: 'erro', texto: d.erro, fontes: [], avisos: [] };
       if (foto && foto.erro) return { tipo: 'erro', texto: foto.erro, fontes: [], avisos: [] };
+      if (d && d.pdfEscaneado && d.imagens) {
+        if (arqs.length > 1) return { tipo: 'erro', texto: 'Para ler um PDF escaneado, envie apenas esse PDF por vez, sem fotos ou outros documentos.', fontes: [], avisos: [] };
+        var avisoPrivacidade = 'Este PDF contém páginas sem texto selecionável. Vou enviar ' + d.imagens.length + ' página(s) como imagem para a IA de visão.' + (d.paginasTotal > d.imagens.length ? ' Há ' + d.paginasTotal + ' página(s) escaneada(s); as demais não serão lidas nesta pergunta.' : '') + ' A visão verá o conteúdo integral antes do filtro de dados pessoais. Não prossiga se houver nome, rosto, documento, telefone ou endereço de pessoa atendida. Continuar?';
+        if (typeof window.confirm !== 'function' || !window.confirm(avisoPrivacidade)) return { tipo: 'erro', texto: 'Leitura cancelada. Anexe uma versão sem dados pessoais ou um PDF com texto selecionável.', fontes: [], avisos: [] };
+        docAtivo = null; renderAnexos();
+      }
       if (d && d.texto) { docAtivo = d; renderAnexos(); }
       return P.perguntar(texto, {
       arquivos: querPdf ? arqs : docArqs, documento: querPdf ? null : docAtivo, imagem: foto && foto.dados ? foto : undefined,
+      imagens: d && d.pdfEscaneado ? d.imagens : undefined, pdfEscaneado: !!(d && d.pdfEscaneado), paginasTotal: d && d.paginasTotal,
       onToken: function (_p, tudo) { if (!vivo()) return; fimPensando(x); legenda(''); x.streamed = true; x.corpo.classList.add('dig'); pintar(x.corpo, tudo, true); rolar(); }
     }); }).then(function (r) {
       if (!vivo()) return;
@@ -853,7 +860,7 @@
     fl.textContent = '';
     anexos.forEach(function (a, i) {
       var foto = window.PaulusDocs && window.PaulusDocs.ehImagem && window.PaulusDocs.ehImagem(a);
-      fl.appendChild(h('div', foto ? { class: 'fc', title: 'A foto é reduzida neste aparelho e enviada à IA para ser lida; não é gravada.' } : { class: 'fc' }, [h('span', { text: foto ? '🖼 ' + a.name + ' · vai para a IA' : a.name }), h('button', { type: 'button', text: '✕', 'aria-label': 'Remover ' + a.name, on: { click: function () { anexos.splice(i, 1); renderAnexos(); } } })]));
+      fl.appendChild(h('div', foto ? { class: 'fc', title: 'A foto é reduzida neste aparelho e enviada à IA para ser lida; não é gravada.' } : { class: 'fc', title: /\.pdf$/i.test(a.name) ? 'PDF com texto é lido no aparelho. Se escaneado, páginas podem ser enviadas à IA de visão após confirmação.' : '' }, [h('span', { text: foto ? '🖼 ' + a.name + ' · vai para a IA' : a.name }), h('button', { type: 'button', text: '✕', 'aria-label': 'Remover ' + a.name, on: { click: function () { anexos.splice(i, 1); renderAnexos(); } } })]));
     });
     if (docAtivo) fl.appendChild(h('div', { class: 'fc doc' }, [h('span', { text: 'Em uso: ' + docAtivo.nome }), h('button', { type: 'button', text: '✕', 'aria-label': 'Parar de usar o documento ' + docAtivo.nome, on: { click: function () { docAtivo = null; renderAnexos(); } } })]));
     ajustarBarra();
@@ -864,6 +871,7 @@
         if (f.size > 30 * 1024 * 1024) { aviso(f.name + ': maior que 30 MB.'); return; }
         if (anexos.length < 10) anexos.push(f);
         if (window.PaulusDocs && window.PaulusDocs.ehImagem && window.PaulusDocs.ehImagem(f)) aviso('A foto vai para a IA ler. Não anexe imagem com rosto, nome ou documento de pessoa atendida.');
+        else if (/\.pdf$/i.test(f.name)) aviso('PDF com texto é lido no aparelho. Se estiver escaneado, até cinco páginas serão enviadas à IA de visão após sua confirmação; não use cópia com dados pessoais.');
       } else aviso(f.name + ': só PDF, DOCX, TXT, MD, CSV, PNG, JPG ou WebP.');
     });
     renderAnexos();

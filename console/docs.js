@@ -1,10 +1,10 @@
 // Leitura de documentos anexados, NO APARELHO (o arquivo não sobe para lugar nenhum; só trechos escolhidos vão à IA, veja shared/documento.mjs).
-// Lê: TXT, MD, CSV, DOCX (sem biblioteca) e PDF com texto (precisa do leitor pdf.js em pdf.min.mjs e pdf.worker.min.mjs, veja docs/DOCUMENTOS.md).
+// Lê: TXT, MD, CSV, DOCX e PDF com texto localmente. PDF escaneado: renderiza até 5 páginas localmente; a IA de visão só recebe após confirmação.
 // Foto (JPG, PNG, WebP): imagem(arquivo) a reduz NO APARELHO (lado maior 1280 px, JPEG; o re-desenho apaga EXIF e GPS) e devolve { nome, dados } para o Paulus
 // mandar ao Worker, que a lê com um modelo de visão (worker/visao.mjs). Quem decide mandar é o console; este arquivo só prepara.
 (function () {
   'use strict';
-  var MAX_BYTES = 25 * 1024 * 1024, MAX_PAGINAS = 80, MAX_CHARS = 600000, TEXTO = { txt: 1, md: 1, csv: 1, tsv: 1 };
+  var MAX_BYTES = 25 * 1024 * 1024, MAX_PAGINAS = 80, MAX_PAGINAS_OCR = 5, MAX_CHARS = 600000, TEXTO = { txt: 1, md: 1, csv: 1, tsv: 1 };
   var cache = typeof WeakMap === 'function' ? new WeakMap() : null, leitor = null;
   function ext(f) { var m = /\.([a-z0-9]+)$/i.exec((f && f.name) || ''); return m ? m[1].toLowerCase() : ''; }
   function ehImagem(f) { return /^image\/(jpeg|png|webp)$/.test((f && f.type) || '') || /^(png|jpe?g|webp)$/.test(ext(f)); }
@@ -41,10 +41,41 @@
   }
   function pdf(buf) {
     return carregarLeitor().then(function (lib) { return lib.getDocument({ data: new Uint8Array(buf) }).promise; }).then(function (doc) {
-      var n = Math.min(doc.numPages, MAX_PAGINAS), out = [], i = 1;
+      var n = Math.min(doc.numPages, MAX_PAGINAS), paginasComTexto = [], paginasSemTexto = [], i = 1;
+      function paginasEscaneadas(lista) {
+        var total = Math.min(lista.length, MAX_PAGINAS_OCR), imagens = [], atual = 0;
+        function renderizar(pg, lado) {
+          var base = pg.getViewport({ scale: 1 }), escala = Math.min(1, lado / Math.max(base.width, base.height));
+          var viewport = pg.getViewport({ scale: escala }), cv = document.createElement('canvas');
+          cv.width = Math.max(1, Math.ceil(viewport.width)); cv.height = Math.max(1, Math.ceil(viewport.height));
+          var ctx = cv.getContext('2d');
+          return pg.render({ canvasContext: ctx, viewport: viewport }).promise.then(function () {
+            var dados = cv.toDataURL('image/jpeg', 0.78); cv.width = 1; cv.height = 1;
+            return dados.length <= 1000000 || lado <= 480 ? dados : renderizar(pg, Math.max(480, Math.floor(lado * 0.75)));
+          });
+        }
+        function proxImagem() {
+          if (atual >= total) return Promise.resolve({ pdfEscaneado: true, nome: 'PDF escaneado', paginasTotal: lista.length, paginasArquivo: doc.numPages, imagens: imagens, texto: paginasComTexto.join('\n\n') });
+          var numero = lista[atual++];
+          return doc.getPage(numero).then(function (pg) { return renderizar(pg, 1280).then(function (dados) {
+            if (!/^data:image\/jpeg;base64,/.test(dados) || dados.length > 1000000) throw new Error('imagem');
+            imagens.push({ nome: 'Página ' + numero, dados: dados });
+          }); }).then(proxImagem);
+        }
+        return proxImagem();
+      }
       function prox() {
-        if (i > n) return Promise.resolve(out.join('\n\n'));
-        return doc.getPage(i++).then(function (pg) { return pg.getTextContent(); }).then(function (c) { out.push(c.items.map(function (x) { return x.str + (x.hasEOL ? '\n' : ' '); }).join('')); return prox(); });
+        if (i > n) {
+          var texto = paginasComTexto.join('\n\n').trim();
+          if (!paginasSemTexto.length) return Promise.resolve(texto);
+          return paginasEscaneadas(paginasSemTexto);
+        }
+        var numero = i++;
+        return doc.getPage(numero).then(function (pg) { return pg.getTextContent(); }).then(function (c) {
+          var pagina = c.items.map(function (x) { return x.str + (x.hasEOL ? '\n' : ' '); }).join('').trim();
+          if (pagina.length < 20) paginasSemTexto.push(numero); else paginasComTexto.push('Página ' + numero + ':\n' + pagina);
+          return prox();
+        });
       }
       return prox();
     });
@@ -55,9 +86,10 @@
     if (ehImagem(f)) p = Promise.resolve({ erro: f.name + ': foto não é lida como documento de texto; ela segue pela leitura de imagem.' });
     else if (!legivel(f)) p = Promise.resolve({ erro: f.name + ': formato que não leio. Use PDF com texto, DOCX, TXT, MD ou CSV.' });
     else if (f.size > MAX_BYTES) p = Promise.resolve({ erro: f.name + ': maior que 25 MB.' });
-    else p = (TEXTO[e] ? f.text() : f.arrayBuffer().then(e === 'docx' ? docx : pdf)).then(function (t) {
+    else p = (TEXTO[e] ? f.text() : f.arrayBuffer().then(function (b) { return e === 'docx' ? docx(b) : pdf(b); })).then(function (t) {
+      if (t && typeof t === 'object' && Array.isArray(t.imagens)) return t;
       t = String(t).replace(/\u0000/g, '').replace(/[ \t]+\n/g, '\n').trim().slice(0, MAX_CHARS);
-      if (t.length < 40) return { erro: f.name + ': não achei texto para ler. Se for PDF escaneado (imagem), eu ainda não faço OCR.' };
+      if (t.length < 40) return { erro: f.name + ': não achei texto nem consegui preparar páginas escaneadas para ler.' };
       return { nome: f.name, texto: t };
     }).catch(function (er) {
       var m = er && er.message, nome = er && er.name;
@@ -70,6 +102,8 @@
   function ler(files) {
     var lista = Array.prototype.slice.call(files || [], 0, 3);
     return Promise.all(lista.map(uma)).then(function (rs) {
+      var escaneado = rs.filter(function (r) { return r && Array.isArray(r.imagens); });
+      if (escaneado.length) return escaneado.length === 1 ? escaneado[0] : { erro: 'Leia um PDF escaneado por vez.' };
       var ok = rs.filter(function (r) { return r.texto; });
       if (!ok.length) return rs[0] || { erro: 'Não há arquivo para ler.' };
       return { nome: ok.map(function (r) { return r.nome; }).join(', '), texto: ok.length === 1 ? ok[0].texto : ok.map(function (r) { return '=== ' + r.nome + ' ===\n' + r.texto; }).join('\n\n') };
