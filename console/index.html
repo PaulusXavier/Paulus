@@ -118,6 +118,14 @@ body[data-estado=idle] #st{color:var(--ok)}
 .ac button,.ac a{font:600 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;padding:0 10px;min-height:28px;display:inline-flex;align-items:center;border-radius:3px}
 .ac a{color:var(--a);border:1px solid #ffb34766;text-decoration:none}
 .ac a:hover{background:#ffb3471a}
+.pdfpw{display:grid;gap:10px;width:min(100%,480px);margin-top:12px;padding:12px;border:1px solid #37e6ff66;border-left:2px solid var(--c);border-radius:4px;background:#03121be8}
+.pdfpw>label{display:grid;gap:5px;color:var(--c2);font:600 11px var(--mono);letter-spacing:.04em}
+.pdfpw input[type=password]{width:100%;min-height:42px;padding:8px 10px;border:1px solid #37e6ff66;border-radius:4px;background:#010b11;color:var(--t);font:16px system-ui,sans-serif}
+.pdfpw .pdfpw-warn{color:#ffd79b;font:12px/1.5 system-ui,sans-serif}
+.pdfpw .pdfpw-check{display:flex;grid-template-columns:auto 1fr;align-items:flex-start;gap:8px;color:var(--t);font:12px/1.4 system-ui,sans-serif}
+.pdfpw .pdfpw-check input{margin:2px 0 0;accent-color:var(--c)}
+.pdfpw button{justify-self:start;min-height:40px;padding:0 14px}
+.pdfpw [role=status]{min-height:1.4em;color:var(--c2);font:12px/1.4 system-ui,sans-serif}
 .ue{position:absolute;left:-2px;opacity:0;transition:opacity .15s;min-height:0;padding:1px 8px;font-size:10px;transform:translateX(-100%) translateX(2px);bottom:6px}
 .u:hover .ue,.u:focus-within .ue{opacity:1}
 @media(hover:none){.ue{opacity:.8}}
