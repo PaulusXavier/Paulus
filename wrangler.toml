@@ -51,6 +51,13 @@ FIREBASE_PROJECT_ID = "paulusia-de285"
 #   npx wrangler secret put VOZ_TOKEN
 # Sem VOZ_URL a rota /voz responde 404 e o console fala com a voz do navegador.
 
+# Cota da IA no console (opcional): o painel (botão de medidor ou /cota) mostra quanto da franquia diária do Workers AI foi usada,
+# quando acaba e quando renova. Para ler o consumo, dois SEGREDOS (veja "Cota da IA no console" em docs/DEPLOY.md):
+#   npx wrangler secret put COTA_CF_CONTA   (ID da conta Cloudflare)
+#   npx wrangler secret put COTA_CF_TOKEN   (token só com Conta > Análises da conta > Leitura)
+# Sem eles o painel mostra só a hora da renovação (00:00 UTC). Franquia diária em neurons (padrão 10000; só mude se a Cloudflare mudar):
+# COTA_NEURONS = "10000"
+
 # Limite de pedidos GLOBAL por IP (recomendado): o contador em memória do Worker vale só por instância, então um abuso espalhado passa por ele.
 # Descomente e CONFIRA a sintaxe na documentação atual da Cloudflare ("Workers Rate Limiting binding"); o handler usa env.LIMITADOR se existir.
 # [[unsafe.bindings]]
