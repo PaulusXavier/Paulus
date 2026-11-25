@@ -37,7 +37,7 @@ import { respostaDeDistritoPolicial, distritosPoliciais } from '../shared/distri
 import { respostaDeSaudeMentalTerritorio, territoriosSaudeMental } from '../shared/saude-mental-territorio.mjs';
 import { respostaDeEquipeCras, equipeCrasCristiana } from '../shared/equipe-cras-cristiana.mjs';
 import { revisarTexto, respostaDeRevisao } from '../shared/revisao-texto.mjs';
-import { respostaDePdf, lerPedidoDePdf, editarPdf, listaPaginasPdf, resolverPaginasPdf } from '../shared/pdf.mjs';
+import { respostaDePdf, lerPedidoDePdf, editarPdf, protegerPdfLocal, listaPaginasPdf, resolverPaginasPdf } from '../shared/pdf.mjs';
 import { lerPedidoDeCentral, instrucaoDeCentral, textoDeCentral } from '../shared/pdf-central.mjs';
 import { ordenarVisitas, analisarEnderecoVisita, EXPLICACAO_VISITAS, ordenarComSugestao, ruasDasVisitas, aprenderVizinhanca, vizinhancaVazia, resumoVizinhanca, explicacaoDaOrdem } from '../shared/visitas.mjs';
 import { compactarHistorico, sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, soPerguntou } from '../shared/conversa.mjs';
@@ -59,6 +59,8 @@ const PADRAO = {
   modelosUrl: '',          // pasta dos modelos 3D didáticos (padrão: modelos/, ao lado da página); o arquivo só é baixado quando a pessoa clica
   centralPdf: false,       // true no app que TEM a Central de PDF (Argo SUAS): o texto diz "faço pela Central"; nos outros, "no Argo SUAS peça..."
   pdfLibUrl: '',           // onde está o pdf-lib.min.js (padrão: na mesma pasta do paulus.v1.js); carregado só no primeiro pedido de PDF
+  pdfEncryptUrl: '',       // biblioteca local AES-256; carregada só para proteger PDFs
+  pdfProtegerLocal: false, // exige interface local própria para senha; true apenas no console
   cidade: '',              // 'Boa Vista, RR': acrescentada ao nome nos links de rota feitos só com texto
   maxHistorico: 10,        // últimas mensagens (5 trocas) que vão inteiras à IA; as perguntas mais antigas vão num resumo curto (shared/conversa.mjs)
   porMinuto: 8,            // limite local (o Worker também limita)
@@ -797,7 +799,9 @@ const memoria = {
 
 // Endereço padrão do pdf-lib: a mesma pasta de onde veio este script (capturado na carga, quando document.currentScript existe).
 const PDF_URL_PADRAO = (typeof document !== 'undefined' && document.currentScript && document.currentScript.src) ? document.currentScript.src.replace(/[^\/]*([?#].*)?$/, 'pdf-lib.min.js') : '';
+const PDF_ENCRYPT_URL_PADRAO = (typeof document !== 'undefined' && document.currentScript && document.currentScript.src) ? document.currentScript.src.replace(/[^\/]*([?#].*)?$/, 'pdf-encrypt.umd.js') : '';
 let pdfLibPromessa = null;
+let pdfEncryptPromessa = null;
 
 function pdfCarregarLib() {
   const g = typeof globalThis !== 'undefined' ? globalThis : self;
@@ -814,6 +818,25 @@ function pdfCarregarLib() {
     document.head.appendChild(s);
   }).catch(function (e) { pdfLibPromessa = null; throw e; });
   return pdfLibPromessa;
+}
+
+function pdfCarregarEncrypt() {
+  const g = typeof globalThis !== 'undefined' ? globalThis : self;
+  if (cfg.PDFEncrypt && typeof cfg.PDFEncrypt.encryptPDF === 'function') return Promise.resolve(cfg.PDFEncrypt);
+  if (g.PDFEncrypt && typeof g.PDFEncrypt.encryptPDF === 'function') return Promise.resolve(g.PDFEncrypt);
+  if (pdfEncryptPromessa) return pdfEncryptPromessa;
+  const url = cfg.pdfEncryptUrl || PDF_ENCRYPT_URL_PADRAO;
+  if (!url || typeof document === 'undefined') return Promise.reject(new Error('proteção PDF indisponível'));
+  if (typeof isSecureContext !== 'undefined' && !isSecureContext) return Promise.reject(new Error('contexto seguro necessário'));
+  if (!g.crypto || !g.crypto.subtle) return Promise.reject(new Error('Web Crypto indisponível'));
+  pdfEncryptPromessa = new Promise(function (resolve, reject) {
+    const s = document.createElement('script');
+    s.src = url; s.async = true;
+    s.onload = function () { g.PDFEncrypt && typeof g.PDFEncrypt.encryptPDF === 'function' ? resolve(g.PDFEncrypt) : reject(new Error('módulo não carregou')); };
+    s.onerror = function () { reject(new Error('módulo não carregou')); };
+    document.head.appendChild(s);
+  }).catch(function (e) { pdfEncryptPromessa = null; throw e; });
+  return pdfEncryptPromessa;
 }
 
 // Aceita File/Blob do navegador ou { nome, bytes }.
@@ -871,24 +894,41 @@ async function tratarPdf(t, o) {
   const arquivos = Array.isArray(o.arquivos) ? o.arquivos : [];
   const temArq = arquivos.length > 0;
   const proprio = lerPedidoDePdf(t, { temArquivo: temArq });
-  // Reduzir, recortar, dados ocultos, texto, PDF ↔ Word/JPG, senha, tarja, assinatura...: quem faz é a Central de PDF do app (Argo SUAS).
+  // Reduzir, recortar, dados ocultos, texto, PDF ↔ Word/JPG, remover senha, tarja, assinatura...: quem faz é a Central de PDF do app (Argo SUAS).
   // O Paulus só entende o pedido e responde com o que a Central fará (ou aponta o caminho); o arquivo não é lido nem enviado.
   const central = lerPedidoDeCentral(t, { temArquivo: temArq });
-  if (central && !(proprio && (proprio.operacoes || []).length)) return respostaDeCentral(t, central, temArq, o);
+  const pedidoProteger = !!(proprio && (proprio.operacoes || []).some(function (op) { return op.op === 'proteger'; }));
+  if (central && (!(proprio && (proprio.operacoes || []).length) || (pedidoProteger && !cfg.pdfProtegerLocal))) return respostaDeCentral(t, central, temArq, o);
   if (!proprio) return null;
+  if (pedidoProteger && !cfg.pdfProtegerLocal) return { tipo: 'pdf', ok: false, texto: 'Não escreva a senha na conversa. Abra a Central de PDF do Argo SUAS e digite-a somente no campo local da ferramenta Proteger com senha.', arquivos: [], precisaArquivo: false, campos: [], naoSuporta: [], avisos: [], fontes: [], pergunta: '', docs: [] };
   let r = null;
   try {
     const lidos = await pdfLerArquivos(arquivos);
-    let PDFLib = null;
-    if (lidos.length) { try { PDFLib = await pdfCarregarLib(); } catch (e) { PDFLib = null; } }
-    r = await respostaDePdf(t, lidos, { PDFLib: PDFLib, converterImagem: pdfImagemParaPng });
+    if (proprio.operacoes.some(function (op) { return op.op === 'proteger'; })) {
+      r = await respostaDePdf(t, lidos, { protegerLocal: cfg.pdfProtegerLocal });
+    } else {
+      let PDFLib = null;
+      if (lidos.length) { try { PDFLib = await pdfCarregarLib(); } catch (e) { PDFLib = null; } }
+      r = await respostaDePdf(t, lidos, { PDFLib: PDFLib, converterImagem: pdfImagemParaPng });
+    }
   } catch (e) { r = null; }
   if (!r) return null;
   if (!Array.isArray(o.historico)) {
     estado.historico.push({ papel: 'usuario', texto: '[pedido de edição de PDF, feito no aparelho]' }, { papel: 'paulus', texto: '[resposta sobre o PDF, feita no aparelho]' });
     estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
   }
-  return { tipo: 'pdf', ok: !!r.ok, texto: r.texto, arquivos: r.arquivos || [], precisaArquivo: !!r.precisaArquivo, campos: r.campos || [], naoSuporta: r.naoSuporta || [], avisos: r.arquivos && r.arquivos.length ? ['Editado neste aparelho: o PDF não foi enviado a nenhum servidor. Confira o resultado antes de usar.'] : [], fontes: [], pergunta: '', docs: [] };
+  return { tipo: 'pdf', ok: !!r.ok, texto: r.texto, arquivos: r.arquivos || [], precisaArquivo: !!r.precisaArquivo, requerSenha: !!r.requerSenha, campos: r.campos || [], naoSuporta: r.naoSuporta || [], avisos: r.arquivos && r.arquivos.length ? ['Feito neste aparelho: o PDF e a senha não foram enviados a nenhum servidor. Confira a cópia antes de usar.'] : [], fontes: [], pergunta: '', docs: [] };
+}
+
+async function pdfProteger(arquivos, senha) {
+  if (!cfg.pdfProtegerLocal) return { ok: false, texto: 'A proteção local por senha não está habilitada neste app.', arquivos: [], avisos: [] };
+  try {
+    const lidos = await pdfLerArquivos(arquivos);
+    const PDFEncrypt = await pdfCarregarEncrypt();
+    return await protegerPdfLocal(lidos, senha, PDFEncrypt);
+  } catch (e) {
+    return { ok: false, texto: 'A proteção AES-256 precisa de HTTPS ou localhost e da biblioteca local disponível. O original não foi alterado.', arquivos: [], avisos: [] };
+  }
 }
 
 // ------------------------------------------------------------------ rota
@@ -1270,7 +1310,7 @@ const Paulus = { init, perguntar,
   equipeCras: { responder: respostaDeEquipeCras, dados: equipeCrasCristiana },
   geo: { responder: respostaDeGeo, tipo: geoTipoDePedido, coordenadas: geoLerCoordenadas, formatar: geoFormatarCoordenadas, endereco: geoNormalizarEndereco, montarEndereco: geoMontarEndereco, perto: function (centro, opcoes, o) { return geoPerto(centro, geoFontes(opcoes || {}), o); }, distanciaKm: geoDistanciaKm, links: geoLinksDeRota, gpx: geoParaGpx, kml: geoParaKml },
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
-  pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
+  pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { const pedido = lerPedidoDePdf(t, { temArquivo: l.length > 0 }); if (pedido && pedido.operacoes.some(function (op) { return op.op === 'proteger'; })) return respostaDePdf(t, l, Object.assign({ protegerLocal: cfg.pdfProtegerLocal }, opc || {})); return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, proteger: pdfProteger, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
   fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.33.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
