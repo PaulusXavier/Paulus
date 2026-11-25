@@ -4,7 +4,9 @@ var V = 'paulus-console-v4';
 var BASE = ['./', 'index.html', 'paulus.v1.js', 'login.js', 'console.js', 'notas.js', 'docs.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
 // Para funcionar sem internet logo na primeira vez: a base de normas, o editor de PDF e o mapa também ficam guardados na instalação.
 // Um a um e sem derrubar a instalação se algum falhar (arquivo pesado, rede lenta, ainda não publicado): o que faltar entra no cache quando for usado.
-var EXTRAS = ['conhecimento.json', 'pdf-lib.min.js', 'leaflet.js', 'lugares-boa-vista.json'];
+var EXTRAS = ['conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'pdf.min.mjs', 'pdf.worker.min.mjs', 'leaflet.js', 'lugares-boa-vista.json'];
+// Rede ruim (sinal que "existe" mas não anda): depois deste tempo, se já há cópia guardada, ela é usada em vez de esperar a rede. Sem cópia, espera a rede.
+var ESPERA_REDE_MS = 4000;
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(V).then(function (c) {
     return c.addAll(BASE).then(function () {
@@ -18,8 +20,28 @@ self.addEventListener('activate', function (e) {
 self.addEventListener('fetch', function (e) {
   var r = e.request;
   if (r.method !== 'GET' || new URL(r.url).origin !== location.origin) return;
-  e.respondWith(fetch(r).then(function (res) {
+  // Cópia guardada: ignora o que vem depois do "?" (ex.: ?v=123), para o endereço com versão achar o arquivo guardado sem ela.
+  var guardada = function () {
+    return caches.match(r).then(function (m) { return m || caches.match(r, { ignoreSearch: true }); });
+  };
+  var daRede = fetch(r).then(function (res) {
     if (res && res.ok && res.type === 'basic') { var cp = res.clone(); caches.open(V).then(function (c) { c.put(r, cp); }).catch(function () { /* sem espaço: segue sem guardar */ }); }
     return res;
-  }).catch(function () { return caches.match(r).then(function (m) { return m || (r.mode === 'navigate' ? caches.match('index.html') : Response.error()); }); }));
+  });
+  // Rede primeiro (atualiza sozinho). Se a rede falhar OU demorar demais e houver cópia, usa a cópia.
+  var comLimite = new Promise(function (resolve, reject) {
+    var feito = false;
+    var terminar = function (fn, v) { if (!feito) { feito = true; fn(v); } };
+    var tempo = setTimeout(function () {
+      guardada().then(function (m) { if (m) terminar(resolve, m); }, function () { /* sem cópia: segue esperando a rede */ });
+    }, ESPERA_REDE_MS);
+    daRede.then(function (res) { clearTimeout(tempo); terminar(resolve, res); }, function (err) { clearTimeout(tempo); terminar(reject, err); });
+  });
+  e.respondWith(comLimite.catch(function () {
+    return guardada().then(function (m) {
+      if (m) return m;
+      if (r.mode === 'navigate') return caches.match('index.html').then(function (i) { return i || caches.match('./'); }).then(function (i) { return i || Response.error(); });
+      return Response.error();
+    });
+  }));
 });
