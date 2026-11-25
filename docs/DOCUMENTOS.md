@@ -10,22 +10,22 @@ No console, o clipe anexa **PDF com texto, DOCX, TXT, MD ou CSV**. Depois é só
 - Trechos com **dado pessoal** (e-mail, CPF/NIS/RG, nome depois de "Sr./Sra./nome:" etc.) **ficam de fora**, no aparelho e de novo no Worker. A resposta avisa quantos ficaram de fora. Se nenhum trecho puder ser usado, o Paulus diz isso e não responde como se tivesse lido.
 - O texto do documento é tratado como dado: ordens escritas dentro dele são ignoradas.
 - O Worker não grava nada. Os trechos vão à IA (Cloudflare Workers AI) só na hora da pergunta.
-- **PDF escaneado** (imagem dentro de PDF) ainda não é lido. Para isso, tire uma foto ou print da página e anexe como imagem (veja abaixo).
+- **Páginas escaneadas em PDF**: as páginas sem texto extraível são renderizadas no aparelho; até cinco delas são enviadas por pergunta para a IA de visão. Em PDF misto, texto selecionável continua sendo extraído localmente. Antes de enviar as páginas em imagem, o console pede confirmação explícita. Não prossiga com cópias que contenham dados pessoais ou identificáveis; páginas além do limite não são lidas nessa pergunta.
 - Pedidos de **editar PDF** (juntar, girar, numerar...) continuam sendo feitos no aparelho, sem IA, e não leem o texto.
 
-## Anexar foto ou print (o Paulus "enxerga")
-O clipe também aceita **JPG, PNG e WebP**: cartaz, print de tela, tabela, gráfico, formulário em branco, foto de um local. Pergunte normalmente ("o que diz este cartaz?", "resuma esta tabela", "explique este gráfico"). Sem texto, o Paulus descreve a imagem. Uma foto por pergunta.
+## Anexar foto, print ou página escaneada (o Paulus "enxerga")
+O clipe também aceita **JPG, PNG e WebP**: cartaz, print de tela, tabela, gráfico, formulário em branco, foto de um local. Páginas de PDFs sem texto selecionável podem ser enviadas para OCR e descrição visual após confirmação (até cinco por pergunta). Pergunte normalmente ("o que diz este cartaz?", "resuma esta tabela", "explique este gráfico"). Sem texto, o Paulus descreve a imagem.
 
 **Como funciona**
-1. O navegador **reduz a foto no aparelho** (lado maior de 1280 px, JPEG). Ao redesenhar, EXIF e GPS somem.
+1. O navegador **reduz a foto no aparelho** (lado maior de 1280 px, JPEG). Páginas de PDF sem texto são renderizadas individualmente no aparelho (máximo cinco por pergunta). Ao converter para JPEG, metadados EXIF/GPS não são levados.
 2. O Worker confere formato, tamanho e assinatura do arquivo e chama um **modelo de visão** do Workers AI (padrão `@cf/meta/llama-3.2-11b-vision-instruct`; reserva `@cf/meta/llama-4-scout-17b-16e-instruct`) para **copiar o texto** da imagem e **descrevê-la**. Não gravamos nada.
 3. A leitura passa pelo **filtro de dados pessoais, linha a linha**: nome, CPF/RG/NIS, telefone, e-mail e endereço de residência saem e viram "[linha omitida: dado pessoal]". Se nada sobrar, o Paulus diz que não conseguiu usar a imagem.
 4. Só o texto limpo vai ao Paulus (dentro de `<imagem_anexada>`, tratado como dado, nunca como instrução). Ele diz "na imagem", avisa o que está [ilegível] e pede para conferir números e nomes no original.
 5. A leitura volta ao navegador e fica **"em uso"** (chip verde): as próximas perguntas seguem como documento anexado, **sem enviar a foto de novo**.
 
-**Limite que precisa estar claro para a equipe:** o modelo de visão **vê a foto inteira** antes do filtro (ela passa pela IA da Cloudflare, sem ser gravada). O filtro protege o que chega ao Paulus e ao histórico, não o que o modelo de visão enxerga. Por isso: **não anexe foto com rosto, nome, documento ou endereço de pessoa atendida**; prefira material público (cartaz, norma, gráfico, tela sem dados). O console avisa ao anexar. Para desligar de vez, use `VISAO = "desligado"` no `wrangler.toml`.
+**Limite que precisa estar claro para a equipe:** o modelo de visão **vê a imagem/página inteira antes do filtro** (ela passa pela IA da Cloudflare, sem ser gravada). O filtro protege o que chega ao Paulus e ao histórico, não o que o modelo de visão enxerga. Por isso: **não anexe foto ou PDF escaneado com rosto, nome, documento, telefone ou endereço de pessoa atendida**; prefira material público (cartaz, norma, gráfico, tela sem dados). O console avisa ao anexar e exige confirmação para PDF escaneado. Para desligar de vez, use `VISAO = "desligado"` no `wrangler.toml`.
 
-**Outros limites:** a leitura pode errar letra pequena, tabela torta e número trocado; o Paulus não reconhece pessoa pelo rosto; HEIC (iPhone) depende do navegador abrir o arquivo (se não abrir, compartilhe como JPG). "Editar PDF" com foto (juntar fotos em PDF, colocar assinatura escaneada) continua no aparelho, sem IA.
+**Outros limites:** a leitura pode errar letra pequena, tabela torta e número trocado; só as cinco primeiras páginas sem texto extraível são lidas por vez; o Paulus não reconhece pessoa pelo rosto; HEIC (iPhone) depende do navegador abrir o arquivo (se não abrir, compartilhe como JPG). "Editar PDF" com foto (juntar fotos em PDF, colocar assinatura escaneada) continua no aparelho, sem IA.
 
 **Publicar:** publique o Worker de novo (`npx wrangler deploy`) e faça o push do site. Na primeira leitura o Worker aceita sozinho a licença da Meta do modelo Llama 3.2 Vision (exigida uma vez por conta da Cloudflare).
 
