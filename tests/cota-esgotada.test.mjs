@@ -173,6 +173,27 @@ test('app: com a cota esgotada a prova de matemática é resolvida no aparelho (
   limparMarcaEsgotada();
 });
 
+test('app: estudo local de espanhol e inglês continua disponível depois de esgotar a cota, sem rede', async () => {
+  limparMarcaEsgotada();
+  const c = { n: 0 };
+  const P = carregar(fetchSemCota(c));
+  P.init(Object.assign({ app: 'argo', endpoint: ENDPOINT, conhecimento: base }, semEspera));
+  await P.perguntar('Quem gere o Cadastro Único no município?');
+  assert.equal(P.ia.estado().pausada, true);
+  const chamadasAntes = c.n;
+
+  const ingles = await P.perguntar('curso de inglês');
+  assert.equal(ingles.tipo, 'ingles');
+  assert.match(ingles.texto, /Trilha local de inglês/);
+  assert.equal(c.n, chamadasAntes);
+
+  const espanhol = await P.perguntar('aula 2 de espanhol');
+  assert.equal(espanhol.tipo, 'espanhol');
+  assert.match(espanhol.texto, /aula 2: Pronomes/);
+  assert.equal(c.n, chamadasAntes);
+  limparMarcaEsgotada();
+});
+
 test('app: cumprimento e "mais curto" com a cota esgotada explicam em vez de dar trecho de norma', async () => {
   limparMarcaEsgotada();
   const c = { n: 0 };
