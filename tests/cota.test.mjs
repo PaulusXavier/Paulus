@@ -194,3 +194,35 @@ test('rota /cota: origem não permitida continua barrada', async () => {
   const r = await m(new Request('https://x/cota', { method: 'POST', headers: { Origin: 'https://outro.exemplo' }, body: '{}' }), { ALLOWED_ORIGINS: ORIGEM });
   assert.equal(r.status, 403);
 });
+
+test('cota: dados derivados (gasto por chamada, quantas cabem, fim do dia, pico e até quando há dados)', () => {
+  // 3 chamadas em 3 horas: 2000 + 1500 + 300 = 3800 neurons
+  const r = montarCota([linha(9, MODELO_GRANDE, 2000, 10), linha(10, MODELO_GRANDE, 1500, 8), linha(10, MODELO_PEQUENO, 300, 2)], AGORA, FRANQUIA_PADRAO);
+  assert.equal(r.usados, 3800);
+  assert.equal(r.neuronsPorChamada, 190);                       // 3800 / 20
+  assert.equal(r.chamadasRestantes, Math.floor(6200 / 190));    // 32
+  assert.equal(new Date(r.horaDePico.hora).toISOString(), '2026-11-24T09:00:00.000Z');
+  assert.equal(r.horaDePico.neurons, 2000);
+  assert.equal(r.dadosAte, '2026-11-24T11:00:00.000Z');         // última hora com consumo termina às 11:00
+  assert.ok(r.ritmoPorHora > 0);
+  assert.ok(r.projecaoDoDia >= r.usados);
+  // por modelo: percentual, gasto por chamada e tokens
+  const grande = r.modelos.find(m => m.modelo === 'llama-3.3-70b-instruct-fp8-fast');
+  assert.equal(grande.percentual, Math.round(3500 / 3800 * 1000) / 10);
+  assert.equal(grande.neuronsPorChamada, Math.round(3500 / 18 * 10) / 10);
+  assert.equal(grande.tokensSaida, 3500);
+  assert.equal(grande.tokensEntrada, 35000);
+});
+
+test('cota: sem consumo ou esgotada, os dados derivados não inventam número', () => {
+  const vazio = montarCota([], AGORA, FRANQUIA_PADRAO);
+  assert.equal(vazio.neuronsPorChamada, null);
+  assert.equal(vazio.chamadasRestantes, null);
+  assert.equal(vazio.ritmoPorHora, null);
+  assert.equal(vazio.projecaoDoDia, null);
+  assert.equal(vazio.horaDePico, null);
+  assert.equal(vazio.dadosAte, null);
+  const esgotada = montarCota([linha(10, MODELO_GRANDE, 12000, 40)], AGORA, FRANQUIA_PADRAO);
+  assert.equal(esgotada.chamadasRestantes, 0);
+  assert.equal(esgotada.projecaoDoDia, null);                  // já acabou: não projeta
+});
