@@ -30,6 +30,7 @@ import { respostaDoPedido } from '../shared/calculo-mais.mjs';
 import { respostaDeMatematicaLocal } from '../shared/matematica-local.mjs';
 import { respostaDeRota, lerPedidoDeRota } from '../shared/rota.mjs';
 import { respostaDeModelo, lerPedidoDeModelo, urlDoModelo, MODELOS_3D } from '../shared/modelos.mjs';
+import { lerPedidoDeQr, respostaDeQr, qrExtrairLinks, qrGerar, qrArquivo, qrCapacidadeBytes } from '../shared/qrcode.mjs';
 import { respostaDeGeo, geoTipoDePedido, geoLerCoordenadas, geoFormatarCoordenadas, geoNormalizarEndereco, geoMontarEndereco, geoPerto, geoFontes, geoLinksDeRota, geoParaGpx, geoParaKml, geoDistanciaKm } from '../shared/geo.mjs';
 import { respostaDeTerritorioCT, territoriosCT } from '../shared/territorio-ct.mjs';
 import { respostaDeDistritoPolicial, distritosPoliciais } from '../shared/distrito-policial.mjs';
@@ -91,6 +92,7 @@ const estado = {
   pausaIA: { ate: 0, renova: 0, motivo: '' },
   // Uso sem internet: perguntas que só a base respondeu (a IA estava fora) e quem quer saber quando o estado da IA muda. Só na sessão: nada vai para o disco.
   pendentes: [],
+  qrAnexo: null,
   ouvintes: [],
   ultimoAviso: '|0|0',   // estado parado: sem pausa, sem pendências
   pronto: Promise.resolve()
@@ -977,7 +979,10 @@ function respostaDeCalculo(t, o, conta) {
 
 // Envolve o fluxo principal: registra como pendente o que só a base respondeu enquanto a IA estava fora, e tira da fila o que a IA respondeu.
 async function perguntar(texto, opcoes) {
+  estado.qrAnexo = null;
   const r = await perguntarFluxo(texto, opcoes);
+  const anexoQr = estado.qrAnexo; estado.qrAnexo = null;
+  if (anexoQr && r && typeof r === 'object' && r.tipo !== 'bloqueio' && r.tipo !== 'crise') { r.qrs = anexoQr.qrs; r.avisos = (r.avisos || []).concat(anexoQr.avisos); }
   if (r && typeof r === 'object' && r.pergunta) {
     if (r.tipo === 'ia' && !r.deMemoria) { if (estado.pendentes.length) removerPendente(r.pergunta); }
     else if (motivoSemIA() && (r.tipo === 'norma' || r.deMemoria)) { registrarPendente(r.pergunta); r.pendente = true; }
@@ -991,7 +996,7 @@ async function perguntarFluxo(texto, opcoes) {
   // Com imagem anexada o pedido é "olhe esta foto": nenhum atalho local (PDF, conta, idioma, rota, busca...) responde no lugar da leitura.
   // O socorro e o filtro de dado pessoal continuam valendo sobre o texto da pergunta.
   const comImagem = imagemValida(o.imagem);
-  if (comImagem) o = Object.assign({}, o, { semPdf: true, semGeo: true, semRevisao: true, semCalculo: true, semEspanhol: true, semAcoes: true, semModelos: true, semRota: true, arquivos: [] });
+  if (comImagem) o = Object.assign({}, o, { semPdf: true, semGeo: true, semRevisao: true, semCalculo: true, semEspanhol: true, semAcoes: true, semModelos: true, semQr: true, semRota: true, arquivos: [] });
   const t = String(texto == null ? '' : texto).replace(/\s+/g, ' ').trim().slice(0, cfg.maxPergunta);
   if (!t) return { tipo: 'erro', texto: 'Escreva uma pergunta.' };
 
@@ -1030,6 +1035,17 @@ async function perguntarFluxo(texto, opcoes) {
   }
 
   if (temDadoPessoal(t)) return { tipo: 'bloqueio', texto: avisoPessoalNoIdioma(idiomaDoPedido(t, o.historico || estado.historico), AVISO_PESSOAL) };
+
+  // QR Code: geração local no aparelho; o filtro de dados pessoais acima continua valendo.
+  if (!o.semQr) {
+    const qp = lerPedidoDeQr(t);
+    if (qp) {
+      const semIA = !iaLigada() || iaPausada();
+      const qr = respostaDeQr(qp, { semIA: semIA, quandoVolta: semIA ? quandoVoltaIA() : '' });
+      if (qr && (!qp.extra || semIA || !qr.qrs.length || qr.bloqueado)) return { tipo: 'qr', texto: qr.texto, qrs: qr.qrs, fontes: [], avisos: qr.avisos.concat(['Gerado neste aparelho; não foi enviado à IA.']), semIA: semIA, pergunta: '', docs: [] };
+      if (qr) estado.qrAnexo = { qrs: qr.qrs, avisos: qr.avisos };
+    }
+  }
 
   // Vocabulário, frases e falsos amigos PT↔ES e PT↔EN (shared/espanhol.mjs e shared/ingles.mjs): no aparelho, sem IA e sem rede. Não entra no histórico.
   if (!o.semEspanhol) {
@@ -1237,6 +1253,7 @@ const Paulus = { init, perguntar,
   matematica: { responder: respostaDeMatematicaLocal },
   // Modelos 3D didáticos (v0.20.0; mapa de Roraima v0.21.0): ler(texto) -> pedido ou null; responder(texto) -> resultado ou null; catalogo; url(modelo); baixar(modelo)
   modelos: { ler: lerPedidoDeModelo, responder: respostaDeModelo, catalogo: MODELOS_3D, url: function (m) { return urlDoModelo(m, cfg.modelosUrl); }, baixar: modeloBaixar },
+  qr: { ler: lerPedidoDeQr, responder: respostaDeQr, links: qrExtrairLinks, gerar: qrGerar, arquivo: qrArquivo, capacidade: function (n, v) { return qrCapacidadeBytes(n || 'M', v); } },
   // Geografia no aparelho (v0.16.0): responder(texto, { pontos, lugares, bairros, ruas, aparelho }) -> resultado ou null; coordenadas/formatar/endereco/perto/distancia/gpx/kml para o app usar direto.
   territorioCT: { responder: respostaDeTerritorioCT, lista: territoriosCT },
   distritosPoliciais: { responder: respostaDeDistritoPolicial, lista: distritosPoliciais },
@@ -1246,7 +1263,7 @@ const Paulus = { init, perguntar,
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
-  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.28.0',
+  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.29.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
