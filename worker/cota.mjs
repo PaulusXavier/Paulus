@@ -214,3 +214,49 @@ export async function consultarCota(env, opcoes) {
   cache.chave = chave; cache.ate = agora + VALIDADE_CACHE_MS; cache.valor = resumo;
   return resumo;
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Cota esgotada: o Workers AI recusa a chamada (erro 4006: "you have used up your daily free allocation of 10,000 neurons").
+// Reconhecer isso permite (1) não tentar o modelo reserva, que gasta da MESMA franquia e falha igual; (2) não chamar a IA de novo
+// a cada pergunta enquanto durar; (3) responder com um 503 próprio, com a hora da renovação, em vez de um 502 genérico.
+// A marca vale só por alguns minutos (e nunca além da renovação das 00:00 UTC): se a pessoa passar para o plano pago ou a cota voltar,
+// o Worker volta a tentar sozinho.
+
+const MARCA_MS = 10 * 60 * 1000;
+const marca = { ate: 0 };
+
+// A exceção que o Workers AI lançou é de cota? (texto, código 4006 ou campo code)
+export function ehErroDeCota(e) {
+  if (!e) return false;
+  const texto = String((e && e.message) || e || '');
+  if (e && (e.code === 4006 || e.code === '4006')) return true;
+  return /\b4006\b|daily free allocation|used up your daily|free allocation of|neurons? (limit|quota)|exceeded (your )?(daily )?(neuron|free)/i.test(texto);
+}
+
+// Registra que a cota acabou agora; vale por MARCA_MS ou até a renovação, o que vier antes.
+export function marcarCotaEsgotada(agora) {
+  const t = typeof agora === 'number' ? agora : Date.now();
+  marca.ate = Math.min(t + MARCA_MS, proximaRenovacao(t));
+}
+
+// Esta instância sabe que a cota está esgotada neste instante?
+export function cotaMarcadaEsgotada(agora) {
+  const t = typeof agora === 'number' ? agora : Date.now();
+  return t < marca.ate;
+}
+
+export function limparMarcaEsgotada() { marca.ate = 0; }
+
+// Corpo da resposta 503 enviada ao navegador. "renova" é a hora real da renovação; "tentarEm" é quando vale perguntar de novo (a marca vence antes).
+export function corpoCotaEsgotada(agora) {
+  const t = typeof agora === 'number' ? agora : Date.now();
+  const renova = proximaRenovacao(t);
+  const tentar = Math.min(t + MARCA_MS, renova);
+  return {
+    erro: 'A cota gratuita da IA acabou por hoje. Volto a responder com a IA quando ela renovar; enquanto isso uso a base de normas.',
+    cota: true,
+    renova: new Date(renova).toISOString(),
+    tentarEm: new Date(tentar).toISOString(),
+    esperaSeg: Math.max(1, Math.ceil((tentar - t) / 1000))
+  };
+}

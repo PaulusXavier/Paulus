@@ -6,7 +6,7 @@
 //   ALLOWED_ORIGINS  endereços dos apps, separados por vírgula, sem barra no fim
 //                    (aceita também o nome antigo ALLOWED_ORIGIN)
 //   MODELO           opcional. Padrão: @cf/meta/llama-3.3-70b-instruct-fp8-fast
-//   MODELO_RESERVA   opcional. Padrão: @cf/meta/llama-3.1-8b-instruct. Usado se o MODELO falhar (ex.: cota gratuita do dia acabou).
+//   MODELO_RESERVA   opcional. Padrão: @cf/meta/llama-3.1-8b-instruct. Usado se o MODELO falhar (ex.: capacidade temporária). Com a cota gratuita do dia esgotada ele NÃO é tentado (mesma franquia): o Worker responde 503 { cota, renova } e o app usa a base de normas.
 //   MODELO_INTERPRETE opcional. Modelo do passo de interpretação (padrão: o mesmo MODELO).
 //   MODELO_RACIOCINIO opcional. Modelo do passo que monta o esqueleto de análise de perguntas de análise (padrão: o mesmo MODELO). RACIOCINIO="desligado" pula o passo (poupa cota).
 //   COTA_CF_CONTA / COTA_CF_TOKEN  opcionais (segredos). Ligam a rota /cota ao consumo do dia (worker/cota.mjs). COTA_NEURONS muda a franquia (padrão 10000).
@@ -54,7 +54,7 @@ import { pareceProblemaDeCalculo, temNumeroPorExtenso } from '../shared/calculo.
 import { contasDoPedido, contasDeProva } from '../shared/calculo-mais.mjs';
 import { pedeAnalise, montarMensagensRaciocinio, lerRaciocinio, raciocinioComoTexto, buscaDoRaciocinio, completarAchados, conferirRaciocinio, calibrarSeguranca, tipoDeAnalise, disseSemAnalise, montarMensagensReformatar, limparPensamento } from './raciocinar.mjs';
 import { tratarVoz } from './voz.mjs';
-import { consultarCota } from './cota.mjs';
+import { consultarCota, ehErroDeCota, marcarCotaEsgotada, cotaMarcadaEsgotada, corpoCotaEsgotada } from './cota.mjs';
 import { imagemSaneada, lerImagem, sanearLeitura, CORPO_MAX_COM_IMAGEM } from './visao.mjs';
 import { montarMensagensPlano, lerPlano, executarPlano, calculosDiretos, numerosAbonados, valoresDosCalculos, mesclarValores } from './planejar.mjs';
 
@@ -230,12 +230,21 @@ async function chamarIA(env, mensagens, stream, extra) {
   const ajuste = extra || {};
   const { principal, reserva } = resolverModelos(env, ajuste);
   const params = parametrosDaIA(mensagens, ajuste, stream);
+  // Cota do dia já esgotada (marcada há pouco): nem tenta. Os dois modelos gastam da mesma franquia, então falhariam igual e a pessoa esperaria à toa.
+  if (cotaMarcadaEsgotada()) { const e = new Error('4006: daily free allocation used up'); e.code = 4006; throw e; }
   let saida;
   try {
     saida = await env.AI.run(principal, params, OPCOES_IA);
   } catch (e) {
+    // Cota acabou: o modelo reserva usa a mesma franquia e também falharia; o erro sobe para virar a resposta de cota esgotada.
+    if (ehErroDeCota(e)) { marcarCotaEsgotada(); throw e; }
     if (reserva === principal) throw e;
-    return await env.AI.run(reserva, params, OPCOES_IA);
+    try {
+      return await env.AI.run(reserva, params, OPCOES_IA);
+    } catch (e2) {
+      if (ehErroDeCota(e2)) marcarCotaEsgotada();
+      throw e2;
+    }
   }
   if (!stream && !extrairTexto(saida) && reserva !== principal) {
     try { return await env.AI.run(reserva, params, OPCOES_IA); } catch (e) { return saida; }
@@ -348,6 +357,12 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     };
     const json = function (obj, status) {
       return new Response(JSON.stringify(obj), { status: status || 200, headers: Object.assign({}, cors, { 'Content-Type': 'application/json; charset=utf-8' }) });
+    };
+    // Falha da IA: cota do dia esgotada vira 503 com a hora da renovação (o navegador passa a responder com a base de normas e para de insistir);
+    // qualquer outra falha segue como 502 com a mensagem de antes.
+    const falhaDaIA = function (e, textoPadrao) {
+      if (ehErroDeCota(e)) { marcarCotaEsgotada(); return json(corpoCotaEsgotada(), 503); }
+      return json({ erro: textoPadrao }, 502);
     };
     const sse = function (corpo) {
       return new Response(corpo, { headers: Object.assign({}, cors, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' }) });
@@ -480,10 +495,11 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       const imagem = imagemSaneada(corpo.imagem);
       if (!imagem) return recusa('Não consegui usar a imagem: aceito JPG, PNG ou WebP, de tamanho moderado. Tire outra foto ou reduza a imagem.');
       let bruto;
+      if (cotaMarcadaEsgotada()) return json(corpoCotaEsgotada(), 503);
       try {
         bruto = await lerImagem(env, imagem, pergunta);
       } catch (e) {
-        return json({ erro: 'Não consegui ler a imagem agora (a cota gratuita do dia pode ter acabado).' }, 502);
+        return falhaDaIA(e, 'Não consegui ler a imagem agora (a cota gratuita do dia pode ter acabado).');
       }
       const leitura = sanearLeitura(bruto);
       if (!leitura.n) return recusa('Não consegui usar a imagem: não achei nela texto nem conteúdo que eu possa usar sem dados pessoais (nome, CPF, telefone, endereço). Anexe outra foto, sem identificação das pessoas.');
@@ -493,11 +509,12 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     // Interpretação: só reescreve e classifica a pergunta (nada de busca nem resposta). Falha da IA não derruba o app.
     if (interpretar) {
       let texto;
+      if (cotaMarcadaEsgotada()) return json(corpoCotaEsgotada(), 503);
       try {
         texto = extrairTexto(await chamarIA(env, montarMensagensInterpretacao({ app: app, historico: corpo.historico, pergunta: pergunta, estado: estadoDaConversa }), false,
           { modelo: env.MODELO_INTERPRETE, max_tokens: 260, temperature: 0 }));
       } catch (e) {
-        return json({ erro: 'A IA não respondeu agora.' }, 502);
+        return falhaDaIA(e, 'A IA não respondeu agora.');
       }
       return json({ interpretacao: lerInterpretacao(texto, pergunta, { estado: estadoDaConversa, historico: corpo.historico }) });
     }
@@ -523,6 +540,9 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
         return sse('data: ' + JSON.stringify({ t: direta.texto }) + '\n\ndata: [DONE]\n\n');
       }
     }
+
+    // Cota do dia esgotada (marcada há pouco): não monta busca, raciocínio nem prompt para uma chamada que vai falhar. O navegador responde com a base de normas.
+    if (cotaMarcadaEsgotada()) return json(corpoCotaEsgotada(), 503);
 
     let comMatematica = false, idiomaExtra = '', leitura = '', raciocinio = '', tipoAnalise = '', achados = [], fontes = [], habilidades = [], tema = false, sobreSi = false, partesDaMsg = [], voce = '', mensagens, pref = null, calculos = null, quantitativo = false, textosDaPessoa = [];
     if (modo === 'saudacao') {
@@ -689,7 +709,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       if (modo === 'saudacao') { ajuste.modelo = env.MODELO_RESERVA || MODELO_RESERVA_PADRAO; ajuste.reserva = env.MODELO || MODELO_PADRAO; }
       saida = await chamarIA(env, mensagens, querStream, ajuste);
     } catch (e) {
-      return json({ erro: 'A IA não respondeu agora (a cota gratuita do dia pode ter acabado).' }, 502);
+      return falhaDaIA(e, 'A IA não respondeu agora (a cota gratuita do dia pode ter acabado).');
     }
 
     const ctxCorrecao = { env: env, mensagens: mensagens, ajuste: ajuste, citaveis: citaveis, fontes: fontes, vistos: hist.filter(function (h) { return h && h.papel !== 'usuario'; }).map(function (h) { return String(h.texto || ''); }) };
