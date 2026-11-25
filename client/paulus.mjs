@@ -550,11 +550,15 @@ const IMAGEM_MAX_ENVIO = 1200000;
 function imagemValida(img) {
   return !!img && typeof img === 'object' && typeof img.dados === 'string' && img.dados.length <= IMAGEM_MAX_ENVIO && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(img.dados);
 }
+function imagensValidas(lista) {
+  return Array.isArray(lista) && lista.length > 0 && lista.length <= 5 && lista.every(imagemValida);
+}
 
 // Leitura da imagem que o Worker devolve ({ nome, texto, perdidos }): o app a mantém "em uso" e as próximas perguntas seguem como documento anexado.
 function imagemLidaSaneada(l) {
   if (!l || typeof l !== 'object' || typeof l.texto !== 'string' || !l.texto.trim()) return null;
-  return { nome: String(l.nome || 'imagem').replace(/[\r\n\t]+/g, ' ').slice(0, 120), texto: l.texto.slice(0, 8000), perdidos: Math.max(0, Math.min(999, Number(l.perdidos) || 0)) };
+  const paginasTotal = Math.max(1, Math.min(10000, Number(l.paginasTotal) || 1));
+  return { nome: String(l.nome || 'imagem').replace(/[\r\n\t]+/g, ' ').slice(0, 120), texto: l.texto.slice(0, 8000), perdidos: Math.max(0, Math.min(999, Number(l.perdidos) || 0)), paginas: Math.max(1, Math.min(paginasTotal, Number(l.paginas) || 1)), paginasTotal: paginasTotal, pdfEscaneado: l.pdfEscaneado === true };
 }
 
 async function pedirIA(texto, opcoes) {
@@ -565,8 +569,9 @@ async function pedirIA(texto, opcoes) {
   let documento = null;
   if (opcoes.documento) {
     documento = docPreparar(opcoes.documento, texto);
-    if (!documento || !documento.trechos.length) return { tipo: 'bloqueio', texto: 'Não consegui usar o documento: os trechos têm dados pessoais (nome, CPF, e-mail...) ou não há texto. Anexe uma versão sem identificação das pessoas.', fontes: [], avisos: [] };
+    if (!documento || !documento.trechos.length) return { tipo: 'bloqueio', texto: 'Não consegui usar o documento: os trechos têm dados pessoais (nome, CPF/e-mail...) ou não há texto. Anexe uma versão sem identificação das pessoas.', fontes: [], avisos: [] };
   }
+  if (opcoes.imagens !== undefined && !imagensValidas(opcoes.imagens)) return { tipo: 'erro', texto: 'Não consegui preparar as páginas do PDF escaneado. Tente anexar um PDF com texto ou até cinco páginas menores.', fontes: [], avisos: [] };
   const fichas = fichasPublicas(texto, opcoes.aba, opcoes.fichas);
   const corpo = {
     app: cfg.app,
@@ -577,6 +582,10 @@ async function pedirIA(texto, opcoes) {
     documento: documento ? { nome: documento.nome, trechos: documento.trechos } : undefined,
     // Foto já reduzida no aparelho (console/docs.js): o Worker a lê com um modelo de visão e só o texto lido, sem dado pessoal, segue adiante.
     imagem: imagemValida(opcoes.imagem) ? { nome: String(opcoes.imagem.nome || 'imagem').slice(0, 120), dados: opcoes.imagem.dados } : undefined,
+    // Páginas de PDF escaneado renderizadas no aparelho; somente até cinco páginas, com consentimento confirmado no console.
+    imagens: opcoes.imagens ? opcoes.imagens.map(function (img) { return { nome: String(img.nome || 'página').slice(0, 120), dados: img.dados }; }) : undefined,
+    pdfEscaneado: opcoes.imagens ? opcoes.pdfEscaneado === true : undefined,
+    paginasTotal: opcoes.imagens ? Math.max(opcoes.imagens.length, Math.min(10000, Number(opcoes.paginasTotal) || opcoes.imagens.length)) : undefined,
     stream: true
   };
   // O que a conversa já firmou (unidade, bairro, município, assunto), montado pelo app. Só campos fechados e curtos.
@@ -652,7 +661,7 @@ async function pedirIA(texto, opcoes) {
     });
     const avisos = ['Resposta gerada por IA. Confira antes de usar em atendimento.'];
     const lida = imagemLidaSaneada(saida.imagem);
-    if (lida) avisos.push('Imagem "' + lida.nome + '": lida por um programa de visão, que pode errar letras e números. Confira no original.' + (lida.perdidos ? ' ' + lida.perdidos + ' linha(s) com dados pessoais ficaram de fora da leitura.' : ''));
+    if (lida) avisos.push((lida.pdfEscaneado ? 'PDF escaneado: ' + lida.paginas + ' de ' + lida.paginasTotal + ' página(s) lida(s) por IA de visão; ' : 'Imagem "' + lida.nome + '": lida por um programa de visão; ') + 'pode errar letras e números. Confira no original.' + (lida.perdidos ? ' ' + lida.perdidos + ' linha(s) com dados pessoais ficaram de fora da leitura.' : ''));
     if (telefonesDesconhecidos(saida.texto, fichas).length) {
       avisos.push('A IA citou um telefone que não consta no diretório. Confirme com a unidade antes de passar adiante.');
     }
@@ -993,9 +1002,9 @@ async function perguntar(texto, opcoes) {
 
 async function perguntarFluxo(texto, opcoes) {
   let o = opcoes || {};
-  // Com imagem anexada o pedido é "olhe esta foto": nenhum atalho local (PDF, conta, idioma, rota, busca...) responde no lugar da leitura.
+  // Com imagem ou páginas de PDF escaneado, nenhum atalho local (PDF, conta, idioma, rota, busca...) responde no lugar da leitura visual.
   // O socorro e o filtro de dado pessoal continuam valendo sobre o texto da pergunta.
-  const comImagem = imagemValida(o.imagem);
+  const comImagem = imagemValida(o.imagem) || imagensValidas(o.imagens);
   if (comImagem) o = Object.assign({}, o, { semPdf: true, semGeo: true, semRevisao: true, semCalculo: true, semEspanhol: true, semAcoes: true, semModelos: true, semQr: true, semRota: true, arquivos: [] });
   const t = String(texto == null ? '' : texto).replace(/\s+/g, ' ').trim().slice(0, cfg.maxPergunta);
   if (!t) return { tipo: 'erro', texto: 'Escreva uma pergunta.' };
@@ -1263,7 +1272,7 @@ const Paulus = { init, perguntar,
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
-  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.30.0',
+  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.31.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
