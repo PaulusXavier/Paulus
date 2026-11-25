@@ -67,6 +67,10 @@ Roteiros `habilidades/anona-*.md` (32), todos com `apps: anona`, escritos a part
 
 Regras do grupo: o roteiro descreve só o que o código do app faz; data, valor e regra do programa vêm da base do app (`<base_do_app>`) e das normas, nunca do roteiro; NIS, CPF, nome e endereço de família nunca são pedidos nem repetidos. **Quando o Anona mudar:** atualize o roteiro da parte alterada (e o bloco do Anona em `worker/apps.mjs`), rode `npm test` e publique o Worker de novo.
 
+## Matemática de prova (v0.24.0)
+
+Não é um roteiro de `habilidades/`: fica no prompt do Worker (`BLOCO_MATEMATICA` em `worker/prompt.mjs`, método sempre) e em `worker/matematica.mjs` (`TOPICOS`: arsenal e modelos resolvidos por assunto; só entram os assuntos que aparecem na questão ou na foto, até 13 mil caracteres). `pedidoDeMatematica` (`shared/pedido.mjs`) decide se a mensagem é questão de prova; nesse caso a IA responde com 4096 tokens e temperatura 0,1, sem o passo de contas do SUAS. Para ensinar um assunto novo, acrescente um item em `TOPICOS` (id, nome, `detecta`, `arsenal`, `modelos`) e um teste com a conta conferida de forma independente (`tests/matematica-prova.test.mjs`). O programa confere à parte as bijeções com ordem e os logaritmos com dados aproximados (`contasDeProva`).
+
 ## Ferramentas do Argo (v0.23.0)
 
 Roteiros `habilidades/ferramentas-argo-*.md` (23), todos com `apps: argo`, escritos a partir do código da aba Ferramentas (`TOOLS_CATALOG` em `js/app.js` do Argo): visão geral; relógio, cronômetro, temporizador e alarmes; calculadora; renda per capita; idade e datas; QR Code; contador de atendimentos; calculadora de prazos; conferir NIS e CPF; porcentagens; soma e média de uma lista; valor por extenso; link de WhatsApp; convite em lote para grupo; formatar texto; acompanhamento de famílias; analisador de planilha; bloco de notas; o que fica salvo (privacidade); qual ferramenta usar; rotina do dia; como o Paulus se liga às ferramentas; problemas comuns. O guia de apoio na base é `knowledge/documentos/ferramentas-argo-guia-apoio.md` (tipo apoio, pacote geral, `revisao: pendente`).
