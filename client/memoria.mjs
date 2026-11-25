@@ -6,6 +6,7 @@
 //   perguntas   as que se repetem viram sugestões do mascote
 //   apelidos    "abrir cadunico" -> a tela que a pessoa disse ser essa (ensinado uma vez, vale sempre)
 //   aprovadas   respostas que a pessoa aprovou com 👍; servem quando a IA ou a internet falham
+//   recentes    últimas respostas da IA (mesmo sem 👍), para repetir a pergunta sem internet; valem menos que as aprovadas e vencem em 30 dias
 //   acoes       telas que a pessoa mais abre
 //
 // Regras: nada aqui contém dado de pessoa (cada texto passa de novo por temDadoPessoal ao gravar, ao ler e ao importar);
@@ -24,7 +25,8 @@ const MEM_MEIA_VIDA_ESTILO = 60 * MEM_DIA;   // o estilo muda devagar
 const MEM_MEIA_VIDA_TEMAS = 45 * MEM_DIA;
 const MEM_MEIA_VIDA_PERGUNTAS = 90 * MEM_DIA;
 const MEM_VALIDADE_APROVADA = 180 * MEM_DIA; // resposta aprovada antiga pode ter perdido a validade (norma muda)
-const MEM_LIM = { perguntas: 150, temas: 40, acoes: 40, apelidos: 40, aprovadas: 30, textoPergunta: 140, textoResposta: 1800, apelido: 40 };
+const MEM_VALIDADE_RECENTE = 30 * MEM_DIA;   // sem 👍, a resposta guardada vence antes
+const MEM_LIM = { perguntas: 150, temas: 40, acoes: 40, apelidos: 40, aprovadas: 30, recentes: 40, textoPergunta: 140, textoResposta: 1800, apelido: 40 };
 const MEM_LIMIAR_ESTILO = 1.5;               // pontos (com decaimento) para o estilo mudar
 const MEM_SINAIS = ['bom', 'ruim', 'mais_curto', 'mais_detalhe', 'outro_jeito', 'copiou'];
 const MEM_RE_SENSIVEL = /suicid|ideacao|autolesao|automutil|me matar|tirar a propria vida/;
@@ -33,7 +35,7 @@ const MEM_RE_DOC = /^[a-z0-9_.-]{1,100}$/i;
 const MEM_RE_CHAVE_ACAO = /^[a-z0-9_-]{1,20}\/[a-z0-9_-]{1,40}$/i;
 
 function memVazia() {
-  return { v: MEM_VERSAO, criadoEm: 0, estilo: { curto: [0, 0], detalhe: [0, 0], exemplos: [0, 0] }, temas: {}, perguntas: {}, acoes: {}, apelidos: {}, aprovadas: [] };
+  return { v: MEM_VERSAO, criadoEm: 0, estilo: { curto: [0, 0], detalhe: [0, 0], exemplos: [0, 0] }, temas: {}, perguntas: {}, acoes: {}, apelidos: {}, aprovadas: [], recentes: [] };
 }
 
 // ------------------------------------------------------------------ peso com decaimento
@@ -69,6 +71,23 @@ function memLista(a) { return Array.isArray(a) ? a : []; }
 function memObj(o) { return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; }
 
 // Reconstrói a memória campo a campo: nada do que vem de fora (armazenamento adulterado, arquivo importado) passa sem conferência.
+// Lista de respostas guardadas (aprovadas ou recentes): cada uma passa de novo pela limpeza (sem sensível, sem marcação, tamanho fixo).
+function memLimparRespostas(lista, max) {
+  const saida = [];
+  memLista(lista).slice(0, max).forEach(function (x) {
+    const a = memObj(x);
+    const q = memTextoLimpo(a.q, MEM_LIM.textoPergunta);
+    const r = String(a.r == null ? '' : a.r).replace(/[<>]/g, ' ').trim().slice(0, MEM_LIM.textoResposta);
+    if (!q || !r || MEM_RE_SENSIVEL.test(normalizar(q))) return;
+    const fontes = memLista(a.f).slice(0, 4).map(function (f) {
+      const o = memObj(f);
+      return { documento: memTextoLimpo(o.documento, 160), norma: memTextoLimpo(o.norma, 240), ano: memNum(o.ano, 0, 3000, 0) || undefined, referencia: memTextoLimpo(o.referencia, 200) };
+    });
+    saida.push({ q: q, r: r, f: fontes, d: memLista(a.d).filter(function (d) { return MEM_RE_DOC.test(String(d)); }).slice(0, 6).map(String), app: MEM_RE_ID.test(String(a.app || '')) ? String(a.app) : '', ts: memNum(a.ts, 0, 4102444800000, 0) });
+  });
+  return saida;
+}
+
 function memSanear(bruto) {
   const b = memObj(bruto);
   const m = memVazia();
@@ -94,17 +113,8 @@ function memSanear(bruto) {
     const frase = i > 0 ? memTextoLimpo(String(k).slice(0, i), MEM_LIM.apelido) : '';
     if (frase && MEM_RE_CHAVE_ACAO.test(alvo) && String(k).slice(i + 1) === alvo) m.apelidos[normalizar(frase) + '|' + alvo] = alvo;
   });
-  memLista(b.aprovadas).slice(0, MEM_LIM.aprovadas).forEach(function (x) {
-    const a = memObj(x);
-    const q = memTextoLimpo(a.q, MEM_LIM.textoPergunta);
-    const r = String(a.r == null ? '' : a.r).replace(/[<>]/g, ' ').trim().slice(0, MEM_LIM.textoResposta);
-    if (!q || !r || MEM_RE_SENSIVEL.test(normalizar(q))) return;
-    const fontes = memLista(a.f).slice(0, 4).map(function (f) {
-      const o = memObj(f);
-      return { documento: memTextoLimpo(o.documento, 160), norma: memTextoLimpo(o.norma, 240), ano: memNum(o.ano, 0, 3000, 0) || undefined, referencia: memTextoLimpo(o.referencia, 200) };
-    });
-    m.aprovadas.push({ q: q, r: r, f: fontes, d: memLista(a.d).filter(function (d) { return MEM_RE_DOC.test(String(d)); }).slice(0, 6).map(String), app: MEM_RE_ID.test(String(a.app || '')) ? String(a.app) : '', ts: memNum(a.ts, 0, 4102444800000, 0) });
-  });
+  m.aprovadas = memLimparRespostas(b.aprovadas, MEM_LIM.aprovadas);
+  m.recentes = memLimparRespostas(b.recentes, MEM_LIM.recentes);
   return m;
 }
 
@@ -161,6 +171,7 @@ export function criarMemoria(cfgMem) {
     cortar(dados.acoes, MEM_LIM.acoes, function (p) { return memPeso(p, t, MEM_MEIA_VIDA_TEMAS); });
     Object.keys(dados.temas).forEach(function (k) { if (memPeso(dados.temas[k], t, MEM_MEIA_VIDA_TEMAS) < 0.05) delete dados.temas[k]; });
     dados.aprovadas = dados.aprovadas.filter(function (a) { return t - a.ts < MEM_VALIDADE_APROVADA; }).slice(-MEM_LIM.aprovadas);
+    dados.recentes = dados.recentes.filter(function (a) { return t - a.ts < MEM_VALIDADE_RECENTE; }).slice(-MEM_LIM.recentes);
   }
 
   function mexer(fn) {
@@ -246,9 +257,26 @@ export function criarMemoria(cfgMem) {
     m.aprovadas.push(limpa);
   }
 
+  // Guarda a resposta que a IA acabou de dar (sem esperar 👍), para a mesma pergunta ter resposta sem internet. A mais nova substitui a de mesma pergunta.
+  // r: resultado de perguntar() com tipo 'ia'. Não guarda resposta vinda da memória, nem de pergunta sensível.
+  function guardarResposta(r) {
+    if (!r || r.tipo !== 'ia' || r.deMemoria) return;
+    mexer(function (m, agoraMs) {
+      const q = memTextoLimpo(r.pergunta, MEM_LIM.textoPergunta);
+      const texto = String(r.texto || '').slice(0, MEM_LIM.textoResposta);
+      if (!q || !texto || MEM_RE_SENSIVEL.test(normalizar(q))) return;
+      const limpa = memLimparRespostas([{ q: q, r: texto, f: memLista(r.fontes), d: memLista(r.docs), app: app, ts: agoraMs }], 1)[0];
+      if (!limpa) return;
+      m.recentes = m.recentes.filter(function (a) { return normalizar(a.q) !== normalizar(q) || a.app !== app; });
+      m.recentes.push(limpa);
+    });
+  }
+
   function esquecerAprovada(m, pergunta) {
     const k = normalizar(memTextoLimpo(pergunta, MEM_LIM.textoPergunta));
     if (k) m.aprovadas = m.aprovadas.filter(function (a) { return normalizar(a.q) !== k || a.app !== app; });
+    // 👎 também tira a cópia recente: a pessoa disse que a resposta não serve, então ela não volta sem internet.
+    if (k) m.recentes = m.recentes.filter(function (a) { return normalizar(a.q) !== k || a.app !== app; });
   }
 
   // ---------------------------------------------------------------- o que se usa do que foi aprendido
@@ -322,10 +350,23 @@ export function criarMemoria(cfgMem) {
     if (!ativa) return null;
     const t = agora();
     const validas = m.aprovadas.filter(function (a) { return a.app === app && t - a.ts < MEM_VALIDADE_APROVADA; });
+    return acharResposta(validas, pergunta);
+  }
+
+  // Resposta recente da IA (sem 👍) que combina com a pergunta; só vale quando não há aprovada. Critério mais exigente.
+  function recentePara(pergunta) {
+    const m = carregar();
+    if (!ativa) return null;
+    const t = agora();
+    const validas = m.recentes.filter(function (a) { return a.app === app && t - a.ts < MEM_VALIDADE_RECENTE; });
+    return acharResposta(validas, pergunta, 0.7);
+  }
+
+  function acharResposta(validas, pergunta, cobertura) {
     if (!validas.length) return null;
     // A pergunta aprovada pesa mais que o texto da resposta: repetida três vezes no texto indexado.
     const trechos = validas.map(function (a, i) { return { id: 'ap' + i, doc: 'aprovada-' + i, titulo: a.q, norma: '', ano: 0, referencia: '', texto: a.q + ' ' + a.q + ' ' + a.q + ' ' + a.r }; });
-    const achou = buscar(criarIndice(trechos), pergunta, { k: 1, minScore: 1.2, minCobertura: 0.6 });
+    const achou = buscar(criarIndice(trechos), pergunta, { k: 1, minScore: 1.2, minCobertura: cobertura || 0.6 });
     if (!achou.length) return null;
     return validas[Number(achou[0].trecho.id.slice(2))];
   }
@@ -353,6 +394,8 @@ export function criarMemoria(cfgMem) {
     if (apelidos.length) linhas.push('Apelidos que você me ensinou para telas: ' + apelidos.join(', ') + '.');
     const aprovadas = m.aprovadas.filter(function (a) { return a.app === app; }).length;
     if (aprovadas) linhas.push('Guardo ' + aprovadas + ' resposta(s) que você aprovou, para uso sem internet.');
+    const recentes = m.recentes.filter(function (a) { return a.app === app; }).length;
+    if (recentes) linhas.push('Guardo as ' + recentes + ' últimas respostas da IA, para repetir a pergunta sem internet.');
     return { ativa: ativa, linhas: linhas, vazia: !linhas.length, estilo: e, desde: m.criadoEm };
   }
 
@@ -370,7 +413,7 @@ export function criarMemoria(cfgMem) {
     return true;
   }
 
-  // esquecer() apaga tudo; esquecer('estilo'|'temas'|'perguntas'|'apelidos'|'aprovadas'|'acoes') apaga só aquela parte.
+  // esquecer() apaga tudo; esquecer('estilo'|'temas'|'perguntas'|'apelidos'|'aprovadas'|'recentes'|'acoes') apaga só aquela parte.
   function esquecer(parte) {
     const m = carregar();
     const vazia = memVazia();
@@ -392,7 +435,7 @@ export function criarMemoria(cfgMem) {
   return {
     aprenderPergunta: aprenderPergunta, aprenderAcao: aprenderAcao, vincular: vincular, apelidoDe: apelidoDe, avaliar: avaliar,
     estilo: estilo, temasTop: temasTop, preferencias: preferencias, paraEnvio: paraEnvio, frequentes: frequentes, acoesFrequentes: acoesFrequentes,
-    aprovadaPara: aprovadaPara, resumo: resumo, exportar: exportar, importar: importar, esquecer: esquecer, ligar: ligar,
+    aprovadaPara: aprovadaPara, recentePara: recentePara, guardarResposta: guardarResposta, resumo: resumo, exportar: exportar, importar: importar, esquecer: esquecer, ligar: ligar,
     ativa: function () { carregar(); return ativa; }
   };
 }

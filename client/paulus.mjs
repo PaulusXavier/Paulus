@@ -86,6 +86,8 @@ const estado = {
   lugaresPronto: null,
   aparelho: null,
   mem: criarMemoria({ app: '' }),
+  // Cota da IA esgotada (aviso do Worker): até quando o app não tenta a IA (ate) e quando a cota renova de verdade (renova), em ms.
+  pausaIA: { ate: 0, renova: 0, motivo: '' },
   pronto: Promise.resolve()
 };
 
@@ -175,6 +177,67 @@ function limpar() { estado.historico = []; }
 function skin(app) { return SKINS[String(app || cfg.app).toLowerCase()] || null; }
 function iaLigada() {
   return !!cfg.endpoint && (typeof navigator === 'undefined' || navigator.onLine !== false);
+}
+
+// ------------------------------------------------------------------ cota da IA esgotada
+
+const PAUSA_PADRAO_MS = 10 * 60 * 1000;   // sem hora no aviso do Worker: testa a IA de novo em 10 minutos
+
+// A IA está em pausa porque o Worker avisou que a cota do dia acabou? Enquanto estiver, o app nem pergunta: responde direto com a base de normas.
+function iaPausada(agora) {
+  return (typeof agora === 'number' ? agora : Date.now()) < estado.pausaIA.ate;
+}
+
+// Guarda o aviso do Worker ({ cota, renova, tentarEm } em ISO, ou os mesmos campos no erro). A pausa nunca passa da renovação.
+function pausarIA(aviso, agora) {
+  const t = typeof agora === 'number' ? agora : Date.now();
+  const a = aviso || {};
+  const renova = Date.parse(a.renova);
+  const tentar = Date.parse(a.tentarEm);
+  let ate = Number.isFinite(tentar) && tentar > t ? tentar : t + PAUSA_PADRAO_MS;
+  if (Number.isFinite(renova) && renova > t) ate = Math.min(ate, renova);
+  estado.pausaIA = { ate: ate, renova: Number.isFinite(renova) && renova > t ? renova : 0, motivo: 'cota' };
+}
+
+// Falha de rede (o pedido nem chegou ao Worker: sem sinal, rede cativa, tempo esgotado): por 30 s as próximas perguntas nem esperam pela rede.
+// Evita 20 s de espera a cada pergunta em rede ruim. Volta sozinha quando o navegador avisa que a internet voltou.
+const PAUSA_REDE_MS = 30 * 1000;
+function pausarPorRede(agora) {
+  const t = typeof agora === 'number' ? agora : Date.now();
+  estado.pausaIA = { ate: t + PAUSA_REDE_MS, renova: 0, motivo: 'rede' };
+}
+
+// Por que a IA não está disponível agora? 'cota' | 'rede' | '' (disponível, ou nunca configurada).
+function motivoSemIA() {
+  if (iaPausada()) return estado.pausaIA.motivo || 'cota';
+  if (cfg.endpoint && !iaLigada()) return 'rede';
+  return '';
+}
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  // Internet voltou: a pausa por rede acaba na hora (a de cota continua até a hora dela).
+  window.addEventListener('online', function () { if (estado.pausaIA.motivo === 'rede') retomarIA(); });
+}
+
+function retomarIA() { estado.pausaIA = { ate: 0, renova: 0, motivo: '' }; }
+
+// "20:00" no horário do aparelho; '' se não souber a hora.
+function horaLocal(ms) {
+  if (!ms) return '';
+  try { return new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
+}
+
+// Frase curta para os avisos e mensagens: quando a IA volta.
+function quandoVoltaIA() {
+  if (motivoSemIA() === 'rede') return 'Estou sem conexão com a IA agora (sem internet ou sinal fraco). Volto a usá-la assim que a conexão voltar.';
+  const h = horaLocal(estado.pausaIA.renova);
+  return h ? 'A cota gratuita da IA acabou por hoje e renova às ' + h + ' (horário do aparelho). Vou testar a IA de novo de tempos em tempos.' : 'A cota gratuita da IA acabou por hoje. Vou testar a IA de novo de tempos em tempos.';
+}
+
+// Estado para o app mostrar uma faixa ("IA em pausa até 20:00"): { pausada, renova (ms ou 0), renovaEm ('HH:MM' ou '') }.
+function estadoDaIA() {
+  const m = motivoSemIA();
+  return { pausada: !!m, motivo: m, renova: m === 'cota' ? estado.pausaIA.renova : 0, renovaEm: m === 'cota' ? horaLocal(estado.pausaIA.renova) : '' };
 }
 
 // ------------------------------------------------------------------ ações e buscas
@@ -505,11 +568,12 @@ async function pedirIA(texto, opcoes) {
     });
     if (!resp.ok) {
       // O Worker explica a falha em { erro } (limite por minuto, cota do dia...). Guarda o motivo para o app poder mostrá-lo.
-      let motivo = '';
-      try { const j = await resp.json(); motivo = j && j.erro ? String(j.erro).slice(0, 200) : ''; } catch (e) { /* corpo sem JSON */ }
+      let motivo = '', aviso = null;
+      try { const j = await resp.json(); motivo = j && j.erro ? String(j.erro).slice(0, 200) : ''; if (j && j.cota === true) aviso = { renova: j.renova, tentarEm: j.tentarEm }; } catch (e) { /* corpo sem JSON */ }
       const falha = new Error('IA indisponível (' + resp.status + ').');
       falha.status = resp.status;
       falha.motivo = motivo;
+      if (aviso) { falha.cota = true; falha.aviso = aviso; }
       if (resp.status === 401 && typeof cfg.aoNegar === 'function') { try { cfg.aoNegar(falha); } catch (e) { /* o app decide */ } }
       throw falha;
     }
@@ -567,6 +631,58 @@ function respostaDasNormas(achados) {
     avisos: [melhor.tipo && melhor.tipo !== 'norma'
       ? 'Trecho de ' + (melhor.tipo === 'apoio' ? 'material de apoio' : 'orientação técnica') + ' (não é norma legal: orienta, não obriga). Confira o documento original.'
       : 'Trecho da base de normas do Paulus. Confira o texto oficial vigente.']
+  };
+}
+
+// Sem IA o app não escreve resposta, só mostra a norma: então mostra a PARTE do trecho que mais fala do que foi perguntado
+// (janela de frases com mais palavras da pergunta), não o começo. Sem palavra em comum, cai no começo, como antes.
+const PALAVRAS_VAZIAS_OFFLINE = /^(para|como|qual|quais|quem|onde|quando|sobre|pode|posso|devo|deve|isso|esse|essa|esta|este|ser|tem|uma|uns|das|dos|com|que|por|nos|nas|mais|muito|fazer|preciso)$/;
+function trechoRelevante(texto, pergunta, max) {
+  const t = String(texto || '');
+  if (t.length <= max) return t;
+  const termos = normalizar(pergunta).split(/\s+/).filter(function (w) { return w.length > 3 && !PALAVRAS_VAZIAS_OFFLINE.test(w); }).map(function (w) { return w.slice(0, 6); });
+  const frases = t.match(/[^.;:!?\n]+[.;:!?]?\s*/g) || [t];
+  const pontos = frases.map(function (f) { const n = normalizar(f); return termos.filter(function (x, i) { return termos.indexOf(x) === i && n.indexOf(x) !== -1; }).length; });
+  let melhor = { ini: 0, fim: 0, pts: 0 };
+  for (let i = 0; i < frases.length; i++) {
+    let len = 0, pts = 0, j = i;
+    while (j < frases.length && (len + frases[j].length <= max || j === i)) { len += frases[j].length; pts += pontos[j]; j++; }
+    if (pts > melhor.pts) melhor = { ini: i, fim: j, pts: pts };
+  }
+  if (!melhor.pts) return resumirTrecho(t, max);
+  let r = frases.slice(melhor.ini, melhor.fim).join('').trim();
+  if (r.length > max) r = resumirTrecho(r, max);
+  return (melhor.ini > 0 ? '[...] ' : '') + r + (melhor.fim < frases.length && !/\[\.\.\.\]$/.test(r) ? ' [...]' : '');
+}
+
+// Cota da IA esgotada: em vez de um trecho só, mostra até 3 dos mais ligados à pergunta (de documentos diferentes quando dá), cada um com a sua referência,
+// e diz com franqueza que isto não é uma resposta elaborada. Mesmo formato de respostaDasNormas (tipo 'norma'), com semIA/cotaEsgotada/renova para o app.
+function respostaDasNormasSemIA(achados, pergunta) {
+  const escolhidos = [];
+  const docsVistos = [];
+  achados.forEach(function (a) {
+    if (escolhidos.length >= 3) return;
+    const d = a.trecho.doc;
+    if (d && docsVistos.indexOf(d) !== -1) return;
+    if (d) docsVistos.push(d);
+    escolhidos.push(a);
+  });
+  // Poucos documentos diferentes: completa com os próximos trechos, até 3.
+  achados.forEach(function (a) { if (escolhidos.length < 3 && escolhidos.indexOf(a) === -1) escolhidos.push(a); });
+  const porTrecho = escolhidos.length === 1 ? 900 : 550;
+  const blocos = escolhidos.map(function (a, i) {
+    const t = a.trecho;
+    const rotulo = [t.titulo || t.doc, t.referencia].filter(Boolean).join(' — ');
+    return (escolhidos.length > 1 ? (i + 1) + ') ' : '') + (rotulo ? rotulo + '\n' : '') + trechoRelevante(t.texto, pergunta, porTrecho);
+  });
+  const tecnicos = escolhidos.some(function (a) { return a.trecho.tipo && a.trecho.tipo !== 'norma'; });
+  return {
+    tipo: 'norma',
+    semIA: true, motivoSemIA: motivoSemIA(), cotaEsgotada: motivoSemIA() === 'cota', renova: estado.pausaIA.renova,
+    texto: (motivoSemIA() === 'rede' ? 'Estou sem conexão com a IA agora' : 'Estou sem a IA agora') + ', então não consigo montar uma resposta sob medida. Estes são os trechos da base de normas mais ligados à sua pergunta:\n\n' + blocos.join('\n\n'),
+    fontes: achados.map(function (a) { return fonteDe(a.trecho, a); }),
+    avisos: [quandoVoltaIA(),
+      tecnicos ? 'Parte dos trechos é material de apoio ou orientação técnica (não é norma legal: orienta, não obriga). Confira o documento original.' : 'Trechos da base de normas do Paulus, sem interpretação do seu caso. Confira o texto oficial vigente.']
   };
 }
 
@@ -928,15 +1044,19 @@ async function perguntar(texto, opcoes) {
 
   let motivo = '';
   if (comImagem && !iaLigada()) return { tipo: 'erro', texto: 'Para ler a imagem preciso da IA, que não está ligada agora (sem internet ou sem login).' };
-  if (iaLigada()) {
+  if (comImagem && motivoSemIA()) return { tipo: 'erro', texto: 'Para ler a imagem preciso da IA. ' + quandoVoltaIA(), semIA: true };
+  if (iaLigada() && !iaPausada()) {
     try {
       const r = await pedirIA(t, o);
+      retomarIA();
       if (r.tipo === 'ia' && !Array.isArray(o.historico)) {
         estado.historico.push({ papel: 'usuario', texto: t }, { papel: 'paulus', texto: r.texto });
         estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
       }
       // pergunta e docs ficam no resultado para o app devolver em Paulus.avaliar(r, 'bom'|'ruim'|...)
       r.pergunta = t; r.docs = docs;
+      // Guarda a resposta no aparelho (sem 👍 ainda) para a mesma pergunta ter resposta sem internet. Documento ou foto anexados: não (a resposta depende do arquivo).
+      if (r.tipo === 'ia' && !o.documento && !comImagem) estado.mem.guardarResposta(r);
       if (o.documento) { const dp = docPreparar(o.documento, t); if (dp) r.avisos = (r.avisos || []).concat(['Documento "' + dp.nome + '": ' + dp.trechos.length + ' trecho(s) lido(s)' + (dp.parcial ? ' (os mais ligados à pergunta)' : '') + (dp.omitidosPessoais ? '; ' + dp.omitidosPessoais + ' com dados pessoais ficaram de fora' : '') + '.']); }
       if (aprende) estado.mem.aprenderPergunta(t, docs);
       return r;
@@ -945,6 +1065,15 @@ async function perguntar(texto, opcoes) {
       if (o.sinal && o.sinal.aborted) return { tipo: 'erro', texto: 'Interrompido.' };
       // Limite de perguntas: a norma offline não resolve e o motivo importa (é só esperar).
       if (e && e.status === 429) return { tipo: 'erro', texto: e.motivo || 'Muitas perguntas seguidas. Aguarde um minuto.', limite: true };
+      // Cota do dia esgotada: o app para de insistir na IA e responde pela base de normas (abaixo), dizendo quando a IA volta.
+      if (e && e.cota) {
+        pausarIA(e.aviso);
+        if (comImagem) return { tipo: 'erro', texto: 'Não consegui ler a imagem: ' + quandoVoltaIA(), semIA: true };
+      } else if (e && !e.status) {
+        // Sem status = o pedido não chegou (rede caiu, sinal fraco, tempo esgotado): pausa curta e responde pelo que há no aparelho.
+        pausarPorRede();
+        if (comImagem) return { tipo: 'erro', texto: 'Não consegui ler a imagem: ' + quandoVoltaIA(), semIA: true };
+      }
       // Foto que não foi lida: um trecho de norma no lugar dela não responderia o que a pessoa quis saber.
       if (comImagem) return { tipo: 'erro', texto: (e && e.motivo) || 'Não consegui ler a imagem agora. Tente de novo em instantes.' };
       motivo = (e && e.motivo) || '';
@@ -952,8 +1081,17 @@ async function perguntar(texto, opcoes) {
     }
   }
 
+  // Cota do dia esgotada: a resposta diz quando a IA volta e marca o resultado (semIA) para o app poder mostrar uma faixa.
+  const semIAMotivo = motivoSemIA();
+  const pausada = !!semIAMotivo;
+  const extraCota = pausada ? { semIA: true, motivoSemIA: semIAMotivo, cotaEsgotada: semIAMotivo === 'cota', renova: semIAMotivo === 'cota' ? estado.pausaIA.renova : 0 } : {};
+
   // Sem IA, cumprimento e pedido de ajuste não têm o que responder da base de normas (um trecho de norma no lugar de "mais curto" confundiria).
   if (modo === 'saudacao' || modo === 'refinamento' || modo === 'continuar' || modo === 'porque' || modo === 'contestacao') {
+    if (pausada) {
+      const dica = 'A base de normas, os cálculos, as datas, as rotas, o PDF e a revisão de ortografia continuam funcionando sem a IA.';
+      return Object.assign({ tipo: 'sem_resposta', motivo: motivo, texto: modo === 'saudacao' ? 'Oi! ' + quandoVoltaIA() + ' ' + dica + ' Pergunte pelo assunto.' : (modo === 'refinamento' ? 'Não consegui ajustar a resposta agora (preciso da IA). ' : 'Para isso preciso da IA. ') + quandoVoltaIA() + ' Enquanto isso, pergunte pelo assunto que eu mostro o que a base de normas diz.' }, extraCota);
+    }
     return { tipo: 'sem_resposta', texto: modo === 'saudacao' ? 'Oi! Estou sem a IA agora, mas a base de normas continua disponível: pergunte pelo assunto.' : modo === 'refinamento' ? 'Não consegui ajustar a resposta agora. Tente de novo em instantes ou copie o texto e edite à mão.' : 'Não consegui retomar a resposta anterior agora (preciso da IA para isso). Tente de novo em instantes ou pergunte pelo assunto, que a base de normas continua disponível.', motivo: motivo };
   }
 
@@ -961,13 +1099,32 @@ async function perguntar(texto, opcoes) {
   const aprovada = estado.mem.aprovadaPara(t);
   if (aprovada) {
     estado.mem.aprenderPergunta(t, aprovada.d);
-    return respostaAprovada(aprovada, t);
+    const ra = respostaAprovada(aprovada, t);
+    if (pausada) { Object.assign(ra, extraCota); ra.avisos = (ra.avisos || []).concat([quandoVoltaIA()]); }
+    return ra;
+  }
+  // Resposta recente da IA para a mesma pergunta (sem 👍): melhor que um trecho solto, mas marcada como anterior e possivelmente desatualizada.
+  const recente = estado.mem.recentePara(t);
+  if (recente) {
+    estado.mem.aprenderPergunta(t, recente.d);
+    let quando = '';
+    try { quando = ' de ' + new Date(recente.ts).toLocaleDateString('pt-BR'); } catch (e) { /* sem data */ }
+    const rr = { tipo: 'ia', texto: recente.r, fontes: recente.f, sugestoes: [], acoes: [], geradoPorIA: true, deMemoria: true, pergunta: t, docs: recente.d,
+      avisos: ['Resposta anterior da IA' + quando + ' para esta mesma pergunta, mostrada porque a IA não está disponível agora. Pode estar desatualizada: confira a norma antes de usar em atendimento.'] };
+    if (pausada) { Object.assign(rr, extraCota); rr.avisos.push(quandoVoltaIA()); }
+    return rr;
   }
   if (achados.length) {
-    const rn = respostaDasNormas(achados);
+    const rn = pausada ? respostaDasNormasSemIA(achados, t) : respostaDasNormas(achados);
     rn.pergunta = t; rn.docs = docs;
     estado.mem.aprenderPergunta(t, docs);
     return rn;
+  }
+  if (pausada) {
+    return Object.assign({
+      tipo: 'sem_resposta', motivo: motivo,
+      texto: quandoVoltaIA() + ' Não achei isso na base de normas. Tente com outras palavras ou volte quando a IA estiver disponível; cálculos, datas, rotas, PDF e revisão de ortografia seguem funcionando.'
+    }, extraCota);
   }
   return {
     tipo: 'sem_resposta',
@@ -996,7 +1153,10 @@ async function consultarNormas(texto, opcoes) {
   return achados.length ? respostaDasNormas(achados) : null;
 }
 
-const Paulus = { init, perguntar, rota: { ler: lerPedidoDeRota, responder: respostaDeRota },
+const Paulus = { init, perguntar,
+  // Cota da IA (v0.25.0): estado() -> { pausada, renova, renovaEm } para o app mostrar "IA em pausa até 20:00"; retomar() força testar a IA de novo (ex.: botão "tentar agora").
+  ia: { estado: estadoDaIA, retomar: retomarIA },
+  rota: { ler: lerPedidoDeRota, responder: respostaDeRota },
   // Modelos 3D didáticos (v0.20.0; mapa de Roraima v0.21.0): ler(texto) -> pedido ou null; responder(texto) -> resultado ou null; catalogo; url(modelo); baixar(modelo)
   modelos: { ler: lerPedidoDeModelo, responder: respostaDeModelo, catalogo: MODELOS_3D, url: function (m) { return urlDoModelo(m, cfg.modelosUrl); }, baixar: modeloBaixar },
   // Geografia no aparelho (v0.16.0): responder(texto, { pontos, lugares, bairros, ruas, aparelho }) -> resultado ou null; coordenadas/formatar/endereco/perto/distancia/gpx/kml para o app usar direto.
