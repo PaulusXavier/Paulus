@@ -2,6 +2,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 import { juntar } from '../scripts/build.mjs';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { geoLerCoordenadas, geoFormatarCoordenadas, geoNormalizarEndereco, geoLinksDeRota, geoParaGpx, geoParaKml, geoTipoDePedido, respostaDeGeo, geoDistanciaKm } from '../shared/geo.mjs';
 import { respostaDeRota } from '../shared/rota.mjs';
 import { montarLugaresJson } from '../scripts/importar-mapa.mjs';
@@ -100,5 +101,5 @@ test('geo: Paulus.perguntar responde no aparelho, baixa o mapa sob demanda e nã
   assert.equal(e.tipoGeo, 'endereco'); assert.match(e.texto, /Rua Das Flores|Rua das Flores/);
   const rota = await P.perguntar('melhor ordem para visitar CRAS Cauamé, UBS Centro e CAPS II');
   assert.equal(rota.tipo, 'rota'); assert.ok(rota.gpx.includes('<gpx'));
-  assert.equal(P.versao, '0.24.0');
+  assert.equal(P.versao, JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version);
 });
