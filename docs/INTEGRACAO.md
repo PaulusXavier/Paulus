@@ -1,5 +1,7 @@
 # Ligar o Paulus a um app
 
+> **Uso individual, sem fins comerciais.** O Paulus é um projeto pessoal de Paulo Xavier e **só ele o usa**. Não é um serviço oferecido ao público nem vendido; o repositório é público apenas por conveniência de publicação. Veja [USO-INDIVIDUAL.md](../USO-INDIVIDUAL.md).
+
 O módulo não tem tela. Ele devolve um **resultado** (`r.tipo`) e o app decide como mostrar, normalmente no painel do mascote que já existe.
 
 ## 1. Argo SUAS (já tem IA própria)

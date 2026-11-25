@@ -1,5 +1,7 @@
 # Modelos 3D didáticos (v0.20.0; mapa de Roraima em v0.21.0)
 
+> **Uso individual, sem fins comerciais.** O Paulus é um projeto pessoal de Paulo Xavier e **só ele o usa**. Não é um serviço oferecido ao público nem vendido; o repositório é público apenas por conveniência de publicação. Veja [USO-INDIVIDUAL.md](../USO-INDIVIDUAL.md).
+
 ## O que existe
 `modelos/sistema-solar-3d-didatico-v6.html`: Sistema Solar 3D · Edição Didática, um arquivo único (HTML, CSS e JavaScript juntos, sem internet e sem biblioteca externa). Foi enviado pelo usuário e é mantido **idêntico ao original**; nomes como Vénus, Neptuno e hidrogénio estão na grafia de Portugal, e a resposta do Paulus avisa isso.
 

@@ -1,5 +1,7 @@
 # Segurança e privacidade
 
+> **Uso individual, sem fins comerciais.** O Paulus é um projeto pessoal de Paulo Xavier e **só ele o usa**. Não é um serviço oferecido ao público nem vendido; o repositório é público apenas por conveniência de publicação. Veja [USO-INDIVIDUAL.md](../USO-INDIVIDUAL.md).
+
 ## Regra de ouro
 **Dado de família nunca chega ao código do Paulus.** O módulo não é ligado a Firestore, planilhas, notas nem formulários. O filtro de dados pessoais é a segunda barreira, não a primeira.
 

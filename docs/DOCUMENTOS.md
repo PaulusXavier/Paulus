@@ -1,5 +1,7 @@
 # Anexar documentos para o Paulus ajudar
 
+> **Uso individual, sem fins comerciais.** O Paulus é um projeto pessoal de Paulo Xavier e **só ele o usa**. Não é um serviço oferecido ao público nem vendido; o repositório é público apenas por conveniência de publicação. Veja [USO-INDIVIDUAL.md](../USO-INDIVIDUAL.md).
+
 No console, o clipe anexa **PDF com texto, DOCX, TXT, MD ou CSV**. Depois é só perguntar ("resuma este documento", "o que diz sobre o prazo de recurso?"). O documento fica "em uso" (chip verde acima do campo) nas próximas perguntas até você clicar no ✕ ou abrir uma nova conversa.
 
 ## Como funciona (e a privacidade)

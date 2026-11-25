@@ -1,5 +1,7 @@
 # Alimentar o Paulus mandando os PDFs pelo Claude
 
+> **Uso individual, sem fins comerciais.** O Paulus é um projeto pessoal de Paulo Xavier e **só ele o usa**. Não é um serviço oferecido ao público nem vendido; o repositório é público apenas por conveniência de publicação. Veja [USO-INDIVIDUAL.md](../USO-INDIVIDUAL.md).
+
 Em vez de rodar os comandos no seu computador, você pode anexar os PDFs numa conversa com o Claude (com este repositório aberto) e pedir:
 "importe estes documentos para a base do Paulus".
 

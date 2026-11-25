@@ -12,6 +12,8 @@ Não é norma: confira valores e prazos no normativo vigente. Cada "## referênc
 
 ## Valores do benefício em 2026
 
+> **Uso individual, sem fins comerciais.** O Paulus é um projeto pessoal de Paulo Xavier e **só ele o usa**. Não é um serviço oferecido ao público nem vendido; o repositório é público apenas por conveniência de publicação. Veja [USO-INDIVIDUAL.md](../USO-INDIVIDUAL.md).
+
 ATENÇÃO: os valores mudaram em outubro de 2026 (Decreto nº 13.120/2026, em vigor desde 17/09/2026, com efeitos financeiros a partir de 1º/10/2026). Valores atuais (a partir de outubro de 2026): Benefício de Renda de Cidadania (BRC): R$ 164 por pessoa da família, base do cálculo. Benefício Complementar (BCO): piso mínimo de R$ 691 por família, pago quando a soma dos BRCs não alcança esse valor. Benefício Primeira Infância (BPI): R$ 173 por criança de 0 a 7 anos incompletos. Benefício Variável Familiar (BVF): R$ 58 por gestante, nutriz, criança de 7 a 12 anos incompletos ou adolescente de 12 a 18 anos incompletos. Valores anteriores, pagos de janeiro a setembro de 2026: BRC R$ 142, piso R$ 600, BPI R$ 150 e BVF R$ 50.
 
 ## Exemplo de cálculo do benefício

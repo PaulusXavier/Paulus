@@ -11,6 +11,8 @@ Fonte: MDS (gov.br/mds, Cadastro Único), conforme texto fornecido pelo Paulo. N
 
 ## O que é o Cadastro Único
 
+> **Uso individual, sem fins comerciais.** O Paulus é um projeto pessoal de Paulo Xavier e **só ele o usa**. Não é um serviço oferecido ao público nem vendido; o repositório é público apenas por conveniência de publicação. Veja [USO-INDIVIDUAL.md](../USO-INDIVIDUAL.md).
+
 O Cadastro Único (CadÚnico) identifica e caracteriza as famílias de baixa renda de todo o país, registrando endereço, composição familiar, escolaridade, trabalho, renda e deficiência. É a porta de entrada para mais de 40 programas sociais federais, estaduais e municipais, entre eles Bolsa Família, BPC, Pé-de-Meia, Tarifa Social de Energia Elétrica, Gás do Povo, Carteira da Pessoa Idosa, Seguro-Defeso e Minha Casa Minha Vida (que usa sistema próprio de seleção). Estados e municípios também podem ter programas que usam o Cadastro Único. Cada programa tem a sua própria regra de renda: estar no cadastro não garante o benefício.
 
 ## Quem pode se cadastrar no CadÚnico

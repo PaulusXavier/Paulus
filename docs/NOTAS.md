@@ -1,5 +1,7 @@
 # Anotações e lista de compras (Firebase)
 
+> **Uso individual, sem fins comerciais.** O Paulus é um projeto pessoal de Paulo Xavier e **só ele o usa**. Não é um serviço oferecido ao público nem vendido; o repositório é público apenas por conveniência de publicação. Veja [USO-INDIVIDUAL.md](../USO-INDIVIDUAL.md).
+
 O Paulus guarda anotações pessoais (ex.: itens do supermercado) no **Firestore do mesmo projeto Firebase do login**.
 O navegador fala direto com o Firebase usando o seu login; **nada passa pelo Worker nem pela IA**. Só funciona com o login pelo Firebase.
 Não é lugar para dado de família: use só para listas e lembretes pessoais.

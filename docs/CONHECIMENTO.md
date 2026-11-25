@@ -1,5 +1,7 @@
 # Base de conhecimento (normas e referências técnicas)
 
+> **Uso individual, sem fins comerciais.** O Paulus é um projeto pessoal de Paulo Xavier e **só ele o usa**. Não é um serviço oferecido ao público nem vendido; o repositório é público apenas por conveniência de publicação. Veja [USO-INDIVIDUAL.md](../USO-INDIVIDUAL.md).
+
 A base de normas do Paulus são arquivos `.md` em `knowledge/documentos/`. O build os transforma em JSON (`npm run build:conhecimento`); o navegador e o Worker leem só esse JSON.
 
 > Atenção à diferença entre as duas pastas:

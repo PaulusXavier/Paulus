@@ -1,5 +1,7 @@
 # Publicar o Paulus
 
+> **Uso individual, sem fins comerciais.** O Paulus é um projeto pessoal de Paulo Xavier e **só ele o usa**. Não é um serviço oferecido ao público nem vendido; o repositório é público apenas por conveniência de publicação. Veja [USO-INDIVIDUAL.md](../USO-INDIVIDUAL.md).
+
 São duas publicações separadas:
 
 | O quê | Onde | Para quê |

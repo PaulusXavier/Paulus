@@ -1,5 +1,7 @@
 # Habilidades do Paulus
 
+> **Uso individual, sem fins comerciais.** O Paulus é um projeto pessoal de Paulo Xavier e **só ele o usa**. Não é um serviço oferecido ao público nem vendido; o repositório é público apenas por conveniência de publicação. Veja [USO-INDIVIDUAL.md](../USO-INDIVIDUAL.md).
+
 **Conhecimento** (a base de normas em `knowledge/`) diz *o que a regra diz*. **Habilidade** (`habilidades/`) diz *como fazer o trabalho*: escrever um relatório, preparar uma visita, conduzir uma discussão de caso. O Paulus já sabe o jeito de pensar de um psicólogo do SUAS (`worker/prompt.mjs`); as habilidades acrescentam o passo a passo de tarefas específicas.
 
 ## Como funciona
