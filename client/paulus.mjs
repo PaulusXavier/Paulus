@@ -24,9 +24,10 @@ import { docPreparar } from '../shared/documento.mjs';
 import { detectarCrise } from '../shared/crise.mjs';
 import { respostaLocalDeIdioma, paraBusca, idiomaDoPedido, avisoPessoalNoIdioma } from '../shared/idioma.mjs';
 import { normalizar, criarIndice, buscarFontes, fonteDe, K_PADRAO } from '../shared/busca.mjs';
-import { classificarPedido, ehRefinamento, pedidoSobreResposta, consultaDoPedido, trechosParaOPedido } from '../shared/pedido.mjs';
+import { classificarPedido, ehRefinamento, pedidoSobreResposta, consultaDoPedido, trechosParaOPedido, pedidoDeMatematica } from '../shared/pedido.mjs';
 import { marcarFontesUsadas, citacoesSemFonte } from '../shared/verificacao.mjs';
 import { respostaDoPedido } from '../shared/calculo-mais.mjs';
+import { respostaDeMatematicaLocal } from '../shared/matematica-local.mjs';
 import { respostaDeRota, lerPedidoDeRota } from '../shared/rota.mjs';
 import { respostaDeModelo, lerPedidoDeModelo, urlDoModelo, MODELOS_3D } from '../shared/modelos.mjs';
 import { respostaDeGeo, geoTipoDePedido, geoLerCoordenadas, geoFormatarCoordenadas, geoNormalizarEndereco, geoMontarEndereco, geoPerto, geoFontes, geoLinksDeRota, geoParaGpx, geoParaKml, geoDistanciaKm } from '../shared/geo.mjs';
@@ -1179,6 +1180,16 @@ async function perguntarFluxo(texto, opcoes) {
     if (pausada) { Object.assign(rr, extraCota); rr.avisos.push(quandoVoltaIA()); }
     return rr;
   }
+  // Matemática sem IA (cota esgotada ou sem internet): resolve no aparelho o que está escrito em símbolos (equação, matriz, sistema, complexos,
+  // derivada...) e, quando não dá, entrega o roteiro de fórmulas do assunto em vez de um trecho de norma que não tem nada a ver.
+  if (pedidoDeMatematica(t)) {
+    const mt = respostaDeMatematicaLocal(t);
+    if (mt) {
+      const rm = { tipo: 'matematica', texto: mt.texto, itens: mt.itens, resolvida: mt.resolvida, parcial: !!mt.parcial, topicos: mt.topicos, fontes: [], avisos: mt.avisos.slice(), pergunta: t, docs: [] };
+      if (pausada) { Object.assign(rm, extraCota); rm.avisos.push(quandoVoltaIA()); }
+      return rm;
+    }
+  }
   if (achados.length) {
     const rn = pausada ? respostaDasNormasSemIA(achados, t) : respostaDasNormas(achados);
     rn.pergunta = t; rn.docs = docs;
@@ -1222,6 +1233,8 @@ const Paulus = { init, perguntar,
   // Cota da IA (v0.25.0): estado() -> { pausada, renova, renovaEm } para o app mostrar "IA em pausa até 20:00"; retomar() força testar a IA de novo (ex.: botão "tentar agora").
   ia: { estado: estadoDaIA, retomar: retomarIA, aoMudar: aoMudarIA, pendentes: pendentesIA, refazerPendentes: refazerPendentes },
   rota: { ler: lerPedidoDeRota, responder: respostaDeRota },
+  // Matemática no aparelho, sem IA (v0.28.0): resolver(texto) -> { texto, itens, resolvida, parcial, topicos, avisos } ou null
+  matematica: { responder: respostaDeMatematicaLocal },
   // Modelos 3D didáticos (v0.20.0; mapa de Roraima v0.21.0): ler(texto) -> pedido ou null; responder(texto) -> resultado ou null; catalogo; url(modelo); baixar(modelo)
   modelos: { ler: lerPedidoDeModelo, responder: respostaDeModelo, catalogo: MODELOS_3D, url: function (m) { return urlDoModelo(m, cfg.modelosUrl); }, baixar: modeloBaixar },
   // Geografia no aparelho (v0.16.0): responder(texto, { pontos, lugares, bairros, ruas, aparelho }) -> resultado ou null; coordenadas/formatar/endereco/perto/distancia/gpx/kml para o app usar direto.
