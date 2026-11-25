@@ -1402,6 +1402,41 @@
     }
     return { painel: painel, buscar: buscar, ehPergunta: ehPergunta, responder: responder, trilho: trilho };
   })();
+  // ------------------------------------------------------------ uso sem internet (aviso de estado e /refazer)
+  // Quando a IA fica fora (sem internet ou sinal fraco), o Paulus responde pela base e guarda a pergunta como pendente (só nesta sessão).
+  // Quando a IA volta, o console avisa e o /refazer pede de novo, com a IA, o que ficou só na base.
+  (function () {
+    if (!P.ia || !P.ia.aoMudar) return;
+    var ofertado = false, antes = '';
+    function refazer() {
+      var n = P.ia.pendentes().length;
+      if (!n) { aviso('Nenhuma pergunta esperando a IA.'); return; }
+      var x = msgPaulus(); pintar(x.corpo, 'Refazendo ' + n + (n === 1 ? ' pergunta' : ' perguntas') + ' com a IA…'); rolar(true);
+      P.ia.refazerPendentes().then(function (lista) {
+        if (!lista.length) { pintar(x.corpo, 'A IA ainda não está disponível. Tente de novo quando a conexão voltar.'); return; }
+        pintar(x.corpo, lista.length === 1 ? 'Aqui está a resposta com a IA:' : 'Aqui estão as ' + lista.length + ' respostas com a IA:');
+        lista.forEach(function (it) {
+          msgUsuario(it.pergunta);
+          var y = msgPaulus(); pintar(y.corpo, it.resposta.texto);
+          transcricao.push({ papel: 'Paulus', texto: it.resposta.texto });
+        });
+        rolar(true);
+      }, function () { pintar(x.corpo, 'Não consegui refazer agora. Tente de novo em instantes.'); });
+    }
+    ATALHOS.push({ c: '/refazer', d: 'Refaz com a IA as perguntas que só a base respondeu enquanto ela estava fora', f: refazer });
+    P.ia.aoMudar(function (e) {
+      if (e.motivo === 'rede' && antes !== 'rede') aviso('Sem internet: respondo com a base de normas e com o que está no aparelho.');
+      if (!e.motivo && antes === 'rede') aviso('Conexão de volta: a IA voltou a responder.');
+      if (!e.motivo && e.pendentes > 0 && !ofertado) {
+        ofertado = true;
+        var x = msgPaulus();
+        pintar(x.corpo, 'A IA voltou. ' + e.pendentes + (e.pendentes === 1 ? ' pergunta foi respondida' : ' perguntas foram respondidas') + ' só pela base enquanto eu estava sem ela. Digite **/refazer** para pedir de novo com a IA.');
+        rolar(true);
+      }
+      if (!e.pendentes) ofertado = false;
+      antes = e.motivo || '';
+    });
+  })();
   (function () {
     var bx = $('cq'); if (bx) bx.addEventListener('click', function (e) { e.stopPropagation(); cota.painel(); });
     ATALHOS.push({ c: '/cota', d: 'Cota da IA: quanto resta, quando acaba e quando renova', f: function () { cota.painel(true); } });
