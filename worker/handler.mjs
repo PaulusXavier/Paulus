@@ -9,6 +9,7 @@
 //   MODELO_RESERVA   opcional. Padrão: @cf/meta/llama-3.1-8b-instruct. Usado se o MODELO falhar (ex.: cota gratuita do dia acabou).
 //   MODELO_INTERPRETE opcional. Modelo do passo de interpretação (padrão: o mesmo MODELO).
 //   MODELO_RACIOCINIO opcional. Modelo do passo que monta o esqueleto de análise de perguntas de análise (padrão: o mesmo MODELO). RACIOCINIO="desligado" pula o passo (poupa cota).
+//   COTA_CF_CONTA / COTA_CF_TOKEN  opcionais (segredos). Ligam a rota /cota ao consumo do dia (worker/cota.mjs). COTA_NEURONS muda a franquia (padrão 10000).
 //   MODELO_CALCULO   opcional. Modelo do passo que escreve as contas de uma pergunta de cálculo (padrão: o mesmo MODELO). Quem faz a conta é o programa (shared/calculo.mjs).
 //
 // Pedido (POST, JSON): { app, pergunta, pagina, historico:[{papel,texto}], fichas:[...], stream }
@@ -53,6 +54,7 @@ import { pareceProblemaDeCalculo, temNumeroPorExtenso } from '../shared/calculo.
 import { contasDoPedido, contasDeProva } from '../shared/calculo-mais.mjs';
 import { pedeAnalise, montarMensagensRaciocinio, lerRaciocinio, raciocinioComoTexto, buscaDoRaciocinio, completarAchados, conferirRaciocinio, calibrarSeguranca, tipoDeAnalise, disseSemAnalise, montarMensagensReformatar, limparPensamento } from './raciocinar.mjs';
 import { tratarVoz } from './voz.mjs';
+import { consultarCota } from './cota.mjs';
 import { imagemSaneada, lerImagem, sanearLeitura, CORPO_MAX_COM_IMAGEM } from './visao.mjs';
 import { montarMensagensPlano, lerPlano, executarPlano, calculosDiretos, numerosAbonados, valoresDosCalculos, mesclarValores } from './planejar.mjs';
 
@@ -400,6 +402,9 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     if (exigeLogin && !(await sessaoDoPedido())) return json({ erro: 'Entre para usar o Paulus.' }, 401);
     // Voz própria (worker/voz.mjs): só repassa o texto ao servidor de voz; não usa a IA nem o corpo de pergunta abaixo.
     if (rota === '/voz') return tratarVoz(request, env, json, cors);
+    // Cota da IA (worker/cota.mjs): quanto da franquia diária do Workers AI já foi usado, quando acaba e quando renova.
+    // Só números agregados (neurons por hora e por modelo); não usa a IA nem lê pergunta, resposta ou conversa. Exige o mesmo login das demais rotas.
+    if (rota === '/cota') return json(await consultarCota(env));
     if (!env.AI || typeof env.AI.run !== 'function') return json({ erro: 'Workers AI não está ligado a este Worker.' }, 500);
 
     // Pedido só de texto: até 64 KB. Com foto (campo "imagem", já reduzida no aparelho) o teto sobe, e só para quem traz o campo.
