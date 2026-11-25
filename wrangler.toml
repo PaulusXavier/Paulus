@@ -57,6 +57,8 @@ FIREBASE_PROJECT_ID = "paulusia-de285"
 #   npx wrangler secret put COTA_CF_TOKEN   (token só com Conta > Análises da conta > Leitura)
 # Sem eles o painel mostra só a hora da renovação (00:00 UTC). Franquia diária em neurons (padrão 10000; só mude se a Cloudflare mudar):
 # COTA_NEURONS = "10000"
+# Histórico de 7 dias no painel da cota (mesma consulta, janela maior). "desligado" pede só o dia de hoje:
+# COTA_HISTORICO = "desligado"
 
 # Limite de pedidos GLOBAL por IP (recomendado): o contador em memória do Worker vale só por instância, então um abuso espalhado passa por ele.
 # Descomente e CONFIRA a sintaxe na documentação atual da Cloudflare ("Workers Rate Limiting binding"); o handler usa env.LIMITADOR se existir.
