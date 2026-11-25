@@ -129,7 +129,9 @@ Notas:
 - O painel só mostra números agregados (neurons por hora e por modelo); não passa pergunta, resposta, conversa nem dado de família. A rota `/cota` exige o mesmo login das demais.
 - Os números vêm das análises da Cloudflare e podem **atrasar alguns minutos** em relação ao painel oficial (Workers AI → uso), que é a fonte de verdade. O Worker guarda o resultado por 1 minuto, então abrir o painel várias vezes não multiplica consultas.
 - "Acaba às..." é estimativa: usa o ritmo das últimas horas e some quando a franquia dura até a renovação.
-- Se a sua conta usa o plano **Workers Paid**, a franquia de 10.000 neurons por dia continua valendo, mas o que passa dela é cobrado (US$ 0,011 por mil neurons) em vez de a IA parar; o painel avisa e estima esse custo. Para outra franquia, defina a variável `COTA_NEURONS` no `wrangler.toml`.
+- Se a sua conta usa o plano **Workers Paid**, a franquia de 10.000 neurons por dia continua valendo, mas o que passa dela é cobrado (US$ 0,011 por mil neurons) em vez de a IA parar; o painel avisa e estima esse custo.
+
+Além do consumo, o painel mostra números derivados do mesmo dado agregado: gasto médio por chamada, quantas chamadas ainda cabem, projeção do total no fim do dia (se o ritmo recente continuar), hora de pico, até que hora a Cloudflare já tem dados e, por modelo, a parte do consumo, o gasto por chamada e os tokens. São contas sobre o que a Cloudflare devolve; sem consumo no dia, esses campos ficam vazios em vez de inventar um valor. Para outra franquia, defina a variável `COTA_NEURONS` no `wrangler.toml`.
 - Mensagem "A Cloudflare recusou a leitura": o token está sem a permissão de análises da conta, ou o ID da conta está errado.
 
 ## Atualização automática
