@@ -19,6 +19,7 @@
 
 import { formatarNumero } from './calculo.mjs';
 import { topicosDaQuestao, arsenalDaQuestao } from './matematica.mjs';
+import { resolverProvaLocal, textoDaProvaLocal } from './prova-local.mjs';
 
 // ------------------------------------------------------------------ frações exatas
 
@@ -1223,6 +1224,19 @@ const MTL_AVISO = 'Resolvido neste aparelho, sem IA e sem rede, em frações exa
 // Resposta para o app. resolvida=true quando uma conta foi feita; resolvida=false quando só há o roteiro do assunto (fórmulas e modelo resolvido).
 // parcial=true quando o texto é um enunciado maior que a conta reconhecida: o resultado é um passo da questão, não a resposta final dela.
 export function respostaDeMatematicaLocal(texto) {
+  // Questões de PROVA (várias ou uma só) que o aparelho sabe resolver por conta, com a alternativa: shared/prova-local.mjs
+  let prova = null;
+  try { prova = resolverProvaLocal(texto); } catch (e) { prova = null; }
+  if (prova) {
+    const tp = topicosDaQuestao(texto).map(function (t) { return t.nome; });
+    const faltam = prova.naoReconhecidas.length > 0;
+    return {
+      texto: textoDaProvaLocal(prova),
+      itens: prova.resolvidas.map(function (q) { return { rotulo: 'Questão ' + q.n, expressao: '', valor: null, texto: q.resposta + (q.letra ? ' (alternativa ' + q.letra + ')' : ''), moeda: false, bool: false, erro: false, sensivel: false }; }),
+      resolvida: true, parcial: faltam, topicos: tp,
+      avisos: ['Resolvido neste aparelho, sem IA e sem rede, por conta (frações exatas, busca numérica e enumeração), com conferência automática. Confira o enunciado: se a alternativa não aparece, compare o valor com as opções.']
+    };
+  }
   const r = resolverMatematicaLocal(texto);
   const topicos = topicosDaQuestao(texto).map(function (t) { return t.nome; });
   const palavras = mtlNorm(texto).replace(/[^a-z ]/g, ' ').split(' ').filter(function (w) { return w.length >= 3; }).length;
