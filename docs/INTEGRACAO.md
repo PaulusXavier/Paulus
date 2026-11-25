@@ -177,7 +177,7 @@ async function enviar(texto) {
   (r.avisos || []).forEach(mostrarAviso);                          // "Resposta gerada por IA..."
 }
 ```
-Tipos de `r.tipo`: `ia`, `norma`, `busca`, `acao`, `acao_desconhecida`, `rota` (veja "Rotas" abaixo), `pdf` (veja "PDF" abaixo; `r.texto`, `r.arquivos`, `r.precisaArquivo`), `calculo` (conta feita no aparelho; `r.texto` é texto simples, `r.itens` traz `{ expressao, valor, texto }`; `perguntar(t, { semCalculo: true })` desliga), `crise`, `bloqueio`, `sem_resposta`, `erro`. Em `erro`, `r.limite === true` indica limite de perguntas (basta esperar); em `sem_resposta`, `r.motivo` traz o que o Worker informou, se informou.
+Tipos de `r.tipo`: `ia`, `norma`, `busca`, `acao`, `acao_desconhecida`, `rota` (veja "Rotas" abaixo), `pdf` (veja "PDF" abaixo; `r.texto`, `r.arquivos`, `r.precisaArquivo`), `matematica` (sem IA, cota esgotada ou sem internet: equação, sistema, matriz, complexos, derivada, trigonometria resolvidos no aparelho com passos, ou o roteiro de fórmulas do assunto; `r.resolvida`, `r.parcial`, `r.texto`), `calculo` (conta feita no aparelho; `r.texto` é texto simples, `r.itens` traz `{ expressao, valor, texto }`; `perguntar(t, { semCalculo: true })` desliga), `crise`, `bloqueio`, `sem_resposta`, `erro`. Em `erro`, `r.limite === true` indica limite de perguntas (basta esperar); em `sem_resposta`, `r.motivo` traz o que o Worker informou, se informou.
 
 Ao trancar o app ou tocar em "Nova conversa", chame `Paulus.limpar()`.
 
