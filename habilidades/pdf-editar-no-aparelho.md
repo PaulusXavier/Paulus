@@ -1,13 +1,14 @@
 ---
 id: pdf-editar-no-aparelho
 nome: Editar PDF no aparelho
-quando: editar pdf; juntar pdf; unificar pdf; dividir pdf; divida pdf; remover página pdf; girar página pdf; numerar páginas; marca d'água; preencher pdf; unir pdf; extrair páginas pdf
+quando: editar pdf; juntar pdf; unificar pdf; dividir pdf; divida pdf; remover página pdf; girar página pdf; numerar páginas; marca d'água; preencher pdf; unir pdf; extrair páginas pdf; proteger pdf; colocar senha pdf; criptografar pdf
 ---
-- Quem edita é um **programa do app**, no aparelho da pessoa: o PDF não vem até você e você não lê o conteúdo dele.
-- Como pedir, **anexando o PDF**: "juntar" ou "unifique os PDFs" (vários PDFs ou fotos JPG/PNG), "remover as páginas 2 e 5", "extrair as páginas 3 a 6", "divida o PDF a cada 2 páginas", "dividir na página 4", "girar a página 3 para a direita", "inverter a ordem", "mover a página 3 para o início", "numerar as páginas no rodapé à direita", "marca d'água \"CÓPIA\"", "escrever \"Visto\" no canto inferior direito da última página", "definir o título \"X\" e o autor \"Y\"", "limpar os dados ocultos". Dá para encadear: "remover a página 2 e numerar as páginas".
-- **Texto novo, nome de campo e valor vão entre aspas.** Páginas: "2 e 5", "3 a 6", "última", "pares", "a partir da 4". Sem dizer páginas, girar, numerar e marca d'água valem para todas; escrever texto vale para a primeira e assinatura para a última.
-- **Formulário preenchível:** primeiro "listar os campos do pdf"; depois "preencher o campo \"Nome\" com \"Maria\" e o campo \"Cidade\" com \"Boa Vista\"", "marcar \"Recebe benefício\"". Para fixar o que foi preenchido, "travar o formulário". Preencher antes de juntar: ao juntar, os campos podem deixar de ser editáveis.
-- **Assinatura escaneada ou logo:** anexe o PDF e a imagem e peça "colocar a assinatura no canto inferior direito da última página". É só uma imagem, sem validade de assinatura digital.
-- Reduzir tamanho, senha, PDF → Word, Word → PDF, PDF → JPG, extrair texto, digitalizar e recortar estão na **Central de PDF** do Argo. Peça “PDF para Word” ou “Word para PDF”; a Central converte no aparelho, sem IA.
-- **Não faz aqui:** mudar o texto que já está no PDF (corrija no arquivo de origem, como Word ou Verbus, e gere de novo), tarjar de verdade (retângulo por cima não apaga o texto de baixo; para sigilo, tarje na origem), OCR e assinatura digital com certificado. Texto novo usa só letras do alfabeto latino.
-- **conferir o arquivo antes de usar**; o original não é alterado, o resultado vem como arquivo novo (nome com "-editado", "-unido"...). O PDF fica no aparelho e não vai a servidor; cuide de onde baixa e guarda.
+- Edição feita pelo app no aparelho; PDF não vai à IA.
+- Anexe o PDF e peça: “juntar”, “remover páginas 2 e 5”, “extrair 3 a 6”, “dividir a cada 2 páginas”, “girar página 3 para a direita”, “inverter a ordem”, “numerar no rodapé”, “marca d’água ‘CÓPIA’”, “escrever ‘Visto’ na última página”, “definir título e autor” ou “limpar dados ocultos”. Pode encadear operações.
+- Texto novo vai entre aspas. Sem páginas indicadas, girar, numerar e marca d’água valem para todas; escrever texto vale para a primeira, assinatura para a última.
+- Formulário: peça para listar campos; depois preencha ou marque pelo nome. “Travar” fixa os valores. Preencha antes de juntar PDFs.
+- Assinatura escaneada/logo: anexe também a imagem e indique posição. É imagem, não assinatura digital.
+- **Senha no console:** peça para proteger o PDF; digite e confirme a senha apenas no formulário local, nunca no chat. O console cifra uma cópia no aparelho com AES-256; não envia PDF/senha à IA, não guarda senha no histórico nem altera o original. Requer HTTPS ou localhost. Guarde a senha; não é recuperável. PDF já protegido deve ser aberto e salvo sem proteção antes. Faça em pedido separado.
+- Outros apps: use a Central de PDF e digite a senha somente no campo local da ferramenta. Ela também reduz, recorta, converte PDF/Word/JPG, extrai texto e digitaliza.
+- Não altera texto existente, não faz tarja segura, OCR nem assinatura com certificado. Corrija o original para mudar texto; retângulo não apaga conteúdo oculto. Texto novo aceita alfabeto latino.
+- Confira o arquivo novo antes de usar; o original não muda. Cuide onde baixa e guarda o PDF.
