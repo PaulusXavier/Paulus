@@ -1466,7 +1466,7 @@
     var e = temaEfetivo();
     document.body.classList.toggle('claro', e === 'claro');
     document.documentElement.setAttribute('data-tam', tam);
-    var mt = document.querySelector('meta[name="theme-color"]'); if (mt) mt.setAttribute('content', e === 'claro' ? '#eef5f8' : '#02070c');
+    var mt = document.querySelector('meta[name="theme-color"]'); if (mt) mt.setAttribute('content', e === 'claro' ? '#f4f7f8' : '#0c1216');
     if (apn) Array.prototype.forEach.call(apn.querySelectorAll('[data-g]'), function (b) { var on = (b.getAttribute('data-g') === 'tema' ? tema : tam) === b.getAttribute('data-v'); b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1; });
   }
   function montarAparencia() {
@@ -1530,6 +1530,24 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) { fecharMenu(); MN.focus(); } });
     if (mm.addEventListener) mm.addEventListener('change', ajustar); else if (mm.addListener) mm.addListener(ajustar);
     ajustar();
+  })();
+
+  // Celular: painéis viram folhas na parte de baixo. Toque no fundo escuro fecha; o botão "voltar" do Android fecha a folha em vez de sair do app.
+  (function () {
+    var scrim = $('scrim'); if (!scrim || !window.matchMedia) return;
+    var IDS = ['mnp', 'apn', 'sxp', 'cqp', 'vp', 'nt-p'], mm = matchMedia('(max-width:700px)'), marcado = false, agenda = 0;
+    function abertos() { return IDS.map($).filter(function (e) { return e && !e.hidden; }); }
+    function fechar() { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); abertos().forEach(function (e) { if (!e.hidden) e.hidden = true; }); }
+    function atualizar() {
+      agenda = 0; var tem = mm.matches && abertos().length > 0; scrim.classList.toggle('on', tem);
+      try {
+        if (tem && !marcado) { history.pushState({ paulusFolha: 1 }, ''); marcado = true; }
+        else if (!tem && marcado) { marcado = false; if (history.state && history.state.paulusFolha) history.back(); }
+      } catch (_) { /* sem histórico: só perde o botão voltar */ }
+    }
+    new MutationObserver(function () { if (!agenda) agenda = requestAnimationFrame(atualizar); }).observe(document.body, { attributes: true, attributeFilter: ['hidden'], subtree: true, childList: true });
+    scrim.addEventListener('click', fechar);
+    window.addEventListener('popstate', function () { if (marcado) { marcado = false; fechar(); } });
   })();
 
   // modo foco: esconde painéis e efeitos de fundo; a escolha fica neste aparelho
