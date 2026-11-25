@@ -2,7 +2,16 @@
 // Só arquivos do próprio site; as perguntas à IA (Worker, outro domínio) nunca passam pelo cache.
 var V = 'paulus-console-v4';
 var BASE = ['./', 'index.html', 'paulus.v1.js', 'login.js', 'console.js', 'notas.js', 'docs.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
-self.addEventListener('install', function (e) { e.waitUntil(caches.open(V).then(function (c) { return c.addAll(BASE); }).then(function () { return self.skipWaiting(); })); });
+// Para funcionar sem internet logo na primeira vez: a base de normas, o editor de PDF e o mapa também ficam guardados na instalação.
+// Um a um e sem derrubar a instalação se algum falhar (arquivo pesado, rede lenta, ainda não publicado): o que faltar entra no cache quando for usado.
+var EXTRAS = ['conhecimento.json', 'pdf-lib.min.js', 'leaflet.js', 'lugares-boa-vista.json'];
+self.addEventListener('install', function (e) {
+  e.waitUntil(caches.open(V).then(function (c) {
+    return c.addAll(BASE).then(function () {
+      return Promise.all(EXTRAS.map(function (u) { return c.add(u).catch(function () { /* fica para quando for usado */ }); }));
+    });
+  }).then(function () { return self.skipWaiting(); }));
+});
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k !== V; }).map(function (k) { return caches.delete(k); })); }).then(function () { return self.clients.claim(); }));
 });
