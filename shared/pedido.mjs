@@ -171,11 +171,28 @@ export function pedidoDeDesenho(texto) {
   return true;
 }
 
-export function perfilDaIA({ modo, tema = false, comTextoPronto = false, pref = null, quantitativo = false, partes = 0, comDesenho = false }) {
+// Questão de MATEMÁTICA de prova (vestibular, concurso, olimpíada, estudo): polinômio, geometria analítica, trigonometria, contagem...
+// Resolve-se por raciocínio em passos (não por regra pronta), então a IA precisa de mais espaço, temperatura baixa e o roteiro de métodos.
+const RE_MAT_FORTE = /\b(polinomio|raizes|raiz real|parabola|circunferencias?|hiperbole|elipse|reta tangente|tangente a|trigonometri\w*|seno|cosseno|tg|logaritm\w*|progressao (?:aritmetica|geometrica)|pa|pg|bijec\w*|injetora|sobrejetora|permutac\w*|combinac\w*|arranjos?|anagramas?|matriz|matrizes|determinante|sistema linear|numeros? complexos?|derivada|integral|vertice|baricentro|incentro|circuncentro|triangulo|esfera|cilindro|piramide|inequacao|equacao|funcao (?:quadratica|afim|exponencial|modular|inversa|composta)|binomio|vetores?|coeficiente angular|angulo|abscissa|ordenada|sen|cos|tan|sec|cossec|cotg)\b/g;
+// Termos de complexos, logaritmo com base escrita (log45), geometria plana e espacial: a prova de matemática não é só álgebra.
+const RE_MAT_FORTE_2 = /\blog\s*[_₀-₉{]?\s*\d|ℂ|∈\s*[cℂℝ]\b|\bparte (?:real|imaginaria)\b|\bconjugado\b|\bmodulo\s+\d|\bargumento\s+(?:principal\b|\S*pi\b|\S*π)|\bcubo\b|\bprisma\b|\bhexagono\b|\bpentagono\b|\bhexagrama\b|\bpoliedro\b|\btetraedro\b|\bsecao plana\b|\bplanos? (?:distintos|secantes|perpendiculares|paralelos|concorrentes)\b|\bretas? (?:paralelas|concorrentes|reversas)\b|\bquadrado inscrito\b|\binscrit[oa]\b|\bequilatero\b|\bisosceles\b/g;
+const RE_MAT_PEDIDO = /\b(questao|questoes|alternativas?|gabarito|resolva|calcule|determine|demonstre|prove|qual (?:e )?o valor|valor possivel|seja|sejam|considere|satisfaz\w*|e igual a|vestibular|concurso|prova|ime|ita|enem|olimpiada)\b|\(\s*\)\s*[-−]?\d|\b[a-e]\s*\(\s*\)/;
+export function pedidoDeMatematica(texto) {
+  const t = String(texto == null ? '' : texto).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().slice(0, 6000);
+  const fortes = (t.match(RE_MAT_FORTE) || []).length + (t.match(RE_MAT_FORTE_2) || []).length;
+  if (fortes >= 3) return true;
+  // Um termo de matemática só conta com sinal de conta (igualdade, potência, F(1), seta) ou com dois termos juntos; "triângulo de proteção" não é questão.
+  if (fortes >= 1 && (RE_MAT_PEDIDO.test(t) || /[=<>^]|->|\bx\s*\^?\s*\d|\bf\s*\(/.test(t))) return fortes >= 2 || /[=<>^]|->|\bx\b|\bf\s*\(/.test(t);
+  return false;
+}
+
+export function perfilDaIA({ modo, tema = false, comTextoPronto = false, pref = null, quantitativo = false, partes = 0, comDesenho = false, comMatematica = false }) {
   if (modo === 'saudacao') return { max_tokens: 160, temperature: 0.5 };
   if (tema) return { max_tokens: 900, temperature: 0.4 };
   // Desenho: o SVG ocupa muito mais que um texto; sem este teto o código é cortado no meio e o desenho não aparece.
   if (comDesenho) return { max_tokens: 3200, temperature: 0.3 };
+  // Questão de prova: a resolução em passos e a conferência das alternativas ocupam bem mais que uma resposta comum (várias questões, mais ainda).
+  if (comMatematica) return { max_tokens: 4096, temperature: 0.1 };
   // Pergunta de conta: o número vem do programa, a IA só explica. Temperatura baixa para não reescrever o resultado.
   if (comTextoPronto) return { max_tokens: 1400, temperature: quantitativo ? 0.3 : 0.5 };
   if (quantitativo && modo !== 'refinamento') return { max_tokens: pref && pref.tamanho === 'curto' ? 600 : 1000, temperature: 0.2 };

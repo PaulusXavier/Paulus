@@ -1115,9 +1115,97 @@ function cmxBijecoes(n) {
   return [cmxItem('bijeções com a ordem pedida', expr, bons, cmxF(bons) + ' de ' + cmxF(total) + ' permutações de ' + N + ' elementos')];
 }
 
+// Logaritmo de um número a partir de logaritmos APROXIMADOS dados no enunciado (estilo ITA/IME):
+// "usando log45 13,72 = 0,6880 e log45 6125 = 2,2908, o valor mais próximo de log45 7 é...".
+// Fatora tudo em primos (inclusive a base), monta o sistema linear e acha a combinação dos dados que dá o alvo.
+function cmxFatorar(n) {
+  const f = {};
+  if (!(n >= 1) || n > 1e9 || Math.floor(n) !== n) return null;
+  for (let p = 2; p * p <= n; p += (p === 2 ? 1 : 2)) while (n % p === 0) { f[p] = (f[p] || 0) + 1; n /= p; }
+  if (n > 1) f[n] = (f[n] || 0) + 1;
+  return f;
+}
+
+// "13,72" -> {num: 1372, den: 100}; "6.125" é lido como decimal só se não houver vírgula.
+function cmxDecimal(txt) {
+  let t = String(txt).trim();
+  if (t.indexOf(',') >= 0) t = t.replace(/\./g, '').replace(',', '.');
+  const partes = t.split('.');
+  const dec = partes[1] || '';
+  if (partes.length > 2 || dec.length > 6) return null;
+  const num = Number(partes[0] + dec), den = Math.pow(10, dec.length);
+  return Number.isFinite(num) && num > 0 ? { num: num, den: den, valor: num / den } : null;
+}
+
+function cmxExpoentes(num, den) {
+  const a = cmxFatorar(num), b = cmxFatorar(den);
+  if (!a || !b) return null;
+  const e = {};
+  Object.keys(a).forEach(function (p) { e[p] = (e[p] || 0) + a[p]; });
+  Object.keys(b).forEach(function (p) { e[p] = (e[p] || 0) - b[p]; });
+  return e;
+}
+
+function cmxLogaritmos(n) {
+  const t = String(n).replace(/[₀-₉]/g, function (d) { return String(d.charCodeAt(0) - 0x2080); }).replace(/[_{}]/g, '').replace(/log\s+(\d)/g, 'log$1');
+  if (!/log\s*\d/.test(t)) return null;
+  const re = /log\s*(\d+)\s+(\d+(?:[.,]\d+)*)(?:\s*=\s*(\d+(?:[.,]\d+)?))?/g;
+  const dados = [], alvos = []; let m, base = null;
+  while ((m = re.exec(t))) {
+    if (base === null) base = m[1]; else if (m[1] !== base) return null;
+    const arg = cmxDecimal(m[2]);
+    if (!arg) return null;
+    if (m[3] !== undefined) { const v = cmxDecimal(m[3]); if (!v) return null; dados.push({ arg: arg, valor: v.valor, txt: m[0] }); }
+    else alvos.push({ arg: arg, txt: m[0] });
+  }
+  if (!dados.length || !alvos.length || Number(base) < 2) return null;
+  const alvo = alvos[alvos.length - 1];
+  const linhas = [];
+  const eb = cmxExpoentes(Number(base), 1);
+  if (!eb) return null;
+  linhas.push({ e: eb, valor: 1 });
+  for (let i = 0; i < dados.length; i++) { const e = cmxExpoentes(dados[i].arg.num, dados[i].arg.den); if (!e) return null; linhas.push({ e: e, valor: dados[i].valor }); }
+  const ea = cmxExpoentes(alvo.arg.num, alvo.arg.den);
+  if (!ea) return null;
+  const primos = [];
+  linhas.concat([{ e: ea }]).forEach(function (l) { Object.keys(l.e).forEach(function (p) { if (primos.indexOf(p) < 0) primos.push(p); }); });
+  // Sistema: sum_i c_i * linha_i = alvo  (uma equação por primo, uma incógnita por dado)
+  const R = linhas.length;
+  const M = primos.map(function (p) { return linhas.map(function (l) { return l.e[p] || 0; }).concat([ea[p] || 0]); });
+  const col = [];
+  let r = 0;
+  for (let c = 0; c < R && r < M.length; c++) {
+    let piv = r;
+    for (let i = r + 1; i < M.length; i++) if (Math.abs(M[i][c]) > Math.abs(M[piv][c])) piv = i;
+    if (Math.abs(M[piv][c]) < 1e-12) continue;
+    const tmp = M[r]; M[r] = M[piv]; M[piv] = tmp;
+    for (let i = 0; i < M.length; i++) if (i !== r) { const f = M[i][c] / M[r][c]; for (let k = c; k <= R; k++) M[i][k] -= f * M[r][k]; }
+    col.push(c); r++;
+  }
+  for (let i = r; i < M.length; i++) if (Math.abs(M[i][R]) > 1e-9) return null;   // o alvo não é combinação dos dados
+  const coef = new Array(R).fill(0);
+  col.forEach(function (c, i) { coef[c] = M[i][R] / M[i][c]; });
+  let valor = 0;
+  for (let i = 0; i < R; i++) valor += coef[i] * linhas[i].valor;
+  if (!Number.isFinite(valor)) return null;
+  const expr = 'log' + base + ' ' + cmxF(alvo.arg.valor, 6);
+  return [cmxItem('logaritmo pelos dados (fatorados em primos)', expr, valor, cmxF(valor, 4) + ' (' + dados.length + ' dado(s) e a base ' + base + ' = ' + Object.keys(eb).map(function (p) { return p + (eb[p] > 1 ? '^' + eb[p] : ''); }).join('·') + ' resolvidos como sistema linear)')];
+}
+
+// Texto lido de uma foto de prova: só as regras que não confundem questões vizinhas (bijeções com ordem e logaritmos com dados).
+export function contasDeProva(texto) {
+  const n = cmxSemAcentos(String(texto == null ? '' : texto).slice(0, 6000)).toLowerCase().replace(/\s+/g, ' ').trim();
+  const itens = [];
+  [cmxBijecoes, cmxLogaritmos].forEach(function (regra) {
+    let r = null; try { r = regra(n); } catch (e) { r = null; }
+    if (r && r.length) r.forEach(function (i) { itens.push(i); });
+  });
+  return itens.length ? { itens: itens, soConta: false, sensivel: false, origem: 'especial' } : null;
+}
+
 // ------------------------------------------------------------------ painel de regras
 
-const CMX_REGRAS = [cmxBijecoes, cmxExtenso, cmxJurosMais, cmxSucessivos, cmxPercentualInverso, cmxProporcionais, cmxProgressao, cmxCombinatoria, cmxProbabilidade, cmxSistema, cmxLista, cmxFracoes, cmxAtalhos, cmxAcrescimo, cmxRegraDeTres, cmxRateio, cmxPerCapita, cmxFrequencia, cmxImc, cmxTaxa, cmxEstatistica, cmxEquacao, cmxFinanceiro, cmxHoras, cmxViagem, cmxNumerico, cmxGeometria, cmxPorcentagem, cmxConversao];
+const CMX_REGRAS = [cmxBijecoes, cmxLogaritmos, cmxExtenso, cmxJurosMais, cmxSucessivos, cmxPercentualInverso, cmxProporcionais, cmxProgressao, cmxCombinatoria, cmxProbabilidade, cmxSistema, cmxLista, cmxFracoes, cmxAtalhos, cmxAcrescimo, cmxRegraDeTres, cmxRateio, cmxPerCapita, cmxFrequencia, cmxImc, cmxTaxa, cmxEstatistica, cmxEquacao, cmxFinanceiro, cmxHoras, cmxViagem, cmxNumerico, cmxGeometria, cmxPorcentagem, cmxConversao];
 
 // Resolve pedidos "de cálculo pronto". Devolve null se nenhuma regra reconhece a mensagem.
 export function resolverEspecial(texto) {
