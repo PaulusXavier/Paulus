@@ -3,6 +3,7 @@
 
 import { espDetectarIdioma, espIdiomaDoPedido, espParaBusca, espInstrucaoParaIA, espRespostaLocal, AVISO_PESSOAL_ES } from './espanhol.mjs';
 import { ingDetectarIdioma, ingTextoEmIngles, ingParaBusca, ingInstrucaoParaIA, ingRespostaLocal, AVISO_PESSOAL_EN } from './ingles.mjs';
+import { respostaLocalEstudo } from './idioma-estudo.mjs';
 
 // 'en' | 'es' | 'pt' | 'indef'
 function idiomaDe(texto) {
@@ -36,10 +37,10 @@ export function avisoPessoalNoIdioma(info, avisoPt) {
 }
 
 // Vocabulário, frases e falsos amigos no aparelho (espanhol e inglês). Devolve { tipoLocal, texto, idioma } ou null.
-export function respostaLocalDeIdioma(pergunta) {
+export function respostaLocalDeIdioma(pergunta, historico) {
   // pedido que fala de inglês vai primeiro ao módulo do inglês ("falsos amigos português inglês" também casaria com o espanhol)
   const fala = /\bingl[eê]s\b|\benglish\b|\bguian|\bguyan/i.test(String(pergunta));
   const ordem = fala ? [['en', ingRespostaLocal], ['es', espRespostaLocal]] : [['es', espRespostaLocal], ['en', ingRespostaLocal]];
   for (const par of ordem) { const r = par[1](pergunta); if (r) return Object.assign({ idioma: par[0] }, r); }
-  return null;
+  return respostaLocalEstudo(pergunta, historico);
 }
