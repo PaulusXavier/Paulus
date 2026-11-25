@@ -258,6 +258,7 @@
     "ano": 2019,
     "tipo": "referencia",
     "pacote": "psicologia",
+    "worker": "nao",
     "revisao": "pendente",
     "trechos": 236,
     "caracteres": 140601
@@ -302,6 +303,7 @@
     "ano": 2019,
     "tipo": "referencia",
     "pacote": "psicologia",
+    "worker": "nao",
     "revisao": "pendente",
     "trechos": 165,
     "caracteres": 93927
@@ -313,6 +315,7 @@
     "ano": 2019,
     "tipo": "referencia",
     "pacote": "psicologia",
+    "worker": "nao",
     "revisao": "pendente",
     "trechos": 367,
     "caracteres": 204234
@@ -324,6 +327,7 @@
     "ano": 2020,
     "tipo": "referencia",
     "pacote": "psicologia",
+    "worker": "nao",
     "revisao": "pendente",
     "trechos": 204,
     "caracteres": 107510
@@ -346,6 +350,7 @@
     "ano": 2025,
     "tipo": "referencia",
     "pacote": "psicologia",
+    "worker": "nao",
     "revisao": "pendente",
     "trechos": 706,
     "caracteres": 405726
@@ -403,6 +408,7 @@
     "ano": 2021,
     "tipo": "referencia",
     "pacote": "psicologia",
+    "worker": "nao",
     "revisao": "pendente",
     "trechos": 259,
     "caracteres": 148859
@@ -414,6 +420,7 @@
     "ano": 2021,
     "tipo": "referencia",
     "pacote": "psicologia",
+    "worker": "nao",
     "revisao": "pendente",
     "trechos": 209,
     "caracteres": 119224
