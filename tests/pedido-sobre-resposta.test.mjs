@@ -53,6 +53,6 @@ test('pedido: espaço e temperatura da IA por situação', () => {
   assert.deepEqual(perfilDaIA({ modo: 'saudacao' }), { max_tokens: 160, temperature: 0.5 });
   assert.deepEqual(perfilDaIA({ modo: 'normal', comMatematica: true }), { max_tokens: 4096, temperature: 0.1 });
   assert.equal(perfilDaIA({ modo: 'normal', tema: true, comMatematica: true }).max_tokens, 900);
-  assert.equal(perfilDaIA({ modo: 'normal', comDesenho: true }).max_tokens, 3200);
+  assert.equal(perfilDaIA({ modo: 'normal', comDesenho: true }).max_tokens, 5000);
   assert.equal(perfilDaIA({ modo: 'normal' }).max_tokens, 900);
 });
