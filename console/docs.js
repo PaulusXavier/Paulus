@@ -1,14 +1,29 @@
 // Leitura de documentos anexados, NO APARELHO (o arquivo não sobe para lugar nenhum; só trechos escolhidos vão à IA, veja shared/documento.mjs).
-// Lê: TXT, MD, CSV, TSV, XLSX, DOCX e PDF com texto localmente. PDF escaneado: renderiza até 5 páginas localmente; a IA de visão só recebe após confirmação.
-// Foto (JPG, PNG, WebP): imagem(arquivo) a reduz NO APARELHO (lado maior 1280 px, JPEG; o re-desenho apaga EXIF e GPS) e devolve { nome, dados } para o Paulus
-// mandar ao Worker, que a lê com um modelo de visão (worker/visao.mjs). Quem decide mandar é o console; este arquivo só prepara.
+// Lê localmente PDF, Office, OpenDocument, tabelas e texto; imagens comuns são reduzidas NO APARELHO (JPEG; o redesenho apaga EXIF/GPS).
+// Só trechos de texto escolhidos, fotos reduzidas e páginas de PDF escaneadas seguem ao Worker/IA conforme avisos e confirmações da interface.
+// A visão (worker/visao.mjs) só recebe imagens quando o console decide encaminhá-las; este arquivo prepara o conteúdo localmente.
 (function () {
   'use strict';
-  var MAX_BYTES = 25 * 1024 * 1024, MAX_PAGINAS = 80, MAX_PAGINAS_OCR = 5, MAX_CHARS = 600000, TEXTO = { txt: 1, md: 1, csv: 1, tsv: 1 };
+  var MAX_BYTES = 25 * 1024 * 1024, MAX_PAGINAS = 80, MAX_PAGINAS_OCR = 5, MAX_CHARS = 600000;
+  var TEXTO = { txt: 1, md: 1, csv: 1, tsv: 1, json: 1, xml: 1, html: 1, htm: 1, rtf: 1 };
+  var PACOTE = { docx: 1, xlsx: 1, pptx: 1, odt: 1, ods: 1, odp: 1 };
   var cache = typeof WeakMap === 'function' ? new WeakMap() : null, leitor = null;
   function ext(f) { var m = /\.([a-z0-9]+)$/i.exec((f && f.name) || ''); return m ? m[1].toLowerCase() : ''; }
-  function ehImagem(f) { return /^image\/(jpeg|png|webp)$/.test((f && f.type) || '') || /^(png|jpe?g|webp)$/.test(ext(f)); }
-  function legivel(f) { var e = ext(f); return !!(TEXTO[e] || e === 'docx' || e === 'xlsx' || e === 'pdf'); }
+  function ehImagem(f) { var e = ext(f), t = (f && f.type || '').toLowerCase(); return /^image\/(jpeg|png|webp|gif|bmp|avif|heic|heif)$/.test(t) || /^(png|jpe?g|webp|gif|bmp|avif|heic|heif)$/.test(e); }
+  function legivel(f) { var e = ext(f); return !!(TEXTO[e] || PACOTE[e] || e === 'pdf'); }
+  function decodificarXml(s) {
+    return String(s).replace(/&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);/gi, function (m, e) {
+      var n = e.toLowerCase(); if (n === 'amp') return '&'; if (n === 'lt') return '<'; if (n === 'gt') return '>'; if (n === 'quot') return '"'; if (n === 'apos') return "'";
+      var c = n.slice(0, 2) === '#x' ? parseInt(n.slice(2), 16) : parseInt(n.slice(1), 10);
+      return Number.isFinite(c) && c >= 0 && c <= 0x10ffff && !(c >= 0xd800 && c <= 0xdfff) ? String.fromCodePoint(c) : m;
+    });
+  }
+  function limparXmlTexto(s) {
+    return decodificarXml(String(s).replace(/<w:tab\s*\/?\s*>|<a:tab\s*\/?\s*>|<text:tab\s*\/?\s*>/gi, '\t')
+      .replace(/<w:br\b[^>]*\/?\s*>|<a:br\b[^>]*\/?\s*>|<text:line-break\b[^>]*\/?\s*>/gi, '\n')
+      .replace(/<text:s\b([^>]*)\/?\s*>/gi, function (_m, a) { var x = /text:c="(\d+)"/.exec(a); return ' '.repeat(Math.min(100, x ? Number(x[1]) : 1)); })
+      .replace(/<\/w:p\s*>|<\/text:(?:p|h)\s*>|<\/a:p\s*>/gi, '\n').replace(/<[^>]*>/g, ''));
+  }
   function u16(b, o) { return b[o] | (b[o + 1] << 8); }
   function u32(b, o) { return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0; }
   function inflar(bytes) {
@@ -29,10 +44,7 @@
     }
     if (!ent) return Promise.reject(new Error('sem texto'));
     var ini = ent.lo + 30 + u16(b, ent.lo + 26) + u16(b, ent.lo + 28), dados = b.subarray(ini, ini + ent.tc);
-    return (ent.met === 8 ? inflar(dados) : Promise.resolve(dados)).then(function (x) {
-      return new TextDecoder().decode(x).replace(/<w:tab\/>/g, '\t').replace(/<w:br\/>|<\/w:p>/g, '\n').replace(/<[^>]+>/g, '')
-        .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
-    });
+    return (ent.met === 8 ? inflar(dados) : Promise.resolve(dados)).then(function (x) { return limparXmlTexto(new TextDecoder().decode(x)); });
   }
   function abrirZip(buf) {
     var b = new Uint8Array(buf), fim = -1, i;
@@ -45,14 +57,16 @@
       mapa[nome] = { met: u16(b, p + 10), tc: u32(b, p + 20), lo: u32(b, p + 42) };
       p += 46 + nl + el + cl;
     }
-    return function (nome) {
+    var ler = function (nome) {
       var e = mapa[nome]; if (!e) return Promise.resolve('');
       var ini = e.lo + 30 + u16(b, e.lo + 26) + u16(b, e.lo + 28), dados = b.subarray(ini, ini + e.tc);
       return (e.met === 8 ? inflar(dados) : Promise.resolve(dados)).then(function (x) { return new TextDecoder().decode(x); });
     };
+    ler.listar = function (prefixo) { return Object.keys(mapa).filter(function (nome) { return nome.indexOf(prefixo) === 0; }); };
+    return ler;
   }
   function xlsx(buf) {
-    var ler = abrirZip(buf), esc = function (s) { return String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&'); };
+    var ler = abrirZip(buf), esc = function (s) { return String(s).replace(/&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);/gi, function (m, e) { var n = e.toLowerCase(); if (n === 'amp') return '&'; if (n === 'lt') return '<'; if (n === 'gt') return '>'; if (n === 'quot') return '"'; if (n === 'apos') return "'"; var c = n.slice(0, 2) === '#x' ? parseInt(n.slice(2), 16) : parseInt(n.slice(1), 10); return Number.isFinite(c) && c >= 0 && c <= 0x10ffff && !(c >= 0xd800 && c <= 0xdfff) ? String.fromCodePoint(c) : m; }); };
     var attr = function (s, n) { var re = new RegExp('(?:^|\\s)' + n.replace(':', '\\:') + '="([^"]*)"'); var m = re.exec(s); return m ? m[1] : ''; };
     var limpar = function (s) { return esc(String(s || '').replace(/<[^>]*>/g, '')).replace(/\r?\n/g, ' ').trim(); };
     return Promise.all([ler('xl/workbook.xml'), ler('xl/_rels/workbook.xml.rels'), ler('xl/sharedStrings.xml')]).then(function (base) {
@@ -83,6 +97,60 @@
         return linhas.join('\n');
       });
     });
+  }
+  function pptx(buf) {
+    var ler = abrirZip(buf), slides = ler.listar('ppt/slides/slide').filter(function (n) { return /\/slide\d+\.xml$/.test(n); });
+    slides.sort(function (a, b) { return Number(/slide(\d+)/.exec(a)[1]) - Number(/slide(\d+)/.exec(b)[1]); });
+    if (!slides.length) return Promise.reject(new Error('pptx-sem-slides'));
+    return Promise.all(slides.map(function (nome, i) { return ler(nome).then(function (xml) { return 'Slide ' + (i + 1) + ':\n' + limparXmlTexto(xml); }); })).then(function (s) { return s.join('\n\n'); });
+  }
+  function odf(buf, formato) {
+    var ler = abrirZip(buf);
+    if (formato === 'ods') return ler('content.xml').then(function (xml) {
+      var tabela = /<table:table\b[^>]*>([\s\S]*?)<\/table:table>/i.exec(xml), corpo = tabela && tabela[1];
+      if (!corpo) throw new Error('ods-sem-folha');
+      var linhas = [], rm = /<table:table-row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/table:table-row>)/gi, row;
+      function attr(s, n) { var re = new RegExp('(?:^|\\s)' + n.replace(':', '\\:') + '="([^"]*)"'); var m = re.exec(s); return m ? m[1] : ''; }
+      function fuga(v) { v = String(v == null ? '' : v).replace(/[\r\n]+/g, ' '); return /[\t"]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+      while ((row = rm.exec(corpo)) && linhas.length < 15000) {
+        var cells = [], cm = /<table:(?:table-cell|covered-table-cell)\b([^>]*?)(?:\/>|>([\s\S]*?)<\/table:(?:table-cell|covered-table-cell)>)/gi, c, col = 0;
+        while ((c = cm.exec(row[2] || '')) && col < 512) {
+          var inn = c[2] || '', p = /<text:(?:p|h)\b[^>]*>([\s\S]*?)<\/text:(?:p|h)>/gi, m, pars = [];
+          while ((m = p.exec(inn))) pars.push(limparXmlTexto(m[1]).trim());
+          var valor = pars.filter(Boolean).join(' ');
+          if (!valor) valor = attr(c[1], 'office:date-value') || attr(c[1], 'office:value') || attr(c[1], 'office:string-value');
+          var rep = Math.min(512 - col, Math.max(1, Number(attr(c[1], 'table:number-columns-repeated')) || 1));
+          for (var z = 0; z < rep; z++) cells[col++] = fuga(valor);
+        }
+        var linha = cells.join('\t'), repetir = Math.min(15000 - linhas.length, Math.max(1, Number(attr(row[1], 'table:number-rows-repeated')) || 1));
+        for (var r = 0; r < repetir; r++) linhas.push(linha);
+        if (linhas.join('\n').length > MAX_CHARS) break;
+      }
+      if (!linhas.length) throw new Error('ods-vazio');
+      return linhas.join('\n');
+    });
+    return ler('content.xml').then(function (xml) {
+      if (!xml) throw new Error('odf-sem-texto');
+      if (formato === 'odp') {
+        var paginas = [], dm = /<draw:page\b[^>]*>([\s\S]*?)<\/draw:page>/gi, d;
+        while ((d = dm.exec(xml))) paginas.push(limparXmlTexto(d[1]).trim());
+        return paginas.map(function (s, i) { return 'Slide ' + (i + 1) + ':\n' + s; }).join('\n\n');
+      }
+      var pm = /<text:(?:p|h)\b[^>]*>([\s\S]*?)<\/text:(?:p|h)>/gi, p, ps = [];
+      while ((p = pm.exec(xml))) ps.push(limparXmlTexto(p[1]).trim());
+      return ps.join('\n');
+    });
+  }
+  function textoOutro(s, formato) {
+    s = String(s || '');
+    if (formato === 'json') { try { return JSON.stringify(JSON.parse(s), null, 2); } catch (e) { return s; } }
+    if (formato === 'rtf') return s.replace(/\\'[0-9a-f]{2}/gi, function (m) { return String.fromCharCode(parseInt(m.slice(2), 16)); })
+      .replace(/\\u(-?\d+)\??/g, function (_m, n) { var c = Number(n); return String.fromCharCode(c < 0 ? c + 65536 : c); })
+      .replace(/\\(?:par|line|row|page)\b-?\d* ?/gi, '\n').replace(/\\tab\b ?/gi, '\t').replace(/\{\\\*[^{}]*\}/g, '')
+      .replace(/\\[a-zA-Z]+-?\d* ?/g, '').replace(/\\([{}\\])/g, '$1').replace(/[{}]/g, '').trim();
+    if (formato === 'html' || formato === 'htm') s = s.replace(/<(script|style|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ').replace(/<(?:br|\/p|\/div|\/li|\/h[1-6]|\/tr|\/section|\/article)\b[^>]*>/gi, '\n');
+    else if (formato === 'xml') s = s.replace(/></g, '>\n<');
+    return decodificarXml(s.replace(/<[^>]*>/g, ' ')).replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').trim();
   }
   function carregarLeitor() {
     if (!leitor) leitor = import('./pdf.min.mjs').then(function (m) { m.GlobalWorkerOptions.workerSrc = new URL('pdf.worker.min.mjs', document.baseURI).href; return m; })
@@ -133,17 +201,20 @@
   function uma(f) {
     if (cache && cache.has(f)) return cache.get(f);
     var e = ext(f), p;
-    if (ehImagem(f)) p = Promise.resolve({ erro: f.name + ': foto não é lida como documento de texto; ela segue pela leitura de imagem.' });
-    else if (!legivel(f)) p = Promise.resolve({ erro: f.name + ': formato que não leio. Use PDF com texto, DOCX, TXT, MD, CSV, TSV ou XLSX.' });
+    if (ehImagem(f)) p = Promise.resolve({ erro: f.name + ': imagem anexada; use uma pergunta visual. Imagens não são lidas como texto.' });
+    else if (!legivel(f)) p = Promise.resolve({ erro: f.name + ': formato não suportado. Use PDF, DOCX, XLSX, PPTX, ODT, ODS, ODP, TXT, MD, CSV, TSV, JSON, XML, HTML ou RTF.' });
     else if (f.size > MAX_BYTES) p = Promise.resolve({ erro: f.name + ': maior que 25 MB.' });
-    else p = (TEXTO[e] ? f.text() : f.arrayBuffer().then(function (b) { return e === 'docx' ? docx(b) : e === 'xlsx' ? xlsx(b) : pdf(b); })).then(function (t) {
+    else p = (TEXTO[e] ? f.text().then(function (s) { return textoOutro(s, e); }) : f.arrayBuffer().then(function (b) {
+      if (e === 'docx') return docx(b); if (e === 'xlsx') return xlsx(b); if (e === 'pptx') return pptx(b);
+      if (e === 'odt' || e === 'ods' || e === 'odp') return odf(b, e); return pdf(b);
+    })).then(function (t) {
       if (t && typeof t === 'object' && Array.isArray(t.imagens)) return t;
       t = String(t).replace(/\u0000/g, '').replace(/[ \t]+\n/g, '\n').trim().slice(0, MAX_CHARS);
       if (t.length < 40) return { erro: f.name + ': não achei texto nem consegui preparar páginas escaneadas para ler.' };
       return { nome: f.name, texto: t };
     }).catch(function (er) {
       var m = er && er.message, nome = er && er.name;
-      return { erro: m === 'LEITOR' ? 'Falta instalar o leitor de PDF do Paulus (veja docs/DOCUMENTOS.md). Enquanto isso, anexe DOCX, TXT, MD, CSV, TSV ou XLSX.' : nome === 'PasswordException' ? f.name + ': o PDF tem senha.' : f.name + ': não consegui ler este arquivo.' };
+      return { erro: m === 'LEITOR' ? 'Falta instalar o leitor de PDF do Paulus (veja docs/DOCUMENTOS.md).' : nome === 'PasswordException' ? f.name + ': o PDF tem senha.' : f.name + ': não consegui ler este arquivo.' };
     });
     if (cache) cache.set(f, p);
     return p;
@@ -186,7 +257,7 @@
     return dados;
   }
   function imagem(f) {
-    if (!f || !ehImagem(f)) return Promise.resolve({ erro: ((f && f.name) || 'arquivo') + ': só leio imagem JPG, PNG ou WebP.' });
+    if (!f || !ehImagem(f)) return Promise.resolve({ erro: ((f && f.name) || 'arquivo') + ': imagem não compatível. Use JPG, PNG, WebP, GIF, BMP, AVIF ou HEIC/HEIF se o navegador conseguir abrir.' });
     if (f.size > IMG_MAX_BYTES) return Promise.resolve({ erro: f.name + ': a imagem é grande demais (mais de 40 MB).' });
     return abrirImagem(f).then(function (im) {
       var dados = codificar(im, IMG_LADO, 0);
@@ -194,7 +265,7 @@
       if (!/^data:image\/jpeg;base64,/.test(dados) || dados.length > IMG_MAX_B64) return { erro: f.name + ': não consegui reduzir a imagem o bastante. Tente uma foto menor.' };
       return { nome: f.name, dados: dados };
     }).catch(function () {
-      return { erro: f.name + ': não consegui abrir esta imagem. Use JPG, PNG ou WebP (no iPhone, compartilhe a foto como JPG ou escolha o formato "Mais compatível").' };
+      return { erro: f.name + ': este formato de imagem não abriu no navegador. Tente converter para JPG, PNG ou WebP.' };
     });
   }
   window.PaulusDocs = { ler: ler, legivel: legivel, ehImagem: ehImagem, imagem: imagem };
