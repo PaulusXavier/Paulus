@@ -47,6 +47,9 @@ const CAMPOS_DO_TEXTO = ['FATOS', 'FONTE', 'EXCECAO', 'FALTA', 'CAMINHO', 'ALTER
 export const MAX_TRECHOS_NOVOS = 2;
 
 const RE_ANALISE = /\b(posso|devo|deve|pode|podem|preciso|precisa|tem direito|tenho direito|cabe|e obrigatorio|e permitido|e possivel|caso|situacao|familia que|mae que|pai que|idoso que|crianca que|adolescente que|o que fazer|o que eu faco|como proceder|como conduzir|como abordar|como lidar|qual o melhor|melhor caminho|qual caminho|vale a pena|diferenca entre|compar|elegivel|enquadra|se enquadr|e se |ou devo|ou posso|devo ou|dilema|duvida etica|sigilo|quebrar|notificar|denunciar|encaminhar ou|acompanhar ou|atender ou|e agora|nao aceita|nao aceitou|nao aceitam|recusou|recusa|nao quer|nao concorda|nao comparece|nao compareceu|deixou de|como faco|como fazer|qual a melhor forma|melhor forma|estou em duvida|nao sei se|sera que|faz sentido|esta certo|esta correto|o que voce acha|o que acha|na pratica|como priorizar|o que priorizar|por onde comecar|por onde comeco)\b/;
+// Texto normalizado (sem acento, minúsculo).
+const RE_INFORMATIVA = /^(?:como (?:faco|fazer|se faz|e feito|eu faco|incluir|inscrever|solicitar|pedir|acessar|cadastrar|registrar|emitir|atualizar|requerer|dar entrada|funciona)|o que (?:e|sao|significa|oferece)|o que .{1,30} pode (?:oferecer|ofertar|fazer)|quais? (?:sao )?(?:os |as )?(?:documentos|servicos|criterios|requisitos)|preciso (?:de|do|da|dos|das) )/;
+const RE_SINAL_DE_DECISAO = /\b(posso|devo|ou devo|ou posso|caso|situacao|dilema|etic[ao]s?|sigilo|quebrar|notificar|denunciar|recus\w*|nao (?:quer|aceit\w*|concorda|comparec\w*|autoriza)|deixou de|e se|o que fazer|como (?:lidar|conduzir|abordar|proceder)|vale a pena|melhor (?:caminho|forma)|qual caminho|estou em duvida|nao sei se|sera que|o que voce acha|encaminhar ou|acompanhar ou|atender ou|sem consentimento|contra a vontade)\b/;
 const RE_CONSULTA_SIMPLES = /^(?:qual|quais|onde|quem|que horas|quando)\b.{0,50}\?*$/;
 
 // Pergunta que pede análise (e não só um dado). Só olha o texto; o modo vem de classificarPedido.
@@ -65,6 +68,9 @@ export function pedeAnalise(pergunta, modo, historico) {
   // "Posso registrar isso como visita?" tem só 5 palavras e é pergunta de decisão; as demais precisam de 7.
   if (palavras < (/\b(posso|devo|preciso)\b/.test(n) && palavras >= 5 ? 5 : 7)) return false;
   if (RE_CONSULTA_SIMPLES.test(n) && !/\b(posso|devo|pode|caso|situacao)\b/.test(n)) return false;
+  // Pergunta informativa (procedimento, definição, lista) é resposta de fonte, não decisão: sem sinal de dilema ou escolha,
+  // não gasta duas chamadas a mais ao modelo grande.
+  if (palavras < 28 && RE_INFORMATIVA.test(n) && !RE_SINAL_DE_DECISAO.test(n)) return false;
   // Um relato longo já é um caso para pensar junto, mesmo sem palavra-chave de decisão.
   return RE_ANALISE.test(n) || palavras >= 28;
 }
