@@ -361,8 +361,8 @@
 
   // ------------------------------------------------------------ mensagens
   function limparBoasVindas() { var o = log.querySelector('.hi'); if (o) o.remove(); document.body.classList.remove('vazio'); }
-  var KIND = { ia: 'IA', norma: 'NORMA', busca: 'BUSCA', acao: 'AÇÃO', acao_desconhecida: 'AÇÃO', calculo: 'CÁLCULO', matematica: 'MATEMÁTICA', rota: 'ROTA', geo: 'GEO', pdf: 'PDF', modelo: 'MODELO 3D', qr: 'QR CODE', revisao: 'REVISÃO', espanhol: 'IDIOMA', ingles: 'IDIOMA', crise: 'SOCORRO', bloqueio: 'PRIVACIDADE', erro: 'ERRO', sem_resposta: 'SEM RESPOSTA', pens: 'PROCESSANDO' };
-  var LOCAL = { norma: 1, busca: 1, acao: 1, acao_desconhecida: 1, calculo: 1, matematica: 1, rota: 1, geo: 1, pdf: 1, modelo: 1, qr: 1, revisao: 1, espanhol: 1, ingles: 1, crise: 1, bloqueio: 1, sem_resposta: 1 };
+  var KIND = { ia: 'IA', norma: 'NORMA', busca: 'BUSCA', acao: 'AÇÃO', acao_desconhecida: 'AÇÃO', calculo: 'CÁLCULO', matematica: 'MATEMÁTICA', psicometria: 'ANÁLISE DE DADOS', rota: 'ROTA', geo: 'GEO', pdf: 'PDF', modelo: 'MODELO 3D', qr: 'QR CODE', revisao: 'REVISÃO', espanhol: 'IDIOMA', ingles: 'IDIOMA', crise: 'SOCORRO', bloqueio: 'PRIVACIDADE', erro: 'ERRO', sem_resposta: 'SEM RESPOSTA', pens: 'PROCESSANDO' };
+  var LOCAL = { norma: 1, busca: 1, acao: 1, acao_desconhecida: 1, calculo: 1, matematica: 1, psicometria: 1, rota: 1, geo: 1, pdf: 1, modelo: 1, qr: 1, revisao: 1, espanhol: 1, ingles: 1, crise: 1, bloqueio: 1, sem_resposta: 1 };
   var nResp = 0, vozPendente = false;
   function cabeca(quem, kind, id) {
     var c = h('div', { class: 'mh' }, [h('span', { class: 'q', text: quem })]);
@@ -589,7 +589,7 @@
     var kk = x.m.querySelector('.mh .k'); if (kk) decod(kk, (KIND[r.tipo] || 'IA') + (LOCAL[r.tipo] && r.tipo !== 'busca' && r.tipo !== 'acao' ? ' · NO APARELHO' : ''), 420);
     legenda('');
     if (r.tipo === 'crise') x.m.classList.add('alerta');
-    if (r.tipo === 'ia' || r.tipo === 'norma' || r.tipo === 'revisao' || r.tipo === 'espanhol' || r.tipo === 'ingles') pintar(corpo, r.texto);
+    if (r.tipo === 'ia' || r.tipo === 'norma' || r.tipo === 'revisao' || r.tipo === 'psicometria' || r.tipo === 'espanhol' || r.tipo === 'ingles') pintar(corpo, r.texto);
     else corpo.textContent = r.texto || '';
     if (r.tipo === 'crise') {
       var ul = h('ul'); (r.telefones || []).forEach(function (t) { ul.appendChild(h('li', {}, [h('a', { href: 'tel:' + String(t.numero).replace(/\D/g, ''), text: t.numero }), ' ' + (t.nome || '')])); });
