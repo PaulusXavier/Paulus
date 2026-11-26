@@ -20,6 +20,7 @@
 // Por isso: imports em UMA linha, e nomes de função sem repetir entre os módulos.
 
 import { temDadoPessoal } from '../shared/pii.mjs';
+import { criarRegistro } from '../shared/pseudonimo.mjs';
 import { docPreparar } from '../shared/documento.mjs';
 import { detectarCrise } from '../shared/crise.mjs';
 import { respostaLocalDeIdioma, paraBusca, idiomaDoPedido, avisoPessoalNoIdioma } from '../shared/idioma.mjs';
@@ -70,6 +71,7 @@ const PADRAO = {
   memoria: true,           // aprende com o uso, só no aparelho (veja client/memoria.mjs); false = desligada
   aoNegar: null,           // chamada quando o Worker responde 401 (sessão vencida ou sem login): o app volta à tela de login
   token: null,             // sessão do login (texto ou função que devolve o texto); vai no cabeçalho Authorization
+  pseudonimizar: true,     // nome e CPF digitados são lidos no aparelho e trocados por marcadores antes de ir à IA (shared/pseudonimo.mjs); false = volta a bloquear
   perfil: ''               // id opaco da conta no app (nunca e-mail/nome): memórias separadas por pessoa no mesmo navegador
 };
 
@@ -80,6 +82,7 @@ const estado = {
   acoes: [],
   buscas: [],
   historico: [],
+  pessoas: criarRegistro(),   // quem é PESSOA_1 e qual é o CPF_1: só nesta aba, só em memória
   envios: [],
   fichas: null,
   pontos: null,
@@ -182,7 +185,7 @@ function registrarBusca(b) {
   estado.buscas.push({ id: b.id, rotulos: (b.rotulos || []).map(normalizar).filter(Boolean), buscar: b.buscar });
 }
 
-function limpar() { estado.historico = []; estado.pendentes = []; avisarMudancaIA(); }
+function limpar() { estado.historico = []; estado.pendentes = []; estado.pessoas.limpar(); avisarMudancaIA(); }
 function skin(app) { return SKINS[String(app || cfg.app).toLowerCase()] || null; }
 function iaLigada() {
   return !!cfg.endpoint && (typeof navigator === 'undefined' || navigator.onLine !== false);
@@ -441,7 +444,7 @@ function historicoParaEnvio(externo, ajuste) {
   let ultima = -1;
   lista.forEach(function (h, i) { if (h && h.papel !== 'usuario') ultima = i; });
   return lista.map(function (h, i) {
-    return { papel: h.papel, texto: String(h.texto).slice(0, ajuste && i === ultima ? 3000 : 1200) };
+    return { papel: h.papel, texto: estado.pessoas.ocultar(String(h.texto).slice(0, ajuste && i === ultima ? 3000 : 1200)) };
   });
 }
 
@@ -1026,6 +1029,39 @@ function respostaDeCalculo(t, o, conta) {
   };
 }
 
+// Pergunta com nome ou CPF: o texto que sai do aparelho só tem marcadores. O pedido original não vai a nenhum atalho local nem ao histórico nem à
+// memória de respostas: nada do que foi digitado fica guardado, e a resposta (com os dados reais refeitos) não é lembrada depois.
+async function responderComNomeLocal(pr, o, comImagem) {
+  const idioma = idiomaDoPedido(pr.texto, o.historico || estado.historico);
+  if (temDadoPessoal(pr.texto)) return { tipo: 'bloqueio', texto: avisoPessoalNoIdioma(idioma, AVISO_PESSOAL) };
+  if ((!iaLigada() || iaPausada()) && idioma && (idioma.resposta === 'es' || idioma.resposta === 'en')) return { tipo: 'bloqueio', texto: avisoPessoalNoIdioma(idioma, AVISO_PESSOAL) };
+  if (!iaLigada() || iaPausada()) return { tipo: 'bloqueio', semIA: true, texto: 'Li o nome/CPF aqui no aparelho e ele não saiu daqui, mas para analisar preciso da IA, que não está disponível agora. ' + (iaLigada() ? quandoVoltaIA() : 'Volte quando houver internet.') + ' Se puder, reescreva a pergunta sem identificar a pessoa.', fontes: [], avisos: [] };
+  const o2 = Object.assign({}, o);
+  if (typeof o.onToken === 'function') o2.onToken = function (a, b) { o.onToken(estado.pessoas.restaurar(a), estado.pessoas.restaurar(b)); };
+  try {
+    const r = await pedirIA(pr.texto + pr.nota, o2);
+    retomarIA();
+    if (r && r.tipo === 'ia') {
+      const protegido = r.texto;
+      r.texto = estado.pessoas.restaurar(r.texto);
+      if (Array.isArray(r.sugestoes)) r.sugestoes = r.sugestoes.map(function (x) { return typeof x === 'string' ? estado.pessoas.restaurar(x) : x; });
+      if (!Array.isArray(o.historico)) {
+        estado.historico.push({ papel: 'usuario', texto: pr.texto }, { papel: 'paulus', texto: protegido });
+        estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
+      }
+      r.sensivel = true; r.pergunta = ''; r.docs = [];
+      r.avisos = (r.avisos || []).concat(['Nome e CPF foram lidos neste aparelho e trocados por marcadores antes do envio: a IA não recebeu os dados reais. Não foi guardado na memória do Paulus.']);
+    }
+    return r;
+  } catch (e) {
+    if (o.sinal && o.sinal.aborted) return { tipo: 'erro', texto: 'Interrompido.' };
+    if (e && e.status === 429) return { tipo: 'erro', texto: e.motivo || 'Muitas perguntas seguidas. Aguarde um minuto.', limite: true };
+    if (e && e.cota) pausarIA(e.aviso);
+    else if (e && !e.status) pausarPorRede();
+    return { tipo: 'erro', texto: 'Não consegui consultar a IA agora (' + ((e && e.motivo) || 'tente de novo em instantes') + '). O nome e o CPF continuam só neste aparelho.' };
+  }
+}
+
 // Envolve o fluxo principal: registra como pendente o que só a base respondeu enquanto a IA estava fora, e tira da fila o que a IA respondeu.
 async function perguntar(texto, opcoes) {
   estado.qrAnexo = null;
@@ -1083,6 +1119,12 @@ async function perguntarFluxo(texto, opcoes) {
     if (dt && dt.origem === 'datas') return respostaDeCalculo(t, o, dt);
   }
 
+  // Nome e CPF: lidos aqui, no aparelho. Viram marcadores (PESSOA_1, CPF_1) antes de qualquer envio; a resposta da IA volta com os marcadores
+  // e é refeita na tela. Sobrou outro dado pessoal (telefone, endereço, RG...) depois da troca? Aí bloqueia como sempre.
+  if (cfg.pseudonimizar !== false) {
+    const pr = estado.pessoas.proteger(t);
+    if (pr) return responderComNomeLocal(pr, o, comImagem);
+  }
   if (temDadoPessoal(t)) return { tipo: 'bloqueio', texto: avisoPessoalNoIdioma(idiomaDoPedido(t, o.historico || estado.historico), AVISO_PESSOAL) };
 
   // QR Code: geração local no aparelho; o filtro de dados pessoais acima continua valendo.
@@ -1312,7 +1354,7 @@ const Paulus = { init, perguntar,
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { const pedido = lerPedidoDePdf(t, { temArquivo: l.length > 0 }); if (pedido && pedido.operacoes.some(function (op) { return op.op === 'proteger'; })) return respostaDePdf(t, l, Object.assign({ protegerLocal: cfg.pdfProtegerLocal }, opc || {})); return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, proteger: pdfProteger, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
-  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.33.0',
+  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.34.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
