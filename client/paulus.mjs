@@ -31,6 +31,7 @@ import { respostaDoPedido } from '../shared/calculo-mais.mjs';
 import { responderPorExtracao } from '../shared/resposta-extrativa.mjs';
 import { respostaDeMatematicaLocal } from '../shared/matematica-local.mjs';
 import { psiLerTabela, psiRespostaDoPedido, psiSemBase } from '../shared/psicometria.mjs';
+import { graficoResponder, graficoSVG } from '../shared/grafico.mjs';
 import { respostaDeRota, lerPedidoDeRota } from '../shared/rota.mjs';
 import { respostaDeModelo, lerPedidoDeModelo, urlDoModelo, MODELOS_3D } from '../shared/modelos.mjs';
 import { lerPedidoDeQr, respostaDeQr, qrExtrairLinks, qrGerar, qrArquivo, qrCapacidadeBytes } from '../shared/qrcode.mjs';
@@ -1140,6 +1141,12 @@ async function perguntarFluxo(texto, opcoes) {
   const crise = detectarCrise(t);
   if (crise) return crise;
 
+  // Gráficos: cálculo e desenho locais, antes do filtro e da IA; a tabela nunca sai do aparelho.
+  if (!comImagem) {
+    const tabelaGrafico = o.documento && typeof o.documento.texto === 'string' ? o.documento.texto : '';
+    const grafico = graficoResponder(t, tabelaGrafico);
+    if (grafico) return grafico;
+  }
   // Análise de dados (psicometria/estatística) sobre CSV/TSV anexado: no aparelho, antes do filtro (a base não passa por ele e não sai daqui).
   if (!o.semPsicometria && !comImagem) {
     const psi = respostaDePsicometria(t, o);
@@ -1400,6 +1407,8 @@ const Paulus = { init, perguntar,
   matematica: { responder: respostaDeMatematicaLocal },
   // Psicometria/estatística no aparelho, sem IA: ler(csv) -> tabela ou null; responder(texto, tabela) -> { texto, analise, avisos } ou null
   psicometria: { ler: psiLerTabela, responder: psiRespostaDoPedido },
+  // Gráficos no aparelho, sem IA ou rede; devolve SVG exportável.
+  grafico: { responder: graficoResponder, svg: graficoSVG },
   // Modelos 3D didáticos (v0.20.0; mapa de Roraima v0.21.0): ler(texto) -> pedido ou null; responder(texto) -> resultado ou null; catalogo; url(modelo); baixar(modelo)
   modelos: { ler: lerPedidoDeModelo, responder: respostaDeModelo, catalogo: MODELOS_3D, url: function (m) { return urlDoModelo(m, cfg.modelosUrl); }, baixar: modeloBaixar },
   qr: { ler: lerPedidoDeQr, responder: respostaDeQr, links: qrExtrairLinks, gerar: qrGerar, arquivo: qrArquivo, capacidade: function (n, v) { return qrCapacidadeBytes(n || 'M', v); } },
@@ -1412,7 +1421,7 @@ const Paulus = { init, perguntar,
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { const pedido = lerPedidoDePdf(t, { temArquivo: l.length > 0 }); if (pedido && pedido.operacoes.some(function (op) { return op.op === 'proteger'; })) return respostaDePdf(t, l, Object.assign({ protegerLocal: cfg.pdfProtegerLocal }, opc || {})); return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, proteger: pdfProteger, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
-  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.34.0',
+  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.35.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
