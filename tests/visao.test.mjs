@@ -221,13 +221,13 @@ test('docs.js (navegador): reduz a foto para JPEG pequeno e explica quando não 
   assert.match(r.dados, /^data:image\/jpeg;base64,/);
   assert.ok(r.dados.length <= 1000000);
   assert.deepEqual(lados[0].slice(0, 2), [1280, 960], 'lado maior vai a 1280 px, mantendo a proporção');
-  assert.match((await D.imagem({ name: 'a.pdf', type: 'application/pdf', size: 10 })).erro, /JPG, PNG ou WebP/);
+  assert.match((await D.imagem({ name: 'a.pdf', type: 'application/pdf', size: 10 })).erro, /JPG, PNG, WebP/);
   assert.match((await D.imagem({ name: 'enorme.jpg', type: 'image/jpeg', size: 50e6 })).erro, /grande demais/);
   const w2 = {};
   vm.runInNewContext(readFileSync('console/docs.js', 'utf8'), { window: w2, WeakMap, TextDecoder, DecompressionStream, Response, Uint8Array, Promise, Math, String, Array, Error, document: doc, URL, createImageBitmap: async () => { throw new Error('heic'); }, Image: function () { setTimeout(() => this.onerror(), 0); Object.defineProperty(this, 'src', { set() {} }); } });
   const URLfalso = { createObjectURL: () => 'blob:x', revokeObjectURL() {} };
   void URLfalso;
-  assert.match((await w2.PaulusDocs.imagem({ name: 'foto.heic', type: 'image/jpeg', size: 10 })).erro, /não consegui abrir/);
+  assert.match((await w2.PaulusDocs.imagem({ name: 'foto.heic', type: 'image/jpeg', size: 10 })).erro, /não abriu no navegador/);
 });
 
 // ---- cliente real (dist/paulus.v1.js) conversando com o Worker real -------------------------------------------------------------
