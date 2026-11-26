@@ -68,6 +68,8 @@ function achouNomeIdade(t) {
 
 // Intervalo de anos ("2023-2026", "2023 2024 2025") não é documento nem telefone.
 const SO_ANOS = /^(?:(?:19|20)\d{2}[\s\-\/]+)*(?:19|20)\d{2}$/;
+// Período com duas datas completas ("01/01/2026 - 31/12/2026").
+const SO_PERIODO_DATAS = /^\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\s*[-–]\s*\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}$/;
 
 // Conta escrita com operador entre espaços ("quanto é 1518 - 218 - 164 - 58"): somando tudo passa de 9 dígitos, mas cada número é curto.
 // Só vale com palavra ou símbolo de conta na mensagem e operador COM espaços ("95-3623-1234" e "123.456.789-01" continuam barrados).
@@ -252,8 +254,11 @@ export function temDadoPessoal(texto) {
   const t = String(texto == null ? '' : texto);
   if (temEmail(t)) return true;
   if (RE_TEL_DDD.test(t) || RE_TEL_ROTULADO.test(t) || RE_NASCIMENTO.test(t)) return true;
-  const sequencias = t.match(/\d[\d.\-\/\s]{6,}\d/g) || [];
-  if (sequencias.some(s => !SO_ANOS.test(s.trim()) && s.replace(/\D/g, '').length >= 9 && !ehContaComOperador(s, t))) return true;
+  // Números de leis/decretos com ano ("Lei 14.601/2023", "Lei Maria da Penha, 11.340/2006") são referências públicas, não documentos.
+  // Remove só a referência completa antes da busca; qualquer CPF/NIS fora dela continua sujeito ao filtro.
+  const textoSemNorma = t.replace(/\b(?:lei|decreto)\b[^.?!\n]{0,50}?\b\d{1,6}(?:\.\d{3})?\/(?:19|20)\d{2}\b/gi, ' ');
+  const sequencias = textoSemNorma.match(/\d[\d.\-\/\s]{6,}\d/g) || [];
+  if (sequencias.some(s => !/^0800[\s.-]?\d{3}[\s.-]?\d{4}$/.test(s.trim()) && !SO_ANOS.test(s.trim()) && !SO_PERIODO_DATAS.test(s.trim()) && s.replace(/\D/g, '').length >= 9 && !ehContaComOperador(s, t))) return true;
   if (RE_DOC_ROTULADO.test(t)) return true;
   if (achouNome(t) || achouNomeVerbo(t) || achouNomeIdade(t) || achouNomeMinusculo(t) || achouNomeCaixaAlta(t) || RE_TRAT.test(t)) return true;
   return RE_ENDERECO.test(t) || temDadoPessoalEs(t) || temDadoPessoalEn(t);

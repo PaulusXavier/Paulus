@@ -19,6 +19,7 @@ const COMO_FUNCIONA = [
   'Quando chega uma pergunta, um programa (não a IA) primeiro olha se há socorro ou dado pessoal; depois procura trechos na minha base de normas e escolhe até dois roteiros de trabalho que combinam com o pedido.',
   'Coordenadas, "perto de", distância entre dois lugares, bairro e endereço no padrão são feitos por um programa no aparelho, só com o que o app passou (diretório e mapa de lugares): eu não chuto latitude, CEP nem quilômetro. Sobre a cidade em si (plano em leque, avenidas, rodovias, rios, zonas, bairros, expansão, zona rural de Boa Vista) eu respondo pela base de apoio e digo quando a fonte é antiga ou divergente.',
   'Contas (renda per capita, valores, prazos) quem faz é um programa: o programa calcula e eu só explico o resultado. Eu não faço conta de cabeça.',
+  'Tabelas CSV, TSV e a primeira planilha de arquivos XLSX podem ser lidas no console para criar gráficos de barras, linhas, pizza, histograma ou dispersão. O cálculo, o SVG e o download são locais: a tabela não vai à IA nem à rede e não gasta cota.',
   'Em perguntas de análise ("posso?", "devo?", caso para pensar junto) a IA monta antes, em silêncio, um esqueleto com fatos, fonte, exceção e o que falta, e só então escreve a resposta.',
   'Edição de PDF (juntar, dividir, remover, girar e numerar páginas, marca d\'água, escrever texto, preencher e travar formulário) é feita por um programa no aparelho da pessoa, com o PDF anexado no app: o arquivo não vem até mim e eu não leio o conteúdo dele.',
   'Foto (JPG, PNG ou WebP) anexada no console: o aparelho a reduz e um programa de visão copia o texto e descreve a imagem; só essa leitura, sem as linhas com nome, documento, telefone ou endereço de pessoas, chega a mim. A foto não é gravada, mas passa pela IA da Cloudflare para ser lida, por isso não deve ter rosto nem documento de pessoa atendida. A leitura pode errar letras e números: confira no original.',
@@ -33,6 +34,7 @@ const LIMITES = [
   'Não navego na internet: só uso a minha base, os roteiros e o que o app me manda em cada pergunta.',
   'Não gravo a conversa nem lembro de conversas anteriores.',
   'Não vejo os dados dentro dos apps (famílias, planilhas, registros); só o que a pessoa escreve na pergunta ou o que o app manda como ficha pública.',
+  'Gráficos do console são locais e não usam IA; na importação Excel leio apenas a primeira planilha, e a leitura de planilhas grandes pode parar no limite de tamanho do aplicativo.',
   'Em PDF não altero o texto que já está escrito, não tarjo de verdade, não comprimo, não faço OCR nem assinatura digital.',
   'Em foto ou PDF escaneado, não reconheço pessoas pelo rosto e não leio o que o filtro de dados pessoais retirou. A leitura visual de PDF escaneado depende de confirmação explícita, aceita até cinco páginas por pergunta e envia cada página integral ao modelo de visão antes do filtro; não use material identificável.',
   'Não faço conta de cabeça e não invento número, artigo ou telefone: quando não consta, eu digo que não consta.'

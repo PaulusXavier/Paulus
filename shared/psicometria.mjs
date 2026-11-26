@@ -222,9 +222,10 @@ export function psiNumero(s, virgula) {
   return parseFloat(t);
 }
 
-export function psiLerTabela(texto) {
+export function psiLerTabela(texto, opc) {
+  const leve = !!(opc && opc.leve); // gráficos locais aceitam tabelas menores e só categóricas
   const linhas = String(texto || '').replace(/^﻿/, '').split(/\r?\n/).filter(function (l) { return l.trim() !== ''; });
-  if (linhas.length < 4) return null;
+  if (linhas.length < (leve ? 3 : 4)) return null;
   const amostra = linhas.slice(0, 12);
   let d = null, melhor = 0;
   [';', '\t', ',', '|'].forEach(function (c) {
@@ -241,7 +242,7 @@ export function psiLerTabela(texto) {
   const temCab = linhasCels[0].some(function (c) { return !ehNum(c); }) || linhasCels[0].every(function (c) { return c !== '' && !isFinite(psiNumero(c, virgula)); });
   const nomes = temCab ? linhasCels[0].map(function (c, i) { return c || ('v' + (i + 1)); }) : linhasCels[0].map(function (c, i) { return 'v' + (i + 1); });
   const corpo = linhasCels.slice(temCab ? 1 : 0).filter(function (r) { return r.length === k; });
-  if (corpo.length < 3) return null;
+  if (corpo.length < (leve ? 2 : 3)) return null;
   const AUS = /^(|na|n\/a|nan|null|-|--|\.|ns|nr)$/i;
   const avisos = [], colunas = [];
   for (let j = 0; j < k; j++) {
@@ -260,7 +261,7 @@ export function psiLerTabela(texto) {
     }
     colunas.push(col);
   }
-  if (!colunas.some(function (c) { return c.tipo === 'num' && !c.pii; })) return null;
+  if (!leve && !colunas.some(function (c) { return c.tipo === 'num' && !c.pii; })) return null;
   if (!temCab) avisos.push('Não achei linha de títulos: chamei as colunas de v1, v2...');
   colunas.filter(function (c) { return c.pii; }).forEach(function (c) { avisos.push('A coluna "' + c.nome + '" parece identificar pessoas: não entra em nenhuma análise.'); });
   return { colunas: colunas.filter(function (c) { return !c.pii; }), n: corpo.length, avisos: avisos };
