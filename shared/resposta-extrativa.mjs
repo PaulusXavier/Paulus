@@ -190,7 +190,7 @@ export function responderPorExtracao(pergunta, achados, opcoes) {
   }
 
   const linhas = frases.map(function (f) { return '- ' + f.texto + ' [' + f.fonte + ']'; });
-  const refs = ordemFontes.map(function (i, k) { return '[' + (k + 1) + '] ' + (extRotulo(achados[i].trecho) || 'Base de normas'); });
-  const texto = 'O que a base de normas diz sobre isso (frases copiadas dos textos, cada uma com a sua fonte):\n\n' + linhas.join('\n') + '\n\nFontes:\n' + refs.join('\n');
+  const refs = ordemFontes.map(function (i, k) { return '- [' + (k + 1) + '] ' + (extRotulo(achados[i].trecho) || 'Base de normas'); });
+  const texto = 'O que a base de normas diz sobre isso (frases copiadas dos textos, cada uma com a sua fonte):\n\n' + linhas.join('\n') + '\n\n**Fontes**\n' + refs.join('\n');
   return { texto: texto, frases: frases, fontes: ordemFontes, avisos: avisos, tipo: tipo };
 }
