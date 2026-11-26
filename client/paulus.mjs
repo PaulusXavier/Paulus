@@ -49,6 +49,7 @@ import { separarControles, ocultarControles, RE_ID_ACAO } from '../shared/sugest
 import { falaTexto, falaDividir, falaResumir, falaTrechos, falaAprender, falaDicionario } from '../shared/fala.mjs';
 import { SKINS } from './skins.mjs';
 import { criarMemoria, memEhSensivel } from './memoria.mjs';
+import { createRoutineManager, createLocalStorageAdapter } from '../shared/rotinas.mjs';
 
 const AVISO_PESSOAL = 'Para proteger as famílias, não consigo analisar mensagens com nome, documento, telefone ou endereço residencial. Reescreva a pergunta sem identificar ninguém.';
 
@@ -139,6 +140,57 @@ async function vozDoServidor(texto, sinal) {
   } catch (e) {
     return null;
   }
+}
+
+// Endpoints auxiliares do Worker. Pesquisa e páginas são públicas; PDFs são baixados para extração local,
+// e áudio só é enviado quando a pessoa escolhe explicitamente a transcrição por IA.
+async function pedidoAuxiliar(caminho, corpo, opcoes) {
+  const o = opcoes || {};
+  if (!cfg.endpoint) throw new Error('O Worker do Paulus não está configurado.');
+  const cab = await cabecalhosDoPedido();
+  cab.Accept = 'application/json';
+  if (o.audio) cab['Content-Type'] = o.audio.type || 'audio/webm';
+  const resp = await fetch(cfg.endpoint + caminho, {
+    method: o.method || 'POST', headers: cab, body: o.audio || JSON.stringify(corpo || {}),
+    credentials: 'omit', referrerPolicy: 'no-referrer', signal: o.signal
+  });
+  if (resp.status === 401 && typeof cfg.aoNegar === 'function') {
+    const falha = new Error('Sessão inválida ou vencida.'); falha.status = 401; try { cfg.aoNegar(falha); } catch (e) { /* o app decide */ }
+  }
+  if (!resp.ok) {
+    let j = {}; try { j = await resp.json(); } catch (e) { /* sem JSON */ }
+    const erro = new Error(j && j.erro ? String(j.erro) : 'Pedido indisponível (' + resp.status + ').'); erro.status = resp.status; throw erro;
+  }
+  return resp;
+}
+async function pesquisarWeb(consulta, sinal) {
+  const r = await pedidoAuxiliar('/pesquisa', { query: String(consulta || '').slice(0, 500) }, { signal: sinal });
+  return r.json();
+}
+async function lerPaginaWeb(url, sinal) {
+  const r = await pedidoAuxiliar('/pesquisa/pagina', { url: String(url || '').slice(0, 2048) }, { signal: sinal });
+  return r.json();
+}
+async function baixarPdfPublico(url, sinal) {
+  const r = await pedidoAuxiliar('/pesquisa/pdf', { url: String(url || '').slice(0, 2048) }, { signal: sinal });
+  const tipo = String(r.headers.get('Content-Type') || '').split(';')[0].trim().toLowerCase();
+  if (tipo !== 'application/pdf') throw new Error('A resposta não é um PDF.');
+  return new Uint8Array(await r.arrayBuffer());
+}
+async function iniciarInvestigacao(pergunta, sinal) {
+  const r = await pedidoAuxiliar('/investigacao', { query: String(pergunta || '').slice(0, 400) }, { signal: sinal });
+  return r.json();
+}
+async function estadoInvestigacao(id, sinal) {
+  const safe = String(id || '');
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(safe)) throw new Error('ID de investigação inválido.');
+  const r = await pedidoAuxiliar('/investigacao/' + encodeURIComponent(safe), null, { method: 'GET', signal: sinal });
+  return r.json();
+}
+async function transcreverAudio(audio, sinal) {
+  if (!audio || typeof audio.arrayBuffer !== 'function') throw new Error('Selecione um arquivo de áudio.');
+  const r = await pedidoAuxiliar('/voz-ia', null, { audio: audio, signal: sinal });
+  return r.json();
 }
 
 function init(opcoes) {
@@ -1421,7 +1473,12 @@ const Paulus = { init, perguntar,
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { const pedido = lerPedidoDePdf(t, { temArquivo: l.length > 0 }); if (pedido && pedido.operacoes.some(function (op) { return op.op === 'proteger'; })) return respostaDePdf(t, l, Object.assign({ protegerLocal: cfg.pdfProtegerLocal }, opc || {})); return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, proteger: pdfProteger, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
-  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.35.0',
+  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario },
+  web: { pesquisar: pesquisarWeb, lerPagina: lerPaginaWeb, baixarPdf: baixarPdfPublico },
+  investigacao: { iniciar: iniciarInvestigacao, estado: estadoInvestigacao },
+  vozIA: { transcrever: transcreverAudio },
+  rotinas: { criarGestor: createRoutineManager, armazenamentoLocal: createLocalStorageAdapter },
+  temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.36.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
