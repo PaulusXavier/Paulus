@@ -1,63 +1,93 @@
-// Psicometria: cada pergunta chama o roteiro certo, sem disparar em pergunta comum. Textos e números fictícios.
+// Psicometria no aparelho: valores conferidos contra scipy/numpy (mesma base: tests/dados-psicometria.csv, 120 casos).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { escolherHabilidades, MAX_CORPO_HABILIDADE } from '../shared/habilidades.mjs';
-import { lerTodas } from '../scripts/build-habilidades.mjs';
+import vm from 'node:vm';
+import { readFileSync } from 'node:fs';
+import { juntar } from '../scripts/build.mjs';
+import { psiLerTabela, psiRespostaDoPedido, psiShapiro, psiNormInv, psiChiSf, psiTSf2, psiFSf, psiSemBase } from '../shared/psicometria.mjs';
 
-const lista = lerTodas();
-const psico = lista.filter((x) => x.id.startsWith('psicometria-'));
-const ids = (q, app = 'argo') => escolherHabilidades(lista, q, [], app).map((h) => h.id);
+const csv = readFileSync(new URL('./dados-psicometria.csv', import.meta.url), 'utf8');
+const tb = psiLerTabela(csv);
+const r = (q) => psiRespostaDoPedido(q, tb);
+const perto = (a, b, tol = 0.0006) => assert.ok(Math.abs(a - b) <= tol, a + ' ≠ ' + b);
 
-test('psicometria: os 15 roteiros existem, cabem no teto e não dão veredito sobre pessoa', () => {
-  assert.equal(psico.length, 15);
-  for (const h of psico) {
-    assert.ok(h.instrucoes.length > 500 && h.instrucoes.length <= MAX_CORPO_HABILIDADE, h.id);
-    assert.ok(!/\bdiagnostique\b/i.test(h.instrucoes), h.id);
-    assert.match(h.instrucoes, /pessoa real|dado de pessoa|dados de pessoa|SATEPSI|serviço|computador do serviço|diga/i, h.id + ' deve trazer o limite de uso');
-  }
+test('distribuições conferem com valores de referência', () => {
+  perto(psiNormInv(0.975), 1.959963985, 1e-8);
+  perto(psiTSf2(2.0, 10), 0.0733880, 1e-6);
+  perto(psiFSf(3.5, 2, 40), 0.0395, 1e-3);
+  perto(psiChiSf(5.991, 2), 0.05, 1e-4);
 });
 
-test('psicometria: a pergunta chama o roteiro certo', () => {
-  const casos = [
-    ['o que é psicometria?', 'psicometria-visao-geral'],
-    ['quero aprender psicometria do zero', 'psicometria-visao-geral'],
-    ['o que é o alfa de Cronbach e quando usar?', 'psicometria-confiabilidade'],
-    ['como calcular o erro padrão de medida?', 'psicometria-confiabilidade'],
-    ['o que são evidências de validade?', 'psicometria-validade'],
-    ['qual a diferença entre validade convergente e discriminante?', 'psicometria-validade'],
-    ['como transformar em escore T e percentil?', 'psicometria-escores-normas'],
-    ['o que é análise fatorial exploratória?', 'psicometria-analise-fatorial'],
-    ['quais índices de ajuste da análise fatorial confirmatória (CFI, RMSEA)?', 'psicometria-analise-fatorial'],
-    ['me explica a teoria de resposta ao item', 'psicometria-tri'],
-    ['como elaborar itens de uma escala?', 'psicometria-construcao-instrumento'],
-    ['como fazer adaptação transcultural e retrotradução de escala?', 'psicometria-adaptacao-equidade'],
-    ['o que é funcionamento diferencial do item?', 'psicometria-adaptacao-equidade'],
-    ['como escolher ponto de corte e ler curva ROC?', 'psicometria-pontos-corte-triagem'],
-    ['como ler um artigo de validação de instrumento?', 'psicometria-ler-artigo'],
-    ['como calcular alfa de Cronbach no R?', 'psicometria-codigo-r'],
-    ['como calcular alfa de Cronbach no Python?', 'psicometria-codigo-python'],
-    ['quero fazer um questionário de satisfação com escala Likert no serviço', 'psicometria-escalas-do-servico'],
-    ['o que significa construto em psicometria?', 'psicometria-glossario'],
-    ['como estudar psicometria? que livros?', 'psicometria-trilha-estudo']
-  ];
-  for (const [q, esperado] of casos) assert.ok(ids(q).includes(esperado), q + ' -> ' + ids(q).join(', '));
+test('lê CSV com ponto e vírgula e vírgula decimal, tipos e ausentes', () => {
+  assert.equal(tb.n, 120);
+  assert.equal(tb.colunas.find(c => c.nome === 'q1').tipo, 'num');
+  assert.equal(tb.colunas.find(c => c.nome === 'sexo').tipo, 'cat');
+  const t2 = psiLerTabela('nome,idade,nota\nAna,10,5\nBia,11,7\nCia,12,\nDia,13,9\n');
+  assert.ok(!t2.colunas.some(c => c.nome === 'nome'), 'coluna de nome é descartada');
+  assert.ok(Number.isNaN(t2.colunas.find(c => c.nome === 'nota').valores[2]));
+  assert.equal(psiLerTabela('só texto\nsem tabela'), null);
 });
 
-test('psicometria: não dispara em pergunta comum nem rouba as outras habilidades', () => {
-  for (const q of ['qual o horário do CRAS?', 'como funciona o Bolsa Família?', 'onde fica o CAPS?', 'como fazer visita domiciliar?', 'como escrever um relatório técnico?']) {
-    assert.deepEqual(ids(q).filter((x) => x.startsWith('psicometria-')), [], q);
-  }
-  assert.ok(ids('como saber se um teste psicológico está no SATEPSI?').includes('avaliacao-psicologica-testes-satepsi'));
-  assert.ok(ids('como fazer uma pesquisa de satisfação com questionário?').includes('analise-dados-pesquisa-questionario'));
+test('Shapiro-Wilk, assimetria e curtose (scipy: W=,9916 p=,6873)', () => {
+  const x = tb.colunas.find(c => c.nome === 'q1').valores, sw = psiShapiro(x);
+  perto(sw.W, 0.99164, 1e-4); perto(sw.p, 0.68729, 2e-3);
+  assert.match(r('descritivas de q1').texto, /0,17 \| -0,21 \| W = ,992, p = ,687/);
 });
 
-test('psicometria: os roteiros de código oferecem só o seu idioma e mantêm os dados no computador da pessoa', () => {
-  const r = lista.find((x) => x.id === 'psicometria-codigo-r').instrucoes;
-  const py = lista.find((x) => x.id === 'psicometria-codigo-python').instrucoes;
-  assert.match(r, /library\(psych\)/);
-  assert.match(py, /pingouin/);
-  for (const t of [r, py]) {
-    assert.match(t, /computador do serviço/);
-    assert.match(t, /Nunca peça dado de pessoa/);
-  }
+test('alfa de Cronbach (scipy/fórmula: ,7860) e itens', () => {
+  const t = r('alfa de cronbach dos itens q1 a q5').texto;
+  assert.match(t, /Alfa de Cronbach \(α\) \| ,786/);
+  assert.match(t, /α se o item for excluído/);
+});
+
+test('correlações Pearson e Spearman', () => {
+  assert.match(r('correlação de pearson entre q1 e q6').texto, /r\(118\) = -,03, p = ,713/);
+  assert.match(r('spearman entre q1 e q6').texto, /ρ\(118\) = -,01, p = ,915/);
+});
+
+test('teste t (Student, Welch, Levene), Mann-Whitney', () => {
+  const t = r('teste t de y por sexo').texto;
+  assert.match(t, /-0,833 \| 118 \| ,406/);
+  assert.match(t, /-0,822 \| 106,5 \| ,413/);
+  assert.match(t, /1,671 \| ,199/);
+  assert.match(r('mann-whitney de y por sexo').texto, /U = 1627,5.*p = ,399/);
+});
+
+test('ANOVA, Kruskal-Wallis, pareado, Wilcoxon, qui-quadrado', () => {
+  assert.match(r('anova de y por grupo').texto, /0,212 \| ,809/);
+  assert.match(r('kruskal de y por grupo').texto, /H\(2\) = 0,47, p = ,791/);
+  assert.match(r('t pareado entre q1 e q2').texto, /t\(119\) = 1,297, p = ,197/);
+  assert.match(r('wilcoxon entre q1 e q2').texto, /p = ,117/);
+  assert.match(r('qui-quadrado entre grupo e sexo').texto, /χ²\(2\) = 2,61, p = ,271/);
+});
+
+test('regressão linear (numpy: B=,3279 e ,0559; R²=,0363)', () => {
+  const t = r('regressão de y em função de q2 e q7').texto;
+  assert.match(t, /\| q2 \| 0,328 /); assert.match(t, /\| q7 \| 0,056 /); assert.match(t, /R² \| ,036/);
+});
+
+test('análise fatorial: KMO ,762, Bartlett 314,6, autovalores 2,703 e 2,563', () => {
+  const t = r('análise fatorial com 2 fatores por eixos principais de q1 a q9').texto;
+  assert.match(t, /,762 \(mediano\)/); assert.match(t, /χ²\(36\) = 314,6/); assert.match(t, /2,703/); assert.match(t, /2,563/);
+  assert.match(t, /Análise paralela de Horn: 2 fator/);
+});
+
+test('pergunta conceitual não é interceptada; sem base, explica como anexar; menu', () => {
+  assert.equal(r('o que é alfa de cronbach?'), null);
+  assert.equal(r('qual a capital de Roraima?'), null);
+  assert.match(psiSemBase('faça o alfa de cronbach dos meus dados'), /CSV/);
+  assert.equal(psiSemBase('o que é alfa de cronbach?'), null);
+  assert.match(r('o que posso fazer com este arquivo?').texto, /Sua base de dados/);
+});
+
+test('no cliente: responde sem IA, sem rede e sem entrar no histórico', async () => {
+  let chamadas = 0;
+  const sandbox = { self: {}, fetch: async () => { chamadas++; throw new Error('sem rede'); }, TextDecoder, AbortController, setTimeout, clearTimeout, navigator: { onLine: true } };
+  vm.runInNewContext(juntar(), sandbox);
+  const P = sandbox.self.Paulus;
+  const res = await P.perguntar('alfa de cronbach dos itens q1 a q5', { documento: { nome: 'dados.csv', texto: csv } });
+  assert.equal(res.tipo, 'psicometria');
+  assert.match(res.texto, /,786/);
+  assert.equal(chamadas, 0);
+  assert.equal(res.pergunta, '');
 });
