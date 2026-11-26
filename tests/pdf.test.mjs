@@ -163,6 +163,12 @@ test('pdf: AES-256 protege bytes no aparelho e Poppler abre a cópia somente com
   try {
     writeFileSync(arquivo, r.arquivos[0].bytes);
     const semSenha = spawnSync('pdfinfo', [arquivo], { encoding: 'utf8' });
+    if (semSenha.error) {
+      // Poppler ausente: no CI isso é falha clara; local, confere com o pdf-lib que a cópia está cifrada e segue.
+      assert.ok(!process.env.CI, 'pdfinfo (poppler-utils) não está instalado neste ambiente: ' + semSenha.error.message);
+      await assert.rejects(() => PDFDocument.load(r.arquivos[0].bytes), /encrypted/i);
+      return;
+    }
     assert.notEqual(semSenha.status, 0, 'um leitor não deve abrir sem senha');
     const info = spawnSync('pdfinfo', ['-upw', senha, arquivo], { encoding: 'utf8' });
     assert.equal(info.status, 0, info.stderr || info.stdout);
