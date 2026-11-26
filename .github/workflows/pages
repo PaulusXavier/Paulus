@@ -1,0 +1,68 @@
+name: Publicar Paulus (testes, site e Worker)
+# A cada push na main: roda os testes, gera dist/ (com versao.json), publica o site no GitHub Pages e,
+# se os segredos da Cloudflare estiverem configurados, publica também o Worker. Também roda toda segunda de manhã
+# (e sob demanda) para republicar sem mudança de código.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 9 * * 1'   # segunda, 09:17 UTC (05:17 em Boa Vista)
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: publicar
+  cancel-in-progress: true
+jobs:
+  testar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Instalar Poppler (pdfinfo/pdftotext usados no teste de PDF protegido)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  site:
+    needs: testar
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  worker:
+    # Só publica o Worker se CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID existirem em Settings → Secrets and variables → Actions.
+    # Sem eles este passo é pulado (a publicação pela ligação GitHub↔Cloudflare, opção B do DEPLOY.md, continua valendo).
+    needs: testar
+    runs-on: ubuntu-latest
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_CONTA: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Segredos da Cloudflare presentes?
+        if: env.CF_TOKEN == '' || env.CF_CONTA == ''
+        run: echo '::notice::Sem CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID, o Worker não é publicado por aqui.'
+      - uses: actions/checkout@v5
+        if: env.CF_TOKEN != '' && env.CF_CONTA != ''
+      - uses: actions/setup-node@v5
+        if: env.CF_TOKEN != '' && env.CF_CONTA != ''
+        with:
+          node-version: 22
+      - name: Publicar o Worker
+        if: env.CF_TOKEN != '' && env.CF_CONTA != ''
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
