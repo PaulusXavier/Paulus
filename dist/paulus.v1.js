@@ -1249,15 +1249,121 @@ function temIdentificacaoPessoal(texto) {
   return achouNome(t) || achouNomeIdade(t) || achouNomeMinusculo(t) || RE_TRAT.test(t) || temIdentificacaoEs(t) || temIdentificacaoEn(t);
 }
 
+// Número de norma com ano ("Lei 14.601/2023", "Decreto 12.064/2024"): a regra de sequência longa o barrava como CPF/NIS/telefone.
+// Só o formato NN.NNN/AAAA (ou NNNNN/AAAA) sai da conta; CPF e NIS têm 11 dígitos, então nada disso passa por aqui.
+const RE_NORMA_NUMERADA = /\b\d{1,2}\.?\d{3}\/(?:19|20)\d{2}\b/g;
+// Data completa ("01/01/2026"): um período com hífen ("01/01/2026 - 31/12/2026") somava 16 dígitos e era barrado. Data de nascimento rotulada continua barrada por RE_NASCIMENTO.
+const RE_DATA_COMPLETA = /\b\d{1,2}[\/.-]\d{1,2}[\/.-](?:19|20)\d{2}\b/g;
+// 0800, 0300, 0500 e 0900 são números de serviço, não de uma pessoa.
+const RE_NUMERO_DE_SERVICO = /\b0[3589]00[\s-]?\d{3}[\s-]?\d{3,4}\b/g;
+
 function temDadoPessoal(texto) {
   const t = String(texto == null ? '' : texto);
   if (temEmail(t)) return true;
   if (RE_TEL_DDD.test(t) || RE_TEL_ROTULADO.test(t) || RE_NASCIMENTO.test(t)) return true;
-  const sequencias = t.match(/\d[\d.\-\/\s]{6,}\d/g) || [];
+  const sequencias = t.replace(RE_NORMA_NUMERADA, ' ').replace(RE_DATA_COMPLETA, ' ').replace(RE_NUMERO_DE_SERVICO, ' ').match(/\d[\d.\-\/\s]{6,}\d/g) || [];
   if (sequencias.some(s => !SO_ANOS.test(s.trim()) && s.replace(/\D/g, '').length >= 9 && !ehContaComOperador(s, t))) return true;
   if (RE_DOC_ROTULADO.test(t)) return true;
   if (achouNome(t) || achouNomeVerbo(t) || achouNomeIdade(t) || achouNomeMinusculo(t) || achouNomeCaixaAlta(t) || RE_TRAT.test(t)) return true;
   return RE_ENDERECO.test(t) || temDadoPessoalEs(t) || temDadoPessoalEn(t);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// LEITURA NO APARELHO (v0.34.0): em vez de só barrar, devolve QUAIS nomes o filtro reconheceu, para o aparelho trocá-los por marcadores
+// (shared/pseudonimo.mjs) antes de qualquer envio. Usa os mesmos padrões e as mesmas listas de "não é nome" de temDadoPessoal.
+// Cada item é a lista de palavras do nome como foram escritas: ['João', 'Pedro'] ou, só com a idade ("José, 45 anos"), ['José'].
+// Mesmo limite do filtro: o que nenhum padrão reconhece não é achado.
+// ---------------------------------------------------------------------------------------------------------------------
+const RE_TRAT_C = new RegExp(FORA + '(?:[Dd]ona|[Dd]na|[Ss]r|[Ss]ra|[Ss]eu|[Ss]enhor|[Ss]enhora)\\.?\\s+([' + CAP + '][' + MIN_L + ']{2,})\\s+([' + CAP + '][' + MIN_L + ']{2,})', 'g');
+const RE_TRAT_ES_C = new RegExp(FORA + '(?:[Dd]on|[Dd]o[ñn]a|[Ss]e[ñn]or|[Ss]e[ñn]ora|[Ss]e[ñn]orita|[Ss]rta?|[Ss]ra|[Ss]r)\\.?\\s+([' + CAP_ES + '][' + MIN_ES + ']{2,})\\s+([' + CAP_ES + '][' + MIN_ES + ']{2,})', 'g');
+const RE_TRAT_EN_C = new RegExp(FORA + '(?:Mr|Mrs|Ms|Miss|Mister|Madam|Sir)\\.?\\s+([' + CAP + '][' + MIN_L + ']{2,})', 'g');
+
+function coletarPares(re, t, listas, saida) {
+  re.lastIndex = 0;
+  let m;
+  while ((m = re.exec(t)) !== null) {
+    const a = m[1], b = m[2];
+    if (a) {
+      const na = semAcentoMin(a), nb = b ? semAcentoMin(b) : '';
+      const barrado = listas.some(function (l) { return l.has(na) || (nb && l.has(nb)); });
+      if (!barrado) saida.push(b ? [a, b] : [a]);
+    }
+    re.lastIndex = m.index + 1;
+  }
+}
+
+function coletarComIdade(re, t, listas, saida) {
+  re.lastIndex = 0;
+  let m;
+  while ((m = re.exec(t)) !== null) {
+    const n = semAcentoMin(m[1]);
+    if (!listas.some(function (l) { return l.has(n); })) saida.push([m[1]]);
+    re.lastIndex = m.index + 1;
+  }
+}
+
+function nomesNoTexto(texto) {
+  const t = String(texto == null ? '' : texto);
+  const saida = [];
+  const pt = [NAO_NOME], es = [NAO_NOME_ES, NAO_NOME], en = [NAO_NOME_EN, NAO_NOME];
+  coletarPares(RE_NOME, t, pt, saida);
+  coletarPares(RE_NOME_VERBO, t, pt, saida);
+  coletarPares(RE_TRAT_C, t, pt, saida);
+  coletarComIdade(RE_NOME_IDADE, t, [NAO_NOME, NAO_NOME_IDADE], saida);
+  coletarPares(RE_NOME_ES, t, es, saida);
+  coletarPares(RE_NOME_VERBO_ES, t, es, saida);
+  coletarPares(RE_TRAT_ES_C, t, es, saida);
+  coletarComIdade(RE_NOME_IDADE_ES, t, [NAO_NOME_ES, NAO_NOME, NAO_NOME_IDADE], saida);
+  coletarPares(RE_NOME_EN, t, en, saida);
+  coletarPares(RE_EU_SOU_EN, t, en, saida);
+  coletarPares(RE_NOME_VERBO_EN, t, en, saida);
+  coletarPares(RE_TRAT_EN_C, t, en, saida);
+  coletarComIdade(RE_NOME_IDADE_EN, t, [NAO_NOME_EN, NAO_NOME, NAO_NOME_IDADE_EN], saida);
+  // Nome em CAIXA ALTA: lê a versão "suave" ("MARIA DA SILVA" -> "Maria da Silva"); a troca depois ignora maiúsculas.
+  if (/[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{3,}\s+(?:D[AEO]S?\s+)?[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{3,}/.test(t)) {
+    const suave = t.replace(/[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{3,}/g, function (w) { return w.charAt(0) + w.slice(1).toLowerCase(); }).replace(/\bD([AEO]S?)\b/g, function (m) { return m.toLowerCase(); });
+    coletarPares(RE_NOME_VERBO, suave, pt, saida);
+    coletarPares(RE_NOME, suave, pt, saida);
+  }
+  // Nome em minúsculas depois de gatilho forte: acha na versão sem acento e devolve as palavras como foram escritas (mesma posição).
+  const x = semAcentoMin(t);
+  if (x.length === t.length) {
+    RE_NOME_MINUSCULO.lastIndex = 0;
+    let m;
+    while ((m = RE_NOME_MINUSCULO.exec(x)) !== null) {
+      if (![m[1], m[2]].some(function (w) { return NAO_NOME.has(w) || NAO_NOME_MINUSCULO.has(w); })) {
+        const fim = m.index + m[0].length;
+        const p2 = fim - m[2].length;
+        const p1 = x.lastIndexOf(m[1], p2 - 1);
+        if (p1 >= m.index) saida.push([t.slice(p1, p1 + m[1].length), t.slice(p2, fim)]);
+      }
+      RE_NOME_MINUSCULO.lastIndex = m.index + 1;
+    }
+  }
+  return saida;
+}
+
+// Nome próprio solto ("A Maria Souza, CPF 123..., faltou"): 2 a 5 palavras com inicial maiúscula seguidas. Mais largo que o filtro, por isso só
+// serve DEPOIS que a mensagem já tem dado de pessoa (CPF ou nome reconhecido): trocar a mais por um marcador só piora a resposta, deixar passar vaza.
+// Não vale: sigla de lugar/instituição antes ("CRAS Cristiana Vicente Nunes", "Rua Pedro Rodrigues") nem palavras de NAO_NOME.
+const INSTITUICAO_ANTES = new Set('cras creas caps ubs upa escola colegio creche hospital posto rua avenida av travessa praca bairro conjunto residencial unidade centro conselho secretaria delegacia igreja ong associacao'.split(' '));
+const RE_PROPRIO = new RegExp(FORA + '([' + CAP + '][' + MIN_L + ']{2,}(?:\\s+(?:d[aeo]s?\\s+)?[' + CAP + '][' + MIN_L + ']{2,}){1,4})(?![A-Za-zÀ-ÿ])', 'g');
+function nomesProprios(texto) {
+  const t = String(texto == null ? '' : texto);
+  const saida = [];
+  RE_PROPRIO.lastIndex = 0;
+  let m;
+  while ((m = RE_PROPRIO.exec(t)) !== null) {
+    const grupo = m[1];
+    const ini = m.index + m[0].length - grupo.length;
+    const palavras = grupo.split(/\s+/).filter(function (w) { return !/^d[aeo]s?$/.test(w); });
+    while (palavras.length > 1 && /^(?:dona|dna|sr|sra|seu|senhora?|don|dona|mr|mrs|ms|miss)\.?$/i.test(palavras[0])) palavras.shift();
+    const antes = t.slice(Math.max(0, ini - 24), ini).trim().split(/\s+/).pop() || '';
+    const barrado = INSTITUICAO_ANTES.has(semAcentoMin(antes.replace(/[^A-Za-zÀ-ÿ]/g, ''))) || palavras.some(function (w) { const n = semAcentoMin(w); return NAO_NOME.has(n) || INSTITUICAO_ANTES.has(n); });
+    if (!barrado && palavras.length > 1) saida.push(palavras);
+    RE_PROPRIO.lastIndex = m.index + m[0].length - 1 > m.index ? m.index + m[0].length - 1 : m.index + 1;
+  }
+  return saida;
 }
 
 function limparMarcacao(texto) {
@@ -1270,6 +1376,156 @@ function limparMarcacao(texto) {
     atual = novo;
   }
   return atual.trim();
+}
+
+// ---- shared/pseudonimo.mjs ----
+// Leitura de nome e CPF NO APARELHO (v0.34.0).
+// A pessoa pode escrever "Maria Souza, CPF 123.456.789-09, faltou": o aparelho troca o nome e o CPF por marcadores (PESSOA_1, CPF_1) ANTES de
+// qualquer envio. A IA só vê os marcadores; a resposta volta com os marcadores e o aparelho os desfaz na tela. Quem é PESSOA_1 e qual é o CPF_1
+// ficam só na memória desta aba (nunca em disco, nunca na rede) e somem em limpar().
+// Limite honesto: o nome só é trocado quando algum padrão o reconhece (shared/pii.mjs). Depois da troca o texto passa de novo pelo filtro
+// completo; se sobrar telefone, e-mail, endereço, RG/NIS etc., NADA é enviado.
+
+
+function psSemAcento(s) { return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+function psEscapar(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+// CPF de verdade: 11 dígitos, não todos iguais, dois dígitos verificadores certos.
+function cpfValido(valor) {
+  const d = String(valor).replace(/\D/g, '');
+  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+  for (let n = 9; n <= 10; n++) {
+    let soma = 0;
+    for (let i = 0; i < n; i++) soma += Number(d.charAt(i)) * (n + 1 - i);
+    const dv = ((soma * 10) % 11) % 10;
+    if (dv !== Number(d.charAt(n))) return false;
+  }
+  return true;
+}
+
+const PS_RE_CPF = /(^|[^\d])(\d{3}\.?\d{3}\.?\d{3}-?\d{2})(?!\d)/g;
+// Acha CPF no texto: formatado (com ponto ou traço) vale sempre; 11 dígitos colados só com a palavra "CPF" antes ou dígitos verificadores certos
+// (senão pode ser NIS ou telefone, que continuam barrados pelo filtro).
+function cpfsNoTexto(texto) {
+  const t = String(texto == null ? '' : texto);
+  const achados = [];
+  PS_RE_CPF.lastIndex = 0;
+  let m;
+  while ((m = PS_RE_CPF.exec(t)) !== null) {
+    const bruto = m[2];
+    const ini = m.index + m[1].length;
+    const formatado = /[.\-]/.test(bruto);
+    const rotulo = /cpf[^\d]{0,12}$/i.test(t.slice(Math.max(0, ini - 16), ini));
+    if (formatado || rotulo || cpfValido(bruto)) achados.push(bruto);
+    PS_RE_CPF.lastIndex = ini + bruto.length - 1;
+  }
+  return achados;
+}
+
+const PS_RE_MARCADOR = /\b(PESSOA|CPF)[_ ]?(\d{1,3})\b/gi;
+
+function criarRegistro() {
+  const pessoas = [];   // { token, partes:[...], chave }
+  const cpfs = [];      // { token, original, digitos, valido }
+
+  function achar(lista, chave) { for (let i = 0; i < lista.length; i++) if (lista[i].chave === chave) return lista[i]; return null; }
+
+  function registrarNome(partes) {
+    const uteis = partes.filter(function (p) { return p && p.length >= 2; });
+    if (!uteis.length) return;
+    const novas = uteis.map(psSemAcento);
+    // mesma pessoa se as palavras de um nome estão todas no outro ("Maria" em "Maria Souza"; "Pedro Alves" em "João Pedro Alves"): une e mantém o marcador
+    for (let i = 0; i < pessoas.length; i++) {
+      const outra = pessoas[i];
+      const velhas = outra.partes.map(psSemAcento);
+      const novaDentro = novas.every(function (w) { return velhas.indexOf(w) !== -1; });
+      const velhaDentro = velhas.every(function (w) { return novas.indexOf(w) !== -1; });
+      if (novaDentro) return;
+      if (velhaDentro) { outra.partes = uteis; outra.chave = novas.join(' '); return; }
+    }
+    pessoas.push({ token: 'PESSOA_' + (pessoas.length + 1), partes: uteis, chave: novas.join(' ') });
+  }
+
+  function registrarCpf(bruto) {
+    const digitos = bruto.replace(/\D/g, '');
+    if (cpfs.some(function (c) { return c.digitos === digitos; })) return;
+    cpfs.push({ token: 'CPF_' + (cpfs.length + 1), original: bruto, digitos: digitos, valido: cpfValido(digitos) });
+  }
+
+  // Troca o que o registro já conhece (nomes, partes dos nomes e CPFs) por marcadores.
+  function ocultar(texto) {
+    let t = String(texto == null ? '' : texto);
+    cpfs.forEach(function (c) {
+      const sep = '[.\\-\\s]?';
+      const d = c.digitos;
+      const re = new RegExp('(^|[^\\d])' + d.slice(0, 3) + sep + d.slice(3, 6) + sep + d.slice(6, 9) + sep + d.slice(9) + '(?!\\d)', 'g');
+      t = t.replace(re, function (m, antes) { return antes + c.token; });
+    });
+    // nomes completos primeiro (do mais longo para o mais curto), depois cada palavra do nome sozinha
+    const lista = pessoas.slice().sort(function (a, b) { return b.partes.length - a.partes.length; });
+    lista.forEach(function (p) {
+      if (p.partes.length > 1) {
+        const re = new RegExp('(^|[^A-Za-zÀ-ÿ])' + p.partes.map(psEscapar).join('(?:\\s+d[aeo]s?)?\\s+') + '(?![A-Za-zÀ-ÿ])', 'gi');
+        t = t.replace(re, function (m, antes) { return antes + p.token; });
+      }
+    });
+    lista.forEach(function (p) {
+      p.partes.forEach(function (w) {
+        if (w.length < 3) return;
+        const re = new RegExp('(^|[^A-Za-zÀ-ÿ_])' + psEscapar(w) + '(?![A-Za-zÀ-ÿ_])', 'gi');
+        t = t.replace(re, function (m, antes) { return antes + p.token; });
+      });
+    });
+    // sobrenome e nome trocados um a um viram o mesmo marcador repetido: junta
+    return t.replace(/\b(PESSOA_\d+)(?:\s+\1\b)+/g, '$1');
+  }
+
+  // Lê o texto: guarda nomes e CPFs novos e devolve o texto já com marcadores. null = nada a proteger.
+  function proteger(texto) {
+    const t = String(texto == null ? '' : texto);
+    const cpfsAchados = cpfsNoTexto(t);
+    const nomes = nomesNoTexto(t);
+    // com CPF ou nome reconhecido na mensagem, nome próprio solto ("A Maria Souza faltou") também é de pessoa
+    if (cpfsAchados.length || nomes.length) nomesProprios(t).forEach(function (n) { nomes.push(n); });
+    if (!cpfsAchados.length && !nomes.length && !pessoas.length && !cpfs.length) return null;
+    cpfsAchados.forEach(registrarCpf);
+    nomes.forEach(registrarNome);
+    const saida = ocultar(t);
+    if (saida === t) return null;
+    const usados = [];
+    const ver = /\b(PESSOA|CPF)_(\d{1,3})\b/g;
+    let m;
+    while ((m = ver.exec(saida)) !== null) if (usados.indexOf(m[0]) === -1) usados.push(m[0]);
+    return { texto: saida, marcadores: usados, nota: notaParaIA(usados) };
+  }
+
+  function notaParaIA(usados) {
+    if (!usados.length) return '';
+    const validos = [], invalidos = [];
+    usados.forEach(function (u) {
+      const c = cpfs.filter(function (x) { return x.token === u; })[0];
+      if (c) (c.valido ? validos : invalidos).push(u);
+    });
+    let nota = ' [' + usados.join(', ') + (usados.length > 1 ? ' são marcadores' : ' é um marcador') + ' no lugar de dado pessoal que ficou no aparelho; escreva-' + (usados.length > 1 ? 'os' : 'o') + ' sempre iguais.';
+    if (validos.length) nota += ' ' + validos.join(', ') + ' tem dígitos verificadores válidos.';
+    if (invalidos.length) nota += ' ' + invalidos.join(', ') + ' tem dígitos verificadores inválidos.';
+    return nota + ']';
+  }
+
+  // Desfaz os marcadores no texto que vai para a tela. Marcador desconhecido fica como está.
+  function restaurar(texto) {
+    if (typeof texto !== 'string' || (!pessoas.length && !cpfs.length)) return texto;
+    return texto.replace(PS_RE_MARCADOR, function (m, tipo, n) {
+      const token = tipo.toUpperCase() + '_' + Number(n);
+      if (tipo.toUpperCase() === 'CPF') { const c = cpfs.filter(function (x) { return x.token === token; })[0]; return c ? c.original : m; }
+      const p = pessoas.filter(function (x) { return x.token === token; })[0];
+      return p ? p.partes.join(' ') : m;
+    });
+  }
+
+  function limpar() { pessoas.length = 0; cpfs.length = 0; }
+  function vazio() { return !pessoas.length && !cpfs.length; }
+  return { proteger: proteger, ocultar: ocultar, restaurar: restaurar, limpar: limpar, vazio: vazio, cpfValido: cpfValido };
 }
 
 // ---- shared/documento.mjs ----
@@ -1412,7 +1668,13 @@ const SINAIS_SUICIDIO = [
   '(?:usar|usarei|vou usar) (?:a arma|ela|isso|o veneno) em mim|(?:arma|revolver|pistola|veneno|chumbinho)[^.?!]{0,30}\\b(?:usar|usarei|vou usar|uso)\\b[^.?!]{0,10}\\bem mim',
   '(?:carta|bilhete) de despedida|me despedindo de todos|deixei (?:um )?bilhete',
   // autolesão relatada sem a palavra "automutilação"
-  'cort(?:ou|ei|aram|ando) (?:os |as |meus |minhas |seus |suas )?(?:pulsos?|punhos?|veias?|pescoco)|(?:se|me) cortou(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\\b)|me cortei(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\\b)|se cortaram|(?:se|me) machuc(?:a|ando|ou|ava) de proposito|(?:se|me) fer(?:e|indo|iu|i) de proposito|(?:se|me) queim(?:a|ando|ou|ei) de proposito'
+  'cort(?:ou|ei|aram|ando) (?:os |as |meus |minhas |seus |suas )?(?:pulsos?|punhos?|veias?|pescoco)|(?:se|me) cortou(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\\b)|me cortei(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\\b)|se cortaram|(?:se|me) machuc(?:a|ando|ou|ava) de proposito|(?:se|me) fer(?:e|indo|iu|i) de proposito|(?:se|me) queim(?:a|ando|ou|ei) de proposito',
+  // variações de forma (revisão 2026-11): plural, ordem das palavras e tempo verbal
+  '(?:estaria|estariam|ficaria|ficariam|viveria|viveriam) (?:muito |bem |mais )?(?:melhor|melhores|feliz|felizes) sem mim',
+  'nao acordar nunca mais|nunca mais acordar|(?:queria|quero|gostaria de|desejava|desejo) nao acordar (?:amanha|mais)',
+  'nao (?:vejo|tenho|tem|ve|ha) (?:mais )?(?:motivos?|razoes|razao) (?:pra|para) (?:viver|continuar vivendo|continuar vivo|continuar viva|seguir vivendo|seguir vivo|seguir viva)',
+  '(?:a |minha )?vida nao vale (?:a pena|nada|mais nada)|viver nao vale (?:mais )?a pena|nao vale (?:mais )?a pena (?:viver|continuar vivendo|seguir vivendo|estar vivo|estar viva)',
+  '(?:quero|queria|preciso|penso em|pensando em|tenho vontade de|estou com vontade de) me (?:machucar|ferir|queimar|furar)'
 ].join('|');
 
 // Sinais de overdose e intoxicação além de "overdose" e "engoliu remédio".
@@ -1461,6 +1723,8 @@ const AMEACA_TERCEIRO = new RegExp('\\b(?:(?:ameac(?:a|ou|ando|am|aram)|prometeu
 // Quem diz que VAI machucar alguém (raiva, esgotamento de cuidador): outra conduta, outro texto.
 const INTENCAO_AGREDIR = new RegExp('\\b(?:(?:vou|quero|vontade de|estou com vontade de|tenho vontade de|ia|penso em|pensando em) (?:matar|machucar|espancar|esfaquear) ' + NAO_E_PESSOA + '(?:o|a|os|as|n[oa]s?|meu|minha|meus|minhas|alguem|ela|ele|elas|eles|crianc\\w+|filh\\w+|menin\\w+|marido|esposa|mulher|bebe)\\b|(?:vou|quero|vontade de|estou com vontade de|tenho vontade de|ia|penso em|pensando em) (?:bater|surrar) (?:n[oa]s?|em) ?(?:meu|minha|meus|minhas|o|a|os|as)? ?(?:filh\\w+|crianc\\w+|bebe|menin\\w+|marido|esposa|mulher|alguem|ela|ele)\\b|(?:estou|to|ando) (?:perdendo|sem) (?:o )?controle (?:com|d[eao]s?) (?:meu|minha|meus|minhas|a|o|os|as)? ?(?:filh\\w+|crianc\\w+|bebe|menin\\w+|marido|esposa)|nao (?:consigo|aguento) me controlar (?:com|d[eao]s?) (?:meu|minha|meus|minhas|a|o|os|as)? ?(?:filh\\w+|crianc\\w+|bebe|menin\\w+)|(?:bati|espanquei|machuquei|agredi) (?:n[oa]s?|em|o|a|os|as) ?(?:meu|minha|meus|minhas)? ?(?:filh\\w+|crianc\\w+|bebe|menin\\w+|esposa|marido|mulher))');
 // Violência sofrida, dita por quem sofre, ou de um adulto contra criança/adolescente sem a palavra \"abuso\".
+// Agressão em curso no gerúndio ("ele está me batendo"); "machucando"/"sufocando" ficam de fora de propósito.
+const AGRESSAO_EM_CURSO = /\b(?:me|nos) (?:batendo(?! (?:na|no|a|o) (?:porta|portao|janela|vidro|campainha|parede))|agredindo|espancando|estrangulando|ameacando de morte)\b/;
 const VIOLENCIA_SOFRIDA = /\b(?:abus(?:a|ou|am|aram|ando) de mim|(?:me|nos) (?:abus|molest|estupr)(?:a|ou|am|aram)|(?:me|nos) (?:bate|bateu|batem|espanca|espancou|agride|agrediu|estrangula|estrangulou|sufoca|sufocou|ameaca de morte)|(?:fui|foi|foram|fomos) (?:agredid|espancad|estuprad|abusad|violentad|molestad|ameacad)\w*|(?:padrasto|madrasta|pai|mae|tio|tia|avo|avos|primo|irmao|padrinho|vizinho|professor|pastor|patrao|marido|namorado|companheiro|ex) (?:me|nela|nele) (?:toca|tocou|forca|forcou)\b|(?:padrasto|madrasta|pai|mae|tio|tia|avo|avos|primo|irmao|padrinho|vizinho|professor|pastor|patrao|marido|namorado|companheiro|ex) (?:mexe|mexeu) comigo\b|(?:ele|ela) mexe com (?:a |o )?(?:sobrinh|filh|entead|net|menin|crianc)\w*|mexe com (?:a |o )?(?:sobrinh|filh|entead|net|menin|crianc)\w*|(?:abus|estupr|molest|violent)(?:ando|a|am) (?:a |o |as |os |da |do |das |dos |de )?(?:crianc\w*|menin\w*|filh\w*|sobrinh\w*|entead\w*|net[ao]s?|adolescent\w*|irma\w*|prim[ao]s?|mulher)\b|(?:sofrendo|sofre|sofreu|sofri) (?:abuso|violencia|maus tratos|agressao|agressoes)\b|(?:trancad[oa]|presa|preso) (?:em casa|no quarto|no comodo)|carcere privado|nao (?:deixa|deixou|deixam) (?:ela|ele|eu|a mulher|a menina|o menino) sair de casa)\b/;
 // Criança, adolescente ou pessoa idosa em abandono, cárcere ou sem comida.
 const ABANDONO = /\b(?:crianca|bebe|idos[oa]|menin[oa]|adolescent\w*)s?\b[^.?!]{0,40}?\b(?:abandonad[oa]s?|trancad[oa]s?|amarrad[oa]s?|acorrentad[oa]s?|sem (?:comer|comida) (?:ha|desde|por) (?:\w+ )?(?:dias|horas))\b/;
@@ -1543,6 +1807,14 @@ const PADROES = [
   },
   {
     tipo: 'violencia',
+    titulo: 'Violência em andamento: acione ajuda agora',
+    re: AGRESSAO_EM_CURSO,
+    geral: true,
+    texto: 'RELATO',
+    numeros: ['190', '180', '100']
+  },
+  {
+    tipo: 'violencia',
     titulo: 'Criança, adolescente ou pessoa idosa em risco: acione a rede agora',
     re: ABANDONO,
     geral: true,
@@ -1591,7 +1863,7 @@ const TEXTO_AMEACA = 'Ameaça de morte é risco real e deve ser levada a sério.
 const TEXTO_AGRESSAO = 'Pare um instante: o mais importante agora é que ninguém se machuque. Se puder, afaste-se da situação (outro cômodo, a rua, um vizinho) e, se houver criança por perto, peça para outro adulto ficar com ela. Respire fundo e converse com alguém agora: CVV, 188 (gratuito, 24 horas). Se alguém estiver em perigo neste momento, ligue 190. Passada a crise, procure o CRAS, o CREAS ou a UBS: sentir esse limite é sinal de que você precisa de apoio, e a rede existe para isso. Se você é profissional e escreveu sobre um caso, reformule em terceira pessoa, sem identificar ninguém.';
 
 // Quem fala de si, além de PRIMEIRA_PESSOA. Fica de fora se a frase relata o que outra pessoa disse ("ela falou que queria sumir").
-const PRIMEIRA_PESSOA_EXTRA = /\b(?:minha vida nao tem (?:mais )?sentido|nao (?:aguento|suporto|consigo) mais (?:viver|essa vida|esta vida)|nao (?:vejo|tenho) (?:mais )?(?:sentido em viver|sentido na vida|razao (?:pra|para) viver|motivo (?:pra|para) viver)|quer(?:o|ia) (?:sumir|desaparecer)|(?:vou|quero|pensando em|penso em|ia) me (?:jogar|enforcar|afogar|envenenar)|vou pular|queria estar morto|queria estar morta|queria nao ter nascido|(?:vou|quero) dar fim a minha vida|(?:cansei|estou cansad[oa]|to cansad[oa]) de viver|nao quero mais (?:estar aqui|existir)|ninguem sentiria (?:a )?minha falta|melhor (?:pra|para) (?:todo mundo|todos) se eu (?:morresse|nao existisse)|(?:acabar|acabando) com (?:a )?minha dor de uma vez|(?:vou|quero) (?:por|pondo) fim a tudo|so a morte (?:me )?(?:resolve|ajuda)|(?:queria|quero) dormir (?:e nunca mais acordar|pra sempre|para sempre)|(?:vou|quero) me (?:atirar|lancar) na frente|me dar (?:um )?tiro|(?:vou|quero) usar (?:a arma|ela|isso) em mim|me atropelasse|usar [^.?!]{0,12}em mim|(?:queria|quero) [^.?!]{0,25}dormir (?:pra|para) sempre|(?:carta|bilhete) de despedida|me cortei(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\b)|(?:me) (?:machuco|machucando|firo|ferindo) de proposito|nao quer(?:o|ia) mais acordar|(?:melhor|seria melhor) eu nao estar mais aqui|(?:vou|quero|ia|pensando em|penso em) tomar (?:todos|todo) (?:os |o )?(?:\w+ )?(?:remedios?|comprimidos?|medicamentos?|cartela)|(?:vou|quero|ia|pensando em|penso em) (?:me )?atirar em mim|me corto(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\b)|(?:vontade|desejo|impulso) de me (?:machucar|ferir|cortar|furar|queimar))\b/;
+const PRIMEIRA_PESSOA_EXTRA = /\b(?:minha vida nao tem (?:mais )?sentido|nao (?:aguento|suporto|consigo) mais (?:viver|essa vida|esta vida)|nao (?:vejo|tenho) (?:mais )?(?:sentido em viver|sentido na vida|razao (?:pra|para) viver|motivo (?:pra|para) viver)|quer(?:o|ia) (?:sumir|desaparecer)|(?:vou|quero|pensando em|penso em|ia) me (?:jogar|enforcar|afogar|envenenar)|vou pular|queria estar morto|queria estar morta|queria nao ter nascido|(?:vou|quero) dar fim a minha vida|(?:cansei|estou cansad[oa]|to cansad[oa]) de viver|nao quero mais (?:estar aqui|existir)|ninguem sentiria (?:a )?minha falta|melhor (?:pra|para) (?:todo mundo|todos) se eu (?:morresse|nao existisse)|(?:acabar|acabando) com (?:a )?minha dor de uma vez|(?:vou|quero) (?:por|pondo) fim a tudo|so a morte (?:me )?(?:resolve|ajuda)|(?:queria|quero) dormir (?:e nunca mais acordar|pra sempre|para sempre)|(?:vou|quero) me (?:atirar|lancar) na frente|me dar (?:um )?tiro|(?:vou|quero) usar (?:a arma|ela|isso) em mim|me atropelasse|usar [^.?!]{0,12}em mim|(?:queria|quero) [^.?!]{0,25}dormir (?:pra|para) sempre|(?:carta|bilhete) de despedida|me cortei(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\b)|(?:me) (?:machuco|machucando|firo|ferindo) de proposito|nao quer(?:o|ia) mais acordar|(?:melhor|seria melhor) eu nao estar mais aqui|(?:vou|quero|ia|pensando em|penso em) tomar (?:todos|todo) (?:os |o )?(?:\w+ )?(?:remedios?|comprimidos?|medicamentos?|cartela)|(?:vou|quero|ia|pensando em|penso em) (?:me )?atirar em mim|me corto(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\b)|(?:vontade|desejo|impulso) de me (?:machucar|ferir|cortar|furar|queimar)|(?:estaria|estariam|ficaria|ficariam|viveria|viveriam) (?:muito |bem |mais )?(?:melhor|melhores|feliz|felizes) sem mim|nao acordar nunca mais|nunca mais acordar|nao (?:vejo|tenho) (?:mais )?(?:motivos?|razoes|razao) (?:pra|para) (?:viver|continuar vivendo|seguir vivendo)|(?:a |minha )?vida nao vale (?:a pena|nada|mais nada)|nao vale (?:mais )?a pena viver|(?:quero|queria|preciso|penso em|pensando em) me (?:machucar|ferir|queimar|furar))\b/;
 const RELATA_TERCEIRO = /\b(?:disse|disseram|falou|falaram|contou|relatou|verbalizou|mencionou)\b/;
 
 // Erro de digitação em duas palavras-chave ("me mattar", "vou me matr", "suisidio"). Distância de edição pequena e só nestes casos:
@@ -15115,6 +15387,7 @@ function memEhSensivel(texto) { return MEM_RE_SENSIVEL.test(normalizar(texto)); 
 
 
 
+
 const AVISO_PESSOAL = 'Para proteger as famílias, não consigo analisar mensagens com nome, documento, telefone ou endereço residencial. Reescreva a pergunta sem identificar ninguém.';
 
 // Igual ao limite do Worker (worker/prompt.mjs). Antes eram 5 aqui, e o Argo mandava até 10 (lista de bairros, "liste todos").
@@ -15139,6 +15412,7 @@ const PADRAO = {
   memoria: true,           // aprende com o uso, só no aparelho (veja client/memoria.mjs); false = desligada
   aoNegar: null,           // chamada quando o Worker responde 401 (sessão vencida ou sem login): o app volta à tela de login
   token: null,             // sessão do login (texto ou função que devolve o texto); vai no cabeçalho Authorization
+  pseudonimizar: true,     // nome e CPF digitados são lidos no aparelho e trocados por marcadores antes de ir à IA (shared/pseudonimo.mjs); false = volta a bloquear
   perfil: ''               // id opaco da conta no app (nunca e-mail/nome): memórias separadas por pessoa no mesmo navegador
 };
 
@@ -15149,6 +15423,7 @@ const estado = {
   acoes: [],
   buscas: [],
   historico: [],
+  pessoas: criarRegistro(),   // quem é PESSOA_1 e qual é o CPF_1: só nesta aba, só em memória
   envios: [],
   fichas: null,
   pontos: null,
@@ -15251,7 +15526,7 @@ function registrarBusca(b) {
   estado.buscas.push({ id: b.id, rotulos: (b.rotulos || []).map(normalizar).filter(Boolean), buscar: b.buscar });
 }
 
-function limpar() { estado.historico = []; estado.pendentes = []; avisarMudancaIA(); }
+function limpar() { estado.historico = []; estado.pendentes = []; estado.pessoas.limpar(); avisarMudancaIA(); }
 function skin(app) { return SKINS[String(app || cfg.app).toLowerCase()] || null; }
 function iaLigada() {
   return !!cfg.endpoint && (typeof navigator === 'undefined' || navigator.onLine !== false);
@@ -15510,7 +15785,7 @@ function historicoParaEnvio(externo, ajuste) {
   let ultima = -1;
   lista.forEach(function (h, i) { if (h && h.papel !== 'usuario') ultima = i; });
   return lista.map(function (h, i) {
-    return { papel: h.papel, texto: String(h.texto).slice(0, ajuste && i === ultima ? 3000 : 1200) };
+    return { papel: h.papel, texto: estado.pessoas.ocultar(String(h.texto).slice(0, ajuste && i === ultima ? 3000 : 1200)) };
   });
 }
 
@@ -16095,6 +16370,39 @@ function respostaDeCalculo(t, o, conta) {
   };
 }
 
+// Pergunta com nome ou CPF: o texto que sai do aparelho só tem marcadores. O pedido original não vai a nenhum atalho local nem ao histórico nem à
+// memória de respostas: nada do que foi digitado fica guardado, e a resposta (com os dados reais refeitos) não é lembrada depois.
+async function responderComNomeLocal(pr, o, comImagem) {
+  const idioma = idiomaDoPedido(pr.texto, o.historico || estado.historico);
+  if (temDadoPessoal(pr.texto)) return { tipo: 'bloqueio', texto: avisoPessoalNoIdioma(idioma, AVISO_PESSOAL) };
+  if ((!iaLigada() || iaPausada()) && idioma && (idioma.resposta === 'es' || idioma.resposta === 'en')) return { tipo: 'bloqueio', texto: avisoPessoalNoIdioma(idioma, AVISO_PESSOAL) };
+  if (!iaLigada() || iaPausada()) return { tipo: 'bloqueio', semIA: true, texto: 'Li o nome/CPF aqui no aparelho e ele não saiu daqui, mas para analisar preciso da IA, que não está disponível agora. ' + (iaLigada() ? quandoVoltaIA() : 'Volte quando houver internet.') + ' Se puder, reescreva a pergunta sem identificar a pessoa.', fontes: [], avisos: [] };
+  const o2 = Object.assign({}, o);
+  if (typeof o.onToken === 'function') o2.onToken = function (a, b) { o.onToken(estado.pessoas.restaurar(a), estado.pessoas.restaurar(b)); };
+  try {
+    const r = await pedirIA(pr.texto + pr.nota, o2);
+    retomarIA();
+    if (r && r.tipo === 'ia') {
+      const protegido = r.texto;
+      r.texto = estado.pessoas.restaurar(r.texto);
+      if (Array.isArray(r.sugestoes)) r.sugestoes = r.sugestoes.map(function (x) { return typeof x === 'string' ? estado.pessoas.restaurar(x) : x; });
+      if (!Array.isArray(o.historico)) {
+        estado.historico.push({ papel: 'usuario', texto: pr.texto }, { papel: 'paulus', texto: protegido });
+        estado.historico = estado.historico.slice(-cfg.maxHistorico * 4);
+      }
+      r.sensivel = true; r.pergunta = ''; r.docs = [];
+      r.avisos = (r.avisos || []).concat(['Nome e CPF foram lidos neste aparelho e trocados por marcadores antes do envio: a IA não recebeu os dados reais. Não foi guardado na memória do Paulus.']);
+    }
+    return r;
+  } catch (e) {
+    if (o.sinal && o.sinal.aborted) return { tipo: 'erro', texto: 'Interrompido.' };
+    if (e && e.status === 429) return { tipo: 'erro', texto: e.motivo || 'Muitas perguntas seguidas. Aguarde um minuto.', limite: true };
+    if (e && e.cota) pausarIA(e.aviso);
+    else if (e && !e.status) pausarPorRede();
+    return { tipo: 'erro', texto: 'Não consegui consultar a IA agora (' + ((e && e.motivo) || 'tente de novo em instantes') + '). O nome e o CPF continuam só neste aparelho.' };
+  }
+}
+
 // Envolve o fluxo principal: registra como pendente o que só a base respondeu enquanto a IA estava fora, e tira da fila o que a IA respondeu.
 async function perguntar(texto, opcoes) {
   estado.qrAnexo = null;
@@ -16152,6 +16460,12 @@ async function perguntarFluxo(texto, opcoes) {
     if (dt && dt.origem === 'datas') return respostaDeCalculo(t, o, dt);
   }
 
+  // Nome e CPF: lidos aqui, no aparelho. Viram marcadores (PESSOA_1, CPF_1) antes de qualquer envio; a resposta da IA volta com os marcadores
+  // e é refeita na tela. Sobrou outro dado pessoal (telefone, endereço, RG...) depois da troca? Aí bloqueia como sempre.
+  if (cfg.pseudonimizar !== false) {
+    const pr = estado.pessoas.proteger(t);
+    if (pr) return responderComNomeLocal(pr, o, comImagem);
+  }
   if (temDadoPessoal(t)) return { tipo: 'bloqueio', texto: avisoPessoalNoIdioma(idiomaDoPedido(t, o.historico || estado.historico), AVISO_PESSOAL) };
 
   // QR Code: geração local no aparelho; o filtro de dados pessoais acima continua valendo.
@@ -16381,7 +16695,7 @@ const Paulus = { init, perguntar,
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
   pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { const pedido = lerPedidoDePdf(t, { temArquivo: l.length > 0 }); if (pedido && pedido.operacoes.some(function (op) { return op.op === 'proteger'; })) return respostaDePdf(t, l, Object.assign({ protegerLocal: cfg.pdfProtegerLocal }, opc || {})); return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, proteger: pdfProteger, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
-  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.33.0',
+  fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario }, temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.34.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
