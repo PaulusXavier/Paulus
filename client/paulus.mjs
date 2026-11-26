@@ -697,7 +697,13 @@ function resumirTrecho(texto, max) {
   return (fim > max * 0.5 ? corte.slice(0, fim + 1) : corte.replace(/\s+\S*$/, '')) + ' [...]';
 }
 
-function respostaDasNormas(achados) {
+function respostaDasNormas(achados, pergunta) {
+  // Sem IA e sem estar "em pausa" (app só local, offline): as frases da base que respondem ao tipo da pergunta, com fonte numerada, em vez de um bloco de texto.
+  if (pergunta) {
+    let ext = null;
+    try { ext = responderPorExtracao(pergunta, achados); } catch (e) { ext = null; }
+    if (ext) return { tipo: 'norma', extrativa: true, frases: ext.frases, texto: ext.texto, fontes: achados.map(function (a) { return fonteDe(a.trecho, a); }), avisos: ext.avisos };
+  }
   const melhor = achados[0].trecho;
   return {
     tipo: 'norma',
@@ -1321,7 +1327,7 @@ async function perguntarFluxo(texto, opcoes) {
     }
   }
   if (achados.length) {
-    const rn = pausada ? respostaDasNormasSemIA(achados, t) : respostaDasNormas(achados);
+    const rn = pausada ? respostaDasNormasSemIA(achados, t) : respostaDasNormas(achados, t);
     rn.pergunta = t; rn.docs = docs;
     estado.mem.aprenderPergunta(t, docs);
     return rn;
@@ -1356,7 +1362,7 @@ async function consultarNormas(texto, opcoes) {
   const modo = classificarPedido(t, hist);
   if (modo === 'saudacao') return null;
   const achados = buscarFontes(estado.indice, (consultaDoPedido(t, hist, modo) + ' ' + paraBusca(t)).trim(), { k: trechosParaOPedido(modo, t, K_PADRAO), preferir: estado.mem.preferencias(), modo: modo });
-  return achados.length ? respostaDasNormas(achados) : null;
+  return achados.length ? respostaDasNormas(achados, t) : null;
 }
 
 const Paulus = { init, perguntar,
