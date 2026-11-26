@@ -259,6 +259,104 @@ export function temDadoPessoal(texto) {
   return RE_ENDERECO.test(t) || temDadoPessoalEs(t) || temDadoPessoalEn(t);
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// LEITURA NO APARELHO (v0.34.0): em vez de só barrar, devolve QUAIS nomes o filtro reconheceu, para o aparelho trocá-los por marcadores
+// (shared/pseudonimo.mjs) antes de qualquer envio. Usa os mesmos padrões e as mesmas listas de "não é nome" de temDadoPessoal.
+// Cada item é a lista de palavras do nome como foram escritas: ['João', 'Pedro'] ou, só com a idade ("José, 45 anos"), ['José'].
+// Mesmo limite do filtro: o que nenhum padrão reconhece não é achado.
+// ---------------------------------------------------------------------------------------------------------------------
+const RE_TRAT_C = new RegExp(FORA + '(?:[Dd]ona|[Dd]na|[Ss]r|[Ss]ra|[Ss]eu|[Ss]enhor|[Ss]enhora)\\.?\\s+([' + CAP + '][' + MIN_L + ']{2,})\\s+([' + CAP + '][' + MIN_L + ']{2,})', 'g');
+const RE_TRAT_ES_C = new RegExp(FORA + '(?:[Dd]on|[Dd]o[ñn]a|[Ss]e[ñn]or|[Ss]e[ñn]ora|[Ss]e[ñn]orita|[Ss]rta?|[Ss]ra|[Ss]r)\\.?\\s+([' + CAP_ES + '][' + MIN_ES + ']{2,})\\s+([' + CAP_ES + '][' + MIN_ES + ']{2,})', 'g');
+const RE_TRAT_EN_C = new RegExp(FORA + '(?:Mr|Mrs|Ms|Miss|Mister|Madam|Sir)\\.?\\s+([' + CAP + '][' + MIN_L + ']{2,})', 'g');
+
+function coletarPares(re, t, listas, saida) {
+  re.lastIndex = 0;
+  let m;
+  while ((m = re.exec(t)) !== null) {
+    const a = m[1], b = m[2];
+    if (a) {
+      const na = semAcentoMin(a), nb = b ? semAcentoMin(b) : '';
+      const barrado = listas.some(function (l) { return l.has(na) || (nb && l.has(nb)); });
+      if (!barrado) saida.push(b ? [a, b] : [a]);
+    }
+    re.lastIndex = m.index + 1;
+  }
+}
+
+function coletarComIdade(re, t, listas, saida) {
+  re.lastIndex = 0;
+  let m;
+  while ((m = re.exec(t)) !== null) {
+    const n = semAcentoMin(m[1]);
+    if (!listas.some(function (l) { return l.has(n); })) saida.push([m[1]]);
+    re.lastIndex = m.index + 1;
+  }
+}
+
+export function nomesNoTexto(texto) {
+  const t = String(texto == null ? '' : texto);
+  const saida = [];
+  const pt = [NAO_NOME], es = [NAO_NOME_ES, NAO_NOME], en = [NAO_NOME_EN, NAO_NOME];
+  coletarPares(RE_NOME, t, pt, saida);
+  coletarPares(RE_NOME_VERBO, t, pt, saida);
+  coletarPares(RE_TRAT_C, t, pt, saida);
+  coletarComIdade(RE_NOME_IDADE, t, [NAO_NOME, NAO_NOME_IDADE], saida);
+  coletarPares(RE_NOME_ES, t, es, saida);
+  coletarPares(RE_NOME_VERBO_ES, t, es, saida);
+  coletarPares(RE_TRAT_ES_C, t, es, saida);
+  coletarComIdade(RE_NOME_IDADE_ES, t, [NAO_NOME_ES, NAO_NOME, NAO_NOME_IDADE], saida);
+  coletarPares(RE_NOME_EN, t, en, saida);
+  coletarPares(RE_EU_SOU_EN, t, en, saida);
+  coletarPares(RE_NOME_VERBO_EN, t, en, saida);
+  coletarPares(RE_TRAT_EN_C, t, en, saida);
+  coletarComIdade(RE_NOME_IDADE_EN, t, [NAO_NOME_EN, NAO_NOME, NAO_NOME_IDADE_EN], saida);
+  // Nome em CAIXA ALTA: lê a versão "suave" ("MARIA DA SILVA" -> "Maria da Silva"); a troca depois ignora maiúsculas.
+  if (/[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{3,}\s+(?:D[AEO]S?\s+)?[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{3,}/.test(t)) {
+    const suave = t.replace(/[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{3,}/g, function (w) { return w.charAt(0) + w.slice(1).toLowerCase(); }).replace(/\bD([AEO]S?)\b/g, function (m) { return m.toLowerCase(); });
+    coletarPares(RE_NOME_VERBO, suave, pt, saida);
+    coletarPares(RE_NOME, suave, pt, saida);
+  }
+  // Nome em minúsculas depois de gatilho forte: acha na versão sem acento e devolve as palavras como foram escritas (mesma posição).
+  const x = semAcentoMin(t);
+  if (x.length === t.length) {
+    RE_NOME_MINUSCULO.lastIndex = 0;
+    let m;
+    while ((m = RE_NOME_MINUSCULO.exec(x)) !== null) {
+      if (![m[1], m[2]].some(function (w) { return NAO_NOME.has(w) || NAO_NOME_MINUSCULO.has(w); })) {
+        const fim = m.index + m[0].length;
+        const p2 = fim - m[2].length;
+        const p1 = x.lastIndexOf(m[1], p2 - 1);
+        if (p1 >= m.index) saida.push([t.slice(p1, p1 + m[1].length), t.slice(p2, fim)]);
+      }
+      RE_NOME_MINUSCULO.lastIndex = m.index + 1;
+    }
+  }
+  return saida;
+}
+
+// Nome próprio solto ("A Maria Souza, CPF 123..., faltou"): 2 a 5 palavras com inicial maiúscula seguidas. Mais largo que o filtro, por isso só
+// serve DEPOIS que a mensagem já tem dado de pessoa (CPF ou nome reconhecido): trocar a mais por um marcador só piora a resposta, deixar passar vaza.
+// Não vale: sigla de lugar/instituição antes ("CRAS Cristiana Vicente Nunes", "Rua Pedro Rodrigues") nem palavras de NAO_NOME.
+const INSTITUICAO_ANTES = new Set('cras creas caps ubs upa escola colegio creche hospital posto rua avenida av travessa praca bairro conjunto residencial unidade centro conselho secretaria delegacia igreja ong associacao'.split(' '));
+const RE_PROPRIO = new RegExp(FORA + '([' + CAP + '][' + MIN_L + ']{2,}(?:\\s+(?:d[aeo]s?\\s+)?[' + CAP + '][' + MIN_L + ']{2,}){1,4})(?![A-Za-zÀ-ÿ])', 'g');
+export function nomesProprios(texto) {
+  const t = String(texto == null ? '' : texto);
+  const saida = [];
+  RE_PROPRIO.lastIndex = 0;
+  let m;
+  while ((m = RE_PROPRIO.exec(t)) !== null) {
+    const grupo = m[1];
+    const ini = m.index + m[0].length - grupo.length;
+    const palavras = grupo.split(/\s+/).filter(function (w) { return !/^d[aeo]s?$/.test(w); });
+    while (palavras.length > 1 && /^(?:dona|dna|sr|sra|seu|senhora?|don|dona|mr|mrs|ms|miss)\.?$/i.test(palavras[0])) palavras.shift();
+    const antes = t.slice(Math.max(0, ini - 24), ini).trim().split(/\s+/).pop() || '';
+    const barrado = INSTITUICAO_ANTES.has(semAcentoMin(antes.replace(/[^A-Za-zÀ-ÿ]/g, ''))) || palavras.some(function (w) { const n = semAcentoMin(w); return NAO_NOME.has(n) || INSTITUICAO_ANTES.has(n); });
+    if (!barrado && palavras.length > 1) saida.push(palavras);
+    RE_PROPRIO.lastIndex = m.index + m[0].length - 1 > m.index ? m.index + m[0].length - 1 : m.index + 1;
+  }
+  return saida;
+}
+
 export function limparMarcacao(texto) {
   // tira <tag> e </tag>, inclusive com atributos, para a pergunta não fechar/abrir blocos do prompt.
   // Repete até estabilizar: numa passada só, "<</normas>/normas>" viraria "</normas>" depois da limpeza.
