@@ -28,6 +28,7 @@ import { normalizar, criarIndice, buscarFontes, fonteDe, K_PADRAO } from '../sha
 import { classificarPedido, ehRefinamento, pedidoSobreResposta, consultaDoPedido, trechosParaOPedido, pedidoDeMatematica } from '../shared/pedido.mjs';
 import { marcarFontesUsadas, citacoesSemFonte } from '../shared/verificacao.mjs';
 import { respostaDoPedido } from '../shared/calculo-mais.mjs';
+import { responderPorExtracao } from '../shared/resposta-extrativa.mjs';
 import { respostaDeMatematicaLocal } from '../shared/matematica-local.mjs';
 import { respostaDeRota, lerPedidoDeRota } from '../shared/rota.mjs';
 import { respostaDeModelo, lerPedidoDeModelo, urlDoModelo, MODELOS_3D } from '../shared/modelos.mjs';
@@ -509,7 +510,7 @@ function lerSSE(resp, ganchos, controle) {
   return new Promise(function (resolve, reject) {
     const leitor = resp.body.getReader();
     const dec = new TextDecoder();
-    let buf = '', acumulado = '', fontes = [], habilidades = [], citaveis = null, imagem = null, recebeu = false, fim = false;
+    let buf = '', acumulado = '', fontes = [], habilidades = [], citaveis = null, imagem = null, externa = false, recebeu = false, fim = false;
     function ler() {
       leitor.read().then(function (r) {
         controle.tique();
@@ -529,6 +530,7 @@ function lerSSE(resp, ganchos, controle) {
           if (Array.isArray(ev.habilidades)) { habilidades = ev.habilidades.map(String).slice(0, 3); if (ganchos.onHabilidades) ganchos.onHabilidades(habilidades); }
           if (ev.citaveis && typeof ev.citaveis === 'object') citaveis = ev.citaveis;
           if (ev.imagem && typeof ev.imagem === 'object') imagem = ev.imagem;
+          if (ev.externa === true) externa = true;
           // Resposta reescrita pelo Worker (citação sem fonte tirada): substitui o texto já mostrado.
           if (typeof ev.corrigido === 'string' && ev.corrigido.trim()) {
             acumulado = ev.corrigido;
@@ -542,7 +544,7 @@ function lerSSE(resp, ganchos, controle) {
           }
         }
         if (fim) {
-          if (!recebeu) reject(new Error('Resposta vazia.')); else resolve({ texto: acumulado, fontes: fontes, habilidades: habilidades, citaveis: citaveis, imagem: imagem });
+          if (!recebeu) reject(new Error('Resposta vazia.')); else resolve({ texto: acumulado, fontes: fontes, habilidades: habilidades, citaveis: citaveis, imagem: imagem, externa: externa });
         } else ler();
       }).catch(reject);
     }
@@ -655,7 +657,7 @@ async function pedirIA(texto, opcoes) {
     } else {
       const j = await resp.json();
       if (!j || typeof j.resposta !== 'string' || !j.resposta) throw new Error(j && j.erro ? String(j.erro) : 'Resposta vazia.');
-      saida = { texto: j.resposta, fontes: Array.isArray(j.fontes) ? j.fontes : [], habilidades: Array.isArray(j.habilidades) ? j.habilidades.map(String).slice(0, 3) : [], citaveis: j.citaveis && typeof j.citaveis === 'object' ? j.citaveis : null, imagem: j.imagem && typeof j.imagem === 'object' ? j.imagem : null };
+      saida = { texto: j.resposta, fontes: Array.isArray(j.fontes) ? j.fontes : [], habilidades: Array.isArray(j.habilidades) ? j.habilidades.map(String).slice(0, 3) : [], citaveis: j.citaveis && typeof j.citaveis === 'object' ? j.citaveis : null, imagem: j.imagem && typeof j.imagem === 'object' ? j.imagem : null, externa: j.externa === true };
       if (opcoes.onToken) opcoes.onToken(saida.texto, ocultarControles(saida.texto));
     }
     const partes = separarControles(saida.texto, acoes.map(function (a) { return a.id; }));
@@ -665,6 +667,8 @@ async function pedirIA(texto, opcoes) {
       return { id: a.id, rotulo: a.rotulo, confirmar: a.confirmar, executar: a.executar };
     });
     const avisos = ['Resposta gerada por IA. Confira antes de usar em atendimento.'];
+    // IA de reserva (Worker: worker/reserva-externa.mjs): a cota da Cloudflare acabou e a resposta veio de outro provedor.
+    if (saida.externa) avisos.push('Esta resposta veio de uma IA de reserva de outro provedor, porque a cota gratuita da IA principal acabou. Pode diferir do estilo habitual: confira antes de usar em atendimento.');
     const lida = imagemLidaSaneada(saida.imagem);
     if (lida) avisos.push((lida.pdfEscaneado ? 'PDF escaneado: ' + lida.paginas + ' de ' + lida.paginasTotal + ' página(s) lida(s) por IA de visão; ' : 'Imagem "' + lida.nome + '": lida por um programa de visão; ') + 'pode errar letras e números. Confira no original.' + (lida.perdidos ? ' ' + lida.perdidos + ' linha(s) com dados pessoais ficaram de fora da leitura.' : ''));
     if (telefonesDesconhecidos(saida.texto, fichas).length) {
@@ -676,7 +680,7 @@ async function pedirIA(texto, opcoes) {
     if (semFonte.length) {
       avisos.push('A IA citou ' + semFonte.slice(0, 3).join(', ') + ', que não aparece nas normas consultadas. Confira no texto oficial antes de usar.');
     }
-    return { tipo: 'ia', texto: saida.texto, fontes: marcarFontesUsadas(saida.texto, saida.fontes), sugestoes: partes.sugestoes, acoes: propostas, avisos: avisos, habilidades: saida.habilidades || [], geradoPorIA: true, imagemLida: imagemLidaSaneada(saida.imagem) };
+    return { tipo: 'ia', texto: saida.texto, fontes: marcarFontesUsadas(saida.texto, saida.fontes), sugestoes: partes.sugestoes, acoes: propostas, avisos: avisos, habilidades: saida.habilidades || [], geradoPorIA: true, externa: saida.externa === true, imagemLida: imagemLidaSaneada(saida.imagem) };
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -729,6 +733,25 @@ function trechoRelevante(texto, pergunta, max) {
 // Cota da IA esgotada: em vez de um trecho só, mostra até 3 dos mais ligados à pergunta (de documentos diferentes quando dá), cada um com a sua referência,
 // e diz com franqueza que isto não é uma resposta elaborada. Mesmo formato de respostaDasNormas (tipo 'norma'), com semIA/cotaEsgotada/renova para o app.
 function respostaDasNormasSemIA(achados, pergunta) {
+  // Primeiro tenta a extração de frases (shared/resposta-extrativa.mjs): as frases da base que respondem ao TIPO da pergunta, cada uma com a fonte numerada,
+  // e depois os trechos completos dessas fontes. Sem frase que cubra a pergunta, segue como antes (até 3 trechos).
+  let ext = null;
+  try { ext = responderPorExtracao(pergunta, achados); } catch (e) { ext = null; }
+  if (ext) {
+    const completos = ext.fontes.map(function (i, k) {
+      const t = achados[i].trecho;
+      const rotulo = [t.titulo || t.doc, t.referencia].filter(Boolean).join(' — ');
+      return '[' + (k + 1) + '] ' + (rotulo ? rotulo + '\n' : '') + trechoRelevante(t.texto, pergunta, 550);
+    });
+    return {
+      tipo: 'norma', extrativa: true, frases: ext.frases,
+      semIA: true, motivoSemIA: motivoSemIA(), cotaEsgotada: motivoSemIA() === 'cota', renova: estado.pausaIA.renova,
+      texto: (motivoSemIA() === 'rede' ? 'Estou sem conexão com a IA agora' : 'Estou sem a IA agora') + ', então não monto uma resposta sob medida, mas separei da base de normas as frases que respondem à sua pergunta.\n\n' +
+        ext.texto + '\n\nOs trechos completos, para dar contexto:\n\n' + completos.join('\n\n'),
+      fontes: achados.map(function (a) { return fonteDe(a.trecho, a); }),
+      avisos: [quandoVoltaIA()].concat(ext.avisos)
+    };
+  }
   const escolhidos = [];
   const docsVistos = [];
   achados.forEach(function (a) {
