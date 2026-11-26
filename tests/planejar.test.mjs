@@ -126,7 +126,7 @@ test('Worker: se o planejamento falhar, a resposta sai mesmo assim (sem derrubar
 test('Worker: sem número, saudação, ajuste e tema de suicídio não chamam o planejamento nem levam o bloco de conta', async () => {
   const m = criarManipulador({ base, apps: APPS });
   for (const [pergunta, historico] of [
-    ['o que é o CRAS?', []], ['oi', []],
+    ['como funciona o CRAS?', []], ['oi', []],
     ['deixe mais curto', [{ papel: 'usuario', texto: 'quanto é 15% de 1200' }, { papel: 'paulus', texto: '15% de 1.200 = 180' }]],
     ['quais os sinais de risco de suicídio em um adolescente de 15 anos? calcule 10 + 5', []]
   ]) {

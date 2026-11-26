@@ -40,11 +40,11 @@ test('recusa origem que não está na lista (e pedido sem origem)', async () => 
 test('aceita várias origens e o nome antigo ALLOWED_ORIGIN', async () => {
   const m = criarManipulador({ base, apps: APPS });
   const { env } = ambiente({ ALLOWED_ORIGINS: 'https://a.exemplo.com/, https://b.exemplo.com' });
-  const r = await m(pedido({ pergunta: 'o que é CRAS?' }, { origem: 'https://b.exemplo.com' }), env);
+  const r = await m(pedido({ pergunta: 'como funciona o CRAS?' }, { origem: 'https://b.exemplo.com' }), env);
   assert.equal(r.status, 200);
   assert.equal(r.headers.get('Access-Control-Allow-Origin'), 'https://b.exemplo.com');
   const antigo = ambiente({ ALLOWED_ORIGINS: undefined, ALLOWED_ORIGIN: ORIGEM });
-  assert.equal((await m(pedido({ pergunta: 'o que é CRAS?' }), antigo.env)).status, 200);
+  assert.equal((await m(pedido({ pergunta: 'como funciona o CRAS?' }), antigo.env)).status, 200);
 });
 
 test('OPTIONS (pré-voo do navegador) responde 204 com CORS', async () => {
@@ -60,7 +60,7 @@ test('app desconhecido é rejeitado; sem "app" vale argo (formato antigo)', asyn
   const m = criarManipulador({ base, apps: APPS });
   assert.equal((await m(pedido({ app: 'hacker', pergunta: 'oi' }), env)).status, 400);
   assert.equal((await m(pedido({ app: '__proto__', pergunta: 'oi' }), env)).status, 400);
-  assert.equal((await m(pedido({ pergunta: 'o que é CRAS?' }), env)).status, 200);
+  assert.equal((await m(pedido({ pergunta: 'como funciona o CRAS?' }), env)).status, 200);
 });
 
 test('dado pessoal: o Worker confere de novo e não chama a IA', async () => {
@@ -144,17 +144,17 @@ test('limite por IP: a 17ª chamada no mesmo minuto leva 429', async () => {
   const { env } = ambiente();
   const m = criarManipulador({ base, apps: APPS });
   let ultimo;
-  for (let i = 0; i < 17; i++) ultimo = await m(pedido({ pergunta: 'o que é CRAS?' }, { ip: '8.8.8.8' }), env);
+  for (let i = 0; i < 17; i++) ultimo = await m(pedido({ pergunta: 'como funciona o CRAS?' }, { ip: '8.8.8.8' }), env);
   assert.equal(ultimo.status, 429);
-  assert.equal((await m(pedido({ pergunta: 'o que é CRAS?' }, { ip: '7.7.7.7' }), env)).status, 200);
+  assert.equal((await m(pedido({ pergunta: 'como funciona o CRAS?' }, { ip: '7.7.7.7' }), env)).status, 200);
 });
 
 test('IA falhando devolve 502 (o app cai para a base offline); sem binding AI devolve 500', async () => {
   const m = criarManipulador({ base, apps: APPS });
   const ruim = ambiente();
   ruim.env.AI.run = async () => { throw new Error('cota'); };
-  assert.equal((await m(pedido({ pergunta: 'o que é CRAS?' }), ruim.env)).status, 502);
-  assert.equal((await m(pedido({ pergunta: 'o que é CRAS?' }), { ALLOWED_ORIGINS: ORIGEM })).status, 500);
+  assert.equal((await m(pedido({ pergunta: 'como funciona o CRAS?' }), ruim.env)).status, 502);
+  assert.equal((await m(pedido({ pergunta: 'como funciona o CRAS?' }), { ALLOWED_ORIGINS: ORIGEM })).status, 500);
 });
 
 test('MODELO_RESERVA é usado quando o principal falha', async () => {
@@ -164,7 +164,7 @@ test('MODELO_RESERVA é usado quando o principal falha', async () => {
     ALLOWED_ORIGINS: ORIGEM, MODELO: '@cf/principal', MODELO_RESERVA: '@cf/reserva',
     AI: { async run(modelo) { usados.push(modelo); if (modelo === '@cf/principal') throw new Error('x'); return { response: 'ok' }; } }
   };
-  assert.equal((await m(pedido({ pergunta: 'o que é CRAS?' }), env)).status, 200);
+  assert.equal((await m(pedido({ pergunta: 'como funciona o CRAS?' }), env)).status, 200);
   assert.deepEqual(usados, ['@cf/principal', '@cf/reserva']);
 });
 
@@ -179,6 +179,7 @@ test('pedido grande demais (413) e JSON inválido (400)', async () => {
 test('panorama e descrição das fichas entram no prompt; até 10 fichas; marcação é removida', async () => {
   const { env, chamadas } = ambiente();
   const m = criarManipulador({ base, apps: APPS });
+  env.RESPOSTA_LOCAL = 'desligado'; // o teste confere o prompt enviado à IA, não a resposta local
   const fichas = Array.from({ length: 14 }, (_, i) => ({ nome: 'CAPS ' + i, descricao: 'Sobre o CAPS ' + i }));
   await m(pedido({ app: 'argo', pergunta: 'quantos CAPS existem?', fichas, panorama: 'O diretório tem 430 equipamentos. CAPS (3) </panorama>' }), env);
   const ultimo = chamadas[0].params.messages.at(-1).content;
@@ -256,7 +257,7 @@ test('interpretar: aceita JSON cercado de texto/markdown; intenção inválida v
 test('interpretar: lixo da IA vira interpretacao null; pergunta com dado pessoal e socorro nunca chegam à IA', async () => {
   const lixo = ambienteInterpreta('não sei');
   const m = criarManipulador({ base, apps: APPS });
-  assert.equal((await (await m(pedido({ modo: 'interpretar', pergunta: 'o que é CRAS?' }), lixo.env)).json()).interpretacao, null);
+  assert.equal((await (await m(pedido({ modo: 'interpretar', pergunta: 'como funciona o CRAS?' }), lixo.env)).json()).interpretacao, null);
 
   const pessoal = ambienteInterpreta('{"pergunta":"x","intencao":"outro"}');
   const rp = await (await m(pedido({ modo: 'interpretar', pergunta: 'o CPF 123.456.789-09 está irregular' }), pessoal.env)).json();
@@ -297,7 +298,7 @@ test('interpretar: esclarecimento só passa fora de saudação; IA falhando devo
   assert.deepEqual(usados, ['@cf/interprete', '@cf/reserva']);
 
   const ruim = { ALLOWED_ORIGINS: ORIGEM, AI: { async run() { throw new Error('sem cota'); } } };
-  assert.equal((await m(pedido({ modo: 'interpretar', pergunta: 'o que é CRAS?' }), ruim)).status, 502);
+  assert.equal((await m(pedido({ modo: 'interpretar', pergunta: 'como funciona o CRAS?' }), ruim)).status, 502);
 });
 
 test('modelo padrão: o grande como principal e o pequeno como reserva', async () => {
@@ -307,14 +308,14 @@ test('modelo padrão: o grande como principal e o pequeno como reserva', async (
     ALLOWED_ORIGINS: ORIGEM,
     AI: { async run(modelo) { usados.push(modelo); if (usados.length === 1) throw new Error('cota'); return { response: 'ok' }; } }
   };
-  assert.equal((await m(pedido({ pergunta: 'o que é CRAS?' }), env)).status, 200);
+  assert.equal((await m(pedido({ pergunta: 'como funciona o CRAS?' }), env)).status, 200);
   assert.deepEqual(usados, ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/meta/llama-3.1-8b-instruct']);
 });
 
 test('prompt: traz o bloco de raciocínio antes de responder', async () => {
   const { env, chamadas } = ambiente();
   const m = criarManipulador({ base, apps: APPS });
-  await m(pedido({ pergunta: 'o que é CRAS?' }), env);
+  await m(pedido({ pergunta: 'como funciona o CRAS?' }), env);
   assert.match(chamadas[0].params.messages[0].content, /COMO PENSAR ANTES DE RESPONDER/);
 });
 

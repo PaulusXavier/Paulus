@@ -221,11 +221,11 @@ test('cliente: sem estado do app, o pedido não leva o campo', async () => {
     fetch: async (url, init) => { capturas.push(JSON.parse(init.body)); return new Response('data: {"t":"Ok"}\n\ndata: [DONE]\n\n', { headers: { 'Content-Type': 'text/event-stream' } }); } };
   vm.runInNewContext(juntar(), sandbox);
   sandbox.self.Paulus.init({ app: 'toth', endpoint: 'https://paulus-ia.exemplo.workers.dev', minIntervaloMs: 0, memoria: false });
-  await sandbox.self.Paulus.perguntar('o que é o PAIF?', {});
+  await sandbox.self.Paulus.perguntar('como funciona o PAIF?', {});
   assert.equal('estado' in capturas[0], false);
   assert.equal('semPerguntar' in capturas[0], false);
   await new Promise(r => setTimeout(r, 1300));
-  await sandbox.self.Paulus.perguntar('o que é o CRAS?', { semPerguntar: true });
+  await sandbox.self.Paulus.perguntar('como funciona o CRAS?', { semPerguntar: true });
   assert.equal(capturas[1].semPerguntar, true);
   assert.equal(typeof sandbox.self.Paulus.conversa.soPerguntou, 'function');
 });
@@ -253,6 +253,6 @@ test('Worker: semPerguntar acrescenta a regra de responder com premissa; sem o c
   const chamadas = [];
   const env = { ALLOWED_ORIGINS: ORIGEM, AI: { async run(m, params) { chamadas.push(params); return { response: 'Ok.' }; } } };
   const m = criarManipulador({ base, apps: APPS });
-  await m(pedido({ app: 'argo', pergunta: 'o que é o PAIF?', semPerguntar: true }), env);
+  await m(pedido({ app: 'argo', pergunta: 'como funciona o PAIF?', semPerguntar: true }), env);
   assert.match(chamadas[0].messages[0].content, /RESPONDA SEM PERGUNTAR/);
 });

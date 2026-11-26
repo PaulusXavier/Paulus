@@ -46,7 +46,7 @@ async function textoDoSSE(r) {
 test('stream: se o modelo grande vier vazio, o pequeno responde e a pessoa não vê erro', async () => {
   const { env, chamadas } = ambiente(function (p) { return p.stream ? fluxo('') : { response: '' }; });
   const m = criarManipulador({ base, apps: APPS });
-  const ev = await textoDoSSE(await m(pedido({ app: 'argo', pergunta: 'O que é o CRAS?', stream: true }), env));
+  const ev = await textoDoSSE(await m(pedido({ app: 'argo', pergunta: 'Como funciona o CRAS?', stream: true }), env));
   assert.ok(ev.some(function (e) { return e.t === 'Resposta da reserva.'; }));
   assert.ok(!ev.some(function (e) { return e.erro; }));
   assert.ok(chamadas.some(function (c) { return !c.modelo.includes('70b') && c.stream === false; }));
@@ -55,7 +55,7 @@ test('stream: se o modelo grande vier vazio, o pequeno responde e a pessoa não 
 test('stream: se o fluxo do modelo grande cair antes de sair texto, a reserva responde', async () => {
   const { env } = ambiente(function (p) { return p.stream ? fluxoQueCai('') : { response: 'x' }; });
   const m = criarManipulador({ base, apps: APPS });
-  const ev = await textoDoSSE(await m(pedido({ app: 'argo', pergunta: 'O que é o PAIF?', stream: true }), env));
+  const ev = await textoDoSSE(await m(pedido({ app: 'argo', pergunta: 'Como funciona o PAIF?', stream: true }), env));
   assert.ok(ev.some(function (e) { return e.t === 'Resposta da reserva.'; }));
   assert.ok(!ev.some(function (e) { return e.erro; }));
 });
@@ -63,7 +63,7 @@ test('stream: se o fluxo do modelo grande cair antes de sair texto, a reserva re
 test('stream: queda no meio da resposta não emenda outro modelo: avisa que foi interrompida', async () => {
   const { env, chamadas } = ambiente(function (p) { return p.stream ? fluxoQueCai('O CRAS é ') : { response: 'x' }; });
   const m = criarManipulador({ base, apps: APPS });
-  const ev = await textoDoSSE(await m(pedido({ app: 'argo', pergunta: 'O que é o CRAS?', stream: true }), env));
+  const ev = await textoDoSSE(await m(pedido({ app: 'argo', pergunta: 'Como funciona o CRAS?', stream: true }), env));
   assert.ok(ev.some(function (e) { return e.t === 'O CRAS é '; }));
   assert.ok(ev.some(function (e) { return e.erro; }));
   assert.equal(chamadas.length, 1, 'a reserva não foi chamada');

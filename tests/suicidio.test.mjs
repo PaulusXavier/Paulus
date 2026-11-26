@@ -239,7 +239,7 @@ test('worker: pergunta técnica sobre suicídio vai para a IA com os trechos cer
 test('worker: pergunta que não é sobre suicídio segue com a busca de sempre (4 trechos, sem rota)', async () => {
   const { env, chamadas } = ambiente();
   const m = criarManipulador({ base, apps: APPS });
-  const j = await (await m(pedido({ app: 'argo', pergunta: 'o que é o PAIF?' }), env)).json();
+  const j = await (await m(pedido({ app: 'argo', pergunta: 'como funciona o PAIF?' }), env)).json();
   assert.equal(chamadas.length, 1);
   assert.ok(j.fontes.length <= 4);
   assert.ok(j.fontes.every(f => f.documento !== 'Suicídio: informando para prevenir'));
@@ -256,7 +256,7 @@ test('montarMensagens: trecho da cartilha chega marcado como material de apoio, 
 test('prompt: o bloco de suicídio só entra nas perguntas sobre o tema (poupa a cota gratuita)', async () => {
   const { env, chamadas } = ambiente();
   const m = criarManipulador({ base, apps: APPS });
-  await m(pedido({ app: 'argo', pergunta: 'o que é o PAIF?' }, '4.4.4.4'), env);
+  await m(pedido({ app: 'argo', pergunta: 'como funciona o PAIF?' }, '4.4.4.4'), env);
   assert.ok(!/SUICÍDIO E COMPORTAMENTO SUICIDA/.test(chamadas[0].params.messages[0].content));
   await m(pedido({ app: 'argo', pergunta: 'quais os mitos sobre suicídio' }, '4.4.4.4'), env);
   assert.match(chamadas[1].params.messages[0].content, /SUICÍDIO E COMPORTAMENTO SUICIDA/);

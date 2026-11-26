@@ -38,7 +38,7 @@ test('pedido: seguimento depende da conversa; pergunta com sigla própria do SUA
   assert.equal(classificarPedido('e o horário?', H), 'seguimento');
   assert.equal(classificarPedido('isso vale para indígenas?', H), 'seguimento');
   assert.equal(classificarPedido('como funciona o BPC?', H), 'normal');
-  assert.equal(classificarPedido('o que é o PAIF?', H), 'normal');
+  assert.equal(classificarPedido('como funciona o PAIF?', H), 'normal');
   assert.equal(classificarPedido('e para adolescente?', []), 'normal', 'sem conversa não há de que depender');
   assert.equal(classificarPedido('qual o telefone do CRAS Cauamé?', H, { temFichas: true }), 'consulta');
 });
@@ -53,7 +53,7 @@ test('pedido: a busca herda o assunto, pula "oi" e "mais curto" e segue a cadeia
   ];
   assert.equal(consultaDoPedido('e para pessoa com deficiência?', cadeia, 'seguimento'), 'quem tem direito ao BPC? e para idoso? e para pessoa com deficiência?');
   assert.equal(consultaDoPedido('mais formal', cadeia, 'refinamento'), 'quem tem direito ao BPC? e para idoso?');
-  assert.equal(consultaDoPedido('o que é o PAIF?', cadeia, 'normal'), 'o que é o PAIF?');
+  assert.equal(consultaDoPedido('como funciona o PAIF?', cadeia, 'normal'), 'como funciona o PAIF?');
 });
 
 test('pedido: parâmetros por situação mantêm os de rotina e mudam só o que precisa', () => {
@@ -131,7 +131,7 @@ test('Worker: "mais curto" reescreve a última resposta inteira, com o assunto a
 test('Worker: ajuste sem texto pronto usa 1200 tokens e temperatura intermediária', async () => {
   const { env, chamadas } = ambiente();
   const m = criarManipulador({ base, apps: APPS });
-  await m(pedido({ app: 'argo', pergunta: 'de outro jeito', historico: [{ papel: 'usuario', texto: 'o que é o CRAS?' }, { papel: 'paulus', texto: 'É a porta de entrada.' }] }), env);
+  await m(pedido({ app: 'argo', pergunta: 'de outro jeito', historico: [{ papel: 'usuario', texto: 'como funciona o CRAS?' }, { papel: 'paulus', texto: 'É a porta de entrada.' }] }), env);
   assert.equal(chamadas[0].params.max_tokens, 1200);
   assert.equal(chamadas[0].params.temperature, 0.45);
   assert.match(chamadas[0].params.messages.at(-1).content, /<normas>\n1\./, 'buscou pelo assunto anterior (o que é o CRAS), não por "de outro jeito"');
@@ -164,7 +164,7 @@ test('Worker: resposta vazia do modelo principal tenta o modelo reserva', async 
   const usados = [];
   const env = { ALLOWED_ORIGINS: ORIGEM, AI: { async run(modelo) { usados.push(modelo); return usados.length === 1 ? { response: '' } : { response: 'Agora foi.' }; } } };
   const m = criarManipulador({ base, apps: APPS });
-  const j = await (await m(pedido({ app: 'argo', pergunta: 'o que é o CRAS?' }), env)).json();
+  const j = await (await m(pedido({ app: 'argo', pergunta: 'como funciona o CRAS?' }), env)).json();
   assert.equal(j.resposta, 'Agora foi.');
   assert.equal(usados.length, 2);
 });
@@ -239,8 +239,8 @@ test('navegador: cumprimento e ajuste não viram "perguntas frequentes"', async 
   P.init({ app: 'argo', endpoint: ENDPOINT, conhecimento: base, minIntervaloMs: 0 });
   await P.perguntar('oi');
   await P.perguntar('oi');
-  await P.perguntar('o que é o CRAS?');
-  await P.perguntar('o que é o CRAS?');
+  await P.perguntar('como funciona o CRAS?');
+  await P.perguntar('como funciona o CRAS?');
   const freq = P.memoria.frequentes(10).map(x => x.texto.toLowerCase());
   assert.ok(!freq.includes('oi'), 'oi não é pergunta frequente: ' + freq.join('|'));
   assert.ok(freq.some(t => /cras/.test(t)));
@@ -249,7 +249,7 @@ test('navegador: cumprimento e ajuste não viram "perguntas frequentes"', async 
 test('navegador: sem IA, "mais curto" não devolve um trecho de norma aleatório', async () => {
   const P = carregar(async () => { throw new Error('sem rede'); });
   P.init({ app: 'argo', endpoint: ENDPOINT, conhecimento: base, minIntervaloMs: 0, memoria: false });
-  const hist = [{ papel: 'usuario', texto: 'o que é o CRAS?' }, { papel: 'paulus', texto: 'É a porta de entrada da assistência social.' }];
+  const hist = [{ papel: 'usuario', texto: 'como funciona o CRAS?' }, { papel: 'paulus', texto: 'É a porta de entrada da assistência social.' }];
   const r = await P.perguntar('mais curto', { historico: hist });
   assert.equal(r.tipo, 'sem_resposta');
   assert.match(r.texto, /ajustar/);
