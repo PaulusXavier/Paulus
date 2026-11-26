@@ -113,10 +113,25 @@ function extrairPedaco(ev) {
 // CORRECAO="desligado" (wrangler.toml) pula o passo. Falha ou demora: a resposta segue como estava (o aviso do navegador continua).
 const TEMPO_CORRECAO_MS = 9000;
 
+// A correção só TIRA citações: não precisa do prompt de sistema inteiro (~6 mil tokens) nem das fontes de novo.
+// Vai uma instrução curta, a pergunta e o rascunho. Sem pergunta legível, mantém a conversa como estava.
+export function basEnxutaDaCorrecao(mensagens) {
+  const lista = Array.isArray(mensagens) ? mensagens : [];
+  const ultima = lista.length ? lista[lista.length - 1] : null;
+  const texto = ultima && ultima.role === 'user' ? String(ultima.content || '') : '';
+  const m = /<pergunta>([\s\S]*?)<\/pergunta>/.exec(texto);
+  const pergunta = (m ? m[1] : '').trim().slice(0, 700);
+  if (!pergunta) return lista;
+  return [
+    { role: 'system', content: 'Você é o Paulus, copiloto de IA do SUAS. Tarefa: revisar uma resposta que você já escreveu, tirando citações (artigo, lei, valor) que não constam das fontes consultadas. Não acrescente fato, número, artigo, nome de unidade, telefone nem dado de pessoa. Mantenha o tom, o formato e as linhas SUGESTÕES e AÇÕES NO APP, se houver.' },
+    { role: 'user', content: '<pergunta>\n' + pergunta + '\n</pergunta>' }
+  ];
+}
+
 export function montarMensagensCorrecao(mensagens, rascunho, sem) {
   return (Array.isArray(mensagens) ? mensagens : []).concat([
     { role: 'assistant', content: String(rascunho || '').slice(0, 6000) },
-    { role: 'user', content: 'Conferência automática: sua resposta cita ' + sem.slice(0, 5).join(', ') + ', que NÃO aparece nas fontes que você leu (<normas>, <fichas>, <base_do_app>, <calculos> e a conversa). ' +
+    { role: 'user', content: 'Conferência automática: sua resposta cita ' + sem.slice(0, 5).join(', ') + ', que NÃO aparece nas fontes consultadas para esta pergunta. ' +
       'Reescreva a resposta inteira, no mesmo tom e no mesmo formato, sem essas citações: tire o artigo, a lei ou o valor, ou diga que não consta nas fontes e que é preciso conferir o normativo vigente. ' +
       'Não troque por outro número ou artigo de cabeça. Mantenha o resto, inclusive as linhas SUGESTÕES e AÇÕES NO APP, se houver. Responda só com o texto reescrito, sem comentar a correção.' }
   ]);
@@ -135,7 +150,7 @@ export async function corrigirCitacoes(ctx, rascunho) {
     let novo;
     try {
       novo = extrairTexto(await Promise.race([
-        chamarIA(env, montarMensagensCorrecao(mensagens, rascunho, sem), false, { modelo: ajuste && ajuste.modelo, max_tokens: (ajuste && ajuste.max_tokens) || 900, temperature: 0 }),
+        chamarIA(env, montarMensagensCorrecao(basEnxutaDaCorrecao(mensagens), rascunho, sem), false, { modelo: ajuste && ajuste.modelo, max_tokens: (ajuste && ajuste.max_tokens) || 900, temperature: 0 }),
         limite
       ]));
     } finally { clearTimeout(temporizador); }
@@ -222,8 +237,10 @@ function parametrosDaIA(mensagens, ajuste, stream) {
 // Cache de prefixo do Workers AI: o começo do prompt de sistema (regras e normas fixas, milhares de tokens) é igual em
 // todas as perguntas; o cabeçalho x-session-affinity leva as chamadas ao mesmo servidor, que já tem esse começo
 // processado. Fica mais rápido e gasta menos da cota. O valor é só um rótulo de roteamento (nada da pessoa nem da conversa):
-// cada instância do Worker sorteia um entre 8, para a carga não se concentrar num servidor só.
-const AFINIDADE = 'paulus-' + Math.floor(Math.random() * 8);
+// Uso de uma pessoa só: um rótulo fixo leva todas as chamadas ao servidor que já tem o prefixo pronto (antes, 8 rótulos
+// sorteados reprocessavam o mesmo prefixo em até 8 servidores). Se muita gente passar a usar junto, aumente BALDES.
+const BALDES = 1;
+const AFINIDADE = 'paulus-' + (BALDES > 1 ? Math.floor(Math.random() * BALDES) : 0);
 const OPCOES_IA = { extraHeaders: { 'x-session-affinity': AFINIDADE } };
 
 async function chamarIA(env, mensagens, stream, extra) {
