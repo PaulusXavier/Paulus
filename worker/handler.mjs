@@ -61,6 +61,8 @@ import { externaLigada, chamarExterna, conversaSensivel } from './reserva-extern
 import { consultarCota, ehErroDeCota, marcarCotaEsgotada, cotaMarcadaEsgotada, corpoCotaEsgotada } from './cota.mjs';
 import { imagemSaneada, lerImagem, lerImagens, sanearLeitura, CORPO_MAX_COM_IMAGEM, MAX_IMAGENS_POR_PEDIDO } from './visao.mjs';
 import { montarMensagensPlano, lerPlano, executarPlano, calculosDiretos, numerosAbonados, valoresDosCalculos, mesclarValores } from './planejar.mjs';
+import { buscarWeb, lerPaginaWeb, baixarPdfPublico } from './pesquisa-web.mjs';
+import { tratarVozIA } from './voz-ia.mjs';
 
 // Padrão: modelo grande (raciocina e segue as regras muito melhor) e, se ele falhar (ex.: cota gratuita do dia),
 // o pequeno assume sozinho.
@@ -390,7 +392,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
 
     const cors = {
       'Access-Control-Allow-Origin': origem,
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Accept, Authorization',
       'Access-Control-Max-Age': '86400',
       'Vary': 'Origin'
@@ -408,11 +410,12 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       return new Response(corpo, { headers: Object.assign({}, cors, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' }) });
     };
 
+    const rota = new URL(request.url).pathname.replace(/\/+$/, '');
+    const consultaEstadoWorkflow = request.method === 'GET' && /^\/investigacao\/[A-Za-z0-9_-]{1,128}$/.test(rota);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
-    if (request.method !== 'POST') return json({ erro: 'Use POST.' }, 405);
+    if (request.method !== 'POST' && !consultaEstadoWorkflow) return json({ erro: 'Use POST.' }, 405);
 
     // Login (worker/auth.mjs). Só existe com AUTH_SEGREDO e USUARIOS configurados; sem eles o Worker segue aberto, como antes.
-    const rota = new URL(request.url).pathname.replace(/\/+$/, '');
     const ipDoPedido = request.headers.get('CF-Connecting-IP') || 'desconhecido';
     const senhaLigada = loginLigado(env);
     const fbLigado = firebaseLigado(env);
@@ -455,6 +458,60 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       return json({ ok: true, token: sessao.token, usuario: sessao.usuario, expira: sessao.expira });
     }
     if (exigeLogin && !(await sessaoDoPedido())) return json({ erro: 'Entre para usar o Paulus.' }, 401);
+    // Rotas de pesquisa externa têm os mesmos controlos de origem, autenticação e limite por IP do chat.
+    // A página/PDF é sempre recolhida como dado público, nunca como instrução para executar.
+    if (rota === '/pesquisa' || rota === '/pesquisa/pagina' || rota === '/pesquisa/pdf' || rota === '/investigacao' || rota === '/voz-ia' || consultaEstadoWorkflow) {
+      if (estourouLimite(ipDoPedido)) return json({ erro: 'Muitos pedidos. Aguarde para tentar de novo.' }, 429);
+    }
+    if (rota === '/voz-ia') return tratarVozIA(request, env, json, cors);
+    if (rota === '/pesquisa/pdf') {
+      if (Number(request.headers.get('Content-Length')) > 2048) return json({ erro: 'Pedido grande demais.' }, 413);
+      let dados;
+      try { const cru = await request.text(); if (cru.length > 2048) return json({ erro: 'Pedido grande demais.' }, 413); dados = JSON.parse(cru); } catch (e) { return json({ erro: 'JSON inválido.' }, 400); }
+      if (!dados || typeof dados.url !== 'string') return json({ erro: 'Informe a URL do PDF público.' }, 400);
+      try {
+        const pdf = await baixarPdfPublico(dados.url);
+        return new Response(pdf.bytes, { status: 200, headers: Object.assign({}, cors, { 'Content-Type': 'application/pdf', 'Content-Length': String(pdf.bytes.byteLength), 'Content-Disposition': 'inline; filename="documento-publico.pdf"', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }) });
+      } catch (e) { return json({ erro: 'Não foi possível baixar um PDF público válido dentro do limite de 1 MB.' }, 400); }
+    }
+    if (rota === '/pesquisa' || rota === '/pesquisa/pagina') {
+      if (Number(request.headers.get('Content-Length')) > 4096) return json({ erro: 'Pedido grande demais.' }, 413);
+      let dados;
+      try { const cru = await request.text(); if (cru.length > 4096) return json({ erro: 'Pedido grande demais.' }, 413); dados = JSON.parse(cru); } catch (e) { return json({ erro: 'JSON inválido.' }, 400); }
+      if (!dados || typeof dados !== 'object' || Array.isArray(dados)) return json({ erro: 'JSON inválido.' }, 400);
+      if (rota === '/pesquisa') {
+        const consulta = typeof dados.query === 'string' ? dados.query.trim().slice(0, 500) : '';
+        if (!consulta) return json({ erro: 'Informe uma pesquisa.' }, 400);
+        if (temDadoPessoal(consulta)) return json({ erro: AVISO_PESSOAL }, 400);
+        try { return json({ results: await buscarWeb(consulta, { limit: 8 }) }); }
+        catch (e) { return json({ erro: 'A pesquisa Web não está disponível neste momento.' }, 502); }
+      }
+      if (typeof dados.url !== 'string') return json({ erro: 'Informe a URL pública HTTPS.' }, 400);
+      try { return json(await lerPaginaWeb(dados.url, { maxChars: 18000 })); }
+      catch (e) { return json({ erro: 'Não foi possível ler esta página pública. Confirme a URL HTTPS e tente outra fonte.' }, 400); }
+    }
+    if (rota === '/investigacao') {
+      if (Number(request.headers.get('Content-Length')) > 2048) return json({ erro: 'Pedido grande demais.' }, 413);
+      let dados;
+      try { const cru = await request.text(); if (cru.length > 2048) return json({ erro: 'Pedido grande demais.' }, 413); dados = JSON.parse(cru); } catch (e) { return json({ erro: 'JSON inválido.' }, 400); }
+      const pergunta = dados && (typeof dados.query === 'string' ? dados.query : dados.question);
+      if (typeof pergunta !== 'string' || !pergunta.trim()) return json({ erro: 'Informe a pergunta de investigação.' }, 400);
+      if (temDadoPessoal(pergunta)) return json({ erro: AVISO_PESSOAL }, 400);
+      if (!env.INVESTIGACAO || typeof env.INVESTIGACAO.create !== 'function') return json({ erro: 'O Workflow de investigação não está configurado neste Worker.' }, 503);
+      try {
+        const instancia = await env.INVESTIGACAO.create({ params: { query: pergunta.trim().slice(0, 400) } });
+        return json({ id: instancia.id, status: 'queued' }, 202);
+      } catch (e) { return json({ erro: 'Não foi possível iniciar a investigação durável.' }, 503); }
+    }
+    if (consultaEstadoWorkflow) {
+      if (!env.INVESTIGACAO || typeof env.INVESTIGACAO.get !== 'function') return json({ erro: 'O Workflow de investigação não está configurado neste Worker.' }, 503);
+      const id = rota.slice('/investigacao/'.length);
+      try {
+        const instancia = await env.INVESTIGACAO.get(id);
+        const estadoWorkflow = await instancia.status();
+        return json({ id: id, status: estadoWorkflow.status || 'unknown', output: estadoWorkflow.status === 'complete' ? (estadoWorkflow.output || null) : null, erro: estadoWorkflow.status === 'errored' ? 'A investigação falhou.' : undefined });
+      } catch (e) { return json({ erro: 'Investigação não encontrada ou estado indisponível.' }, 404); }
+    }
     // Voz própria (worker/voz.mjs): só repassa o texto ao servidor de voz; não usa a IA nem o corpo de pergunta abaixo.
     if (rota === '/voz') return tratarVoz(request, env, json, cors);
     // Cota da IA (worker/cota.mjs): quanto da franquia diária do Workers AI já foi usado, quando acaba e quando renova.

@@ -16,6 +16,7 @@ import pacote from '../package.json';
 import { expandirBase } from '../shared/base-compacta.mjs';
 import { APPS } from './apps.mjs';
 import { criarManipulador } from './handler.mjs';
+import { PaulusInvestigacao } from './workflow-investigacao.mjs';
 
 const manipulador = criarManipulador({
   base: expandirBase(baseCompacta),
@@ -31,3 +32,4 @@ export default {
   }
 };
 
+export { PaulusInvestigacao };
