@@ -112,6 +112,30 @@ Paulus.init({ app: 'argo', endpoint: 'https://paulus-ia.SEU-USUARIO.workers.dev'
 - Remover a conta no Firebase não derruba na hora um token já emitido: ele vale até vencer (até 1 h). Para cortar acesso na hora, tire o e-mail de `FIREBASE_EMAILS` e publique de novo.
 - O Worker busca as chaves públicas do Google (googleapis.com) e as guarda por 1 h; se o Google não responder e não houver cópia, ninguém entra até voltar.
 
+## IA de reserva quando a cota acaba (opcional)
+
+Sem isto, quando a cota gratuita da Cloudflare acaba o Paulus **não tem mais IA** até 00:00 UTC: o app responde com frases e trechos da base de normas (veja abaixo). Com isto, o Worker tenta **outro provedor** de IA, só **depois** que a Cloudflare recusa por cota, com o mesmo prompt, o passo de raciocínio, o passo de contas e a autocorreção de citações.
+
+1. Escolha um provedor com API **compatível com a OpenAI** (rota `/chat/completions`) e crie uma chave. Exemplos: Groq (`https://api.groq.com/openai/v1`), Google Gemini (endpoint OpenAI-compatível), OpenRouter. Confira na documentação do provedor a URL, as condições do plano gratuito e o **nome atual do modelo** (eles mudam com frequência).
+2. No `wrangler.toml` descomente e preencha `IA_EXTERNA_URL` (https, sem barra no fim) e `IA_EXTERNA_MODELO`.
+3. Guarde a chave como segredo: `npx wrangler secret put IA_EXTERNA_CHAVE`.
+4. `npx wrangler deploy`.
+
+**Como se comporta**
+- Fica **desligada** até as três variáveis existirem. `IA_EXTERNA = "desligado"` desliga mesmo com elas.
+- Se o provedor falhar (rede, chave, resposta vazia, mais de 25 s), o comportamento volta ao de antes: `503` de cota e base de normas.
+- A resposta vem marcada (`externa: true`) e o app avisa que veio de uma IA de reserva de outro provedor. O app **não** entra em pausa enquanto a reserva responder.
+- Não foi testada com um provedor real, só com `fetch` simulado (`tests/reserva-externa.test.mjs`): faça uma pergunta de teste depois de ligar.
+
+**Privacidade (decisão sua):** com a reserva ligada, pergunta e conversa já filtradas de dado pessoal, trechos públicos de norma e fichas públicas passam a ir também a uma terceira empresa. Foto/PDF escaneado, documento anexado e conversa sobre suicídio ou autolesão **nunca** vão para ela. Detalhes em [SEGURANCA.md](SEGURANCA.md).
+
+## Resposta sem IA: frases da base (sempre ativa)
+
+Quando a IA não está disponível (cota esgotada ou sem rede), o app não despeja mais só trechos inteiros: `shared/resposta-extrativa.mjs` escolhe **as frases da base que respondem ao tipo da pergunta** (valor, prazo, documentos, direito, definição, quem faz), cada uma com **fonte numerada**, e mostra depois os trechos completos dessas fontes.
+- É **cópia literal** da base: nada é inventado. Só usa trechos de aderência **alta** e descarta fichas de ferramenta do app, tabelas e listas de palavras-chave.
+- Avisa que valores mudam com o tempo e, quando duas normas trazem valores diferentes, pede conferência.
+- **Não é raciocínio**: não decide se o caso concreto se enquadra, e o texto diz isso. Sem frase que cubra a pergunta, o app mostra os trechos como antes.
+
 ## Cota da IA no console (opcional)
 
 O botão de medidor do cabeçalho (ou `/cota`) abre o painel da cota: quanto da franquia diária da IA já foi usado, a hora em que ela acaba no ritmo de hoje e a hora em que renova. A franquia gratuita do Workers AI é de **10.000 neurons por dia**, somados entre todos os modelos, e **renova às 00:00 UTC** (20:00 em Boa Vista). Sem nada configurado o painel já mostra a hora da renovação; para ele mostrar também o **consumo**, o Worker precisa ler as análises da sua conta Cloudflare. A Cloudflare não tem uma rota "quanto me resta"; o consumo vem da API de análises (GraphQL, conjunto `aiInferenceAdaptiveGroups`).

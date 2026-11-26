@@ -36,6 +36,13 @@ O Paulus guarda, **no aparelho** (`localStorage`), o que aprendeu sobre o estilo
 - O filtro de dados pessoais é por padrão (como já dito acima): uma pergunta com nome escrito de forma incomum pode passar e ficar guardada no aparelho (nunca no servidor).
 - Resposta aprovada é texto de IA de um dia específico: pode estar desatualizada. Por isso vence em 6 meses, aparece com data e com o aviso "confira a norma".
 
+## IA de reserva externa (opcional)
+- Desligada por padrão. Só liga com `IA_EXTERNA_URL`, `IA_EXTERNA_MODELO` e `IA_EXTERNA_CHAVE` (a chave é segredo do Worker; a URL precisa ser https).
+- Só é chamada **depois** que a Cloudflare recusa por cota. O que vai ao provedor é o que iria à Cloudflare: pergunta e conversa **já filtradas de dado pessoal**, trechos públicos de norma e fichas públicas.
+- **Nunca vão ao provedor externo:** foto ou PDF escaneado (nem o texto lido da imagem), documento anexado e conversa sobre suicídio ou autolesão (a pergunta atual e as últimas mensagens da pessoa). Nesses casos continua o `503` de cota e a base de normas. Há testes que falham se a trava for removida.
+- **Ponto de atenção:** os termos de uso, a retenção e o treino com dados variam por provedor e plano (planos gratuitos costumam ter condições mais amplas). Leia antes de ligar. É uma decisão sua: seus dados passam a ir a uma terceira empresa nesses casos.
+- Chave de desligar: `IA_EXTERNA = "desligado"`.
+
 ## Foto anexada (leitura de imagem)
 - A foto é **reduzida no aparelho** e enviada **uma vez** ao Worker, que a entrega a um modelo de visão do Workers AI. Nada é gravado (nem imagem, nem leitura, nem IP).
 - **Ponto de atenção:** diferente de texto digitado, a imagem **não passa antes pelo filtro de dados pessoais** (não há como filtrar pixels no aparelho). O modelo de visão pode ver nome, documento ou rosto que estejam na foto. O filtro age **depois**, sobre o texto que o modelo devolve: linha com nome, documento, telefone, e-mail ou endereço de residência é descartada, e só o resto chega ao Paulus, ao histórico e de volta ao navegador.
