@@ -1362,6 +1362,49 @@ button:focus-visible,a:focus-visible,select:focus-visible,summary:focus-visible{
   #tb button{min-height:38px;padding:0 14px}
 }
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+
+/* =====================================================================
+   v6 · TEXTO QUE SE LÊ E SE COPIA
+   Só pele (nenhum id, classe ou texto mudou). Para desfazer, apague daqui até o fim do <style>.
+   A resposta do Paulus é o que se lê, se confere e se cola num relatório: ganha tipo de leitura
+   (serifa, linha curta, entrelinha folgada); a interface em volta fica em sans, calma e em frase normal.
+   ===================================================================== */
+body{
+  --leitura:"Charter","Bitstream Charter","Iowan Old Style","Sitka Text","Noto Serif","Source Serif 4",Georgia,serif;
+  --medida:66ch;
+}
+/* rótulos: frase normal, peso em vez de caixa-alta */
+.pt,#sxp h2,#cqp h2,#apn h2,#vp h2,#cqp h3,.sug .sgl,.mh,.mh .k,.kv dt,.hud{text-transform:none}
+.pt,#sxp h2,#cqp h2,#apn h2,#vp h2{font:650 13px var(--hud);letter-spacing:.01em;color:var(--t)}
+.sug .sgl,#cqp h3{font:600 12.5px var(--hud);letter-spacing:.01em;color:var(--mut)}
+.mh{font:600 12.5px var(--hud);letter-spacing:.01em}
+.mh .k{font-weight:600;letter-spacing:.01em}
+.kv dt,.kv dd{font-size:13px}
+/* valores dos painéis: estado em frase normal (o JS entrega em caixa-alta) */
+.kv dd{text-transform:lowercase;font-weight:600}
+.kv dd::first-letter{text-transform:uppercase}
+.kv dd#kb,.kv dd#kb::first-letter{text-transform:none}   /* versão: v0.34.0 e o hash ficam como são */
+.ac button,.ac a,#tb button,#go{text-transform:none}
+
+/* resposta: tipo de leitura */
+#log .m.p .mc{font-family:var(--leitura);font-size:17.5px;line-height:1.75;letter-spacing:0;max-width:var(--medida);hyphens:manual;-webkit-hyphens:manual;text-wrap:pretty;font-feature-settings:"kern","liga"}
+#log .m.p .mc p{margin:0 0 .85em}
+#log .m.p .mc strong{font-weight:700;color:var(--t)}
+#log .m.p .mc h3,#log .m.p .mc h4{font-family:var(--hud);text-wrap:balance}
+#log .m.p .mc code,#log .m.p .mc kbd,#log .m.p .mc th,#log .m.p .mc td{font-family:var(--hud)}
+#log .m.p .mc code{font-family:var(--mono);font-size:.86em}
+#log .m.p .mc li{margin:.3em 0}
+#log .m.p .mc ul,#log .m.p .mc ol{padding-left:1.4em}
+/* a pergunta fica em sans, menor: o que se lê é a resposta */
+.u .mc,.u{font-family:var(--hud)}
+.u .mc{font-size:15.5px;line-height:1.55}
+/* avisos de conferência sob a resposta */
+#log .m.p .av{margin-top:8px;padding:8px 12px;border-left:3px solid color-mix(in srgb,var(--a) 70%,transparent);background:color-mix(in srgb,var(--a) 8%,transparent);border-radius:0 var(--r1) var(--r1) 0;font:13px/1.5 var(--hud);color:var(--txt-suave);max-width:var(--medida)}
+/* lista de fontes ao fim da resposta: menor e discreta */
+#log .m.p .mc ul:last-child li{font-family:var(--hud);font-size:14px;color:var(--txt-suave)}
+@media(max-width:700px){
+  #log .m.p .mc{font-size:17px;line-height:1.7}
+}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
 <svg id="hx" aria-hidden="true" focusable="false"><defs><pattern id="hxp" width="56" height="97" patternUnits="userSpaceOnUse" patternTransform="scale(.9)"><path d="M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z M28 62 L28 95 M54 47 L82 62 M2 47 L-26 62" fill="none" stroke="currentColor" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#hxp)"/></svg>
@@ -1432,16 +1475,16 @@ button:focus-visible,a:focus-visible,select:focus-visible,summary:focus-visible{
 <aside id="rl" class="rail" aria-label="Sistemas">
 <section class="pn"><h3 class="pt">Sistemas</h3>
 <dl class="kv">
-<div><dt>NÚCLEO</dt><dd id="kn" class="ok">EM ESPERA</dd></div>
-<div><dt>IA REMOTA</dt><dd id="ki">--</dd></div>
-<div><dt>COTA IA</dt><dd id="kq">--</dd></div>
-<div><dt>RENOVA</dt><dd id="kqr">--</dd></div>
-<div><dt>REDE</dt><dd id="kr">--</dd></div>
-<div><dt>VOZ</dt><dd id="kv">DESLIGADA</dd></div>
-<div><dt>SOM</dt><dd id="ksom">DESLIGADO</dd></div>
-<div><dt>POSIÇÃO</dt><dd id="kp">NÃO USADA</dd></div>
-<div><dt>MEMÓRIA</dt><dd id="km">NO APARELHO</dd></div>
-<div><dt>VERSÃO</dt><dd id="kb">--</dd></div>
+<div><dt>Núcleo</dt><dd id="kn" class="ok">EM ESPERA</dd></div>
+<div><dt>IA remota</dt><dd id="ki">--</dd></div>
+<div><dt>Cota IA</dt><dd id="kq">--</dd></div>
+<div><dt>Renova</dt><dd id="kqr">--</dd></div>
+<div><dt>Rede</dt><dd id="kr">--</dd></div>
+<div><dt>Voz</dt><dd id="kv">DESLIGADA</dd></div>
+<div><dt>Som</dt><dd id="ksom">DESLIGADO</dd></div>
+<div><dt>Posição</dt><dd id="kp">NÃO USADA</dd></div>
+<div><dt>Memória</dt><dd id="km">NO APARELHO</dd></div>
+<div><dt>Versão</dt><dd id="kb">--</dd></div>
 </dl></section>
 <section class="pn"><h3 class="pt">Privacidade</h3>
 <p class="pv">Nome, CPF e endereço de pessoas atendidas são <b>barrados no aparelho</b>, antes de qualquer envio. Socorro, contas, rotas e PDF rodam aqui, <b>sem IA e sem rede</b>.</p></section>
@@ -1449,21 +1492,21 @@ button:focus-visible,a:focus-visible,select:focus-visible,summary:focus-visible{
 <aside id="rr" class="rail" aria-label="Telemetria">
 <section class="pn"><h3 class="pt">Telemetria</h3>
 <dl class="kv">
-<div><dt>SESSÃO</dt><dd id="ts">00:00</dd></div>
-<div><dt>MENSAGENS</dt><dd id="tm">0</dd></div>
-<div><dt>NO APARELHO</dt><dd id="tl" class="ok">0</dd></div>
-<div><dt>VIA IA</dt><dd id="tia">0</dd></div>
-<div><dt>ÚLTIMA</dt><dd id="tu">--</dd></div>
+<div><dt>Sessão</dt><dd id="ts">00:00</dd></div>
+<div><dt>Mensagens</dt><dd id="tm">0</dd></div>
+<div><dt>No aparelho</dt><dd id="tl" class="ok">0</dd></div>
+<div><dt>Via IA</dt><dd id="tia">0</dd></div>
+<div><dt>Última</dt><dd id="tu">--</dd></div>
 </dl>
 <div id="spk" aria-hidden="true"></div>
 <div class="spl" aria-hidden="true"><span>TEMPO DE RESPOSTA</span><span id="tmax">--</span></div></section>
 <section class="pn"><h3 class="pt">Última resposta</h3>
 <dl class="kv">
-<div><dt>TIPO</dt><dd id="ut">--</dd></div>
-<div><dt>ORIGEM</dt><dd id="uo">--</dd></div>
-<div><dt>TEMPO</dt><dd id="um">--</dd></div>
-<div><dt>FONTES</dt><dd id="uf">0</dd></div>
-<div><dt>TAMANHO</dt><dd id="uc">0</dd></div>
+<div><dt>Tipo</dt><dd id="ut">--</dd></div>
+<div><dt>Origem</dt><dd id="uo">--</dd></div>
+<div><dt>Tempo</dt><dd id="um">--</dd></div>
+<div><dt>Fontes</dt><dd id="uf">0</dd></div>
+<div><dt>Tamanho</dt><dd id="uc">0</dd></div>
 </dl>
 <ul id="fts" class="fts" aria-label="Fontes da última resposta"></ul></section>
 <section class="pn"><h3 class="pt">Comandos</h3>
