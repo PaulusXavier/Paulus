@@ -1320,6 +1320,48 @@ body.claro:not(.lock) .kv dd.ok,body.claro:not(.lock) .kv dd.av,body.claro:not(.
   .hi{margin-top:0}
   #apn,#sxp,#cqp,#vp,#nt-p,#mnp{max-height:calc(100dvh - var(--hh) - 12px);overflow:auto}
 }
+/* =====================================================================
+   v5 · REFINAMENTO (mesmo estilo, melhor hierarquia e legibilidade)
+   Só pele: nenhuma lógica muda. Para desfazer, apague daqui até o fim do <style>.
+   ===================================================================== */
+/* declarado no body (não no :root) para herdar --t e --bg do tema claro ou escuro em uso */
+body{--txt-suave:color-mix(in srgb,var(--t) 78%,var(--bg))}
+/* foco visível e consistente em tudo que se clica */
+button:focus-visible,a:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--c);outline-offset:2px;border-radius:inherit}
+/* ações da resposta: antes cinza-claro sobre fundo claro (contraste baixo); agora legíveis e com hierarquia no passar do mouse */
+.ac .bi{color:var(--txt-suave);border-color:var(--bd2)}
+.ac .bi:hover:not(:disabled){color:var(--t);border-color:var(--c);background:color-mix(in srgb,var(--c) 12%,transparent)}
+#log .m.p .ac.ar{opacity:.88}
+.ac .bi:disabled:not(.voto){opacity:.5}
+.sug .sgl{color:var(--txt-suave)}
+/* leitura: entrelinha e largura de linha confortáveis nas respostas longas */
+#log .m.p .mc{line-height:1.7;letter-spacing:.003em}
+#log .m.p .mc p{margin:0 0 .75em}
+#log .m.p .mc li{margin:.2em 0}
+/* pergunta do usuário: menos peso visual que a resposta, com o traço de destaque à esquerda do texto */
+.u{box-shadow:0 1px 0 color-mix(in srgb,var(--t) 6%,transparent);max-width:min(88%,560px)}
+/* faixa de atalhos: borda suave à direita em vez de corte seco (rola na horizontal) */
+#tb button{flex:none}
+#tb{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);scrollbar-width:none}
+#tb::-webkit-scrollbar{display:none}
+/* trilhos laterais: o que passa da altura some suavemente e rola com a roda do mouse */
+.rail{-webkit-mask-image:linear-gradient(#000 calc(100% - 34px),transparent);mask-image:linear-gradient(#000 calc(100% - 34px),transparent);padding-bottom:30px}
+/* painéis dos trilhos: rótulos pequenos mais firmes, valores alinhados em coluna tabular */
+.kv dd,.kv dt{font-variant-numeric:tabular-nums}
+/* tela larga e baixa (notebook 720p): cabeçalho mais fino para sobrar espaço à conversa */
+@media(min-width:1180px) and (max-height:820px){
+  :root{--hh:100px}
+  #core{width:88px;height:88px;top:calc(var(--sat) + 6px)}
+}
+/* celular: respiro nas bordas, alvos de toque de 44px e entrada sempre acima do teclado/barra do sistema */
+@media(max-width:700px){
+  #log{width:calc(100vw - 20px);padding-left:0;padding-right:0}
+  #bar{width:calc(100vw - 20px);bottom:calc(8px + var(--sab))}
+  .ac .bi{min-height:40px;min-width:40px}
+  .u{max-width:92%}
+  #tb button{min-height:38px;padding:0 14px}
+}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
 <svg id="hx" aria-hidden="true" focusable="false"><defs><pattern id="hxp" width="56" height="97" patternUnits="userSpaceOnUse" patternTransform="scale(.9)"><path d="M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z M28 62 L28 95 M54 47 L82 62 M2 47 L-26 62" fill="none" stroke="currentColor" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#hxp)"/></svg>
