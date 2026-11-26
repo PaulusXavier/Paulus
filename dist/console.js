@@ -915,12 +915,13 @@
   }
   function adicionar(lista) {
     Array.prototype.forEach.call(lista || [], function (f) {
-      if (/pdf|png|jpe?g|webp/i.test(f.type) || /\.(pdf|png|jpe?g|webp)$/i.test(f.name) || (window.PaulusDocs && window.PaulusDocs.legivel(f))) {
+      var D = window.PaulusDocs, foto = !!(D && D.ehImagem && D.ehImagem(f)), documento = !!(D && D.legivel && D.legivel(f));
+      if (foto || documento) {
         if (f.size > 30 * 1024 * 1024) { aviso(f.name + ': maior que 30 MB.'); return; }
         if (anexos.length < 10) anexos.push(f);
-        if (window.PaulusDocs && window.PaulusDocs.ehImagem && window.PaulusDocs.ehImagem(f)) aviso('A foto vai para a IA ler. Não anexe imagem com rosto, nome ou documento de pessoa atendida.');
+        if (foto) aviso('A imagem é reduzida neste aparelho e enviada à IA para leitura. Não anexe imagem com rosto, nome ou documento de pessoa atendida.');
         else if (/\.pdf$/i.test(f.name)) aviso('PDF fica no aparelho durante proteção por senha. Só pedidos de leitura de PDF escaneado podem enviar páginas à IA, após confirmação.');
-      } else aviso(f.name + ': só PDF, DOCX, TXT, MD, CSV, TSV, XLSX, PNG, JPG ou WebP.');
+      } else aviso(f.name + ': formato não suportado. Use PDF, DOCX, XLSX, PPTX, ODT, ODS, ODP, TXT, MD, CSV, TSV, JSON, XML, HTML, RTF ou imagens comuns.');
     });
     renderAnexos();
   }

@@ -1,6 +1,6 @@
 {
  "versao": "0.35.0",
- "build": "e0da2e1a666d",
+ "build": "28a0f1d81b81",
  "commit": null,
  "arquivos": {
   "paulus.v1.js": {
@@ -36,20 +36,20 @@
    "bytes": 36926
   },
   "console.js": {
-   "sha256": "aa547eff695ec251",
-   "bytes": 145989
+   "sha256": "e6978dc093863b85",
+   "bytes": 146031
   },
   "notas.js": {
    "sha256": "06fc87015e78d8ff",
    "bytes": 14163
   },
   "docs.js": {
-   "sha256": "6c1114d9200796e7",
-   "bytes": 14232
+   "sha256": "5cbcd14c84b5456a",
+   "bytes": 19932
   },
   "index.html": {
-   "sha256": "9e19e23032bfdbd8",
-   "bytes": 132829
+   "sha256": "f9f912e23d78f6f0",
+   "bytes": 133129
   }
  }
 }
