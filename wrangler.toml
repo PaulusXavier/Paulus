@@ -5,6 +5,11 @@ name = "paulus-ia"
 main = "worker/index.mjs"
 compatibility_date = "2025-01-01"
 
+[[workflows]]
+name = "paulus-investigacao"
+binding = "INVESTIGACAO"
+class_name = "PaulusInvestigacao"
+
 # Gera knowledge/conhecimento.json, indice.json, worker-base.json e habilidades.json (nenhum fica no Git) antes de cada publicação.
 # As duas etapas são necessárias: o worker/index.mjs importa os quatro arquivos.
 [build]
