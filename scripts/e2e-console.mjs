@@ -100,9 +100,18 @@ await teste('PDF anexado: "numerar as páginas" gera arquivo para baixar', async
   ok(await pg.locator('#fl .fc').count() === 0, 'anexo não foi limpo'); const b = ultima(pg).locator('button:has-text("⤓")'); ok(await b.count() === 1, 'sem botão de baixar: ' + await ultima(pg).innerText());
   const [dl] = await Promise.all([pg.waitForEvent('download'), b.click()]); ok(/\.pdf$/i.test(dl.suggestedFilename()), 'nome do download: ' + dl.suggestedFilename());
 });
+await teste('anexos PPTX e ODS são aceitos pelo seletor do console', async (pg) => {
+  await abrir(pg);
+  await pg.setInputFiles('#fi', [
+    { name: 'apresentacao.pptx', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', buffer: Buffer.from('pptx') },
+    { name: 'planilha.ods', mimeType: 'application/vnd.oasis.opendocument.spreadsheet', buffer: Buffer.from('ods') }
+  ]);
+  ok(await pg.locator('#fl .fc').count() === 2, 'não aceitou os dois formatos Office/OpenDocument');
+  ok(/apresentacao\.pptx/.test(await pg.innerText('#fl')) && /planilha\.ods/.test(await pg.innerText('#fl')), 'nomes dos anexos não apareceram');
+});
 await teste('arquivo de tipo errado é recusado', async (pg) => {
   await abrir(pg); await pg.setInputFiles('#fi', { name: 'x.exe', mimeType: 'application/octet-stream', buffer: Buffer.from('x') });
-  ok(await pg.locator('#fl .fc').count() === 0, 'aceitou .exe'); ok(/só PDF/.test(await pg.innerText('#pi')), 'sem aviso');
+  ok(await pg.locator('#fl .fc').count() === 0, 'aceitou .exe'); ok(/formato não suportado/.test(await pg.innerText('#pi')), 'sem aviso');
 });
 await teste('nova conversa limpa tudo; salvar conversa baixa .md com a pergunta', async (pg) => {
   await abrir(pg); await enviar(pg, 'quanto é 2+2'); await fim(pg);
