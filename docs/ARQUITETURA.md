@@ -75,6 +75,7 @@ A interpretação (`modo: "interpretar"`) recebe o mesmo estado e a mesma conver
 ## Código compartilhado
 `shared/` roda no navegador **e** no Worker, para o filtro e a busca serem idênticos nos dois lados:
 - `pii.mjs`: filtro de dados pessoais.
+- `pseudonimo.mjs` (v0.34.0): lê nome e CPF **no aparelho** e os troca por marcadores (`PESSOA_1`, `CPF_1`) antes de qualquer envio; a resposta da IA volta com os marcadores e o aparelho os desfaz na tela. O registro de quem é quem fica só na memória da aba (some em `Paulus.limpar()`), nunca em disco nem na rede; as mensagens seguintes e o histórico passam pela mesma troca. O texto trocado passa de novo pelo filtro completo: sobrou telefone, e-mail, endereço, RG/NIS etc., nada é enviado. Sem IA disponível, nada é enviado e o aparelho avisa. Limite: o nome só é trocado se algum padrão o reconhece (gatilho como "paciente/nome/dona", verbo de pessoa, idade, ou nome de 2+ palavras capitalizadas quando a mensagem já tem CPF ou nome reconhecido); um primeiro nome solto, sem nada ao redor, não é reconhecido. `Paulus.init({ pseudonimizar: false })` volta ao bloqueio antigo.
 - `crise.mjs`: detector de pedido de socorro e telefones.
 - `busca.mjs`: busca BM25 na base de normas.
 - `pedido.mjs`: tipo do pedido (cumprimento, ajuste, seguimento, consulta) e parâmetros da IA por situação.
