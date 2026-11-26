@@ -93,6 +93,15 @@
       .then(function () { itens.push({ id: id, texto: texto, lista: destino, feito: false, criado: agora }); });
   }
   function marcar(it, feito) { return chamar('PATCH', '/' + it.id + '?updateMask.fieldPaths=feito', { fields: { feito: { booleanValue: feito } } }).then(function () { it.feito = feito; }); }
+  function restaurar(it) {
+    return chamar('POST', '?documentId=' + it.id, { fields: { texto: { stringValue: it.texto }, lista: { stringValue: it.lista }, feito: { booleanValue: !!it.feito }, criado: { integerValue: String(it.criado || Date.now()) } } })
+      .then(function () { if (!itens.some(function (x) { return x.id === it.id; })) itens.push(it); itens.sort(function (a, b) { return a.criado - b.criado; }); });
+  }
+  var reciboAtual = null;
+  function apagarComRecibo(lst, rotulo) {
+    var copia = lst.map(function (i) { return { id: i.id, texto: i.texto, lista: i.lista, feito: i.feito, criado: i.criado }; });
+    return todos(apagar, lst).then(function () { var C = window.PaulusConfirmar; reciboAtual = C ? C.registrar(rotulo, function () { return todos(restaurar, copia).then(function () { desenhar(); notificarPendencias(); }); }) : null; return reciboAtual; });
+  }
   function apagar(it) { return chamar('DELETE', '/' + it.id).then(function () { itens = itens.filter(function (x) { return x !== it; }); }); }
   function achar(alvo, destino) { var termos = separar(alvo).map(simples); return itens.filter(function (it) { if (destino && it.lista !== destino) return false; var t = simples(it.texto); return termos.some(function (x) { return x && (t.indexOf(x) >= 0 || x.indexOf(t) >= 0); }); }); }
   function todos(fn, lst) { return Promise.all(lst.map(fn)); }
@@ -110,6 +119,7 @@
 
   // ---------------------------------------------------------------- executar (usado por texto e por voz)
   function executar(c) {
+    reciboAtual = null;
     var pronto = carregado ? Promise.resolve() : carregar();
     return pronto.then(function () {
       if (c.acao === 'ver') return txtLista(c.lista || lista);
@@ -127,18 +137,18 @@
       if (c.acao === 'apagar') {
         var b = achar(c.alvo, c.lista);
         if (!b.length) return 'Não achei "' + c.alvo + '" na lista.';
-        return todos(apagar, b).then(function () { desenhar(); notificarPendencias(); return 'Apaguei: ' + b.map(function (i) { return i.texto; }).join(', ') + '.'; });
+        return apagarComRecibo(b, 'Itens apagados (' + b.length + ')').then(function () { desenhar(); notificarPendencias(); return 'Apaguei: ' + b.map(function (i) { return i.texto; }).join(', ') + '.'; });
       }
       if (c.acao === 'apagar_feitos') {
         var d = itens.filter(function (i) { return i.feito && (!c.lista || i.lista === c.lista); });
         if (!d.length) return 'Não há itens concluídos para apagar.';
-        return todos(apagar, d).then(function () { desenhar(); notificarPendencias(); return 'Apaguei ' + d.length + ' item(ns) concluído(s).'; });
+        return apagarComRecibo(d, 'Itens concluídos apagados (' + d.length + ')').then(function () { desenhar(); notificarPendencias(); return 'Apaguei ' + d.length + ' item(ns) concluído(s).'; });
       }
       if (c.acao === 'apagar_tudo') {
         var tudo = itens.filter(function (i) { return !c.lista || i.lista === c.lista; });
         if (!tudo.length) return 'A lista já está vazia.';
-        if (cfg.confirmar && !cfg.confirmar('Apagar TODAS as ' + tudo.length + ' anotações?')) return 'Certo, não apaguei nada.';
-        return todos(apagar, tudo).then(function () { desenhar(); notificarPendencias(); return 'Lista apagada.'; });
+        var C = window.PaulusConfirmar, pergunta = C ? C.pedir('Apagar TODAS as ' + tudo.length + ' anotações? Dá para desfazer logo depois.', { sim: 'Apagar tudo' }) : Promise.resolve(cfg.confirmar ? !!cfg.confirmar('Apagar TODAS as ' + tudo.length + ' anotações?') : false);
+        return pergunta.then(function (sim) { if (!sim) return 'Certo, não apaguei nada.'; return apagarComRecibo(tudo, 'Lista apagada (' + tudo.length + ' itens)').then(function () { desenhar(); notificarPendencias(); return 'Lista apagada (' + tudo.length + ' itens).'; }); });
       }
       return '';
     });
@@ -148,6 +158,7 @@
   function el(tag, at, filhos) { var e = document.createElement(tag); Object.keys(at || {}).forEach(function (k) { if (k === 'text') e.textContent = at[k]; else if (k === 'on') Object.keys(at.on).forEach(function (v) { e.addEventListener(v, at.on[v]); }); else e.setAttribute(k, at[k]); }); (filhos || []).forEach(function (f) { if (f) e.appendChild(f); }); return e; }
   function erro(e) { var s = painel && painel.querySelector('.ns'); if (s) { s.textContent = e.message || String(e); s.className = 'ns erro'; } }
   function ok() { var s = painel && painel.querySelector('.ns'); if (s) { s.textContent = ''; s.className = 'ns'; } }
+  function okDesfazer(rec, msg) { var s = painel && painel.querySelector('.ns'); if (!s) return; s.textContent = ''; s.className = 'ns'; if (!rec) { s.textContent = msg || ''; return; } s.appendChild(document.createTextNode((msg || 'Apagado.') + ' ')); var b = el('button', { type: 'button', class: 'nd', text: 'Desfazer' }); b.addEventListener('click', function () { window.PaulusConfirmar.desfazer(rec.id).then(function (r) { s.textContent = r.texto; s.className = 'ns' + (r.ok ? '' : ' erro'); }); }); s.appendChild(b); }
   function notificarPendencias() {
     var pendentesTarefas = itens.filter(function (i) { return i.lista === 'tarefas' && !i.feito; });
     var pendentesCompras = itens.filter(function (i) { return i.lista === 'compras' && !i.feito; });
@@ -196,7 +207,7 @@
       el('div', { class: 'na' }, [inp, el('button', { type: 'button', class: 'nb', text: 'Adicionar', on: { click: adicionar } })]),
       el('div', { class: 'na' }, [
         el('button', { type: 'button', class: 'nd', text: 'Ditar', title: 'Dite uma tarefa ou um item da categoria selecionada', on: { click: function () { if (cfg.ditar) cfg.ditar(); } } }),
-        el('button', { type: 'button', class: 'nd', text: 'Apagar concluídos', on: { click: function () { executar({ acao: 'apagar_feitos', lista: lista }).then(ok, erro); } } })
+        el('button', { type: 'button', class: 'nd', text: 'Apagar concluídos', on: { click: function () { executar({ acao: 'apagar_feitos', lista: lista }).then(function (t) { okDesfazer(reciboAtual, t); }, erro); } } })
       ]),
       el('p', { class: 'ns', role: 'status' })
     ]);
@@ -215,7 +226,7 @@
       l.appendChild(el('div', { class: 'ni-l' + (it.feito ? ' feito' : '') }, [
         el('button', { type: 'button', class: 'nk', role: 'checkbox', 'aria-checked': String(it.feito), 'aria-label': (it.feito ? 'Reabrir ' : lista === 'tarefas' ? 'Marcar como concluída: ' : 'Marcar como comprada: ') + it.texto, text: it.feito ? '✓' : '', on: { click: function () { marcar(it, !it.feito).then(function () { desenhar(); notificarPendencias(); ok(); }, erro); } } }),
         el('span', { class: 'nt', text: it.texto }),
-        el('button', { type: 'button', class: 'nx', 'aria-label': 'Apagar ' + it.texto, text: '×', on: { click: function () { apagar(it).then(function () { desenhar(); notificarPendencias(); ok(); }, erro); } } })
+        el('button', { type: 'button', class: 'nx', 'aria-label': 'Apagar ' + it.texto, text: '×', on: { click: function () { apagarComRecibo([it], 'Item apagado').then(function (rec) { desenhar(); notificarPendencias(); okDesfazer(rec, 'Apagado.'); }, erro); } } })
       ]));
     });
   }
@@ -232,5 +243,5 @@
     carregar().then(notificarPendencias, function () { /* a consola continua utilizável; o painel pode tentar carregar novamente */ });
   }
 
-  window.PaulusNotas = { init: init, interpretar: interpretar, executar: executar, abrir: mostrar, _simples: simples };
+  window.PaulusNotas = { recibo: function () { return reciboAtual; }, init: init, interpretar: interpretar, executar: executar, abrir: mostrar, _simples: simples };
 })();
