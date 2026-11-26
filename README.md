@@ -165,6 +165,10 @@ Para publicar, siga [docs/DEPLOY.md](docs/DEPLOY.md). Para ligar a um app, [docs
 </script>
 ```
 
+## Quando a cota da IA acaba
+- **Sem configuração:** o app responde com **frases da base** que respondem ao tipo da pergunta (valor, prazo, documentos, direito, definição), cada uma com fonte numerada e os trechos completos depois (`shared/resposta-extrativa.mjs`). É seleção de frases, não raciocínio.
+- **Com `IA_EXTERNA_URL`, `IA_EXTERNA_MODELO` e `IA_EXTERNA_CHAVE`:** o Worker passa a usar uma **IA de reserva de outro provedor** (API compatível com a OpenAI), só depois que a Cloudflare recusa por cota, com raciocínio, contas e autocorreção de citações. Nunca recebe foto, PDF escaneado, documento anexado nem conversa sobre suicídio. Veja [docs/DEPLOY.md](docs/DEPLOY.md) e [docs/SEGURANCA.md](docs/SEGURANCA.md).
+
 ## Estado atual
 
 - Base de normas: veja `knowledge/catalogo.json`. Já preparada para receber os documentos da **psicologia no SUAS** (mandando os PDFs pelo Claude: [docs/ALIMENTAR-PELO-CLAUDE.md](docs/ALIMENTAR-PELO-CLAUDE.md)) (`npm run ingerir`, passo a passo em [docs/CONHECIMENTO.md](docs/CONHECIMENTO.md) e `knowledge/entrada/LEIA-ME.md`). A Tipificação Nacional (Res. CNAS 109/2009, texto integral) e a Res. CNAS/MDS 218/2025 (serviço no domicílio para gestantes e crianças de 0 a 6 anos) já estão na base, com conferência pendente. Ainda faltam o texto completo da NOB/SUAS 2012 e a PNAS 2004.
