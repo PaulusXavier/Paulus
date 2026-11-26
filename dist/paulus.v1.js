@@ -1249,19 +1249,11 @@ function temIdentificacaoPessoal(texto) {
   return achouNome(t) || achouNomeIdade(t) || achouNomeMinusculo(t) || RE_TRAT.test(t) || temIdentificacaoEs(t) || temIdentificacaoEn(t);
 }
 
-// Número de norma com ano ("Lei 14.601/2023", "Decreto 12.064/2024"): a regra de sequência longa o barrava como CPF/NIS/telefone.
-// Só o formato NN.NNN/AAAA (ou NNNNN/AAAA) sai da conta; CPF e NIS têm 11 dígitos, então nada disso passa por aqui.
-const RE_NORMA_NUMERADA = /\b\d{1,2}\.?\d{3}\/(?:19|20)\d{2}\b/g;
-// Data completa ("01/01/2026"): um período com hífen ("01/01/2026 - 31/12/2026") somava 16 dígitos e era barrado. Data de nascimento rotulada continua barrada por RE_NASCIMENTO.
-const RE_DATA_COMPLETA = /\b\d{1,2}[\/.-]\d{1,2}[\/.-](?:19|20)\d{2}\b/g;
-// 0800, 0300, 0500 e 0900 são números de serviço, não de uma pessoa.
-const RE_NUMERO_DE_SERVICO = /\b0[3589]00[\s-]?\d{3}[\s-]?\d{3,4}\b/g;
-
 function temDadoPessoal(texto) {
   const t = String(texto == null ? '' : texto);
   if (temEmail(t)) return true;
   if (RE_TEL_DDD.test(t) || RE_TEL_ROTULADO.test(t) || RE_NASCIMENTO.test(t)) return true;
-  const sequencias = t.replace(RE_NORMA_NUMERADA, ' ').replace(RE_DATA_COMPLETA, ' ').replace(RE_NUMERO_DE_SERVICO, ' ').match(/\d[\d.\-\/\s]{6,}\d/g) || [];
+  const sequencias = t.match(/\d[\d.\-\/\s]{6,}\d/g) || [];
   if (sequencias.some(s => !SO_ANOS.test(s.trim()) && s.replace(/\D/g, '').length >= 9 && !ehContaComOperador(s, t))) return true;
   if (RE_DOC_ROTULADO.test(t)) return true;
   if (achouNome(t) || achouNomeVerbo(t) || achouNomeIdade(t) || achouNomeMinusculo(t) || achouNomeCaixaAlta(t) || RE_TRAT.test(t)) return true;
@@ -1668,13 +1660,7 @@ const SINAIS_SUICIDIO = [
   '(?:usar|usarei|vou usar) (?:a arma|ela|isso|o veneno) em mim|(?:arma|revolver|pistola|veneno|chumbinho)[^.?!]{0,30}\\b(?:usar|usarei|vou usar|uso)\\b[^.?!]{0,10}\\bem mim',
   '(?:carta|bilhete) de despedida|me despedindo de todos|deixei (?:um )?bilhete',
   // autolesão relatada sem a palavra "automutilação"
-  'cort(?:ou|ei|aram|ando) (?:os |as |meus |minhas |seus |suas )?(?:pulsos?|punhos?|veias?|pescoco)|(?:se|me) cortou(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\\b)|me cortei(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\\b)|se cortaram|(?:se|me) machuc(?:a|ando|ou|ava) de proposito|(?:se|me) fer(?:e|indo|iu|i) de proposito|(?:se|me) queim(?:a|ando|ou|ei) de proposito',
-  // variações de forma (revisão 2026-11): plural, ordem das palavras e tempo verbal
-  '(?:estaria|estariam|ficaria|ficariam|viveria|viveriam) (?:muito |bem |mais )?(?:melhor|melhores|feliz|felizes) sem mim',
-  'nao acordar nunca mais|nunca mais acordar|(?:queria|quero|gostaria de|desejava|desejo) nao acordar (?:amanha|mais)',
-  'nao (?:vejo|tenho|tem|ve|ha) (?:mais )?(?:motivos?|razoes|razao) (?:pra|para) (?:viver|continuar vivendo|continuar vivo|continuar viva|seguir vivendo|seguir vivo|seguir viva)',
-  '(?:a |minha )?vida nao vale (?:a pena|nada|mais nada)|viver nao vale (?:mais )?a pena|nao vale (?:mais )?a pena (?:viver|continuar vivendo|seguir vivendo|estar vivo|estar viva)',
-  '(?:quero|queria|preciso|penso em|pensando em|tenho vontade de|estou com vontade de) me (?:machucar|ferir|queimar|furar)'
+  'cort(?:ou|ei|aram|ando) (?:os |as |meus |minhas |seus |suas )?(?:pulsos?|punhos?|veias?|pescoco)|(?:se|me) cortou(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\\b)|me cortei(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\\b)|se cortaram|(?:se|me) machuc(?:a|ando|ou|ava) de proposito|(?:se|me) fer(?:e|indo|iu|i) de proposito|(?:se|me) queim(?:a|ando|ou|ei) de proposito'
 ].join('|');
 
 // Sinais de overdose e intoxicação além de "overdose" e "engoliu remédio".
@@ -1723,8 +1709,6 @@ const AMEACA_TERCEIRO = new RegExp('\\b(?:(?:ameac(?:a|ou|ando|am|aram)|prometeu
 // Quem diz que VAI machucar alguém (raiva, esgotamento de cuidador): outra conduta, outro texto.
 const INTENCAO_AGREDIR = new RegExp('\\b(?:(?:vou|quero|vontade de|estou com vontade de|tenho vontade de|ia|penso em|pensando em) (?:matar|machucar|espancar|esfaquear) ' + NAO_E_PESSOA + '(?:o|a|os|as|n[oa]s?|meu|minha|meus|minhas|alguem|ela|ele|elas|eles|crianc\\w+|filh\\w+|menin\\w+|marido|esposa|mulher|bebe)\\b|(?:vou|quero|vontade de|estou com vontade de|tenho vontade de|ia|penso em|pensando em) (?:bater|surrar) (?:n[oa]s?|em) ?(?:meu|minha|meus|minhas|o|a|os|as)? ?(?:filh\\w+|crianc\\w+|bebe|menin\\w+|marido|esposa|mulher|alguem|ela|ele)\\b|(?:estou|to|ando) (?:perdendo|sem) (?:o )?controle (?:com|d[eao]s?) (?:meu|minha|meus|minhas|a|o|os|as)? ?(?:filh\\w+|crianc\\w+|bebe|menin\\w+|marido|esposa)|nao (?:consigo|aguento) me controlar (?:com|d[eao]s?) (?:meu|minha|meus|minhas|a|o|os|as)? ?(?:filh\\w+|crianc\\w+|bebe|menin\\w+)|(?:bati|espanquei|machuquei|agredi) (?:n[oa]s?|em|o|a|os|as) ?(?:meu|minha|meus|minhas)? ?(?:filh\\w+|crianc\\w+|bebe|menin\\w+|esposa|marido|mulher))');
 // Violência sofrida, dita por quem sofre, ou de um adulto contra criança/adolescente sem a palavra \"abuso\".
-// Agressão em curso no gerúndio ("ele está me batendo"); "machucando"/"sufocando" ficam de fora de propósito.
-const AGRESSAO_EM_CURSO = /\b(?:me|nos) (?:batendo(?! (?:na|no|a|o) (?:porta|portao|janela|vidro|campainha|parede))|agredindo|espancando|estrangulando|ameacando de morte)\b/;
 const VIOLENCIA_SOFRIDA = /\b(?:abus(?:a|ou|am|aram|ando) de mim|(?:me|nos) (?:abus|molest|estupr)(?:a|ou|am|aram)|(?:me|nos) (?:bate|bateu|batem|espanca|espancou|agride|agrediu|estrangula|estrangulou|sufoca|sufocou|ameaca de morte)|(?:fui|foi|foram|fomos) (?:agredid|espancad|estuprad|abusad|violentad|molestad|ameacad)\w*|(?:padrasto|madrasta|pai|mae|tio|tia|avo|avos|primo|irmao|padrinho|vizinho|professor|pastor|patrao|marido|namorado|companheiro|ex) (?:me|nela|nele) (?:toca|tocou|forca|forcou)\b|(?:padrasto|madrasta|pai|mae|tio|tia|avo|avos|primo|irmao|padrinho|vizinho|professor|pastor|patrao|marido|namorado|companheiro|ex) (?:mexe|mexeu) comigo\b|(?:ele|ela) mexe com (?:a |o )?(?:sobrinh|filh|entead|net|menin|crianc)\w*|mexe com (?:a |o )?(?:sobrinh|filh|entead|net|menin|crianc)\w*|(?:abus|estupr|molest|violent)(?:ando|a|am) (?:a |o |as |os |da |do |das |dos |de )?(?:crianc\w*|menin\w*|filh\w*|sobrinh\w*|entead\w*|net[ao]s?|adolescent\w*|irma\w*|prim[ao]s?|mulher)\b|(?:sofrendo|sofre|sofreu|sofri) (?:abuso|violencia|maus tratos|agressao|agressoes)\b|(?:trancad[oa]|presa|preso) (?:em casa|no quarto|no comodo)|carcere privado|nao (?:deixa|deixou|deixam) (?:ela|ele|eu|a mulher|a menina|o menino) sair de casa)\b/;
 // Criança, adolescente ou pessoa idosa em abandono, cárcere ou sem comida.
 const ABANDONO = /\b(?:crianca|bebe|idos[oa]|menin[oa]|adolescent\w*)s?\b[^.?!]{0,40}?\b(?:abandonad[oa]s?|trancad[oa]s?|amarrad[oa]s?|acorrentad[oa]s?|sem (?:comer|comida) (?:ha|desde|por) (?:\w+ )?(?:dias|horas))\b/;
@@ -1807,14 +1791,6 @@ const PADROES = [
   },
   {
     tipo: 'violencia',
-    titulo: 'Violência em andamento: acione ajuda agora',
-    re: AGRESSAO_EM_CURSO,
-    geral: true,
-    texto: 'RELATO',
-    numeros: ['190', '180', '100']
-  },
-  {
-    tipo: 'violencia',
     titulo: 'Criança, adolescente ou pessoa idosa em risco: acione a rede agora',
     re: ABANDONO,
     geral: true,
@@ -1863,7 +1839,7 @@ const TEXTO_AMEACA = 'Ameaça de morte é risco real e deve ser levada a sério.
 const TEXTO_AGRESSAO = 'Pare um instante: o mais importante agora é que ninguém se machuque. Se puder, afaste-se da situação (outro cômodo, a rua, um vizinho) e, se houver criança por perto, peça para outro adulto ficar com ela. Respire fundo e converse com alguém agora: CVV, 188 (gratuito, 24 horas). Se alguém estiver em perigo neste momento, ligue 190. Passada a crise, procure o CRAS, o CREAS ou a UBS: sentir esse limite é sinal de que você precisa de apoio, e a rede existe para isso. Se você é profissional e escreveu sobre um caso, reformule em terceira pessoa, sem identificar ninguém.';
 
 // Quem fala de si, além de PRIMEIRA_PESSOA. Fica de fora se a frase relata o que outra pessoa disse ("ela falou que queria sumir").
-const PRIMEIRA_PESSOA_EXTRA = /\b(?:minha vida nao tem (?:mais )?sentido|nao (?:aguento|suporto|consigo) mais (?:viver|essa vida|esta vida)|nao (?:vejo|tenho) (?:mais )?(?:sentido em viver|sentido na vida|razao (?:pra|para) viver|motivo (?:pra|para) viver)|quer(?:o|ia) (?:sumir|desaparecer)|(?:vou|quero|pensando em|penso em|ia) me (?:jogar|enforcar|afogar|envenenar)|vou pular|queria estar morto|queria estar morta|queria nao ter nascido|(?:vou|quero) dar fim a minha vida|(?:cansei|estou cansad[oa]|to cansad[oa]) de viver|nao quero mais (?:estar aqui|existir)|ninguem sentiria (?:a )?minha falta|melhor (?:pra|para) (?:todo mundo|todos) se eu (?:morresse|nao existisse)|(?:acabar|acabando) com (?:a )?minha dor de uma vez|(?:vou|quero) (?:por|pondo) fim a tudo|so a morte (?:me )?(?:resolve|ajuda)|(?:queria|quero) dormir (?:e nunca mais acordar|pra sempre|para sempre)|(?:vou|quero) me (?:atirar|lancar) na frente|me dar (?:um )?tiro|(?:vou|quero) usar (?:a arma|ela|isso) em mim|me atropelasse|usar [^.?!]{0,12}em mim|(?:queria|quero) [^.?!]{0,25}dormir (?:pra|para) sempre|(?:carta|bilhete) de despedida|me cortei(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\b)|(?:me) (?:machuco|machucando|firo|ferindo) de proposito|nao quer(?:o|ia) mais acordar|(?:melhor|seria melhor) eu nao estar mais aqui|(?:vou|quero|ia|pensando em|penso em) tomar (?:todos|todo) (?:os |o )?(?:\w+ )?(?:remedios?|comprimidos?|medicamentos?|cartela)|(?:vou|quero|ia|pensando em|penso em) (?:me )?atirar em mim|me corto(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\b)|(?:vontade|desejo|impulso) de me (?:machucar|ferir|cortar|furar|queimar)|(?:estaria|estariam|ficaria|ficariam|viveria|viveriam) (?:muito |bem |mais )?(?:melhor|melhores|feliz|felizes) sem mim|nao acordar nunca mais|nunca mais acordar|nao (?:vejo|tenho) (?:mais )?(?:motivos?|razoes|razao) (?:pra|para) (?:viver|continuar vivendo|seguir vivendo)|(?:a |minha )?vida nao vale (?:a pena|nada|mais nada)|nao vale (?:mais )?a pena viver|(?:quero|queria|preciso|penso em|pensando em) me (?:machucar|ferir|queimar|furar))\b/;
+const PRIMEIRA_PESSOA_EXTRA = /\b(?:minha vida nao tem (?:mais )?sentido|nao (?:aguento|suporto|consigo) mais (?:viver|essa vida|esta vida)|nao (?:vejo|tenho) (?:mais )?(?:sentido em viver|sentido na vida|razao (?:pra|para) viver|motivo (?:pra|para) viver)|quer(?:o|ia) (?:sumir|desaparecer)|(?:vou|quero|pensando em|penso em|ia) me (?:jogar|enforcar|afogar|envenenar)|vou pular|queria estar morto|queria estar morta|queria nao ter nascido|(?:vou|quero) dar fim a minha vida|(?:cansei|estou cansad[oa]|to cansad[oa]) de viver|nao quero mais (?:estar aqui|existir)|ninguem sentiria (?:a )?minha falta|melhor (?:pra|para) (?:todo mundo|todos) se eu (?:morresse|nao existisse)|(?:acabar|acabando) com (?:a )?minha dor de uma vez|(?:vou|quero) (?:por|pondo) fim a tudo|so a morte (?:me )?(?:resolve|ajuda)|(?:queria|quero) dormir (?:e nunca mais acordar|pra sempre|para sempre)|(?:vou|quero) me (?:atirar|lancar) na frente|me dar (?:um )?tiro|(?:vou|quero) usar (?:a arma|ela|isso) em mim|me atropelasse|usar [^.?!]{0,12}em mim|(?:queria|quero) [^.?!]{0,25}dormir (?:pra|para) sempre|(?:carta|bilhete) de despedida|me cortei(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\b)|(?:me) (?:machuco|machucando|firo|ferindo) de proposito|nao quer(?:o|ia) mais acordar|(?:melhor|seria melhor) eu nao estar mais aqui|(?:vou|quero|ia|pensando em|penso em) tomar (?:todos|todo) (?:os |o )?(?:\w+ )?(?:remedios?|comprimidos?|medicamentos?|cartela)|(?:vou|quero|ia|pensando em|penso em) (?:me )?atirar em mim|me corto(?! (?:com|na|no|ao|fazendo|cortando|durante|enquanto)\b)|(?:vontade|desejo|impulso) de me (?:machucar|ferir|cortar|furar|queimar))\b/;
 const RELATA_TERCEIRO = /\b(?:disse|disseram|falou|falaram|contou|relatou|verbalizou|mencionou)\b/;
 
 // Erro de digitação em duas palavras-chave ("me mattar", "vou me matr", "suisidio"). Distância de edição pequena e só nestes casos:
@@ -14841,6 +14817,204 @@ function falaTrechos(texto, opc) {
   });
 }
 
+// ---- shared/resposta-extrativa.mjs ----
+// Resposta por EXTRAÇÃO de frases, sem IA: quando a cota acaba (ou falta rede), em vez de despejar até 3 trechos inteiros da base,
+// escolhe as FRASES que respondem ao TIPO da pergunta (valor, prazo, documentos, direito, definição, quem faz), cada uma com a sua fonte numerada.
+//
+// Princípios:
+//  - Nada é inventado: cada frase é cópia literal de um trecho da base. O módulo só escolhe e organiza.
+//  - Só entram trechos de aderência ALTA (frase solta de trecho fraco pode ser o contrário do que o texto defende).
+//  - Preferir não responder a mostrar frase fora de contexto: sem frase que cubra a pergunta devolve null e o app mostra os trechos inteiros, como antes.
+//  - É seleção de frases, NÃO é raciocínio: não decide se o caso concreto da família se enquadra, e o próprio texto diz isso.
+//
+// Os nomes têm prefixo EXT/Ext porque o arquivo do navegador junta todos os módulos num só escopo (scripts/build.mjs).
+
+
+const EXT_MAX_FRASES = 4;
+const EXT_MAX_POR_TRECHO = 2;
+const EXT_TAM_MIN = 28;
+const EXT_TAM_MAX = 360;
+const EXT_PESO_ADERENCIA = { alta: 1 };
+const EXT_RE_DOC_FORA = /^(?:argo-|mapa-boa-vista-osm|diretorio)/;
+
+// Palavras de ligação e de pergunta: não são o ASSUNTO.
+const EXT_VAZIAS = /^(para|como|qual|quais|quem|onde|quando|sobre|pode|posso|devo|deve|isso|esse|essa|esta|este|ser|tem|uma|uns|das|dos|com|que|por|nos|nas|mais|muito|fazer|preciso|sao|foi|era|entre|ate|apos|sem|seu|sua|seus|suas|meu|minha|nao|sim|ainda|cada|toda|todo|todos|todas|outro|outra|depois|antes|quanto|quanta|quantos|quantas|existe|existem|tenho|temos|fica|ficam|alguem|algum|alguma|dizer|significa|exige|exigem|necessarios|necessario|necessaria|preciso|precisa|precisam|recebe|recebem|receber)$/;
+
+// Sinal que a FRASE precisa ter para responder cada tipo de pergunta.
+const EXT_SINAIS = {
+  valor: /\bsalario minimo\b|\bmeio salario\b/,   // R$ e % são lidos no texto original (a normalização apaga os símbolos): veja EXT_RE_VALOR
+  prazo: /\b(?:\d+\s*(?:dias|dia|meses|mes|anos|ano|horas)|ate o dia|prazo|no maximo|a cada \w+|trimestral|mensal|anual|bienal|vigencia)\b/,
+  documentos: /\b(?:documentos?|cpf|rg|certidao|comprovantes?|titulo de eleitor|identidade|carteira|cartao)\b/,
+  direito: /\b(?:tem direito|tem acesso|pode receber|podem receber|poderao receber|elegiveis?|elegibilidade|destina se|fazem jus|criterios?|requisitos?|renda familiar|renda per capita|familias? (?:com|cuja|em situacao)|pessoas? com deficiencia|idosos?)\b/,
+  definicao: /\b(?:consiste|entende se|considera se|compreende|caracteriza se|define se|destina se|fica instituido|instituido|e um|e uma)\b/,
+  quem: /\b(?:compete|cabe|cabera|responsavel|responsaveis|gerido|gestao|coordena|coordenado|executa|executado|realiza|realizado|ofertado|referenciado)\b/
+};
+
+// Palavras que só indicam o TIPO da pergunta (não o assunto): saem das raízes que a frase precisa cobrir.
+const EXT_SO_TIPO = /^(valor|valores|prazo|prazos|documento|documentos|direito|direitos|requisito|requisitos|criterio|criterios|elegivel|elegiveis|definicao|conceito|compete|responsavel|responsaveis)$/;
+// Valor em reais ou porcentagem, lido no texto ORIGINAL da frase.
+const EXT_RE_VALOR = /R\$\s?\d|\b\d{1,3}(?:\.\d{3})*,\d{2}\b|\b\d+(?:,\d+)?\s?%/;
+// Frase de COMPETÊNCIA de órgão (ex.: "Compete ao INSS...") não responde "quem tem direito" nem "quais requisitos".
+const EXT_RE_COMPETE = /^\s*(?:compete|cabe|incumbe)\b/i;
+
+// Frase que fala de outra coisa (lista de palavras-chave, cabeçalho de tabela, ficha de ferramenta do app).
+const EXT_RE_RUIDO = /(?:\|{2,}|^\s*[-:|\s]+$|palavras?[ -]chave|tags?:|ferramenta do (?:app|argo)|clique em|botao\b)/i;
+
+// "Art. 5º", "§ 2º", "nº 10", "R$ 1.518,00", "inc. II" não terminam frase.
+const EXT_ABREV = /(?:\bart|\barts|\bn[ºo°]|\bnr|\binc|\bal|\bpar|\bcap|\bsec|\bdr|\bdra|\bsr|\bsra|\bprof|\bex|\bp|\bv|\bobs|\bcf|\bsr|\bltda|\betc|\bdec|\bdoc|\bfig|\bhttp|\bwww)$/i;
+
+function extRaizes(texto) {
+  const lista = [];
+  normalizar(texto).split(' ').forEach(function (w) {
+    if (w.length > 3 && !EXT_VAZIAS.test(w) && !EXT_SO_TIPO.test(w)) {
+      const r = w.slice(0, 6);
+      if (lista.indexOf(r) === -1) lista.push(r);
+    }
+  });
+  return lista;
+}
+
+// O que a pessoa quer saber: valor, prazo, documentos, direito, definição, quem faz. null = pergunta aberta (a extração não se arrisca).
+function tipoDaPergunta(pergunta) {
+  const n = normalizar(pergunta);
+  if (/\b(?:quanto|quantos? (?:reais|recebe|vale|custa|paga)|valor|valores|quanto vale|qual (?:o )?(?:teto|piso|limite|linha))\b/.test(n) || /\brenda per capita\b.*\b(?:qual|limite|teto)\b/.test(n) || /\bqual (?:a )?renda per capita\b/.test(n)) return 'valor';
+  if (/\b(?:prazo|em quanto tempo|quanto tempo|ate quando|quando (?:vence|expira|deve|devem)|a cada quanto|periodicidade|validade)\b/.test(n)) return 'prazo';
+  if (/\b(?:quais documentos|que documentos|documentos? (?:necessarios?|para|exigidos?)|o que (?:levar|preciso levar|precisa levar)|quais os documentos)\b/.test(n)) return 'documentos';
+  if (/\b(?:quem (?:tem direito|pode (?:receber|solicitar|ter|ser|acessar|participar))|tem direito|quais (?:familias|pessoas)|quem recebe|quais (?:sao )?(?:os )?(?:requisitos|criterios)|requisitos|criterios|elegibilidade|elegiveis|quem e elegivel|publico[ -]alvo|a quem se destina)\b/.test(n)) return 'direito';
+  if (/\b(?:quem (?:e responsavel|cabe|compete|gerencia|coordena|executa|gere|faz)|compete a|responsavel por)\b/.test(n)) return 'quem';
+  if (/^(?:o que (?:e|sao|significa|quer dizer)|defina|conceito de|qual o conceito)\b/.test(n)) return 'definicao';
+  return null;
+}
+
+// Divide em frases sem cortar em "Art. 5º", "§ 2º." nem em valor como "R$ 1.518,00". Também quebra em linhas e itens de lista.
+function dividirEmFrases(texto) {
+  const bruto = String(texto == null ? '' : texto).replace(/\r/g, '');
+  const saida = [];
+  bruto.split(/\n+/).forEach(function (linha) {
+    const l = linha.replace(/^\s*(?:[-*•]|\d{1,2}[.)])\s+/, '').trim();
+    if (!l) return;
+    let atual = '';
+    for (let i = 0; i < l.length; i++) {
+      const c = l[i];
+      atual += c;
+      if (c === '.' || c === '?' || c === '!' || c === ';') {
+        const prox = l[i + 1];
+        const depois = l.slice(i + 1).trimStart();
+        if (prox !== undefined && prox !== ' ') continue;           // "1.518,00", "gov.br", "art.5"
+        if (c === '.' && EXT_ABREV.test(atual.slice(0, -1))) continue;  // "Art." "nº."
+        if (c === '.' && /\d$/.test(atual.slice(0, -1)) && /^\d/.test(depois)) continue;
+        if (c === '.' && /(?:^|\s)[A-ZÁÉÍÓÚ]$/.test(atual.slice(0, -1))) continue; // inicial
+        if (c !== ';' && depois && /^[a-zà-ú]/.test(depois)) continue;    // minúscula depois: não é fim
+        saida.push(atual.trim());
+        atual = '';
+      }
+    }
+    if (atual.trim()) saida.push(atual.trim());
+  });
+  return saida.filter(Boolean);
+}
+
+function extParecidas(a, b) {
+  const ra = extRaizes(a), rb = extRaizes(b);
+  if (!ra.length || !rb.length) return false;
+  const comuns = ra.filter(function (r) { return rb.indexOf(r) !== -1; }).length;
+  return comuns / Math.min(ra.length, rb.length) >= 0.8;
+}
+
+function extEncurtar(f) {
+  const t = f.replace(/\s+/g, ' ').trim();
+  return t.length <= EXT_TAM_MAX ? t : t.slice(0, EXT_TAM_MAX - 1).replace(/\s+\S*$/, '') + ' [...]';
+}
+
+function extValoresEmReais(t) {
+  const m = String(t).match(/R\$\s?\d[\d.]*(?:,\d{2})?/g);
+  return m ? m.map(function (v) { return v.replace(/\s+/g, ''); }) : [];
+}
+
+function extRotulo(trecho) {
+  return [trecho.titulo || trecho.doc, trecho.referencia].filter(Boolean).join(' — ');
+}
+
+// achados: o que buscarFontes devolveu ([{ trecho, aderencia }]). Devolve null quando nenhuma frase cobre a pergunta.
+//   { texto, frases:[{ texto, fonte }], fontes:[indice dos achados usados], avisos:[...], tipo }
+// opcoes.max: máximo de frases (padrão 4).
+function responderPorExtracao(pergunta, achados, opcoes) {
+  const o = opcoes || {};
+  if (!Array.isArray(achados) || !achados.length) return null;
+  const tipo = tipoDaPergunta(pergunta);
+  if (!tipo) return null;
+  const raizes = extRaizes(pergunta.replace(/\bboa vista\b/gi, ' '));
+  if (!raizes.length) return null;
+  const max = Math.max(1, o.max || EXT_MAX_FRASES);
+
+  const candidatas = [];
+  achados.forEach(function (a, ia) {
+    const t = a && a.trecho;
+    if (!t || !EXT_PESO_ADERENCIA[a.aderencia] || EXT_RE_DOC_FORA.test(String(t.doc || ''))) return;
+    const rotulo = normalizar(extRotulo(t));
+    dividirEmFrases(t.texto).forEach(function (frase, ordem) {
+      if (frase.length < EXT_TAM_MIN || frase.length > EXT_TAM_MAX * 2 || EXT_RE_RUIDO.test(frase)) return;
+      const nf = normalizar(frase);
+      if (!(EXT_SINAIS[tipo].test(nf) || (tipo === 'valor' && EXT_RE_VALOR.test(frase)))) return;
+      if (tipo !== 'quem' && EXT_RE_COMPETE.test(frase)) return;
+      const tem = raizes.filter(function (r) { return nf.indexOf(r) !== -1; });
+      const comRotulo = raizes.filter(function (r) { return nf.indexOf(r) !== -1 || rotulo.indexOf(r) !== -1; });
+      // a frase precisa cobrir a maior parte do assunto (com o título do trecho); sem nenhuma palavra do assunto na própria frase, o título tem de cobri-lo todo
+      if (comRotulo.length / raizes.length < 0.6) return;
+      if (!tem.length && comRotulo.length < raizes.length) return;
+      // definição: a frase tem de ser SOBRE o termo (ele aparece no começo), não citá-lo de passagem
+      if (tipo === 'definicao' && !tem.some(function (r) { const k = nf.indexOf(r); return k >= 0 && k < 70; })) return;
+      const score = tem.length / raizes.length + comRotulo.length / raizes.length * 0.5 - ia * 0.05 - ordem * 0.002;
+      candidatas.push({ frase: frase, ia: ia, score: score });
+    });
+  });
+  if (!candidatas.length) return null;
+  candidatas.sort(function (x, y) { return y.score - x.score; });
+
+  const escolhidas = [];
+  const porTrecho = {};
+  candidatas.forEach(function (c) {
+    if (escolhidas.length >= max) return;
+    if ((porTrecho[c.ia] || 0) >= EXT_MAX_POR_TRECHO) return;
+    // Frase quase igual a outra já escolhida é repetição, EXCETO quando traz outro valor em reais: aí a divergência entre normas precisa aparecer.
+    if (escolhidas.some(function (e) { return extParecidas(e.frase, c.frase) && extValoresEmReais(e.frase).join('|') === extValoresEmReais(c.frase).join('|'); })) return;
+    porTrecho[c.ia] = (porTrecho[c.ia] || 0) + 1;
+    escolhidas.push(c);
+  });
+  if (!escolhidas.length) return null;
+
+  // Fontes numeradas na ordem em que aparecem.
+  const ordemFontes = [];
+  escolhidas.forEach(function (c) { if (ordemFontes.indexOf(c.ia) === -1) ordemFontes.push(c.ia); });
+  const frases = escolhidas.map(function (c) {
+    return { texto: extEncurtar(c.frase), fonte: ordemFontes.indexOf(c.ia) + 1, achado: c.ia };
+  });
+
+  const avisos = [];
+  if (tipo === 'valor') {
+    avisos.push('Valores e limites mudam com o tempo: confirme no texto oficial vigente (MDS) antes de usar em atendimento.');
+    const porDoc = {};
+    escolhidas.forEach(function (c) { const t = achados[c.ia].trecho; (porDoc[t.doc || t.titulo] = porDoc[t.doc || t.titulo] || []).push.apply(porDoc[t.doc || t.titulo], extValoresEmReais(c.frase)); });
+    const docs = Object.keys(porDoc).filter(function (d) { return porDoc[d].length; });
+    const todos = [];
+    docs.forEach(function (d) { porDoc[d].forEach(function (v) { if (todos.indexOf(v) === -1) todos.push(v); }); });
+    if (docs.length > 1 && todos.length > 1) avisos.push('Normas diferentes trazem valores diferentes (' + todos.join(', ') + '): confira qual vale para o seu caso e a data de cada uma.');
+  }
+  if (tipo === 'direito' || tipo === 'quem' || /\b(?:posso|devo|pode|deve)\b/.test(normalizar(pergunta))) {
+    avisos.push('Isto é seleção de frases da base, não análise do caso concreto: quem decide se a família ou a pessoa se enquadra é o atendimento, com o texto oficial na mão.');
+  } else {
+    avisos.push('Frases copiadas da base de normas, sem interpretação do seu caso. Confira o texto oficial vigente.');
+  }
+  if (ordemFontes.some(function (i) { const tp = achados[i].trecho.tipo; return tp && tp !== 'norma'; })) {
+    avisos.push('Parte das frases vem de material de apoio ou orientação técnica (não é norma legal: orienta, não obriga).');
+  }
+
+  const linhas = frases.map(function (f) { return '- ' + f.texto + ' [' + f.fonte + ']'; });
+  const refs = ordemFontes.map(function (i, k) { return '[' + (k + 1) + '] ' + (extRotulo(achados[i].trecho) || 'Base de normas'); });
+  const texto = 'O que a base de normas diz sobre isso (frases copiadas dos textos, cada uma com a sua fonte):\n\n' + linhas.join('\n') + '\n\nFontes:\n' + refs.join('\n');
+  return { texto: texto, frases: frases, fontes: ordemFontes, avisos: avisos, tipo: tipo };
+}
+
 // ---- client/skins.mjs ----
 // "Peles" do Paulus: só texto e configuração. O desenho do mascote continua em cada app
 // (argo-mascot.js, anona-mascot.js...). Para o Paulus, o mascote é o rosto; aqui ficam o nome,
@@ -15388,6 +15562,7 @@ function memEhSensivel(texto) { return MEM_RE_SENSIVEL.test(normalizar(texto)); 
 
 
 
+
 const AVISO_PESSOAL = 'Para proteger as famílias, não consigo analisar mensagens com nome, documento, telefone ou endereço residencial. Reescreva a pergunta sem identificar ninguém.';
 
 // Igual ao limite do Worker (worker/prompt.mjs). Antes eram 5 aqui, e o Argo mandava até 10 (lista de bairros, "liste todos").
@@ -15850,7 +16025,7 @@ function lerSSE(resp, ganchos, controle) {
   return new Promise(function (resolve, reject) {
     const leitor = resp.body.getReader();
     const dec = new TextDecoder();
-    let buf = '', acumulado = '', fontes = [], habilidades = [], citaveis = null, imagem = null, recebeu = false, fim = false;
+    let buf = '', acumulado = '', fontes = [], habilidades = [], citaveis = null, imagem = null, externa = false, recebeu = false, fim = false;
     function ler() {
       leitor.read().then(function (r) {
         controle.tique();
@@ -15870,6 +16045,7 @@ function lerSSE(resp, ganchos, controle) {
           if (Array.isArray(ev.habilidades)) { habilidades = ev.habilidades.map(String).slice(0, 3); if (ganchos.onHabilidades) ganchos.onHabilidades(habilidades); }
           if (ev.citaveis && typeof ev.citaveis === 'object') citaveis = ev.citaveis;
           if (ev.imagem && typeof ev.imagem === 'object') imagem = ev.imagem;
+          if (ev.externa === true) externa = true;
           // Resposta reescrita pelo Worker (citação sem fonte tirada): substitui o texto já mostrado.
           if (typeof ev.corrigido === 'string' && ev.corrigido.trim()) {
             acumulado = ev.corrigido;
@@ -15883,7 +16059,7 @@ function lerSSE(resp, ganchos, controle) {
           }
         }
         if (fim) {
-          if (!recebeu) reject(new Error('Resposta vazia.')); else resolve({ texto: acumulado, fontes: fontes, habilidades: habilidades, citaveis: citaveis, imagem: imagem });
+          if (!recebeu) reject(new Error('Resposta vazia.')); else resolve({ texto: acumulado, fontes: fontes, habilidades: habilidades, citaveis: citaveis, imagem: imagem, externa: externa });
         } else ler();
       }).catch(reject);
     }
@@ -15996,7 +16172,7 @@ async function pedirIA(texto, opcoes) {
     } else {
       const j = await resp.json();
       if (!j || typeof j.resposta !== 'string' || !j.resposta) throw new Error(j && j.erro ? String(j.erro) : 'Resposta vazia.');
-      saida = { texto: j.resposta, fontes: Array.isArray(j.fontes) ? j.fontes : [], habilidades: Array.isArray(j.habilidades) ? j.habilidades.map(String).slice(0, 3) : [], citaveis: j.citaveis && typeof j.citaveis === 'object' ? j.citaveis : null, imagem: j.imagem && typeof j.imagem === 'object' ? j.imagem : null };
+      saida = { texto: j.resposta, fontes: Array.isArray(j.fontes) ? j.fontes : [], habilidades: Array.isArray(j.habilidades) ? j.habilidades.map(String).slice(0, 3) : [], citaveis: j.citaveis && typeof j.citaveis === 'object' ? j.citaveis : null, imagem: j.imagem && typeof j.imagem === 'object' ? j.imagem : null, externa: j.externa === true };
       if (opcoes.onToken) opcoes.onToken(saida.texto, ocultarControles(saida.texto));
     }
     const partes = separarControles(saida.texto, acoes.map(function (a) { return a.id; }));
@@ -16006,6 +16182,8 @@ async function pedirIA(texto, opcoes) {
       return { id: a.id, rotulo: a.rotulo, confirmar: a.confirmar, executar: a.executar };
     });
     const avisos = ['Resposta gerada por IA. Confira antes de usar em atendimento.'];
+    // IA de reserva (Worker: worker/reserva-externa.mjs): a cota da Cloudflare acabou e a resposta veio de outro provedor.
+    if (saida.externa) avisos.push('Esta resposta veio de uma IA de reserva de outro provedor, porque a cota gratuita da IA principal acabou. Pode diferir do estilo habitual: confira antes de usar em atendimento.');
     const lida = imagemLidaSaneada(saida.imagem);
     if (lida) avisos.push((lida.pdfEscaneado ? 'PDF escaneado: ' + lida.paginas + ' de ' + lida.paginasTotal + ' página(s) lida(s) por IA de visão; ' : 'Imagem "' + lida.nome + '": lida por um programa de visão; ') + 'pode errar letras e números. Confira no original.' + (lida.perdidos ? ' ' + lida.perdidos + ' linha(s) com dados pessoais ficaram de fora da leitura.' : ''));
     if (telefonesDesconhecidos(saida.texto, fichas).length) {
@@ -16017,7 +16195,7 @@ async function pedirIA(texto, opcoes) {
     if (semFonte.length) {
       avisos.push('A IA citou ' + semFonte.slice(0, 3).join(', ') + ', que não aparece nas normas consultadas. Confira no texto oficial antes de usar.');
     }
-    return { tipo: 'ia', texto: saida.texto, fontes: marcarFontesUsadas(saida.texto, saida.fontes), sugestoes: partes.sugestoes, acoes: propostas, avisos: avisos, habilidades: saida.habilidades || [], geradoPorIA: true, imagemLida: imagemLidaSaneada(saida.imagem) };
+    return { tipo: 'ia', texto: saida.texto, fontes: marcarFontesUsadas(saida.texto, saida.fontes), sugestoes: partes.sugestoes, acoes: propostas, avisos: avisos, habilidades: saida.habilidades || [], geradoPorIA: true, externa: saida.externa === true, imagemLida: imagemLidaSaneada(saida.imagem) };
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -16070,6 +16248,25 @@ function trechoRelevante(texto, pergunta, max) {
 // Cota da IA esgotada: em vez de um trecho só, mostra até 3 dos mais ligados à pergunta (de documentos diferentes quando dá), cada um com a sua referência,
 // e diz com franqueza que isto não é uma resposta elaborada. Mesmo formato de respostaDasNormas (tipo 'norma'), com semIA/cotaEsgotada/renova para o app.
 function respostaDasNormasSemIA(achados, pergunta) {
+  // Primeiro tenta a extração de frases (shared/resposta-extrativa.mjs): as frases da base que respondem ao TIPO da pergunta, cada uma com a fonte numerada,
+  // e depois os trechos completos dessas fontes. Sem frase que cubra a pergunta, segue como antes (até 3 trechos).
+  let ext = null;
+  try { ext = responderPorExtracao(pergunta, achados); } catch (e) { ext = null; }
+  if (ext) {
+    const completos = ext.fontes.map(function (i, k) {
+      const t = achados[i].trecho;
+      const rotulo = [t.titulo || t.doc, t.referencia].filter(Boolean).join(' — ');
+      return '[' + (k + 1) + '] ' + (rotulo ? rotulo + '\n' : '') + trechoRelevante(t.texto, pergunta, 550);
+    });
+    return {
+      tipo: 'norma', extrativa: true, frases: ext.frases,
+      semIA: true, motivoSemIA: motivoSemIA(), cotaEsgotada: motivoSemIA() === 'cota', renova: estado.pausaIA.renova,
+      texto: (motivoSemIA() === 'rede' ? 'Estou sem conexão com a IA agora' : 'Estou sem a IA agora') + ', então não monto uma resposta sob medida, mas separei da base de normas as frases que respondem à sua pergunta.\n\n' +
+        ext.texto + '\n\nOs trechos completos, para dar contexto:\n\n' + completos.join('\n\n'),
+      fontes: achados.map(function (a) { return fonteDe(a.trecho, a); }),
+      avisos: [quandoVoltaIA()].concat(ext.avisos)
+    };
+  }
   const escolhidos = [];
   const docsVistos = [];
   achados.forEach(function (a) {
