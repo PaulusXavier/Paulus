@@ -1,5 +1,6 @@
 import { buscarWeb, lerPaginaWeb, validarUrlPublicaHttps } from './pesquisa-web.mjs';
 import { temDadoPessoal } from '../shared/pii.mjs';
+import { verificarCitacoes } from '../shared/citacoes.mjs';
 
 const MAX_PERGUNTA = 400;
 const MAX_RESULTADOS_POR_BUSCA = 3;
@@ -229,12 +230,16 @@ export async function processarInvestigacao(env, step, payload, dependenciasOpci
     return `Síntese limitada: não foi possível gerar uma análise com IA. Foram localizadas estas fontes públicas; consulte-as para verificar o conteúdo antes de tirar conclusões.\n${disponiveis}`;
   });
 
+  const verificacao = verificarCitacoes(typeof sintese === 'string' ? sintese : String(sintese || ''), fontes);
   return {
     status: 'complete',
     query,
     subquestions,
     sources: fontes.map(fonte => ({ ...fonte })),
-    synthesis: typeof sintese === 'string' ? sintese : String(sintese || ''),
+    synthesis: verificacao.sintese,
+    verification: { citations: verificacao.citacoes, removedUrls: verificacao.urlsRemovidas,
+      quotesNotFound: verificacao.aspasNaoEncontradas, noCitation: verificacao.semCitacao,
+      reliable: verificacao.confiavel, summary: verificacao.resumo },
     completedAt: new Date().toISOString()
   };
 }
