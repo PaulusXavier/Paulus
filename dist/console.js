@@ -841,6 +841,9 @@
   }});
   var L = window.PaulusLembretes;
   if (L) L.init({ avisar: function (l) { aviso('Lembrete: ' + l.texto); } });
+  if (window.PaulusAgenda) window.PaulusAgenda.init();
+  var agendaBtn = document.createElement('button'); agendaBtn.type='button'; agendaBtn.textContent='AGENDA'; agendaBtn.className='ch'; agendaBtn.setAttribute('aria-label','Abrir agenda Paulus'); agendaBtn.addEventListener('click',function(){window.PaulusAgenda.abrir(true);});
+  var toolbar=document.getElementById('tb'); if(toolbar) toolbar.appendChild(agendaBtn);
   function enviarPesquisa(pergunta) {
     var idStore = 'paulus.investigacoes';
     function tokenPesquisa() { var S = window.PaulusSessao; if (!S || !S.token) return Promise.resolve(''); try { return Promise.resolve(typeof S.token === 'function' ? S.token() : S.token).then(function (t) { return t || ''; }, function () { return ''; }); } catch (_) { return Promise.resolve(''); } }
@@ -864,6 +867,7 @@
     if (vozPendente) legenda(texto, false); else legenda('');
     msgUsuario(texto, nomes);
     if (!arqs.length && pedidoDeMapa(texto)) { vozPendente = false; mostrarMapaBV(); return; }
+    if (!arqs.length && /^(?:\/agenda|agenda|abrir agenda|mostrar agenda)$/i.test(texto)) { window.PaulusAgenda.abrir(true); return; }
     if (!arqs.length && notasEnviar(texto)) return;
     if (!arqs.length && L) { var lc = L.interpretar(texto); if (lc) { var lx=msgPaulus(); lx.m.setAttribute('data-k','notas'); L.executar(lc).then(function(t){ lx.corpo.textContent=t; transcricao.push({papel:'Paulus',texto:t}); },function(e){lx.corpo.textContent=e.message||'Falha nos lembretes.';}); return; } }
     if (!arqs.length && pesquisaEnviar(texto)) return;
