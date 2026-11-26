@@ -23,6 +23,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+      - name: Instalar Poppler (pdfinfo/pdftotext usados no teste de PDF protegido)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
       - run: npm test
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
