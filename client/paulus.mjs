@@ -30,6 +30,7 @@ import { marcarFontesUsadas, citacoesSemFonte } from '../shared/verificacao.mjs'
 import { respostaDoPedido } from '../shared/calculo-mais.mjs';
 import { responderPorExtracao } from '../shared/resposta-extrativa.mjs';
 import { respostaDeMatematicaLocal } from '../shared/matematica-local.mjs';
+import { psiLerTabela, psiRespostaDoPedido, psiSemBase } from '../shared/psicometria.mjs';
 import { respostaDeRota, lerPedidoDeRota } from '../shared/rota.mjs';
 import { respostaDeModelo, lerPedidoDeModelo, urlDoModelo, MODELOS_3D } from '../shared/modelos.mjs';
 import { lerPedidoDeQr, respostaDeQr, qrExtrairLinks, qrGerar, qrArquivo, qrCapacidadeBytes } from '../shared/qrcode.mjs';
@@ -99,6 +100,7 @@ const estado = {
   // Uso sem internet: perguntas que só a base respondeu (a IA estava fora) e quem quer saber quando o estado da IA muda. Só na sessão: nada vai para o disco.
   pendentes: [],
   qrAnexo: null,
+  psi: { chave: '', tabela: null },   // base de dados lida do anexo (CSV/TSV/TXT), só em memória; nada é guardado nem enviado
   ouvintes: [],
   ultimoAviso: '|0|0',   // estado parado: sem pausa, sem pendências
   pronto: Promise.resolve()
@@ -1045,6 +1047,25 @@ async function tratarGeo(t, o, tipo) {
 // ------------------------------------------------------------------ pergunta
 
 
+// Análises psicométricas e estatísticas (alfa de Cronbach, fatorial, correlação, teste t, ANOVA, qui-quadrado, regressão...) sobre a base anexada:
+// tudo no aparelho, sem IA e sem rede, portanto sem gastar cota. A base e o resultado não entram no histórico nem na memória de respostas.
+function respostaDePsicometria(t, o) {
+  const doc = o.documento && typeof o.documento.texto === 'string' ? o.documento : null;
+  if (!doc) {
+    const guia = (!o.arquivos || !o.arquivos.length) ? psiSemBase(t) : null;
+    return guia ? { tipo: 'psicometria', texto: guia, sensivel: true, fontes: [], avisos: ['Resposta feita neste aparelho, sem IA e sem gastar cota.'], pergunta: '', docs: [] } : null;
+  }
+  const chave = String(doc.nome || '') + '|' + doc.texto.length;
+  if (estado.psi.chave !== chave) { let tb = null; try { tb = psiLerTabela(doc.texto); } catch (e) { tb = null; } estado.psi = { chave: chave, tabela: tb }; }
+  if (!estado.psi.tabela) return null;
+  let r = null;
+  try { r = psiRespostaDoPedido(t, estado.psi.tabela); } catch (e) { r = null; }
+  if (!r) return null;
+  const avisos = r.avisos.slice();
+  if (doc.texto.length >= 599000) avisos.push('O arquivo é muito grande e foi lido só até o limite do aplicativo: as últimas linhas podem ter ficado de fora.');
+  return { tipo: 'psicometria', analise: r.analise, texto: r.texto, sensivel: true, fontes: [], avisos: avisos, pergunta: '', docs: [] };
+}
+
 // Resposta de conta feita no aparelho. Idade e nascimento (sensivel) nunca entram no histórico.
 function respostaDeCalculo(t, o, conta) {
   if (!conta.sensivel && !Array.isArray(o.historico)) {
@@ -1118,6 +1139,12 @@ async function perguntarFluxo(texto, opcoes) {
   // (Nada sai do aparelho neste passo.)
   const crise = detectarCrise(t);
   if (crise) return crise;
+
+  // Análise de dados (psicometria/estatística) sobre CSV/TSV anexado: no aparelho, antes do filtro (a base não passa por ele e não sai daqui).
+  if (!o.semPsicometria && !comImagem) {
+    const psi = respostaDePsicometria(t, o);
+    if (psi) return psi;
+  }
 
   // Edição de PDF: tudo no aparelho, por isso vem antes do filtro (preencher uma ficha exige nome e documento no texto do pedido).
   if (!o.semPdf) {
@@ -1371,6 +1398,8 @@ const Paulus = { init, perguntar,
   rota: { ler: lerPedidoDeRota, responder: respostaDeRota },
   // Matemática no aparelho, sem IA (v0.28.0): resolver(texto) -> { texto, itens, resolvida, parcial, topicos, avisos } ou null
   matematica: { responder: respostaDeMatematicaLocal },
+  // Psicometria/estatística no aparelho, sem IA: ler(csv) -> tabela ou null; responder(texto, tabela) -> { texto, analise, avisos } ou null
+  psicometria: { ler: psiLerTabela, responder: psiRespostaDoPedido },
   // Modelos 3D didáticos (v0.20.0; mapa de Roraima v0.21.0): ler(texto) -> pedido ou null; responder(texto) -> resultado ou null; catalogo; url(modelo); baixar(modelo)
   modelos: { ler: lerPedidoDeModelo, responder: respostaDeModelo, catalogo: MODELOS_3D, url: function (m) { return urlDoModelo(m, cfg.modelosUrl); }, baixar: modeloBaixar },
   qr: { ler: lerPedidoDeQr, responder: respostaDeQr, links: qrExtrairLinks, gerar: qrGerar, arquivo: qrArquivo, capacidade: function (n, v) { return qrCapacidadeBytes(n || 'M', v); } },
