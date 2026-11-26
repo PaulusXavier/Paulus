@@ -285,3 +285,11 @@ test('worker: busca boa não gasta a releitura; COMPREENSAO=desligado e falha da
   assert.equal(r.status, 200);
   assert.equal((await r.json()).resposta, 'Resposta final.');
 });
+
+test('pedeAnalise: pergunta informativa não dispara análise; com dilema, dispara', () => {
+  assert.equal(pedeAnalise('como faço para incluir uma família no CadÚnico?', 'normal'), false);
+  assert.equal(pedeAnalise('o que o CRAS pode oferecer para um idoso?', 'normal'), false);
+  assert.equal(pedeAnalise('preciso do CPF de todos da família?', 'normal'), false);
+  assert.equal(pedeAnalise('posso negar um benefício eventual para uma família com renda alta?', 'normal'), true);
+  assert.equal(pedeAnalise('como lidar com uma família que se recusa ao acompanhamento?', 'normal'), true);
+});
