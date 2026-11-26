@@ -180,6 +180,7 @@ test('service worker: rede boa devolve a rede e guarda cópia; outro domínio ne
   const sw = carregarSW({ fetch: async () => res('rede') });
   const ev = sw.pedir('https://site.test/console.js');
   assert.equal((await ev.resposta).txt, 'rede');
+  await new Promise(r => setTimeout(r, 10));            // a cópia é gravada logo depois de comparar com a guardada
   assert.deepEqual(sw.puts, ['https://site.test/console.js']);
   assert.equal(sw.pedir('https://outro.test/x.js').resposta, null);
 });
@@ -218,8 +219,8 @@ test('service worker: navegação sem internet abre o index guardado; sem nada, 
   assert.equal(r.type, 'error');
 });
 
-test('service worker: a instalação guarda as bases por pacote e o leitor de PDF para a primeira vez sem internet', () => {
+test('service worker: a instalação guarda a base inteira (sem baixar de novo os pacotes, que são as mesmas metades) e o leitor de PDF para a primeira vez sem internet', () => {
   const t = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  for (const f of ['conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf.min.mjs', 'pdf.worker.min.mjs', 'pdf-lib.min.js', 'lugares-boa-vista.json']) assert.ok(t.includes("'" + f + "'"), f);
+  for (const f of ['conhecimento.json', 'pdf.min.mjs', 'pdf.worker.min.mjs', 'pdf-lib.min.js', 'lugares-boa-vista.json']) assert.ok(t.includes("'" + f + "'"), f);
   assert.match(t, /var V = '[^']*';/, 'o build troca o nome do cache por essa linha');
 });
