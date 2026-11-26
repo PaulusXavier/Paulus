@@ -49,7 +49,7 @@ test('frases escolhidas são cópia literal da base (nada é inventado) e cada u
       assert.ok(t.includes(literal), 'a frase tem de estar no trecho: ' + literal);
       assert.ok(r.texto.includes('[' + f.fonte + ']'));
     }
-    assert.match(r.texto, /Fontes:\n\[1\] /);
+    assert.match(r.texto, /\*\*Fontes\*\*\n- \[1\] /);
   }
 });
 
@@ -116,7 +116,7 @@ test('app: com a cota esgotada a resposta traz as frases certas, as fontes numer
   assert.equal(r.extrativa, true);
   assert.equal(r.semIA, true);
   assert.match(r.texto, /R\$ 218,00/);
-  assert.match(r.texto, /Fontes:\n\[1\]/);
+  assert.match(r.texto, /\*\*Fontes\*\*\n- \[1\]/);
   assert.match(r.texto, /Os trechos completos, para dar contexto/);
   assert.ok(r.fontes.length >= 1);
   assert.ok(r.avisos.some((a) => /cota gratuita da IA acabou/.test(a)));
