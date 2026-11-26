@@ -47,6 +47,7 @@ import { classificarPedido, consultaDoPedido, trechosParaOPedido, perfilDaIA, eh
 import { sanearEstado } from '../shared/conversa.mjs';
 import { escopoDaConversa } from '../shared/escopo.mjs';
 import { respostaDiretaDaFicha } from '../shared/consulta-direta.mjs';
+import { respostaDeContagem, respostaDeFatoBoaVista, respostaDePolitica, respostaDaBase } from '../shared/resposta-local.mjs';
 import { ehPerguntaSobreSi, temasDaPergunta, montarAutoconhecimento, fichaComoTexto } from '../shared/autoconhecimento.mjs';
 import { montarMensagens, montarMensagensSaudacao, preferenciasValidas, fichasComoTexto, baseAppComoTexto, panoramaComoTexto } from './prompt.mjs';
 import { montarMensagensInterpretacao, lerInterpretacao } from './interpretar.mjs';
@@ -562,6 +563,18 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       }
     }
 
+    // Resposta local (shared/resposta-local.mjs): contagem e lista de equipamentos por bairro ("quantas escolas tem no Centro?") sai do diretório
+    // de Boa Vista, sem IA. RESPOSTA_LOCAL="desligado" (wrangler.toml) manda tudo para a IA, como antes.
+    const respostaLocalLigada = String(env.RESPOSTA_LOCAL || '').toLowerCase() !== 'desligado';
+    const responderLocal = function (texto, fontesLocais) {
+      if (!querStream) return json({ resposta: texto, fontes: fontesLocais || [], direta: true, local: true });
+      return sse((fontesLocais && fontesLocais.length ? 'data: ' + JSON.stringify({ fontes: fontesLocais }) + '\n\n' : '') + 'data: ' + JSON.stringify({ t: texto }) + '\n\ndata: [DONE]\n\n');
+    };
+    if (respostaLocalLigada && !imagemLida && !documento && (modo === 'normal' || modo === 'consulta')) {
+      const contagem = respostaDeContagem(pergunta);
+      if (contagem) return responderLocal(contagem.texto, contagem.fontes);
+    }
+
     // Cota do dia esgotada (marcada há pouco): não monta busca, raciocínio nem prompt para uma chamada que vai falhar. O navegador responde com a base de normas.
     if (cotaMarcadaEsgotada()) return json(corpoCotaEsgotada(), 503);
 
@@ -593,6 +606,13 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
         for (const parte of partes.slice(0, 3)) if (achados.length < k + 3) achados = completarAchados(achados, buscarFontes(indice, parte, { k: 2 })).achados;
       }
       fontes = achados.map(function (a) { return fonteDe(a.trecho, a); });
+      // Dado de Boa Vista, pergunta frequente de política (Bolsa Família, CadÚnico) ou definição de sigla ("o que é o PAIF?"): o programa mostra
+      // a seção da base com a fonte e a IA não é chamada. Análise, caso, texto pedido, conta, outro idioma e tema sensível seguem para a IA.
+      if (respostaLocalLigada && modo === 'normal' && !imagemLida && !documento && !idiomaExtra && !sobreSi && !rota.length
+          && !contasDoPedido(pergunta, { hoje: 0 }) && !pareceProblemaDeCalculo(pergunta) && !pedidoDeDesenho(pergunta) && !pedidoDeMatematica(pergunta)) {
+        const daBase = respostaDeFatoBoaVista(pergunta, base) || respostaDePolitica(pergunta, base) || respostaDaBase(pergunta, achados, { analise: pedeAnalise(pergunta, modo, hist), partes: partes.length, sobreSi: sobreSi, rota: rota.length > 0 });
+        if (daBase) return responderLocal(daBase.texto, daBase.escolhidos.map(function (a) { return fonteDe(a.trecho, a); }));
+      }
       // Compreensão: quando a busca por palavras não achou nada que responda (a pessoa falou "o bolsa caiu pra vizinha" e a norma escreve
       // "bloqueio do benefício"), a IA relê a pergunta com a conversa inteira, diz o que a pessoa quer e quais palavras técnicas a norma usaria,
       // e a busca roda de novo com isso. Só roda quando a primeira busca falhou (uma chamada a mais só nesses casos).
