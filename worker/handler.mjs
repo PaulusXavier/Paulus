@@ -10,6 +10,8 @@
 //   MODELO_INTERPRETE opcional. Modelo do passo de interpretação (padrão: o mesmo MODELO).
 //   MODELO_RACIOCINIO opcional. Modelo do passo que monta o esqueleto de análise de perguntas de análise (padrão: o mesmo MODELO). RACIOCINIO="desligado" pula o passo (poupa cota).
 //   COTA_CF_CONTA / COTA_CF_TOKEN  opcionais (segredos). Ligam a rota /cota ao consumo do dia (worker/cota.mjs). COTA_NEURONS muda a franquia (padrão 10000).
+//   IA_EXTERNA_URL / IA_EXTERNA_MODELO / IA_EXTERNA_CHAVE  opcionais. IA de reserva de outro provedor (API compatível com OpenAI), usada só depois que a cota da Cloudflare recusa (worker/reserva-externa.mjs).
+//                    A chave é segredo. Nunca recebe foto, PDF escaneado, documento anexado nem conversa sobre suicídio. IA_EXTERNA="desligado" desliga.
 //   MODELO_CALCULO   opcional. Modelo do passo que escreve as contas de uma pergunta de cálculo (padrão: o mesmo MODELO). Quem faz a conta é o programa (shared/calculo.mjs).
 //
 // Pedido (POST, JSON): { app, pergunta, pagina, historico:[{papel,texto}], fichas:[...], stream }
@@ -55,6 +57,7 @@ import { pareceProblemaDeCalculo, temNumeroPorExtenso } from '../shared/calculo.
 import { contasDoPedido, contasDeProva } from '../shared/calculo-mais.mjs';
 import { pedeAnalise, montarMensagensRaciocinio, lerRaciocinio, raciocinioComoTexto, buscaDoRaciocinio, completarAchados, conferirRaciocinio, calibrarSeguranca, tipoDeAnalise, disseSemAnalise, montarMensagensReformatar, limparPensamento } from './raciocinar.mjs';
 import { tratarVoz } from './voz.mjs';
+import { externaLigada, chamarExterna, conversaSensivel } from './reserva-externa.mjs';
 import { consultarCota, ehErroDeCota, marcarCotaEsgotada, cotaMarcadaEsgotada, corpoCotaEsgotada } from './cota.mjs';
 import { imagemSaneada, lerImagem, lerImagens, sanearLeitura, CORPO_MAX_COM_IMAGEM, MAX_IMAGENS_POR_PEDIDO } from './visao.mjs';
 import { montarMensagensPlano, lerPlano, executarPlano, calculosDiretos, numerosAbonados, valoresDosCalculos, mesclarValores } from './planejar.mjs';
@@ -170,7 +173,7 @@ export async function corrigirCitacoes(ctx, rascunho) {
 // recuperar (opcional): função async que devolve a resposta inteira pelo modelo de reserva. Se o fluxo do modelo principal
 // falhar ou terminar sem nenhum texto ANTES de qualquer pedaço sair, a resposta vem da reserva (a pessoa não vê erro).
 // Se o fluxo cair no meio, o texto parcial não é completado por outro modelo (viraria uma resposta emendada): vai o aviso de erro.
-function normalizarFluxo(upstream, fontes, habilidades, citaveis, recuperar, imagemLida, corrigir) {
+function normalizarFluxo(upstream, fontes, habilidades, citaveis, recuperar, imagemLida, corrigir, externa) {
   const dec = new TextDecoder();
   const enc = new TextEncoder();
   let leitor = null, cancelado = false;
@@ -192,6 +195,7 @@ function normalizarFluxo(upstream, fontes, habilidades, citaveis, recuperar, ima
       if (habilidades.length) emitir({ habilidades: habilidades });
       if (citaveis) emitir({ citaveis: citaveis });
       if (imagemLida) emitir({ imagem: imagemLida });
+      if (externa) emitir({ externa: true });
       try {
         leitor = upstream.getReader();
         for (;;) {
@@ -244,23 +248,41 @@ const BALDES = 1;
 const AFINIDADE = 'paulus-' + (BALDES > 1 ? Math.floor(Math.random() * BALDES) : 0);
 const OPCOES_IA = { extraHeaders: { 'x-session-affinity': AFINIDADE } };
 
+// IA de reserva externa (worker/reserva-externa.mjs): só quando a cota da Cloudflare recusa, e nunca nos casos em que o pedido marcou
+// env.__semExterna (imagem, documento anexado, conversa sobre suicídio). Falhou ou não está ligada: sobe o erro de cota de antes (503).
+function externaPossivel(env) { return externaLigada(env) && !env.__semExterna; }
+
+function fluxoDeTexto(textoPronto) {
+  const enc = new TextEncoder();
+  const fluxo = new ReadableStream({ start(ctl) { ctl.enqueue(enc.encode('data: ' + JSON.stringify({ response: textoPronto }) + '\n\n')); ctl.close(); } });
+  fluxo.externa = true;
+  return fluxo;
+}
+
+async function viaExterna(env, mensagens, stream, ajuste, erroCota) {
+  if (!externaPossivel(env)) throw erroCota;
+  let r;
+  try { r = await chamarExterna(env, mensagens, ajuste); } catch (e) { throw erroCota; }
+  return stream ? fluxoDeTexto(r.response) : r;
+}
+
 async function chamarIA(env, mensagens, stream, extra) {
   const ajuste = extra || {};
   const { principal, reserva } = resolverModelos(env, ajuste);
   const params = parametrosDaIA(mensagens, ajuste, stream);
   // Cota do dia já esgotada (marcada há pouco): nem tenta. Os dois modelos gastam da mesma franquia, então falhariam igual e a pessoa esperaria à toa.
-  if (cotaMarcadaEsgotada()) { const e = new Error('4006: daily free allocation used up'); e.code = 4006; throw e; }
+  if (cotaMarcadaEsgotada()) { const e = new Error('4006: daily free allocation used up'); e.code = 4006; return viaExterna(env, mensagens, stream, ajuste, e); }
   let saida;
   try {
     saida = await env.AI.run(principal, params, OPCOES_IA);
   } catch (e) {
     // Cota acabou: o modelo reserva usa a mesma franquia e também falharia; o erro sobe para virar a resposta de cota esgotada.
-    if (ehErroDeCota(e)) { marcarCotaEsgotada(); throw e; }
+    if (ehErroDeCota(e)) { marcarCotaEsgotada(); return viaExterna(env, mensagens, stream, ajuste, e); }
     if (reserva === principal) throw e;
     try {
       return await env.AI.run(reserva, params, OPCOES_IA);
     } catch (e2) {
-      if (ehErroDeCota(e2)) marcarCotaEsgotada();
+      if (ehErroDeCota(e2)) { marcarCotaEsgotada(); return viaExterna(env, mensagens, stream, ajuste, e2); }
       throw e2;
     }
   }
@@ -505,6 +527,8 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     // Fica depois do socorro, do filtro da pergunta e do limite por minuto: a leitura gasta uma chamada de IA a mais.
     let imagemLida = null;
     const imagensDoPedido = Array.isArray(corpo.imagens) ? corpo.imagens : (corpo.imagem ? [corpo.imagem] : []);
+    // Foto, PDF escaneado, documento anexado e conversa sobre suicídio ou autolesão nunca vão à IA de reserva externa (worker/reserva-externa.mjs).
+    if (imagensDoPedido.length || corpo.documento || conversaSensivel(pergunta, corpo.historico)) env = Object.assign({}, env, { __semExterna: true });
     if (imagensDoPedido.length && !interpretar) {
       const recusa = function (texto) {
         if (!querStream) return json({ resposta: texto, fontes: [] });
@@ -531,7 +555,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     // Interpretação: só reescreve e classifica a pergunta (nada de busca nem resposta). Falha da IA não derruba o app.
     if (interpretar) {
       let texto;
-      if (cotaMarcadaEsgotada()) return json(corpoCotaEsgotada(), 503);
+      if (cotaMarcadaEsgotada() && !externaPossivel(env)) return json(corpoCotaEsgotada(), 503);
       try {
         texto = extrairTexto(await chamarIA(env, montarMensagensInterpretacao({ app: app, historico: corpo.historico, pergunta: pergunta, estado: estadoDaConversa }), false,
           { modelo: env.MODELO_INTERPRETE, max_tokens: 260, temperature: 0 }));
@@ -576,7 +600,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     }
 
     // Cota do dia esgotada (marcada há pouco): não monta busca, raciocínio nem prompt para uma chamada que vai falhar. O navegador responde com a base de normas.
-    if (cotaMarcadaEsgotada()) return json(corpoCotaEsgotada(), 503);
+    if (cotaMarcadaEsgotada() && !externaPossivel(env)) return json(corpoCotaEsgotada(), 503);
 
     let comMatematica = false, idiomaExtra = '', leitura = '', raciocinio = '', tipoAnalise = '', achados = [], fontes = [], habilidades = [], tema = false, sobreSi = false, partesDaMsg = [], voce = '', mensagens, pref = null, calculos = null, quantitativo = false, textosDaPessoa = [];
     if (modo === 'saudacao') {
@@ -637,6 +661,7 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
         } catch (e) { /* sem a releitura a resposta segue como antes */ }
       }
       tema = !sobreSi && (rota.length > 0 || /suicid|ideacao|autolesao|automutil/.test(normalizar(consulta)));
+      if (tema) env = Object.assign({}, env, { __semExterna: true });
       // Habilidades (roteiros de trabalho): só quando a pergunta combina. Em tema de suicídio a resposta é só cuidado e rede, sem roteiro.
       // Seguimento e ajuste herdam o assunto da pergunta anterior ("deixe mais formal" continua no ofício).
       const herda = modo === 'seguimento' || modo === 'refinamento' || modo === 'continuar' || modo === 'porque' || modo === 'contestacao';
@@ -757,16 +782,16 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     if (querStream && saida && typeof saida.getReader === 'function') {
       // Se o fluxo do modelo grande falhar ou vier vazio antes de sair texto, o modelo pequeno responde (sem stream) no lugar.
       const { principal, reserva } = resolverModelos(env, ajuste);
-      const recuperar = reserva !== principal
+      const recuperar = (reserva !== principal && !saida.externa)
         ? async function () { return extrairTexto(await env.AI.run(reserva, parametrosDaIA(mensagens, ajuste, false), OPCOES_IA)); }
         : null;
-      return sse(normalizarFluxo(saida, fontes, nomesHabilidades, citaveis, recuperar, imagemLida, function (texto) { return corrigirCitacoes(ctxCorrecao, texto); }));
+      return sse(normalizarFluxo(saida, fontes, nomesHabilidades, citaveis, recuperar, imagemLida, function (texto) { return corrigirCitacoes(ctxCorrecao, texto); }, !!saida.externa));
     }
 
     let resposta = extrairTexto(saida);
     if (!resposta) return json({ erro: 'Resposta vazia.' }, 502);
     resposta = (await corrigirCitacoes(ctxCorrecao, resposta)) || resposta;
-    return json({ resposta: resposta, fontes: fontes, habilidades: nomesHabilidades, citaveis: citaveis, imagem: imagemLida || undefined });
+    return json({ resposta: resposta, fontes: fontes, habilidades: nomesHabilidades, citaveis: citaveis, imagem: imagemLida || undefined, externa: saida && saida.externa ? true : undefined });
   }
 
   // Rede de segurança: qualquer exceção que escape vira 500 em JSON COM os cabeçalhos de CORS. Sem isso o Workers devolve a página de erro
