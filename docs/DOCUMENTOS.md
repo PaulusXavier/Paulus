@@ -2,7 +2,10 @@
 
 > **Uso individual, sem fins comerciais.** O Paulus é um projeto pessoal de Paulo Xavier e **só ele o usa**. Não é um serviço oferecido ao público nem vendido; o repositório é público apenas por conveniência de publicação. Veja [USO-INDIVIDUAL.md](../USO-INDIVIDUAL.md).
 
-No console, o clipe anexa **PDF com texto, DOCX, TXT, MD ou CSV**. Depois é só perguntar ("resuma este documento", "o que diz sobre o prazo de recurso?"). O documento fica "em uso" (chip verde acima do campo) nas próximas perguntas até você clicar no ✕ ou abrir uma nova conversa.
+No console, o clipe anexa **PDF com texto, DOCX, TXT, MD, CSV, TSV ou XLSX**. Depois é só perguntar ("resuma este documento", "o que diz sobre o prazo de recurso?"). O documento fica "em uso" (chip verde acima do campo) nas próximas perguntas até você clicar no ✕ ou abrir uma nova conversa.
+
+## Tabelas e gráficos no aparelho
+Anexe um arquivo **CSV, TSV ou XLSX** e peça, por exemplo, "gráfico de barras de atendimentos por mês", "gráfico de linhas de visitas por mês", "pizza por situação", "histograma de idade" ou "dispersão de renda e frequência". Barras, linhas, pizza, histograma e dispersão são calculados e desenhados no navegador; o console mostra o gráfico e permite descarregar o SVG. **A tabela e o resultado não são enviados à IA nem à rede, não são gravados e não gastam cota.** O separador CSV/TSV é detectado automaticamente. Para XLSX, só a primeira folha é lida; fórmulas usam o valor guardado no ficheiro, datas Excel podem aparecer como números e macros não são executadas. O leitor aceita até 25 MB de ficheiro e limita o texto extraído a 600 mil caracteres. Colunas com títulos identificadores reconhecidos (por exemplo, nome, CPF, NIS e telefone) são excluídas; mesmo assim, evite informação pessoal em títulos ou categorias e confira os dados antes de usar o gráfico. Estatísticas por categoria usam a média por omissão; escreva "soma" ou "mediana" para alterar. Linhas seguem a ordem em que as categorias aparecem na planilha.
 
 ## Como funciona (e a privacidade)
 - O arquivo é lido **no aparelho**; ele não é enviado inteiro.
