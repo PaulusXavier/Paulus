@@ -442,6 +442,12 @@
     var sc = document.createElement('script');
     sc.src = 'console.js';
     sc.onerror = function () { var st = $('st'); if (st) st.textContent = 'ERRO: console.js NÃO ENCONTRADO'; };
+    sc.onload = function () {
+      var adv = document.createElement('script');
+      adv.src = 'advanced.js';
+      adv.onerror = function () { if (window.console) console.warn('Paulus: ferramentas avançadas indisponíveis.'); };
+      document.body.appendChild(adv);
+    };
     document.body.appendChild(sc);
   }
 

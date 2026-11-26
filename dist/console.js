@@ -1026,7 +1026,9 @@
     else if (F) trechos = F.dividir(modo === 'resumo' ? F.resumir(bruto) : F.texto(bruto)).map(function (x) { return { t: x, tom: 1, taxa: 1, pausa: 0 }; });
     else { var limpo = bruto.replace(/[*_`#>|]/g, '').slice(0, 1500).trim(); trechos = limpo ? [{ t: limpo, tom: 1, taxa: 1, pausa: 0 }] : []; }
     if (!trechos.length) { fimDaFala(); return; }
-    if (!ENDPOINT || typeof P.voz !== 'function') { falarNoNavegador(trechos, id); return; }
+    var sintetizador = 'server';
+    try { sintetizador = JSON.parse(localStorage.getItem('paulus.voz.sintese') || '"server"'); } catch (e) { sintetizador = 'server'; }
+    if (sintetizador !== 'server' || !ENDPOINT || typeof P.voz !== 'function') { falarNoNavegador(trechos, id); return; }
     abortaVoz = typeof AbortController === 'function' ? new AbortController() : null;
     falarDoServidor(trechos, id, 0);
   }

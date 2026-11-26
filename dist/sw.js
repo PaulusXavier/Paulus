@@ -1,7 +1,7 @@
 // Service worker do Console do Paulus: guarda a tela para abrir sem internet. Rede primeiro (atualiza sozinho), cache como reserva.
 // Só arquivos do próprio site; as perguntas à IA (Worker, outro domínio) nunca passam pelo cache.
-var V = 'paulus-console-28a0f1d81b81';
-var BASE = ['./', 'index.html', 'paulus.v1.js', 'login.js', 'console.js', 'notas.js', 'docs.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
+var V = 'paulus-console-333edded3e6d';
+var BASE = ['./', 'index.html', 'paulus.v1.js', 'login.js', 'console.js', 'advanced.js', 'notas.js', 'docs.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
 // Para funcionar sem internet logo na primeira vez: a base de normas, o editor de PDF e o mapa também ficam guardados na instalação.
 // Um a um e sem derrubar a instalação se algum falhar (arquivo pesado, rede lenta, ainda não publicado): o que faltar entra no cache quando for usado.
 // A base entra UMA vez, inteira (é o que o console carrega). Os pacotes geral/psicologia são as duas metades dela e só servem aos apps que os copiam.
