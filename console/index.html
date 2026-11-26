@@ -555,10 +555,11 @@ body[data-estado=busy] .qw{background-color:var(--panel)}
 #boot .bx{font-size:12px;letter-spacing:.1em}
 
 .fc.doc{border-color:var(--ok)}
-/* anotações (lista de compras no Firebase) */
+/* anotações de agenda e lista de compras no Firebase */
 #np{position:fixed;right:10px;top:calc(var(--hh) + var(--sat) + 4px);z-index:8;width:min(360px,calc(100vw - 20px));max-height:calc(100vh - var(--hh) - var(--sat) - 24px);overflow:auto;padding:16px;border-radius:12px;background:var(--panel);border:1px solid var(--bd2);box-shadow:0 12px 40px #000b;color:var(--t);font:14px/1.4 var(--hud)}
 #np[hidden]{display:none}
-#np h2{margin:0 0 10px;font:600 12px var(--hud);letter-spacing:.06em;color:var(--c2)}
+#np h2{margin:0 0 10px;font:650 15px var(--hud);letter-spacing:.01em;color:var(--c2)}
+#np .nf{width:100%;min-height:42px;margin:0 0 12px;padding:0 12px;border-radius:9px;background:var(--panel2);border:1px solid var(--bd2);color:var(--t);font:600 14px var(--hud)}
 #np .nl{display:flex;flex-direction:column;gap:2px;margin-bottom:12px;max-height:46vh;overflow:auto}
 #np .nv{margin:4px 0;color:var(--mut);font-size:13px}
 #np .ni-l{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 4px;border-bottom:1px solid var(--bd)}
@@ -574,6 +575,23 @@ body[data-estado=busy] .qw{background-color:var(--panel)}
 #np .nb{background:var(--c);color:#02121a;border-color:var(--c)}
 #np .nd{flex:1}
 #np .ns{min-height:18px;margin:10px 0 0;font-size:13px;color:var(--mut)}#np .ns.erro{color:#ff8a80}
+#nt-aviso{position:fixed;top:calc(var(--hh) + var(--sat) + 8px);right:12px;z-index:7;width:min(360px,calc(100vw - 24px));padding:14px 16px;border:1px solid var(--a);border-left-width:4px;border-radius:12px;background:var(--panel);box-shadow:0 14px 36px #0009;color:var(--t);font:14px/1.45 var(--hud);animation:nt-aparece .24s ease-out both}
+#nt-aviso[hidden]{display:none}
+#nt-aviso .nt-topo{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#nt-aviso .nt-titulo{font-size:15px;color:var(--a)}
+#nt-aviso .nt-fechar{min-width:32px;min-height:32px;padding:0 8px;border-color:transparent;color:var(--mut);background:transparent;font-size:12px}
+#nt-aviso .nt-resumo{margin:8px 0 4px;font-weight:650}
+#nt-aviso .nt-grupos{display:grid;gap:5px}
+#nt-aviso .nt-grupo-titulo{margin:8px 0 2px;color:var(--c2);font:650 12px var(--hud)}
+#nt-aviso .nt-itens{margin:2px 0 6px;padding-left:20px;color:var(--t)}
+#nt-aviso .nt-itens li{margin:3px 0;overflow-wrap:anywhere}
+#nt-aviso .nt-mais{color:var(--mut);font-style:italic}
+#nt-aviso .nt-sem-prazo{margin:8px 0;color:var(--mut);font-size:12px}
+#nt-aviso .nt-abrir{min-height:38px;padding:0 14px;border:0;border-radius:9px;background:var(--a);color:#1b1308;font:650 13px var(--hud)}
+#nt-aviso .nt-abrir:hover{filter:brightness(1.08)}
+body.claro:not(.lock) #nt-aviso .nt-abrir{color:#fff}
+@keyframes nt-aparece{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){#nt-aviso{animation:none}}
 .m[data-k=notas] .k{color:var(--ok)}
 
 /* ---------- refino v3: legibilidade, celular e modo foco ---------- */
