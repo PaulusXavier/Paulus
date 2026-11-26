@@ -45,13 +45,16 @@ test('o arquivo do navegador não tem import/export sobrando', () => {
   assert.ok(typeof carregar(async () => { throw new Error('não deveria chamar'); }).init === 'function');
 });
 
-test('dado pessoal: bloqueia sem chamar a rede', async () => {
-  let chamou = false;
-  const P = carregar(async () => { chamou = true; });
-  P.init({ app: 'argo', endpoint: ENDPOINT });
-  const r = await P.perguntar('A Maria Souza, CPF 123.456.789-09, faltou');
-  assert.equal(r.tipo, 'bloqueio');
-  assert.equal(chamou, false);
+test('dado pessoal: nome e CPF só saem como marcadores; telefone e endereço continuam bloqueados sem rede', async () => {
+  const corpos = [];
+  const P = carregar(async (url, init) => { corpos.push(String(init.body)); throw new Error('sem rede'); });
+  P.init({ app: 'argo', endpoint: ENDPOINT, minIntervaloMs: 0 });
+  const bloq = await P.perguntar('A Maria Souza, tel (95) 98123-4567, faltou');
+  assert.equal(bloq.tipo, 'bloqueio');
+  assert.equal(corpos.length, 0);
+  await P.perguntar('A Maria Souza, CPF 123.456.789-09, faltou');
+  assert.equal(corpos.length, 1);
+  assert.ok(!/Maria|Souza|123\.456/.test(corpos[0]), corpos[0]);   // a conversa com a IA falhou, mas o que saiu não tinha o dado real
 });
 
 test('pedido de socorro: telefones na hora, sem rede', async () => {
