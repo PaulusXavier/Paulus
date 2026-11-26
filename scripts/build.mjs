@@ -98,6 +98,9 @@ export function construir() {
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'index.html')); // a raiz do site (…/Paulus/) abre o console
   // tela de login (carrega o console.js só depois de entrar) e o próprio console.js, se existir
   for (const f of ['login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'docs.js']) { const o = join(RAIZ, 'console', f); if (existsSync(o)) copyFileSync(o, join(saida, f)); }
+  // A configuração Firebase privada de deploy é opcional e fica fora do Git.
+  const agendaFirebase = join(RAIZ, 'console', 'agenda-firebase-config.js');
+  if (existsSync(agendaFirebase)) copyFileSync(agendaFirebase, join(saida, 'agenda-firebase-config.js'));
   // instalável (PWA): procura em console/ e, se não achar, na raiz do repositório
   for (const f of ['manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png']) {
     const origem = [join(RAIZ, 'console', f), join(RAIZ, f)].find(existsSync);
