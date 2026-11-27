@@ -516,11 +516,11 @@
   }
   function weekDates(d) { var s = new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay(), 12); return Array.apply(null, Array(7)).map(function (_, i) { return new Date(s.getFullYear(), s.getMonth(), s.getDate() + i, 12); }); }
   function cellHtml(d, m, today, sel, wide) {
-    var k = key(d), o = official(k), md = mds()[k] || [], all = rows(k), vis = all.filter(function (e) { return !(view.hideDone && e.done); }), ord = order(vis), lim = wide ? 99 : 2, late = k < today && all.some(function (e) { return !e.done; });
+    var k = key(d), o = official(k), md = mds()[k] || [], all = rows(k), visIdx = all.map(function (e, i) { return i; }).filter(function (i) { return !(view.hideDone && all[i].done); }), vis = visIdx.map(function (i) { return all[i]; }), ord = order(vis), lim = 999, late = k < today && all.some(function (e) { return !e.done; });
     var pend = all.filter(function (e) { return !e.done; }).length;
     var notes = ord.slice(0, lim).map(function (i) {
       var e = vis[i], c = cleanCat(e.cat);
-      return '<span class="ag-note' + (e.done ? ' done' : '') + '"' + (c ? ' style="--cat:' + CATS[c].color + '"' : '') + '>' + (e.time ? '<b>' + esc(e.time) + '</b> ' : '') + esc(e.text) + '</span>';
+      return '<span class="ag-note' + (e.done ? ' done' : '') + '"' + (c ? ' style="--cat:' + CATS[c].color + '"' : '') + '><button type="button" class="ag-ck" data-cdone="' + visIdx[i] + '" data-day="' + k + '" aria-pressed="' + (!!e.done) + '" aria-label="' + (e.done ? 'Reabrir' : 'Marcar como concluída') + ': ' + esc(e.text) + '" title="' + (e.done ? 'Concluída — clique para reabrir' : 'Marcar como concluída') + '">✓</button>' + (e.time ? '<b>' + esc(e.time) + '</b> ' : '') + esc(e.text) + '</span>';
     }).join('') + (ord.length > lim ? '<span class="ag-more">+' + (ord.length - lim) + '</span>' : '');
     return '<div class="ag-cell' + (d.getMonth() !== m ? ' out' : '') + (d.getDay() % 6 === 0 ? ' weekend' : '') + (k === today ? ' today' : '') + (k === sel ? ' sel' : '') + (late ? ' late' : '') + '" data-day="' + k + '" role="gridcell" tabindex="' + (k === sel ? 0 : -1) + '" aria-selected="' + (k === sel) + '" aria-label="' +
       esc(dlabel(d, { weekday: 'long', day: 'numeric', month: 'long' }) + (o ? ', ' + officialName(k) : '') + (pend ? ', ' + pend + ' pendente(s)' : '')) + '"><span class="ag-n">' + d.getDate() + '</span>' +
@@ -581,6 +581,7 @@
       return '<div class="ag-mdsbox"><b>MDS · ' + esc(mdsCat(it)) + '</b> ' + esc(mdsText(it)) + (it.obs ? '<small>' + esc(it.obs) + '</small>' : '') + (s && /^https:\/\//.test(s.url || '') ? '<small><a href="' + esc(s.url) + '" target="_blank" rel="noopener noreferrer">' + esc(s.nome) + '</a></small>' : '') + '</div>';
     }).join('');
     q('[data-day-card]').innerHTML = '<h3>' + esc(dlabel(chosen, { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })) + '</h3>' + (o ? '<span class="ag-tag ag-' + esc(o[1]) + '">' + esc(kindText(k)) + '</span>' : '') + src +
+      (all.filter(function (e) { return !e.done; }).length > 1 ? '<button type="button" class="ag-btn ag-doneall" data-done-all>✓ Concluir todas do dia (' + all.filter(function (e) { return !e.done; }).length + ')</button>' : '') +
       (ord.length ? '<ul class="ag-list">' + ord.map(function (i) { return entryHtml(k, i, all[i], false); }).join('') + '</ul>' : '<p class="ag-small">' + (state.key ? 'Sem anotações neste dia.' : 'Agenda trancada.') + '</p>');
   }
   function renderList() {
@@ -597,8 +598,8 @@
     });
     if (tab === 'next') ev.sort(function (a, b) { return a.k < b.k ? -1 : a.k > b.k ? 1 : 0; });
     q('[data-tabs]').querySelectorAll('[data-tab]').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab && !search); b.setAttribute('aria-selected', b.dataset.tab === tab && !search); });
-    q('[data-summary]').textContent = search ? ev.length + ' resultado(s) para a busca' : tab === 'month' ? ev.length + ' anotação(ões) · ' + MONTHS[month.getMonth()] + ' ' + month.getFullYear() : tab === 'pending' ? ev.length + ' pendência(s)' : ev.length + ' compromisso(s) futuro(s)';
-    q('[data-events]').innerHTML = ev.length ? '<ul class="ag-list">' + ev.slice(0, 120).map(function (x) { return entryHtml(x.k, x.i, x.e, true); }).join('') + '</ul>' : '<p class="ag-small">' + (search ? 'Nada encontrado.' : tab === 'pending' ? 'Nenhuma pendência.' : tab === 'month' ? 'Nenhuma anotação neste mês.' : 'Nenhum compromisso futuro.') + '</p>';
+    q('[data-summary]').textContent = search ? ev.length + ' resultado(s) para a busca' : tab === 'month' ? ev.length + ' anotação(ões) · ' + MONTHS[month.getMonth()] + ' ' + month.getFullYear() : tab === 'pending' ? ev.length + ' pendência(s)' : tab === 'all' ? ev.length + ' anotação(ões) no total · ' + ev.filter(function (x) { return x.e.done; }).length + ' concluída(s)' : ev.length + ' compromisso(s) futuro(s)';
+    q('[data-events]').innerHTML = ev.length ? '<ul class="ag-list">' + ev.slice(0, 1000).map(function (x) { return entryHtml(x.k, x.i, x.e, true); }).join('') + '</ul>' : '<p class="ag-small">' + (search ? 'Nada encontrado.' : tab === 'pending' ? 'Nenhuma pendência.' : tab === 'month' ? 'Nenhuma anotação neste mês.' : tab === 'all' ? 'Nenhuma anotação ainda.' : 'Nenhum compromisso futuro.') + '</p>';
   }
   function goto(d) { chosen = d; if (d.getMonth() !== month.getMonth() || d.getFullYear() !== month.getFullYear()) month = new Date(d.getFullYear(), d.getMonth(), 1, 12); render(); }
   function moveMonth(n) { month = new Date(month.getFullYear(), month.getMonth() + n, 1, 12); var dim = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate(); chosen = new Date(month.getFullYear(), month.getMonth(), Math.min(chosen.getDate(), dim), 12); render(); }
@@ -661,7 +662,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
 <button type="button" class="ag-btn" data-today>Hoje</button>\
 <span class="ag-seg" role="group" aria-label="Visão"><button type="button" class="ag-btn" data-view-month aria-pressed="true">Mês</button><button type="button" class="ag-btn" data-view-week aria-pressed="false">Semana</button></span>\
 <button type="button" class="ag-btn" data-done-btn aria-pressed="true" title="Mostrar ou ocultar concluídas no calendário">Concluídas</button>\
-<button type="button" class="ag-btn" data-stats>Estatísticas</button><button type="button" class="ag-btn" data-ics title="Baixar feriados, pagamentos e datas do MDS">.ics</button>\
+<button type="button" class="ag-btn" data-stats>Estatísticas</button><button type="button" class="ag-btn" data-print title="Imprimir o mês (ou salvar em PDF)">Imprimir</button><button type="button" class="ag-btn" data-keys title="Atalhos do teclado" aria-label="Atalhos do teclado">⌨</button><button type="button" class="ag-btn" data-ics title="Baixar feriados, pagamentos e datas do MDS">.ics</button>\
 <button type="button" class="ag-btn" data-notify>Avisos</button><button type="button" class="ag-btn" data-connect>⟳ Sincronizar</button><button type="button" class="ag-btn" data-lock>Trancar</button><span class="ag-zoom" role="group" aria-label="Tamanho"><button type="button" class="ag-btn" data-zoom-out aria-label="Diminuir o tamanho" title="Diminuir">A−</button><button type="button" class="ag-btn" data-zoom-val aria-label="Tamanho atual (clique para seguir o aplicativo)">100%</button><button type="button" class="ag-btn" data-zoom-in aria-label="Aumentar o tamanho" title="Aumentar">A+</button></span><button type="button" class="ag-btn" data-close>✕ Fechar</button></header>\
 <div class="ag-strip"><span class="ag-chip" data-date-head></span><span class="ag-chip" data-date-kind></span><span class="ag-chip" data-date-notes></span><button type="button" class="ag-chip late" data-late hidden></button><span class="ag-chip mds" data-mds-next hidden></span><span class="ag-chip" data-sync-chip></span><span class="ag-chip ag-status" data-status role="status" aria-live="polite"></span></div>\
 <div class="ag-months" data-months></div>\
@@ -669,7 +670,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
 <aside class="ag-side" aria-label="Anotações">\
 <div><div class="ag-add"><input data-entry placeholder="Anotar… ex.: amanhã 14h #visita Silva" aria-label="Nova anotação" maxlength="560" autocomplete="off"><button type="button" data-add aria-label="Salvar anotação">＋</button><button type="button" data-cancel-edit hidden aria-label="Cancelar edição">✕</button></div><div class="ag-hint" data-hint></div><div class="ag-catbar" data-catbar></div></div>\
 <div class="ag-card" data-day-card></div>\
-<div><input class="ag-search" data-search placeholder="Buscar anotações, datas, tipos…" aria-label="Buscar" type="search"><div class="ag-tabs" data-tabs role="tablist"><button type="button" role="tab" data-tab="month">Neste mês</button><button type="button" role="tab" data-tab="pending">Pendências</button><button type="button" role="tab" data-tab="next">Próximos</button></div><div class="ag-small" data-summary></div><div data-events></div></div>\
+<div><input class="ag-search" data-search placeholder="Buscar anotações, datas, tipos…" aria-label="Buscar" type="search"><div class="ag-tabs" data-tabs role="tablist"><button type="button" role="tab" data-tab="month">Neste mês</button><button type="button" role="tab" data-tab="pending">Pendências</button><button type="button" role="tab" data-tab="next">Próximos</button><button type="button" role="tab" data-tab="all">Todas</button></div><div class="ag-small" data-summary></div><div data-events></div></div>\
 </aside></div>\
 <footer class="ag-foot" data-footer></footer>\
 <div class="ag-locked" data-locked hidden><b>AGENDA TRANCADA</b><span>As anotações ficam cifradas. Informe a senha da equipe para abrir.</span><button type="button" class="ag-btn primary" data-unlock-open>Desbloquear</button></div>\
@@ -686,6 +687,10 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
   var ZOOMS = [0.85, 1, 1.15, 1.3, 1.5, 1.75], ZKEY = 'paulus.agenda.zoom', TAM_Z = { p: 0.85, m: 1, g: 1.15, gg: 1.3 };
   var THEME_CSS = [
     ':root{--pa-z:1}',
+    '@page{size:A4 landscape;margin:8mm}@media print{html,body{height:auto!important;overflow:visible!important;background:#fff!important}body>*:not(#pa-agenda){display:none!important}#pa-agenda{position:static!important;zoom:1!important;inset:auto!important;display:block!important;height:auto!important;clip-path:none!important;box-shadow:none!important;border:0!important;background:#fff!important;backdrop-filter:none!important}#pa-agenda::before{display:none!important}.ag-top,.ag-strip,.ag-months,.ag-side,.ag-locked,.ag-modal,.ag-hint{display:none!important}.ag-body{display:block!important;padding:0!important}.ag-grid{overflow:visible!important;grid-template-rows:repeat(6,minmax(70px,auto))!important}.ag-cell{break-inside:avoid;background:#fff!important}.ag-cell.sel{box-shadow:none!important;background:#fff!important}.ag-cell.today .ag-n{background:#075a6c!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.ag-tag,.ag-note,.ag-lg{-webkit-print-color-adjust:exact;print-color-adjust:exact}.ag-ck{display:none!important}.ag-note.done{opacity:.7}.ag-cell.out{opacity:.4}}',
+    '.ag-doneall{margin:4px 0 8px;padding:5px 10px;min-height:30px;font-size:11px}',
+    '.ag-grid{grid-template-rows:repeat(6,minmax(min-content,1fr))}.ag-grid.wk{grid-template-rows:1fr}.ag-cell{overflow:visible}.ag-note{white-space:normal;overflow-wrap:anywhere}',
+    '.ag-ck{display:inline-block;width:16px;height:16px;line-height:13px;padding:0;margin:0 4px 0 0;border:1px solid var(--c);border-radius:3px;background:transparent;color:transparent;font:700 11px var(--hud);vertical-align:-3px;cursor:pointer;text-decoration:none}#pa-agenda .ag-ck{color:transparent}.ag-ck:hover{background:#37e6ff33}#pa-agenda .ag-note.done .ag-ck{background:var(--pag);border-color:var(--pag);color:#fff}',
     '#pa-agenda{zoom:var(--pa-z);inset:calc(10px / var(--pa-z)) calc(14px / var(--pa-z)) calc(22px / var(--pa-z))}',
     '@media(max-width:700px){#pa-agenda{inset:calc(4px / var(--pa-z))}}@media(max-width:560px){#pa-agenda{inset:0}}',
     '.pa-ov .pa-box{zoom:var(--pa-z);max-height:calc((100dvh - 28px) / var(--pa-z))}',
@@ -746,8 +751,9 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     q('[data-view-month]').onclick = function () { view.week = false; saveView(); render(); }; q('[data-view-week]').onclick = function () { view.week = true; saveView(); render(); };
     q('[data-done-btn]').onclick = function () { view.hideDone = !view.hideDone; saveView(); render(); };
     var grid = q('[data-grid]');
-    grid.onclick = function (e) { var c = e.target.closest('[data-day]'); if (c) { chosen = day(c.dataset.day); render(); if (!view.week) { var n = q('[data-day="' + c.dataset.day + '"]'); if (n) n.focus({ preventScroll: true }); } } };
+    grid.onclick = function (e) { var cd = e.target.closest('[data-cdone]'); if (cd) { e.stopPropagation(); var ck = cd.dataset.day, ci = +cd.dataset.cdone; if (rows(ck)[ci]) toggleDone(ck, ci, !rows(ck)[ci].done); return; } var c = e.target.closest('[data-day]'); if (c) { chosen = day(c.dataset.day); render(); if (!view.week) { var n = q('[data-day="' + c.dataset.day + '"]'); if (n) n.focus({ preventScroll: true }); } } };
     grid.onkeydown = function (e) {
+      if (e.target.closest('[data-cdone]')) return;
       var c = e.target.closest('[data-day]'); if (!c) return;
       var step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
       if (step) { e.preventDefault(); var d = day(c.dataset.day); d.setDate(d.getDate() + step); goto(d); var n = q('[data-day="' + key(d) + '"]'); if (n) n.focus(); }
@@ -759,6 +765,28 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     applyZoom();
     q('[data-connect]').onclick = showSetup; q('[data-unlock-open]').onclick = showSetup; q('[data-lock]').onclick = lock;
     q('[data-ics]').onclick = exportIcs;
+    q('[data-print]').onclick = function () { window.print(); };
+    q('[data-keys]').onclick = function () { status('Atalhos: T hoje · N anotar · / buscar · [ ] mês anterior/próximo · W mês/semana · D ocultar concluídas · + − tamanho · P imprimir · setas movem o dia', false); };
+    q('[data-day-card]').addEventListener('click', function (e) {
+      if (!e.target.closest('[data-done-all]')) return;
+      var k = key(chosen), l = rows(k).map(function (x) { return Object.assign({}, x, { done: true }); });
+      if (l.length) commit([{ k: k, entries: l }], 'Todas as anotações do dia concluídas.');
+    });
+    // Arrastar para o lado no calendário (celular): muda o mês, ou a semana na visão Semana.
+    (function () {
+      var g = q('[data-grid]'), x0 = null, y0 = null;
+      g.addEventListener('touchstart', function (e) { var t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; }, { passive: true });
+      g.addEventListener('touchend', function (e) {
+        if (x0 == null) return; var t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0; x0 = null;
+        if (Math.abs(dx) < 70 || Math.abs(dy) > 45) return;
+        var n = dx < 0 ? 1 : -1;
+        if (view.week) { var d = new Date(chosen); d.setDate(d.getDate() + 7 * n); goto(d); } else moveMonth(n);
+      }, { passive: true });
+    })();
+    // Imprimir sempre em tema claro (economiza tinta) e restaura depois.
+    var hadClaro = false;
+    window.addEventListener('beforeprint', function () { hadClaro = document.body.classList.contains('claro'); document.body.classList.add('claro'); });
+    window.addEventListener('afterprint', function () { if (!hadClaro) document.body.classList.remove('claro'); });
     q('[data-notify]').onclick = openAvisos;
     q('[data-late]').onclick = function () { tab = 'pending'; q('[data-search]').value = ''; render(); if (window.confirm('Mover as atrasadas para hoje? (Cancelar só mostra a lista)')) rescheduleLate(); };
     q('[data-add]').onclick = addEntry; q('[data-cancel-edit]').onclick = cancelEdit;
@@ -783,6 +811,25 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     q('[data-stats]').onclick = function () { q('[data-stats-modal]').hidden = false; renderStats(); q('[data-stats-close]').focus(); };
     q('[data-stats-close]').onclick = function () { q('[data-stats-modal]').hidden = true; };
     q('[data-scope]').onclick = function (e) { var b = e.target.closest('[data-s]'); if (b) { statScope = b.dataset.s; renderStats(); } };
+    document.addEventListener('keydown', function (e) {
+      if (!ui || ui.hidden || e.ctrlKey || e.metaKey || e.altKey || e.key === 'Escape') return;
+      var tg = e.target, tag = tg && tg.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (tg && tg.isContentEditable)) return;
+      if (!q('[data-setup]').hidden || !q('[data-stats-modal]').hidden || !state.key) return;
+      var kk = e.key.toLowerCase(), done = true;
+      if (kk === 't') today();
+      else if (kk === 'n') { q('[data-entry]').focus(); }
+      else if (kk === '/') { q('[data-search]').focus(); }
+      else if (kk === '[') moveMonth(-1);
+      else if (kk === ']') moveMonth(1);
+      else if (kk === 'w') { view.week = !view.week; saveView(); render(); }
+      else if (kk === 'd') { view.hideDone = !view.hideDone; saveView(); render(); }
+      else if (kk === '+' || kk === '=') stepZoom(1);
+      else if (kk === '-') stepZoom(-1);
+      else if (kk === 'p') window.print();
+      else done = false;
+      if (done) { e.preventDefault(); e.stopPropagation(); }   // captura: o '/' do chat do Paulus não dispara junto
+    }, true);
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape' || !ui || ui.hidden) return;
       if (!q('[data-stats-modal]').hidden) q('[data-stats-modal]').hidden = true;
