@@ -214,3 +214,15 @@ test('agenda: modo Textos — CSS quebra a linha, deixa a célula crescer e vale
   assert.ok(barras.every((r) => r.includes(':not(.dots):not(.full)')), 'toda regra de barra exclui .full');
   assert.match(fonte, /data-full-btn/);
 });
+
+test('agenda: anotações concluídas aparecem sempre (calendário e aba Próximos)', () => {
+  const dia = new Date(2026, 10, 26, 12);
+  T.setDays({ '2026-11-26': [{ text: 'Já cumprida', done: true }, { text: 'Ainda aberta' }] });
+  T.setView({ full: true, dots: false, cat: '', week: false, hideDone: false });
+  const html = T.cellHtml(dia, 10, '2026-11-26', '2026-11-26', false);
+  assert.ok(html.includes('Já cumprida') && html.includes('Ainda aberta'), 'concluída continua no calendário');
+  assert.match(html, /ag-note done/, 'e aparece marcada como concluída');
+  const fonte = fs.readFileSync(new URL('../console/agenda.js', import.meta.url), 'utf8');
+  assert.match(fonte, /view\.hideDone = false;/, 'ao abrir, nada fica escondido por escolha antiga salva');
+  assert.ok(!/tab === 'next' && \(k < t \|\| e\.done\)/.test(fonte), 'aba Próximos não descarta concluídas');
+});
