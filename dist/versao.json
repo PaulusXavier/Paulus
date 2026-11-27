@@ -1,10 +1,10 @@
 {
- "versao": "0.39.0",
- "build": "65205c5ce284",
+ "versao": "0.40.0",
+ "build": "3ceccefb7bcf",
  "commit": null,
  "arquivos": {
   "paulus.v1.js": {
-   "sha256": "4148495c5d3f0aeb",
+   "sha256": "158ad11c9bddbe2a",
    "bytes": 1258392
   },
   "conhecimento.json": {
@@ -36,8 +36,12 @@
    "bytes": 97630
   },
   "relatorio-individual-pdf.mjs": {
-   "sha256": "c09ba577c9b2cfb8",
-   "bytes": 14835
+   "sha256": "4e6a8b3f569b50b5",
+   "bytes": 18549
+  },
+  "visitas.mjs": {
+   "sha256": "74faf253b7b1ade8",
+   "bytes": 29191
   },
   "leaflet.js": {
    "sha256": "db49d009c841f5ca",
@@ -75,29 +79,25 @@
    "sha256": "08dafb313e11b1f4",
    "bytes": 2209
   },
-  "agenda-mds.js": {
-   "sha256": "aa9106648cf01985",
-   "bytes": 9237
-  },
   "docs.js": {
    "sha256": "5cbcd14c84b5456a",
    "bytes": 19932
   },
   "relatorios-ui.mjs": {
-   "sha256": "16daf63565db1676",
-   "bytes": 15576
+   "sha256": "2c78adf94003b18d",
+   "bytes": 16493
   },
   "relatorios-bf.mjs": {
-   "sha256": "a9a9a16c994fc949",
-   "bytes": 30120
+   "sha256": "7ace32cdfe7ecf79",
+   "bytes": 33733
   },
   "xlsx.bundle.js": {
    "sha256": "1c7abf2993ff2cd6",
    "bytes": 425020
   },
   "index.html": {
-   "sha256": "4da2c1fec667f499",
-   "bytes": 141509
+   "sha256": "37b5bb1108b4044c",
+   "bytes": 141761
   }
  }
 }

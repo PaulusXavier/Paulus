@@ -1542,8 +1542,9 @@ body{
       <p>Depois de preparar a divisão da etapa 2, gere um relatório PDF por técnico sem voltar a escolher a planilha. Com vários técnicos, os PDFs são descarregados juntos num ZIP.</p>
       <p id="bf-pdf-status" role="status" aria-live="polite">Aguardando a divisão da planilha na etapa 2.</p>
       <label class="bf-report-check"><input id="bf-pdf-visita" type="checkbox" checked><span>Incluir uma caixa <strong>Visita</strong> por família para marcar à mão no relatório.</span></label>
+      <label class="bf-report-check"><input id="bf-pdf-rota" type="checkbox" checked><span>Ordenar por blocos de visita e sugerir sequência local por bairro, rua e número.</span></label>
       <div class="bf-report-actions"><button id="bf-pdf-gerar" type="button" disabled>Gerar PDF(s) individual(is)</button></div>
-      <p>Cada PDF inclui resumo de famílias/registos, contagem por efeito e tabela de membros. O PDF é criado no aparelho; a otimização da rota de visitas será acrescentada numa etapa posterior.</p>
+      <p>Cada PDF inclui resumo por efeito e por bloco, e começa o detalhamento de cada bloco numa página nova. A ordem é uma sugestão local por texto, sem mapa, trânsito nem cálculo de distância; confirme endereços e ajuste a sequência antes da visita.</p>
     </section>
     <p class="bf-report-note">Ao fechar esta janela, os dados temporários são removidos. É necessária uma tabela de condicionalidades com a coluna “Efeito” e NIS ou CPF do responsável.</p>
   </div>

@@ -10,6 +10,8 @@
 // Entrada de planilha: abas = [{ nome: 'Paulo Xavier - Psicólogo', linhas: [[...], [...]] }]  (matriz de células).
 // Nada é guardado; o chamador decide o que fazer com o resultado e descarta os dados.
 
+import { ordenarVisitas } from './visitas.mjs';
+
 export const bfNorm = (v) => String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 
 // NIS/CPF vindos como NÚMERO perdem o zero à esquerda: devolve com 11 dígitos (igual ao Anona).
@@ -297,9 +299,62 @@ function bfMesRelatorio(linhas, indiceCabecalho, indiceMes, dados) {
   return '—';
 }
 
+const BF_PARTIDA_VISITA = 'Rua Santo Agostinho, 193 — Centenário';
+const BF_BLOCOS_VISITA = [
+  { id: 'bloco-1', label: 'Bloco 1 · Bairro 13 de Setembro / Marechal Rondon', chaves: ['13 de setembro', 'marechal rondon'] },
+  { id: 'bloco-2', label: 'Bloco 2 · Bairro Araceli / Nova Vida', chaves: ['araceli', 'nova vida'] },
+  { id: 'outros', label: 'Outros bairros', chaves: [] }
+];
+
+function bfAgruparVisitas(grupos, indices) {
+  const enderecoIdx = indices.get('endereco');
+  const bairroIdx = indices.get('bairro');
+  const referenciaIdx = indices.get('referencia');
+  const porBloco = new Map(BF_BLOCOS_VISITA.map((bloco) => [bloco.id, []]));
+  const porChave = new Map();
+
+  grupos.forEach((grupo, chave) => {
+    const linha = grupo.linhas[0] || [];
+    const endereco = enderecoIdx == null ? '' : String(linha[enderecoIdx] == null ? '' : linha[enderecoIdx]).trim();
+    const bairro = bairroIdx == null ? '' : String(linha[bairroIdx] == null ? '' : linha[bairroIdx]).trim();
+    const referencia = referenciaIdx == null ? '' : String(linha[referenciaIdx] == null ? '' : linha[referenciaIdx]).trim();
+    const textoBairro = bairro || [endereco, referencia].filter(Boolean).join(' ');
+    const normalizado = bfNorm(textoBairro);
+    const bloco = BF_BLOCOS_VISITA.slice(0, -1).find((item) => item.chaves.some((parte) => normalizado.includes(parte))) || BF_BLOCOS_VISITA.at(-1);
+    const item = { chave, endereco: [endereco || referencia, bairro].filter(Boolean).join(' — ') };
+    const entrada = { chave, grupo, item };
+    porBloco.get(bloco.id).push(entrada);
+    porChave.set(chave, entrada);
+  });
+
+  return BF_BLOCOS_VISITA.map((bloco) => {
+    const entradas = porBloco.get(bloco.id);
+    if (!entradas.length) return null;
+    const resultado = ordenarVisitas(entradas.map((entrada) => entrada.item), BF_PARTIDA_VISITA);
+    return {
+      id: bloco.id,
+      label: bloco.label,
+      grupos: resultado.itens.map((item) => porChave.get(item.chave)),
+      metodo: resultado.metodo,
+      enderecosIlegiveis: resultado.ilegiveis
+    };
+  }).filter(Boolean);
+}
+
+function bfOrdenarEfeitos(efeitoPorFamilia) {
+  const prioridade = ['alerta', 'bloqueio', 'suspensao', 'cancelamento'];
+  return [...efeitoPorFamilia.entries()].map(([nome, familias]) => ({ nome, total: familias.size }))
+    .sort((a, b) => {
+      const ia = prioridade.indexOf(bfNorm(a.nome).replace(/[^a-z]/g, ''));
+      const ib = prioridade.indexOf(bfNorm(b.nome).replace(/[^a-z]/g, ''));
+      if (ia >= 0 || ib >= 0) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+      return a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' });
+    });
+}
+
 // Prepara dados para os PDFs individuais do Anona, sem desenhar nem guardar ficheiros.
 // Cada aba válida vira um relatório; abas de resumo e abas redundantes são ignoradas.
-export function bfPrepararRelatoriosIndividuais(abas) {
+export function bfPrepararRelatoriosIndividuais(abas, opcoes = {}) {
   const candidatas = bfAbasUteis((abas || []).filter((aba) => !bfNorm(aba.nome).startsWith('resumo')))
     .map((aba) => ({ aba, linhas: (aba.linhas || []).filter(bfLinhaTemDados) }))
     .map((item) => ({ ...item, indiceCabecalho: bfDetectarCabecalhoRelatorio(item.linhas) }))
@@ -380,11 +435,15 @@ export function bfPrepararRelatoriosIndividuais(abas) {
       grupo.linhas.push(linha);
     });
 
+    const blocosOrdenados = opcoes.ordenarPorRota === false ? [] : bfAgruparVisitas(grupos, indicePorIdSaida);
+    const gruposOrdenados = blocosOrdenados.length
+      ? blocosOrdenados.flatMap((bloco) => bloco.grupos)
+      : [...grupos.entries()].map(([chave, grupo]) => ({ chave, grupo }));
     const headers = ['Família', ...colunas.map((coluna) => coluna.nome)];
     const rows = [];
     const numeroPorChave = new Map();
     const efeitoPorFamilia = new Map();
-    grupos.forEach((grupo, chave) => {
+    gruposOrdenados.forEach(({ grupo, chave }) => {
       const numero = numeroPorChave.size + 1;
       numeroPorChave.set(chave, numero);
       for (const linha of grupo.linhas) {
@@ -397,17 +456,33 @@ export function bfPrepararRelatoriosIndividuais(abas) {
       }
     });
 
-    const prioridade = ['alerta', 'bloqueio', 'suspensao', 'cancelamento'];
-    const efeitos = [...efeitoPorFamilia.entries()].map(([nome, familias]) => ({ nome, total: familias.size }))
-      .sort((a, b) => {
-        const ia = prioridade.indexOf(bfNorm(a.nome).replace(/[^a-z]/g, ''));
-        const ib = prioridade.indexOf(bfNorm(b.nome).replace(/[^a-z]/g, ''));
-        if (ia >= 0 || ib >= 0) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-        return a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' });
+    const blocosRota = blocosOrdenados.map((bloco) => {
+      const efeitosBloco = new Map();
+      const numerosFamilias = bloco.grupos.map(({ chave }) => numeroPorChave.get(chave)).filter(Number.isFinite);
+      let totalRegistros = 0;
+      bloco.grupos.forEach(({ chave, grupo }) => {
+        const numero = numeroPorChave.get(chave);
+        totalRegistros += grupo.linhas.length;
+        grupo.linhas.forEach((linha) => {
+          const efeito = String(linha[indiceEfeito] == null ? '' : linha[indiceEfeito]).trim();
+          if (efeito) {
+            if (!efeitosBloco.has(efeito)) efeitosBloco.set(efeito, new Set());
+            efeitosBloco.get(efeito).add(numero);
+          }
+        });
       });
+      return {
+        id: bloco.id, label: bloco.label,
+        totalFamilias: bloco.grupos.length, totalRegistros,
+        familiaInicial: Math.min(...numerosFamilias), familiaFinal: Math.max(...numerosFamilias),
+        efeitos: bfOrdenarEfeitos(efeitosBloco), metodo: bloco.metodo,
+        enderecosIlegiveis: bloco.enderecosIlegiveis
+      };
+    });
+    const efeitos = bfOrdenarEfeitos(efeitoPorFamilia);
     relatorios.push({
       tecnico, formacao, mes, headers, rows, totalRegistros: rows.length,
-      totalFamilias: numeroPorChave.size, efeitos, cor: '0B2F7A'
+      totalFamilias: numeroPorChave.size, efeitos, blocosRota, cor: '0B2F7A'
     });
   }
 

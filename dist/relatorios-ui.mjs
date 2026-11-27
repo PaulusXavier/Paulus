@@ -21,6 +21,7 @@ import { gerarPdfRelatorioIndividual } from './relatorio-individual-pdf.mjs';
   const pdfEstado = $('bf-pdf-status');
   const pdfGerar = $('bf-pdf-gerar');
   const pdfVisita = $('bf-pdf-visita');
+  const pdfRota = $('bf-pdf-rota');
   const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   const MAX_BYTES = 5 * 1024 * 1024;
   const BORDA = { style: 'thin', color: { rgb: 'D9E0E3' } };
@@ -199,13 +200,12 @@ import { gerarPdfRelatorioIndividual } from './relatorio-individual-pdf.mjs';
       const abas = await lerAbasPlanilha(file);
       const relatorio = bfPrepararDivisaoTecnicos(abas);
       if (!relatorio.ok) throw new Error(relatorio.texto || 'Não consegui dividir esta planilha.');
-      const preparados = bfPrepararRelatoriosIndividuais(relatorio.abas.map((aba) => ({ nome: aba.nome, linhas: aba.aoa })));
-      if (!preparados.ok) throw new Error(preparados.texto || 'Não consegui preparar os PDFs dos técnicos.');
       arquivoDivisao = { relatorio, nome: file.name };
-      relatoriosPdf = preparados.relatorios;
+      prepararRelatoriosPdf();
       divisaoEstado.textContent = `${relatorio.totalFamilias} família(s) · ${relatorio.totalRegistros} registo(s) · ${relatorio.mesRepercussao || 'mês não identificado'} · ${file.name}`;
-      pdfEstado.textContent = `${relatoriosPdf.length} PDF(s) individual(is) pronto(s) · ${relatoriosPdf.reduce((soma, item) => soma + item.totalFamilias, 0)} família(s). Pode gerar sem voltar a carregar o Excel.`;
     } catch (erro) {
+      arquivoDivisao = null;
+      relatoriosPdf = null;
       divisaoEstado.textContent = erro && erro.message ? erro.message : 'Não consegui ler esta planilha.';
       pdfEstado.textContent = 'A geração de PDFs depende de uma divisão válida na etapa 2.';
     } finally {
@@ -214,6 +214,21 @@ import { gerarPdfRelatorioIndividual } from './relatorio-individual-pdf.mjs';
       divisaoGerar.disabled = !arquivoDivisao;
       pdfGerar.disabled = !relatoriosPdf;
     }
+  }
+
+  function prepararRelatoriosPdf() {
+    if (!arquivoDivisao) return;
+    const preparados = bfPrepararRelatoriosIndividuais(
+      arquivoDivisao.relatorio.abas.map((aba) => ({ nome: aba.nome, linhas: aba.aoa })),
+      { ordenarPorRota: !pdfRota || pdfRota.checked }
+    );
+    if (!preparados.ok) throw new Error(preparados.texto || 'Não consegui preparar os PDFs dos técnicos.');
+    relatoriosPdf = preparados.relatorios;
+    const totalFamilias = relatoriosPdf.reduce((soma, item) => soma + item.totalFamilias, 0);
+    const detalheRota = !pdfRota || pdfRota.checked
+      ? 'Ordem local por blocos, ruas e números; é uma aproximação textual.'
+      : 'A ordem original da planilha será mantida.';
+    pdfEstado.textContent = `${relatoriosPdf.length} PDF(s) individual(is) pronto(s) · ${totalFamilias} família(s). ${detalheRota} Pode gerar sem voltar a carregar o Excel.`;
   }
 
   function descarregarBlob(blob, nomeArquivo) {
@@ -254,6 +269,7 @@ import { gerarPdfRelatorioIndividual } from './relatorio-individual-pdf.mjs';
     relatoriosPdf = null;
     pdfEstado.textContent = 'Aguardando a divisão da planilha na etapa 2.';
     pdfGerar.disabled = true;
+    if (pdfRota) pdfRota.checked = true;
     estado.textContent = '';
     actualizarBotao();
   }
@@ -264,6 +280,16 @@ import { gerarPdfRelatorioIndividual } from './relatorio-individual-pdf.mjs';
   anteriorInput.addEventListener('change', () => processar('anterior', anteriorInput));
   atualInput.addEventListener('change', () => processar('atual', atualInput));
   divisaoInput.addEventListener('change', () => processarDivisao(divisaoInput));
+  if (pdfRota) pdfRota.addEventListener('change', () => {
+    if (!arquivoDivisao) return;
+    try {
+      prepararRelatoriosPdf();
+    } catch (erro) {
+      relatoriosPdf = null;
+      pdfEstado.textContent = erro && erro.message ? erro.message : 'Não consegui atualizar a organização do relatório.';
+    }
+    pdfGerar.disabled = !relatoriosPdf;
+  });
   gerar.addEventListener('click', async () => {
     if (!arquivos.anterior || !arquivos.atual) return;
     gerar.disabled = true;
