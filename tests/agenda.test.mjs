@@ -152,3 +152,23 @@ test('agenda (avisos): botão Concluir do aviso conclui a anotação certa; anot
   assert.equal(T.applyAction('concluir', 'lixo'), false);
   assert.equal(T.applyAction('concluir', 'n|../../x|1|08:00'), false);
 });
+
+test('agenda (avisos): com antecedência o aviso volta na hora, sem duplicar; resumo de amanhã e horário de silêncio', () => {
+  const agora = new Date(); agora.setHours(10, 0, 0, 0);
+  const k = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+  T.setDays({ [k]: [{ text: 'Atendimento', time: '10:05', createdAt: 1, done: false }] });
+  T.prefs().lead = 15; T.prefs().atTime = true;
+  let d = T.dueAlerts(agora);
+  assert.equal(d.fresh.length, 1);                       // só o aviso antecipado
+  assert.equal(d.fresh[0].naHora, undefined);
+  const base = d.fresh[0].id;
+  assert.equal(T.applyAction('adiar', base + '|h'), true); // o sufixo da hora não atrapalha os botões
+  T.prefs().lead = 0;
+  T.prefs().quiet = true; T.prefs().qFrom = '22:00'; T.prefs().qTo = '07:00';
+  const noite = new Date(agora); noite.setHours(23, 30, 0, 0);
+  const manha = new Date(agora); manha.setHours(6, 0, 0, 0);
+  const dia = new Date(agora); dia.setHours(12, 0, 0, 0);
+  assert.equal(T.inQuiet(noite), true); assert.equal(T.inQuiet(manha), true); assert.equal(T.inQuiet(dia), false);
+  T.prefs().quiet = false;
+  assert.equal(typeof T.eveText().title, 'string');
+});
