@@ -111,16 +111,18 @@ test('app: com a cota esgotada a resposta traz as frases certas, as fontes numer
   P.init({ app: 'argo', endpoint: ENDPOINT, conhecimento: base, minIntervaloMs: 0 });
   await P.perguntar('Quem gere o Cadastro Único no município?');   // a primeira chamada descobre que a cota acabou
   assert.equal(P.ia.estado().pausada, true);
-  const r = await P.perguntar('Qual o valor da linha de pobreza do Bolsa Família?');
+  // Perguntas de valor do Bolsa Família agora têm resposta local própria (guia rápido, shared/resposta-local.mjs) e nem chegam à extração;
+  // por isso este teste usa uma pergunta de prazo, que ainda cai no caminho extrativo.
+  const r = await P.perguntar('Qual o prazo para a revisão cadastral do CadÚnico?');
   assert.equal(r.tipo, 'norma');
   assert.equal(r.extrativa, true);
   assert.equal(r.semIA, true);
-  assert.match(r.texto, /R\$ 218,00/);
+  assert.match(r.texto, /Revisão cadastral \(art\. 38\)/);
   assert.match(r.texto, /\*\*Fontes\*\*\n- \[1\]/);
   assert.match(r.texto, /Os trechos completos, para dar contexto/);
   assert.ok(r.fontes.length >= 1);
   assert.ok(r.avisos.some((a) => /cota gratuita da IA acabou/.test(a)));
-  assert.ok(r.avisos.some((a) => /Valores e limites mudam/.test(a)));
+  assert.ok(r.avisos.some((a) => /Frases copiadas da base de normas/.test(a)));
   limparMarcaEsgotada();
 });
 

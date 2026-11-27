@@ -131,6 +131,7 @@ test('Worker: sem número, saudação, ajuste e tema de suicídio não chamam o 
     ['quais os sinais de risco de suicídio em um adolescente de 15 anos? calcule 10 + 5', []]
   ]) {
     const { env, chamadas } = ambiente({ plano: 'CONTA: x | 1+1 |' });
+    env.RESPOSTA_LOCAL = 'desligado';   // o cumprimento ("oi") tem resposta pronta e nem chama a IA; desligada, o caminho da IA continua coberto
     await m(pedido({ app: 'anona', pergunta, historico }), env);
     assert.equal(chamadas.filter(c => c.plano).length, 0, pergunta);
     assert.doesNotMatch(chamadas.at(-1).params.messages[0].content, /CONTAS E RACIOCÍNIO NUMÉRICO/, pergunta);

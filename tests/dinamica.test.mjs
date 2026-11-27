@@ -90,8 +90,17 @@ let ipN = 0;
 const pedido = (corpo) => new Request('https://x.workers.dev', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: ORIGEM, 'CF-Connecting-IP': '8.8.' + Math.floor(++ipN / 200) + '.' + (ipN % 200) }, body: JSON.stringify(corpo) });
 const sistemaDe = (c) => c.params.messages[0].content;
 
-test('Worker: cumprimento usa prompt mínimo, modelo pequeno, nenhuma norma e resposta curta', async () => {
+test('Worker: cumprimento tem resposta pronta, sem chamar a IA (shared/saudacao-local.mjs)', async () => {
   const { env, chamadas } = ambiente();
+  const m = criarManipulador({ base, apps: APPS, habilidades: lerTodas() });
+  const j = await (await m(pedido({ app: 'toth', pergunta: 'bom dia!' }), env)).json();
+  assert.match(j.resposta, /^Bom dia! /);
+  assert.deepEqual(j.fontes, []);
+  assert.equal(chamadas.length, 0);
+});
+
+test('Worker: cumprimento (RESPOSTA_LOCAL desligado) usa prompt mínimo, modelo pequeno, nenhuma norma e resposta curta', async () => {
+  const { env, chamadas } = ambiente({ RESPOSTA_LOCAL: 'desligado' });
   const m = criarManipulador({ base, apps: APPS, habilidades: lerTodas() });
   const j = await (await m(pedido({ app: 'toth', pergunta: 'bom dia!' }), env)).json();
   assert.equal(j.resposta, 'Resposta completa.');
@@ -103,9 +112,9 @@ test('Worker: cumprimento usa prompt mínimo, modelo pequeno, nenhuma norma e re
   assert.ok(!/<normas>/.test(chamadas[0].params.messages.map(x => x.content).join('')));
 });
 
-test('Worker: cumprimento cai no modelo grande se o pequeno falhar', async () => {
+test('Worker: cumprimento (RESPOSTA_LOCAL desligado) cai no modelo grande se o pequeno falhar', async () => {
   const usados = [];
-  const env = { ALLOWED_ORIGINS: ORIGEM, AI: { async run(modelo) { usados.push(modelo); if (usados.length === 1) throw new Error('cota'); return { response: 'Oi!' }; } } };
+  const env = { ALLOWED_ORIGINS: ORIGEM, RESPOSTA_LOCAL: 'desligado', AI: { async run(modelo) { usados.push(modelo); if (usados.length === 1) throw new Error('cota'); return { response: 'Oi!' }; } } };
   const m = criarManipulador({ base, apps: APPS });
   assert.equal((await m(pedido({ app: 'argo', pergunta: 'oi' }), env)).status, 200);
   assert.deepEqual(usados, ['@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.3-70b-instruct-fp8-fast']);

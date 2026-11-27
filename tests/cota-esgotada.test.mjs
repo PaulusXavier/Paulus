@@ -194,16 +194,17 @@ test('app: estudo local de espanhol e inglês continua disponível depois de esg
   limparMarcaEsgotada();
 });
 
-test('app: cumprimento e "mais curto" com a cota esgotada explicam em vez de dar trecho de norma', async () => {
+test('app: cumprimento com a cota esgotada tem resposta pronta no aparelho (sem IA, sem trecho de norma)', async () => {
   limparMarcaEsgotada();
   const c = { n: 0 };
   const P = carregar(fetchSemCota(c));
   P.init(Object.assign({ app: 'argo', endpoint: ENDPOINT, conhecimento: base }, semEspera));
   await P.perguntar('Quem gere o Cadastro Único no município?');
   const oi = await P.perguntar('oi');
-  assert.equal(oi.tipo, 'sem_resposta');
+  assert.equal(oi.tipo, 'saudacao');
+  assert.equal(oi.local, true);
   assert.equal(oi.semIA, true);
-  assert.match(oi.texto, /renova às/);
+  assert.equal(oi.fontes.length, 0);
   limparMarcaEsgotada();
 });
 

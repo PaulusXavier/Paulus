@@ -75,8 +75,10 @@ test('offline: navegador sem internet responde pela base e diz que está sem con
   assert.equal(r.tipo, 'norma');
   assert.equal(r.motivoSemIA, 'rede');
   const oi = await P.perguntar('oi');
-  assert.equal(oi.tipo, 'sem_resposta');
-  assert.match(oi.texto, /sem conexão/i);
+  assert.equal(oi.tipo, 'saudacao', 'cumprimento tem resposta pronta no aparelho');
+  assert.equal(oi.local, true);
+  assert.equal(oi.semIA, true);
+  assert.equal(e.saiu, 0);
 });
 
 test('offline: o trecho mostrado é o que fala da pergunta, não o começo do documento', async () => {

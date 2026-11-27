@@ -158,9 +158,9 @@ test('inglês: o guia de apoio entra na base com trechos de até 700 caracteres'
   assert.ok(trechos.every((t) => t.texto.length <= 700));
 });
 
-function ambiente() {
+function ambiente(extra = {}) {
   const chamadas = [];
-  const env = { ALLOWED_ORIGINS: 'https://paulusxavier.github.io', AI: { async run(modelo, params) { chamadas.push(params); return { response: 'Answer.' }; } } };
+  const env = { ...extra, ALLOWED_ORIGINS: 'https://paulusxavier.github.io', AI: { async run(modelo, params) { chamadas.push(params); return { response: 'Answer.' }; } } };
   return { env, chamadas };
 }
 const pedido = (corpo, ip) => new Request('https://paulus.exemplo.workers.dev', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://paulusxavier.github.io', 'CF-Connecting-IP': ip }, body: JSON.stringify(corpo) });
@@ -187,7 +187,7 @@ test('inglês (Worker): pergunta em inglês leva a instrução de idioma; a de p
   assert.match(jc.resposta, /Report of violence/);
   assert.equal(d.chamadas.length, 0);
 
-  const e = ambiente();
+  const e = ambiente({ RESPOSTA_LOCAL: 'desligado' });   // com a resposta local ligada, "thanks" nem chega à IA
   await m(pedido({ pergunta: 'thanks' }, '8.8.8.5'), e.env);
   assert.match(e.chamadas.map((x) => x.messages.map((y) => y.content).join('\n')).join('\n'), /inglês simples/);
 });
