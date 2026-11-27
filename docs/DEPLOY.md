@@ -173,3 +173,8 @@ Para ligar o Worker: no Cloudflare, **My Profile → API Tokens → Create Token
 - Apps que carregam do GitHub Pages: o `Paulus.init({ conhecimentoUrl })` revalida a base a cada abertura (se nada mudou, o servidor responde 304 e nada é baixado de novo), e o `paulus.v1.js` vem do site já atualizado.
 - Console instalado (PWA): o `sw.js` publicado leva a impressão digital no nome do cache, então cada publicação troca o cache e o aparelho atualiza na abertura seguinte.
 - Apps com cópia local (Argo, por exemplo): copie `.github/app-workflows/sincronizar-paulus.yml` para `.github/workflows/` do repositório do app e ajuste o bloco `env` (endereço do Paulus e caminhos dos arquivos). Todo dia o app compara com o `versao.json` e, se houver novidade, baixa os arquivos, confere (JSON válido, script sem erro de sintaxe) e faz o commit sozinho. Sem novidade, não faz nada.
+
+
+## Avisos com o app fechado (opcional)
+
+A agenda pode avisar com o app fechado, pelo Worker (Web Push + Durable Object). Passo a passo e privacidade em [PUSH.md](PUSH.md).
