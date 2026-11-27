@@ -224,3 +224,16 @@ test('service worker: a instalação guarda a base inteira (sem baixar de novo o
   for (const f of ['conhecimento.json', 'pdf.min.mjs', 'pdf.worker.min.mjs', 'pdf-lib.min.js', 'lugares-boa-vista.json']) assert.ok(t.includes("'" + f + "'"), f);
   assert.match(t, /var V = '[^']*';/, 'o build troca o nome do cache por essa linha');
 });
+
+test('service worker: o OCR da Rota de Visita fica guardado e a nova versão pode assumir a pedido do app', () => {
+  const t = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  for (const f of ['tesseract/tesseract.min.js', 'tesseract/worker.min.js', 'tesseract/lang/por.traineddata.gz', 'tesseract/core/tesseract-core-simd-lstm.wasm.js']) assert.ok(t.includes("'" + f + "'"), f);
+  assert.match(t, /SKIP_WAITING/);
+});
+
+test('console: confere atualização ao voltar ao app e só recarrega se não houver texto sendo digitado', () => {
+  const c = readFileSync(new URL('../console/console.js', import.meta.url), 'utf8');
+  assert.match(c, /controllerchange/);
+  assert.match(c, /reg\.update\(\)/);
+  assert.match(c, /textoEmEdicao/);
+});
