@@ -54,3 +54,57 @@ test('agenda: entrada rápida entende data, hora, tipo e repetição', () => {
   assert.ok(r.rec.dates.every((d) => d.getDay() === 1));
   assert.equal(T.parseQuick('31/02 teste').bad, true);
 });
+
+test('agenda: rótulos de dia, progresso e pontos', () => {
+  const hoje = new Date();
+  const chave = (n) => { const d = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + n, 12); return d.toISOString().slice(0, 10).replace(/.*/, () => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`); };
+  assert.equal(T.relDay(chave(0)), 'Hoje');
+  assert.equal(T.relDay(chave(1)), 'Amanhã');
+  assert.equal(T.relDay(chave(-1)), 'Ontem');
+  assert.equal(T.relDay(chave(3)), 'Em 3 dias');
+  assert.equal(T.relDay(chave(-4)), 'Há 4 dias');
+  assert.equal(T.relDay(chave(30)), '');
+  assert.equal(T.addDays('2026-12-30', 3), '2027-01-02');
+  assert.match(T.progressHtml([{ done: true }, { done: false }]), /1 de 2 concluída/);
+  assert.equal(T.progressHtml([]), '');
+  const pontos = T.dotsHtml(Array.from({ length: 10 }, (_, i) => ({ text: 'x' + i, cat: 'visita', done: i < 2 })));
+  assert.equal((pontos.match(/<i /g) || []).length, 8);
+  assert.match(pontos, /\+2/);
+});
+
+test('agenda: lista agrupada tem um cabeçalho por dia', () => {
+  const html = T.groupedHtml([
+    { k: '2026-11-26', i: 0, e: { text: 'A', time: '09:00' } },
+    { k: '2026-11-26', i: 1, e: { text: 'B' } },
+    { k: '2026-11-27', i: 0, e: { text: 'C' } }
+  ]);
+  assert.equal((html.match(/class="ag-dayhead"/g) || []).length, 2);
+  assert.equal((html.match(/class="ag-entry/g) || []).length, 3);
+});
+
+test('agenda: mover anotação de dia (botões +1d/+7d e arrastar)', () => {
+  T.setDays({ '2026-11-26': [{ text: 'A' }, { text: 'B' }], '2026-11-27': [{ text: 'C' }] });
+  const u = T.planMove('2026-11-26', 0, '2026-11-27');
+  assert.equal(JSON.stringify(u.map((x) => [x.k, x.entries.map((e) => e.text)])), JSON.stringify([['2026-11-26', ['B']], ['2026-11-27', ['C', 'A']]]));
+  assert.equal(T.planMove('2026-11-26', 5, '2026-11-27'), null, 'índice que não existe');
+  assert.equal(T.planMove('2026-11-26', 0, '2026-11-26'), null, 'mesmo dia');
+  assert.equal(T.planMove('2026-11-26', 0, '../x'), null, 'data inválida não passa');
+});
+
+test('agenda: filtro por tipo e modo pontos no calendário', () => {
+  const dia = new Date(2026, 10, 26, 12);
+  T.setDays({ '2026-11-26': [{ text: 'Visita Silva', cat: 'visita' }, { text: 'Reunião equipe', cat: 'reuniao' }, { text: 'Sem tipo' }] });
+  T.setView({ dots: false, cat: '', week: false, hideDone: false });
+  const todas = T.cellHtml(dia, 10, '2026-11-26', '2026-11-26', false);
+  assert.equal((todas.match(/class="ag-note/g) || []).length, 3);
+  T.setView({ cat: 'visita' });
+  const so = T.cellHtml(dia, 10, '2026-11-26', '2026-11-26', false);
+  assert.equal((so.match(/class="ag-note/g) || []).length, 1);
+  assert.ok(so.includes('Visita Silva') && !so.includes('Reunião equipe'));
+  T.setView({ cat: '', dots: true });
+  const pontos = T.cellHtml(dia, 10, '2026-11-26', '2026-11-26', false);
+  assert.ok(!pontos.includes('ag-note'), 'modo pontos não escreve o texto');
+  assert.equal((pontos.match(/<i /g) || []).length, 3);
+  assert.match(pontos, /ag-cell h2/, '3 pendentes = intensidade média');
+  T.setView({ dots: false });
+});
