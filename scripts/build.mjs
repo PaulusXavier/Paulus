@@ -47,7 +47,7 @@ export function juntar() {
 
 // Impressão digital dos arquivos que os apps baixam. Muda só quando o conteúdo muda; é o que permite atualizar sozinho (versao.json)
 // e fazer o service worker do console trocar de cache a cada publicação.
-const ARQUIVOS_VERSIONADOS = ['paulus.v1.js', 'conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'pdf-encrypt.umd.js', 'jspdf.umd.min.js', 'jszip.min.js', 'relatorio-individual-pdf.mjs', 'leaflet.js', 'lugares-boa-vista.json', 'login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'relatorios-ui.mjs', 'relatorios-bf.mjs', 'xlsx.bundle.js', 'index.html'];
+const ARQUIVOS_VERSIONADOS = ['paulus.v1.js', 'conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'pdf-encrypt.umd.js', 'jspdf.umd.min.js', 'jszip.min.js', 'relatorio-individual-pdf.mjs', 'visitas.mjs', 'leaflet.js', 'lugares-boa-vista.json', 'login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'docs.js', 'relatorios-ui.mjs', 'relatorios-bf.mjs', 'xlsx.bundle.js', 'index.html'];
 export function gerarVersao(saida, extra) {
   const arquivos = {};
   for (const n of ARQUIVOS_VERSIONADOS) {
@@ -104,6 +104,7 @@ export function construir() {
   // tela de login (carrega o console.js só depois de entrar) e o próprio console.js, se existir
   for (const f of ['login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'relatorios-ui.mjs', 'relatorio-individual-pdf.mjs']) { const o = join(RAIZ, 'console', f); if (existsSync(o)) copyFileSync(o, join(saida, f)); }
   copyFileSync(join(RAIZ, 'shared', 'relatorios-bf.mjs'), join(saida, 'relatorios-bf.mjs'));
+  copyFileSync(join(RAIZ, 'shared', 'visitas.mjs'), join(saida, 'visitas.mjs'));
   copyFileSync(join(RAIZ, 'vendor', 'xlsx-js-style', 'xlsx.bundle.js'), join(saida, 'xlsx.bundle.js'));
   // instalável (PWA): procura em console/ e, se não achar, na raiz do repositório
   for (const f of ['manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png']) {
