@@ -154,15 +154,53 @@ function desenharCapa(doc, relatorio, paginaW, paginaH, dataGeracao) {
     });
   }
 
+  const blocosRota = Array.isArray(relatorio.blocosRota) ? relatorio.blocosRota : [];
+  if (blocosRota.length) {
+    const xBlocos = MARGEM + 545;
+    const larguraBloco = paginaW - MARGEM - xBlocos;
+    const yBlocos = yTitulo;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(15, 43, 70);
+    doc.text('Resumo por bloco de visita', xBlocos, yBlocos);
+    blocosRota.forEach((bloco, i) => {
+      const y = yBlocos + 20 + i * 76;
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(211, 220, 228);
+      doc.roundedRect(xBlocos, y, larguraBloco, 68, 5, 5, 'FD');
+      doc.setFillColor(41, 107, 137);
+      doc.rect(xBlocos, y, 4, 68, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(15, 43, 70);
+      doc.text(textoSeguro(bloco.label), xBlocos + 12, y + 17, { maxWidth: larguraBloco - 24 });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(66, 82, 99);
+      const detalhe = `${num(bloco.totalFamilias)} famílias · ${num(bloco.totalRegistros)} registos`;
+      doc.text(detalhe, xBlocos + 12, y + 34);
+      const efeitosBloco = Array.isArray(bloco.efeitos) ? bloco.efeitos : [];
+      const textoEfeitos = efeitosBloco.length
+        ? efeitosBloco.slice(0, 5).map((item) => `${textoSeguro(item.nome)}: ${num(item.total)}`).join(' · ')
+        : 'Sem efeitos preenchidos';
+      const notaIlegiveis = num(bloco.enderecosIlegiveis) ? ` · ${num(bloco.enderecosIlegiveis)} endereço(s) sem ordem legível` : '';
+      doc.setFontSize(7.5);
+      doc.setTextColor(91, 105, 119);
+      doc.text(doc.splitTextToSize(`${textoEfeitos}${notaIlegiveis}`, larguraBloco - 24).slice(0, 2), xBlocos + 12, y + 50);
+    });
+  }
+
   const notaY = paginaH - RODAPE - 27;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(91, 105, 119);
-  const nota = 'Esta etapa gera o resumo e a tabela por técnico no aparelho. A otimização da rota de visita será acrescentada numa etapa posterior.';
+  const nota = blocosRota.length
+    ? 'A sequência é uma sugestão local por bairro, rua e número, sem mapa, trânsito ou cálculo de distância. Confirme endereços e ajuste a ordem antes da visita.'
+    : 'A ordem da planilha foi mantida; não foi feita uma sugestão de rota. Confirme os endereços antes da visita.';
   doc.text(doc.splitTextToSize(nota, paginaW - MARGEM * 2), MARGEM, notaY);
 }
 
-function desenharCabecalhoTabela(doc, estado, relatorio, colunas, larguras, indicePagina) {
+function desenharCabecalhoTabela(doc, estado, relatorio, colunas, larguras, indicePagina, titulo) {
   const { paginaW } = estado;
   const margem = MARGEM;
   doc.setFillColor(15, 43, 70);
@@ -172,7 +210,7 @@ function desenharCabecalhoTabela(doc, estado, relatorio, colunas, larguras, indi
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.setTextColor(255, 255, 255);
-  doc.text('Detalhamento dos registos', margem, 30);
+  doc.text(textoSeguro(titulo || 'Detalhamento dos registos'), margem, 30);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   const tecnico = [relatorio.tecnico, relatorio.formacao].filter(Boolean).join(' · ') || 'Técnico não identificado';
@@ -202,6 +240,27 @@ function desenharCabecalhoTabela(doc, estado, relatorio, colunas, larguras, indi
   estado.indicePagina = indicePagina;
 }
 
+function desenharFaixaBloco(doc, estado, bloco) {
+  const x = MARGEM;
+  const y = estado.y + 8;
+  const largura = estado.paginaW - MARGEM * 2;
+  const altura = 38;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(211, 220, 228);
+  doc.roundedRect(x, y, largura, altura, 4, 4, 'FD');
+  doc.setFillColor(217, 165, 69);
+  doc.rect(x, y, 4, altura, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(15, 43, 70);
+  doc.text(textoSeguro(bloco.label), x + 12, y + 15, { maxWidth: largura - 24 });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(66, 82, 99);
+  doc.text(`${num(bloco.totalFamilias)} famílias · ${num(bloco.totalRegistros)} registos`, x + 12, y + 29);
+  estado.y = y + altura + 8;
+}
+
 function criarRelatorioPdf(relatorio, opcoes = {}) {
   const jsPDF = opcoes.jsPDF || (typeof window !== 'undefined' && window.jspdf && window.jspdf.jsPDF);
   if (typeof jsPDF !== 'function') throw new Error('A biblioteca local de PDF não está disponível.');
@@ -216,6 +275,17 @@ function criarRelatorioPdf(relatorio, opcoes = {}) {
   if (incluirVisita && normalizar(colunas[0]) === 'familia') colunas.splice(1, 0, 'Visita');
   const familias = new Set(linhasOriginais.map((linha) => String(linha[0] ?? '').trim()).filter(Boolean));
   const indiceEfeito = cabecalhos.findIndex((cabecalho) => normalizar(cabecalho) === 'efeito');
+  const blocosResumo = Array.isArray(relatorio.blocosRota) ? relatorio.blocosRota : [];
+  const blocos = blocosResumo.length && blocosResumo.every((bloco) => Number.isFinite(Number(bloco.familiaInicial)) && Number.isFinite(Number(bloco.familiaFinal)))
+    ? blocosResumo.map((bloco) => {
+      const inicio = Number(bloco.familiaInicial);
+      const fim = Number(bloco.familiaFinal);
+      return { ...bloco, rows: linhasOriginais.filter((linha) => {
+        const numeroFamilia = Number(linha[0]);
+        return numeroFamilia >= inicio && numeroFamilia <= fim;
+      }) };
+    }).filter((bloco) => bloco.rows.length)
+    : [{ label: '', totalFamilias: familias.size, totalRegistros: linhasOriginais.length, rows: linhasOriginais }];
   const camposFamilia = cabecalhos.map((cabecalho, i) => ({ chave: normalizar(cabecalho), indice: i }))
     .filter(({ chave }) => chave.includes('responsavel') || chave === 'endereco' || chave === 'bairro' || chave.includes('referencia'))
     .map(({ indice }) => incluirVisita && indice > 0 ? indice + 1 : indice);
@@ -231,17 +301,21 @@ function criarRelatorioPdf(relatorio, opcoes = {}) {
     keywords: 'Relatório de Repercussão Individual, Bolsa Família'
   });
   desenharCapa(doc, relatorio, paginaW, paginaH, dataGeracao);
-  doc.addPage();
-  estado.indicePagina = 2;
-  desenharCabecalhoTabela(doc, estado, relatorio, colunas, larguras, 2);
 
   let xPorColuna = [];
   let x = MARGEM;
   larguras.forEach((largura) => { xPorColuna.push(x); x += largura; });
   let ultimaFamilia = null;
   let zebra = false;
-  for (let ri = 0; ri < linhasOriginais.length; ri++) {
-    const original = linhasOriginais[ri] || [];
+  for (const bloco of blocos) {
+    if (!bloco.rows.length) continue;
+    doc.addPage();
+    estado.indicePagina++;
+    const tituloBloco = bloco.label || 'Detalhamento dos registos';
+    desenharCabecalhoTabela(doc, estado, relatorio, colunas, larguras, estado.indicePagina, tituloBloco);
+    if (bloco.label) desenharFaixaBloco(doc, estado, bloco);
+    for (let ri = 0; ri < bloco.rows.length; ri++) {
+    const original = bloco.rows[ri] || [];
     const familia = String(original[0] ?? `linha-${ri + 1}`);
     const primeiraFamilia = familia !== ultimaFamilia;
     if (primeiraFamilia) zebra = !zebra;
@@ -261,7 +335,7 @@ function criarRelatorioPdf(relatorio, opcoes = {}) {
     if (estado.y + altura > paginaH - RODAPE - 8) {
       doc.addPage();
       estado.indicePagina++;
-      desenharCabecalhoTabela(doc, estado, relatorio, colunas, larguras, estado.indicePagina);
+      desenharCabecalhoTabela(doc, estado, relatorio, colunas, larguras, estado.indicePagina, tituloBloco);
       if (!primeiraFamilia) {
         const deslocamentoVisita = incluirVisita && normalizar(cabecalhos[0]) === 'familia' ? 1 : 0;
         camposFamilia.forEach((i) => {
@@ -308,6 +382,7 @@ function criarRelatorioPdf(relatorio, opcoes = {}) {
     }
     estado.y += altura;
     ultimaFamilia = familia;
+    }
   }
 
   const totalPaginas = doc.internal.getNumberOfPages();
@@ -316,7 +391,7 @@ function criarRelatorioPdf(relatorio, opcoes = {}) {
     desenharRodape(doc, pagina, totalPaginas, paginaW, paginaH, dataGeracao);
   }
   const nomeArquivo = nomeArquivoSeguro(relatorio);
-  return { nomeArquivo, bytes: doc.output('arraybuffer') };
+  return { nomeArquivo, bytes: doc.output('arraybuffer'), totalPaginas };
 }
 
 export { criarRelatorioPdf as gerarPdfRelatorioIndividual };
