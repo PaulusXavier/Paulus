@@ -91,3 +91,38 @@ self.addEventListener('notificationclick', function (e) {
     return self.clients.openWindow('./#agenda');
   }));
 });
+
+// ---------------------------------------------------------------- avisos com o app fechado (Web Push; docs/PUSH.md)
+// O Worker manda um bloco CIFRADO com a chave que só existe neste aparelho (IndexedDB "paulus-push"); aqui ele é decifrado e mostrado.
+function pushIdb() {
+  return new Promise(function (ok, no) {
+    var r = indexedDB.open('paulus-push', 1);
+    r.onupgradeneeded = function () { r.result.createObjectStore('kv'); };
+    r.onsuccess = function () { ok(r.result); }; r.onerror = function () { no(r.error); };
+  });
+}
+function pushLer(k) { return pushIdb().then(function (db) { return new Promise(function (ok, no) { var q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = function () { ok(q.result); }; q.onerror = function () { no(q.error); }; }); }); }
+function pushGravar(k, v) { return pushIdb().then(function (db) { return new Promise(function (ok, no) { var t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = function () { ok(); }; t.onerror = function () { no(t.error); }; }); }); }
+function pushDeB64u(t) { var s = String(t).replace(/-/g, '+').replace(/_/g, '/'); var b = atob(s + '='.repeat((4 - (s.length % 4)) % 4)), u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
+function pushDecifrar(chave, blob) {
+  var u = pushDeB64u(blob);
+  return crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.slice(0, 12) }, chave, u.slice(12)).then(function (claro) { return JSON.parse(new TextDecoder().decode(claro)); });
+}
+self.addEventListener('push', function (e) {
+  e.waitUntil((async function () {
+    var blob = ''; try { blob = e.data ? e.data.text() : ''; } catch (_) { /* sem corpo */ }
+    var d = null;
+    try { d = await pushDecifrar(await pushLer('aes'), blob); } catch (_) { d = null; }
+    var janelas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // Com o Paulus visível, ele mesmo avisa dentro da tela (e o navegador dispensa o aviso do sistema nesse caso).
+    if (d && janelas.some(function (c) { return c.visibilityState === 'visible'; })) return;
+    if (!d) d = { t: 'Agenda Paulus', b: 'Você tem um aviso na agenda.' };
+    var o = { body: d.b || '', icon: 'icon-192.png', badge: 'icon-192.png', tag: d.i || 'paulus-push', renotify: true, lang: 'pt-BR', timestamp: d.w || Date.now(), data: { abrir: 'agenda' } };
+    if (d.v !== 0) o.vibrate = d.s ? [250, 100, 250, 100, 400] : [180, 90, 180];
+    if (d.s) o.requireInteraction = true;
+    if (d.a && d.i) { o.data.id = d.i; o.actions = [{ action: 'concluir', title: '✓ Concluir' }, { action: 'adiar', title: '⏰ +10 min' }]; }
+    if (d.l) { o.data.lembrete = d.l; o.actions = [{ action: 'adiar10', title: '⏰ +10 min' }, { action: 'adiar60', title: '⏰ +1 h' }]; }
+    if (d.i) { try { var lista = (await pushLer('entregues')) || []; lista.push(d.i); await pushGravar('entregues', lista.slice(-200)); } catch (_) { /* segue */ } }
+    await self.registration.showNotification(d.t || 'Agenda Paulus', o);
+  })());
+});

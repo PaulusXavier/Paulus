@@ -10,6 +10,16 @@ name = "paulus-investigacao"
 binding = "INVESTIGACAO"
 class_name = "PaulusInvestigacao"
 
+# Avisos com o app fechado (Web Push; docs/PUSH.md). O Durable Object guarda as assinaturas e os avisos (só hora + texto cifrado) e acorda na hora certa.
+# Fica parado até você criar as chaves VAPID (node scripts/gerar-vapid.mjs): VAPID_PUBLICA entra em [vars] abaixo; VAPID_PRIVADA como SEGREDO.
+[[durable_objects.bindings]]
+name = "PUSH"
+class_name = "PaulusPush"
+
+[[migrations]]
+tag = "push-v1"
+new_sqlite_classes = ["PaulusPush"]
+
 # Gera knowledge/conhecimento.json, indice.json, worker-base.json e habilidades.json (nenhum fica no Git) antes de cada publicação.
 # As duas etapas são necessárias: o worker/index.mjs importa os quatro arquivos.
 [build]
@@ -19,6 +29,9 @@ command = "node scripts/build-knowledge.mjs && node scripts/build-habilidades.mj
 binding = "AI"
 
 [vars]
+# Avisos com o app fechado: chave PÚBLICA do VAPID (a privada vai por "npx wrangler secret put VAPID_PRIVADA"). Veja docs/PUSH.md.
+# VAPID_PUBLICA = "cole-aqui"
+# VAPID_CONTATO = "mailto:seu-email@exemplo.org"
 # Endereços dos apps que podem usar o Paulus, separados por vírgula, SEM barra no fim.
 # É só o "site" (esquema + domínio), sem o caminho: https://paulusxavier.github.io
 ALLOWED_ORIGINS = "https://paulusxavier.github.io"
