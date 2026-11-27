@@ -135,3 +135,37 @@ test('app: pergunta que a extração não cobre continua mostrando os trechos co
   assert.match(r.texto, /trechos da base de normas mais ligados/);
   limparMarcaEsgotada();
 });
+
+test('novos tipos: "o que faz" e "como fazer" são reconhecidos; "Fale sobre" continua aberta demais', () => {
+  assert.equal(tipoDaPergunta('O que faz o psicólogo no CRAS?'), 'funcao');
+  assert.equal(tipoDaPergunta('Quais as atribuições do orientador social?'), 'funcao');
+  assert.equal(tipoDaPergunta('Como solicitar o benefício eventual?'), 'procedimento');
+  assert.equal(tipoDaPergunta('Qual o passo a passo do cadastro?'), 'procedimento');
+  assert.equal(tipoDaPergunta('Fale sobre a política de assistência'), null);
+});
+
+test('comparação: traz a definição de cada lado, ou nada se faltar um dos lados', () => {
+  const paif = { doc: 'tipificacao', titulo: 'Tipificação — PAIF', referencia: 'PAIF', tipo: 'norma', texto: 'O Serviço de Proteção e Atendimento Integral à Família – PAIF consiste no trabalho social com famílias, de caráter continuado.' };
+  const paefi = { doc: 'tipificacao', titulo: 'Tipificação — PAEFI', referencia: 'PAEFI', tipo: 'norma', texto: 'O Serviço de Proteção e Atendimento Especializado a Famílias e Indivíduos – PAEFI consiste no apoio, orientação e acompanhamento a famílias com violação de direitos.' };
+  const alta = (t) => ({ trecho: t, aderencia: 'alta' });
+  const r = responderPorExtracao('qual a diferença entre PAIF e PAEFI', [alta(paif), alta(paefi)]);
+  assert.ok(r, 'devia comparar');
+  assert.equal(r.tipo, 'comparacao');
+  assert.match(r.texto, /\*\*PAIF\*\*/);
+  assert.match(r.texto, /\*\*PAEFI\*\*/);
+  assert.match(r.texto, /trabalho social com famílias/);
+  assert.match(r.texto, /violação de direitos/);
+  assert.equal(responderPorExtracao('qual a diferença entre PAIF e PAEFI', [alta(paif)]), null);
+});
+
+test('definição só vale quando a frase é SOBRE o termo, não quando o cita de passagem', () => {
+  const t = { doc: 'psi', titulo: 'CAPS', referencia: 'x', tipo: 'referencia', texto: 'A gestão do CAPS-AD também é um espaço de atuação da psicóloga.' };
+  assert.equal(responderPorExtracao('o que é um CAPS AD', [{ trecho: t, aderencia: 'alta' }]), null);
+});
+
+test('pergunta aberta com forma de pergunta cobre quase todo o assunto; sem isso, null', () => {
+  const t = { doc: 'cad', titulo: 'CadÚnico — quem pode', referencia: 'guia', tipo: 'apoio', texto: 'Famílias de baixa renda podem se cadastrar no CadÚnico, no CRAS.' };
+  const r = responderPorExtracao('quem pode se cadastrar no cadúnico', [{ trecho: t, aderencia: 'alta' }]);
+  assert.ok(r && r.tipo === 'direito' || r && r.tipo === 'geral');
+  assert.equal(responderPorExtracao('quem pode ir a Marte de foguete', [{ trecho: t, aderencia: 'alta' }]), null);
+});
