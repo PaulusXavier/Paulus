@@ -5,7 +5,9 @@ var BASE = ['./', 'index.html', 'paulus.v1.js', 'login.js', 'console.js', 'advan
 // Para funcionar sem internet logo na primeira vez: a base de normas, o editor de PDF e o mapa também ficam guardados na instalação.
 // Um a um e sem derrubar a instalação se algum falhar (arquivo pesado, rede lenta, ainda não publicado): o que faltar entra no cache quando for usado.
 // A base entra UMA vez, inteira (é o que o console carrega). Os pacotes geral/psicologia são as duas metades dela e só servem aos apps que os copiam.
-var EXTRAS = ['conhecimento.json', 'pdf-lib.min.js', 'pdf-encrypt.umd.js', 'jspdf.umd.min.js', 'jszip.min.js', 'pdf.min.mjs', 'pdf.worker.min.mjs', 'leaflet.js', 'lugares-boa-vista.json', 'xlsx.bundle.js'];
+var EXTRAS = ['conhecimento.json', 'pdf-lib.min.js', 'pdf-encrypt.umd.js', 'jspdf.umd.min.js', 'jszip.min.js', 'pdf.min.mjs', 'pdf.worker.min.mjs', 'leaflet.js', 'lugares-boa-vista.json', 'xlsx.bundle.js',
+  // OCR da Rota de Visita (folha escaneada): leitor, idioma e núcleo moderno ficam guardados para funcionar em campo sem internet; o núcleo antigo entra se for usado
+  'tesseract/tesseract.min.js', 'tesseract/worker.min.js', 'tesseract/lang/por.traineddata.gz', 'tesseract/core/tesseract-core-simd-lstm.wasm.js'];
 // Rede ruim (sinal que "existe" mas não anda): depois deste tempo, se já há cópia guardada, ela é usada em vez de esperar a rede. Sem cópia, espera a rede.
 var ESPERA_REDE_MS = 4000;
 self.addEventListener('install', function (e) {
@@ -15,6 +17,8 @@ self.addEventListener('install', function (e) {
     });
   }).then(function () { return self.skipWaiting(); }));
 });
+// O app pode pedir para a versão nova assumir já (ver o registro em console.js).
+self.addEventListener('message', function (e) { if (e.data === 'SKIP_WAITING') self.skipWaiting(); });
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k !== V; }).map(function (k) { return caches.delete(k); })); }).then(function () { return self.clients.claim(); }));
 });
