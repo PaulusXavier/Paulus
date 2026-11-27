@@ -1216,23 +1216,165 @@
       { id: 'sis-drive', t: 'Pasta no Google Drive', r: ['drive', 'google drive', 'minha pasta', 'pasta do drive'], u: 'https://drive.google.com/drive/folders/1nR7c8AsrhwWPyBYfmWkOmEIfyH349gXR' }
     ];
     // Sites comuns da internet: abrem digitando só o nome ("youtube", "gmail", "google e gmail") ou com verbo ("abrir o youtube").
+    // Também abrem por endereço ("globo.com", "abrir uol.com.br": ver registrarSiteLivre abaixo) e, quando têm q:, por "pesquisar X no youtube".
     // nome: true = vale sem verbo, mas só quando a frase inteira é o nome (pergunta que cita o site segue para a IA). Só o endereço de entrada: nenhum login passa pelo Paulus.
+    // n: 0 = só abre com verbo ("abrir o inss"): siglas e órgãos que a pessoa pode digitar sozinhos para perguntar o que são.
+    // r = apelidos (sem acento, minúsculos; o mais longo vence: "google maps" não abre o "google"). q = endereço de pesquisa; o assunto vai codificado no fim.
+    // Para incluir um site novo, copie uma linha, troque id, nome, apelidos e endereço (https completo). Evite apelido de uma palavra comum ("mapa", "tempo", "noticias"):
+    // esse tipo de palavra sozinha é pergunta para a IA, não pedido de abrir site. Apelidos não podem repetir os de APPS e SISTEMAS (o teste confere).
     var SITES = [
-      { id: 'site-google', t: 'Google', r: ['google', 'pesquisar no google', 'buscador'], u: 'https://www.google.com/' },
-      { id: 'site-gmail', t: 'Gmail', r: ['gmail', 'g mail', 'email google', 'meu email'], u: 'https://mail.google.com/' },
-      { id: 'site-youtube', t: 'YouTube', r: ['youtube', 'you tube', 'youtuber', 'yutube', 'yotube'], u: 'https://www.youtube.com/' },
-      { id: 'site-maps', t: 'Google Maps', r: ['google maps', 'maps', 'google mapas'], u: 'https://www.google.com/maps' },
+      // Google
+      { id: 'site-google', t: 'Google', r: ['google', 'pesquisar no google', 'buscador'], u: 'https://www.google.com/', q: 'https://www.google.com/search?q=' },
+      { id: 'site-gmail', t: 'Gmail', r: ['gmail', 'g mail', 'email google', 'meu email'], u: 'https://mail.google.com/', q: 'https://mail.google.com/mail/u/0/#search/' },
+      { id: 'site-youtube', t: 'YouTube', r: ['youtube', 'you tube', 'youtuber', 'yutube', 'yotube', 'youtub', 'iutube'], u: 'https://www.youtube.com/', q: 'https://www.youtube.com/results?search_query=' },
+      { id: 'site-youtube-music', t: 'YouTube Music', r: ['youtube music', 'you tube music', 'yt music'], u: 'https://music.youtube.com/' },
+      { id: 'site-youtube-studio', t: 'YouTube Studio', r: ['youtube studio', 'estudio do youtube'], u: 'https://studio.youtube.com/' },
+      { id: 'site-maps', t: 'Google Maps', r: ['google maps', 'maps', 'google mapas'], u: 'https://www.google.com/maps', q: 'https://www.google.com/maps/search/?api=1&query=' },
+      { id: 'site-earth', t: 'Google Earth', r: ['google earth'], u: 'https://earth.google.com/web/' },
+      { id: 'site-tradutor', t: 'Google Tradutor', r: ['tradutor', 'google tradutor'], u: 'https://translate.google.com/', q: 'https://translate.google.com/?sl=auto&tl=pt&op=translate&text=' },
+      { id: 'site-agenda', t: 'Google Agenda', r: ['google agenda', 'google calendar', 'agenda google'], u: 'https://calendar.google.com/calendar/' },
+      { id: 'site-docs', t: 'Google Docs', r: ['google docs', 'docs google', 'google documentos'], u: 'https://docs.google.com/document/u/0/' },
+      { id: 'site-planilhas', t: 'Google Planilhas', r: ['google planilhas', 'planilhas google', 'google sheets', 'google sheet'], u: 'https://docs.google.com/spreadsheets/u/0/' },
+      { id: 'site-apresentacoes', t: 'Google Apresentações', r: ['google apresentacoes', 'google slides', 'google slide'], u: 'https://docs.google.com/presentation/u/0/' },
+      { id: 'site-forms', t: 'Google Formulários', r: ['google forms', 'google formularios', 'google form'], u: 'https://docs.google.com/forms/u/0/' },
+      { id: 'site-meet', t: 'Google Meet', r: ['google meet', 'meet'], u: 'https://meet.google.com/' },
+      { id: 'site-fotos', t: 'Google Fotos', r: ['google fotos', 'fotos google'], u: 'https://photos.google.com/' },
+      { id: 'site-keep', t: 'Google Keep', r: ['google keep'], u: 'https://keep.google.com/' },
+      { id: 'site-classroom', t: 'Google Sala de Aula', r: ['google classroom', 'classroom', 'google sala de aula', 'sala de aula google'], u: 'https://classroom.google.com/' },
+      { id: 'site-gnoticias', t: 'Google Notícias', r: ['google noticias'], u: 'https://news.google.com/?hl=pt-BR&gl=BR&ceid=BR:pt-419' },
+      { id: 'site-imagens', t: 'Google Imagens', r: ['google imagens', 'imagens google'], u: 'https://images.google.com/' },
+      { id: 'site-scholar', t: 'Google Acadêmico', r: ['google academico', 'google scholar', 'scholar'], u: 'https://scholar.google.com.br/', q: 'https://scholar.google.com.br/scholar?q=' },
+      { id: 'site-gemini', t: 'Gemini', r: ['gemini', 'google gemini'], u: 'https://gemini.google.com/' },
+      // Microsoft e Apple
+      { id: 'site-outlook', t: 'Outlook', r: ['outlook', 'hotmail', 'email microsoft'], u: 'https://outlook.live.com/mail/' },
+      { id: 'site-bing', t: 'Bing', r: ['bing'], u: 'https://www.bing.com/', q: 'https://www.bing.com/search?q=' },
+      { id: 'site-onedrive', t: 'OneDrive', r: ['onedrive', 'one drive'], u: 'https://onedrive.live.com/' },
+      { id: 'site-teams', t: 'Microsoft Teams', r: ['teams', 'microsoft teams', 'ms teams'], u: 'https://teams.microsoft.com/' },
+      { id: 'site-office', t: 'Microsoft 365 (Office)', r: ['office 365', 'microsoft 365', 'office online', 'word online', 'excel online'], u: 'https://www.office.com/' },
+      { id: 'site-copilot', t: 'Copilot', r: ['copilot', 'microsoft copilot'], u: 'https://copilot.microsoft.com/' },
+      { id: 'site-icloud', t: 'iCloud', r: ['icloud', 'i cloud'], u: 'https://www.icloud.com/' },
+      // IA e produtividade
+      { id: 'site-chatgpt', t: 'ChatGPT', r: ['chatgpt', 'chat gpt', 'chat gepeto', 'gpt'], u: 'https://chatgpt.com/' },
+      { id: 'site-claude', t: 'Claude', r: ['claude', 'claude ai'], u: 'https://claude.ai/' },
+      { id: 'site-perplexity', t: 'Perplexity', r: ['perplexity'], u: 'https://www.perplexity.ai/' },
+      { id: 'site-deepl', t: 'DeepL', r: ['deepl', 'deep l'], u: 'https://www.deepl.com/pt-BR/translator' },
+      { id: 'site-canva', t: 'Canva', r: ['canva'], u: 'https://www.canva.com/' },
+      { id: 'site-notion', t: 'Notion', r: ['notion'], u: 'https://www.notion.so/' },
+      { id: 'site-trello', t: 'Trello', r: ['trello'], u: 'https://trello.com/' },
+      { id: 'site-github', t: 'GitHub', r: ['github', 'git hub'], u: 'https://github.com/', q: 'https://github.com/search?q=' },
+      { id: 'site-dropbox', t: 'Dropbox', r: ['dropbox', 'drop box'], u: 'https://www.dropbox.com/' },
+      { id: 'site-wetransfer', t: 'WeTransfer', r: ['wetransfer', 'we transfer'], u: 'https://wetransfer.com/' },
+      { id: 'site-zoom', t: 'Zoom', r: ['zoom'], u: 'https://zoom.us/' },
+      { id: 'site-ilovepdf', t: 'iLovePDF', r: ['ilovepdf', 'i love pdf'], u: 'https://www.ilovepdf.com/pt' },
+      { id: 'site-smallpdf', t: 'Smallpdf', r: ['smallpdf', 'small pdf'], u: 'https://smallpdf.com/pt' },
+      { id: 'site-stackoverflow', t: 'Stack Overflow', r: ['stack overflow', 'stackoverflow'], u: 'https://stackoverflow.com/' },
+      // Redes sociais e mensagens
       { id: 'site-whatsapp', t: 'WhatsApp Web', r: ['whatsapp', 'whats app', 'zap', 'whatsapp web', 'zap web'], u: 'https://web.whatsapp.com/' },
       { id: 'site-instagram', t: 'Instagram', r: ['instagram', 'insta'], u: 'https://www.instagram.com/' },
       { id: 'site-facebook', t: 'Facebook', r: ['facebook', 'face'], u: 'https://www.facebook.com/' },
-      { id: 'site-tradutor', t: 'Google Tradutor', r: ['tradutor', 'google tradutor'], u: 'https://translate.google.com/' },
-      { id: 'site-wikipedia', t: 'Wikipédia', r: ['wikipedia'], u: 'https://pt.wikipedia.org/' }
+      { id: 'site-messenger', t: 'Messenger', r: ['messenger'], u: 'https://www.messenger.com/' },
+      { id: 'site-twitter', t: 'X (Twitter)', r: ['twitter', 'x twitter', 'tuiter'], u: 'https://x.com/' },
+      { id: 'site-tiktok', t: 'TikTok', r: ['tiktok', 'tik tok'], u: 'https://www.tiktok.com/' },
+      { id: 'site-linkedin', t: 'LinkedIn', r: ['linkedin', 'linked in'], u: 'https://www.linkedin.com/' },
+      { id: 'site-pinterest', t: 'Pinterest', r: ['pinterest'], u: 'https://br.pinterest.com/', q: 'https://br.pinterest.com/search/pins/?q=' },
+      { id: 'site-reddit', t: 'Reddit', r: ['reddit'], u: 'https://www.reddit.com/', q: 'https://www.reddit.com/search/?q=' },
+      { id: 'site-telegram', t: 'Telegram Web', r: ['telegram', 'telegram web'], u: 'https://web.telegram.org/' },
+      { id: 'site-discord', t: 'Discord', r: ['discord'], u: 'https://discord.com/app' },
+      { id: 'site-threads', t: 'Threads', r: ['threads'], u: 'https://www.threads.net/' },
+      { id: 'site-kwai', t: 'Kwai', r: ['kwai'], u: 'https://www.kwai.com/' },
+      // Vídeo, música e jogos
+      { id: 'site-netflix', t: 'Netflix', r: ['netflix'], u: 'https://www.netflix.com/', q: 'https://www.netflix.com/search?q=' },
+      { id: 'site-primevideo', t: 'Prime Video', r: ['prime video', 'amazon prime video', 'primevideo'], u: 'https://www.primevideo.com/' },
+      { id: 'site-disney', t: 'Disney+', r: ['disney plus', 'disney'], u: 'https://www.disneyplus.com/pt-br' },
+      { id: 'site-globoplay', t: 'Globoplay', r: ['globoplay', 'globo play'], u: 'https://globoplay.globo.com/' },
+      { id: 'site-max', t: 'Max', r: ['hbo max', 'max streaming'], u: 'https://www.max.com/br/pt' },
+      { id: 'site-twitch', t: 'Twitch', r: ['twitch'], u: 'https://www.twitch.tv/' },
+      { id: 'site-vimeo', t: 'Vimeo', r: ['vimeo'], u: 'https://vimeo.com/' },
+      { id: 'site-spotify', t: 'Spotify', r: ['spotify'], u: 'https://open.spotify.com/', q: 'https://open.spotify.com/search/' },
+      { id: 'site-deezer', t: 'Deezer', r: ['deezer'], u: 'https://www.deezer.com/br/' },
+      { id: 'site-soundcloud', t: 'SoundCloud', r: ['soundcloud', 'sound cloud'], u: 'https://soundcloud.com/' },
+      { id: 'site-steam', t: 'Steam', r: ['steam'], u: 'https://store.steampowered.com/' },
+      // Notícias
+      { id: 'site-g1', t: 'g1', r: ['g1', 'g um'], u: 'https://g1.globo.com/', q: 'https://g1.globo.com/busca/?q=' },
+      { id: 'site-g1-roraima', t: 'g1 Roraima', r: ['g1 roraima', 'g1 rr'], u: 'https://g1.globo.com/rr/roraima/' },
+      { id: 'site-globo', t: 'Globo.com', r: ['globo', 'globo com'], u: 'https://www.globo.com/' },
+      { id: 'site-uol', t: 'UOL', r: ['uol'], u: 'https://www.uol.com.br/' },
+      { id: 'site-folha', t: 'Folha de S.Paulo', r: ['folha', 'folha de sao paulo', 'folha uol'], u: 'https://www.folha.uol.com.br/' },
+      { id: 'site-folhabv', t: 'Folha BV (Boa Vista)', r: ['folha bv', 'folha de boa vista', 'folhabv'], u: 'https://www.folhabv.com.br/' },
+      { id: 'site-estadao', t: 'O Estado de S. Paulo', r: ['estadao', 'o estadao', 'estado de sao paulo'], u: 'https://www.estadao.com.br/' },
+      { id: 'site-cnn', t: 'CNN Brasil', r: ['cnn', 'cnn brasil'], u: 'https://www.cnnbrasil.com.br/' },
+      { id: 'site-bbc', t: 'BBC News Brasil', r: ['bbc', 'bbc brasil', 'bbc news'], u: 'https://www.bbc.com/portuguese' },
+      { id: 'site-r7', t: 'R7', r: ['r7', 'r sete'], u: 'https://www.r7.com/' },
+      { id: 'site-terra', t: 'Terra', r: ['portal terra'], u: 'https://www.terra.com.br/' },
+      { id: 'site-metropoles', t: 'Metrópoles', r: ['metropoles'], u: 'https://www.metropoles.com/' },
+      { id: 'site-agenciabrasil', t: 'Agência Brasil', r: ['agencia brasil'], u: 'https://agenciabrasil.ebc.com.br/' },
+      // Compras e serviços do dia a dia
+      { id: 'site-mercadolivre', t: 'Mercado Livre', r: ['mercado livre', 'mercadolivre'], u: 'https://www.mercadolivre.com.br/', q: 'https://lista.mercadolivre.com.br/' },
+      { id: 'site-amazon', t: 'Amazon', r: ['amazon', 'amazon brasil'], u: 'https://www.amazon.com.br/', q: 'https://www.amazon.com.br/s?k=' },
+      { id: 'site-shopee', t: 'Shopee', r: ['shopee'], u: 'https://shopee.com.br/', q: 'https://shopee.com.br/search?keyword=' },
+      { id: 'site-magalu', t: 'Magazine Luiza', r: ['magalu', 'magazine luiza', 'magazineluiza'], u: 'https://www.magazineluiza.com.br/' },
+      { id: 'site-americanas', t: 'Americanas', r: ['americanas'], u: 'https://www.americanas.com.br/' },
+      { id: 'site-casasbahia', t: 'Casas Bahia', r: ['casas bahia', 'casasbahia'], u: 'https://www.casasbahia.com.br/' },
+      { id: 'site-kabum', t: 'KaBuM!', r: ['kabum'], u: 'https://www.kabum.com.br/' },
+      { id: 'site-shein', t: 'Shein', r: ['shein'], u: 'https://br.shein.com/' },
+      { id: 'site-aliexpress', t: 'AliExpress', r: ['aliexpress', 'ali express'], u: 'https://pt.aliexpress.com/' },
+      { id: 'site-olx', t: 'OLX', r: ['olx'], u: 'https://www.olx.com.br/' },
+      { id: 'site-ifood', t: 'iFood', r: ['ifood', 'i food'], u: 'https://www.ifood.com.br/' },
+      { id: 'site-uber', t: 'Uber', r: ['uber'], u: 'https://www.uber.com/br/pt-br/' },
+      { id: 'site-airbnb', t: 'Airbnb', r: ['airbnb', 'air bnb'], u: 'https://www.airbnb.com.br/' },
+      { id: 'site-booking', t: 'Booking.com', r: ['booking', 'booking com'], u: 'https://www.booking.com/' },
+      { id: 'site-decolar', t: 'Decolar', r: ['decolar'], u: 'https://www.decolar.com/' },
+      { id: 'site-latam', t: 'LATAM Airlines', r: ['latam'], u: 'https://www.latamairlines.com/br/pt' },
+      { id: 'site-azul', t: 'Azul Linhas Aéreas', r: ['voeazul', 'azul linhas aereas'], u: 'https://www.voeazul.com.br/' },
+      { id: 'site-gol', t: 'GOL Linhas Aéreas', r: ['voegol', 'gol linhas aereas'], u: 'https://www.voegol.com.br/' },
+      { id: 'site-correios', t: 'Correios', r: ['correios', 'rastreio', 'rastrear encomenda'], u: 'https://www.correios.com.br/' },
+      { id: 'site-climatempo', t: 'Climatempo', r: ['climatempo', 'previsao do tempo'], u: 'https://www.climatempo.com.br/' },
+      { id: 'site-dicio', t: 'Dicio', r: ['dicio', 'dicionario online'], u: 'https://www.dicio.com.br/', q: 'https://www.dicio.com.br/pesquisa.php?q=' },
+      { id: 'site-priberam', t: 'Priberam (dicionário)', r: ['priberam'], u: 'https://dicionario.priberam.org/' },
+      { id: 'site-wikipedia', t: 'Wikipédia', r: ['wikipedia'], u: 'https://pt.wikipedia.org/', q: 'https://pt.wikipedia.org/w/index.php?search=' },
+      // Bancos e pagamentos (só a página inicial: o login é seu, no próprio site)
+      { id: 'site-bb', n: 0, t: 'Banco do Brasil', r: ['banco do brasil'], u: 'https://www.bb.com.br/' },
+      { id: 'site-caixa', n: 0, t: 'Caixa Econômica Federal', r: ['caixa economica', 'caixa economica federal', 'site da caixa'], u: 'https://www.caixa.gov.br/' },
+      { id: 'site-nubank', t: 'Nubank', r: ['nubank', 'nu bank'], u: 'https://nubank.com.br/' },
+      { id: 'site-itau', t: 'Itaú', r: ['itau'], u: 'https://www.itau.com.br/' },
+      { id: 'site-bradesco', t: 'Bradesco', r: ['bradesco'], u: 'https://banco.bradesco/' },
+      { id: 'site-santander', t: 'Santander', r: ['santander'], u: 'https://www.santander.com.br/' },
+      { id: 'site-inter', t: 'Banco Inter', r: ['banco inter'], u: 'https://inter.co/' },
+      { id: 'site-mercadopago', t: 'Mercado Pago', r: ['mercado pago', 'mercadopago'], u: 'https://www.mercadopago.com.br/' },
+      { id: 'site-picpay', t: 'PicPay', r: ['picpay', 'pic pay'], u: 'https://picpay.com/' },
+      // Governo, trabalho e estudo
+      { id: 'site-inss', n: 0, t: 'Meu INSS', r: ['meu inss', 'inss'], u: 'https://meu.inss.gov.br/' },
+      { id: 'site-receita', n: 0, t: 'Receita Federal', r: ['receita federal'], u: 'https://www.gov.br/receitafederal/pt-br' },
+      { id: 'site-mds', n: 0, t: 'Ministério do Desenvolvimento e Assistência Social (MDS)', r: ['mds', 'ministerio do desenvolvimento social'], u: 'https://www.gov.br/mds/pt-br' },
+      { id: 'site-planalto', n: 0, t: 'Planalto (legislação federal)', r: ['planalto', 'legislacao federal'], u: 'https://www.planalto.gov.br/ccivil_03/' },
+      { id: 'site-dou', n: 0, t: 'Diário Oficial da União', r: ['diario oficial da uniao', 'dou', 'diario oficial'], u: 'https://www.in.gov.br/' },
+      { id: 'site-ibge', n: 0, t: 'IBGE', r: ['ibge'], u: 'https://www.ibge.gov.br/' },
+      { id: 'site-camara', n: 0, t: 'Câmara dos Deputados', r: ['camara dos deputados', 'camara federal'], u: 'https://www.camara.leg.br/' },
+      { id: 'site-senado', n: 0, t: 'Senado Federal', r: ['senado', 'senado federal'], u: 'https://www.senado.leg.br/' },
+      { id: 'site-tse', n: 0, t: 'TSE', r: ['tse'], u: 'https://www.tse.jus.br/' },
+      { id: 'site-stf', n: 0, t: 'STF', r: ['stf', 'supremo tribunal federal'], u: 'https://portal.stf.jus.br/' },
+      { id: 'site-governo-rr', n: 0, t: 'Governo de Roraima', r: ['governo de roraima', 'governo do estado', 'governo rr'], u: 'https://www.rr.gov.br/' },
+      { id: 'site-prefeitura-bv', n: 0, t: 'Prefeitura de Boa Vista', r: ['prefeitura de boa vista', 'prefeitura bv'], u: 'https://boavista.rr.gov.br/' },
+      { id: 'site-ufrr', n: 0, t: 'UFRR', r: ['ufrr'], u: 'https://ufrr.br/' },
+      { id: 'site-uerr', n: 0, t: 'UERR', r: ['uerr'], u: 'https://uerr.edu.br/' },
+      { id: 'site-cfp', n: 0, t: 'Conselho Federal de Psicologia', r: ['cfp', 'conselho federal de psicologia'], u: 'https://site.cfp.org.br/' },
+      { id: 'site-scielo', n: 0, t: 'SciELO', r: ['scielo', 'sci elo'], u: 'https://www.scielo.br/', q: 'https://search.scielo.org/?q=' },
+      { id: 'site-pubmed', n: 0, t: 'PubMed', r: ['pubmed', 'pub med'], u: 'https://pubmed.ncbi.nlm.nih.gov/', q: 'https://pubmed.ncbi.nlm.nih.gov/?term=' },
+      { id: 'site-capes', n: 0, t: 'Periódicos CAPES', r: ['periodicos capes', 'portal de periodicos', 'capes periodicos'], u: 'https://www.periodicos.capes.gov.br/' },
+      { id: 'site-lattes', n: 0, t: 'Plataforma Lattes', r: ['lattes', 'curriculo lattes', 'plataforma lattes'], u: 'https://lattes.cnpq.br/' }
     ];
     SITES.forEach(function (a) {
-      P.registrarAcao({ id: a.id, titulo: a.t, rotulos: a.r, nome: true, executar: function () {
-        var w = null; try { w = window.open(a.u, '_blank', 'noopener'); } catch (e) { w = null; }
-        if (!w) aviso('O navegador bloqueou a nova aba. Libere pop-ups para este site e peça de novo.');
-      } });
+      var acao = { id: a.id, titulo: a.t, rotulos: a.r, nome: a.n !== 0, executar: function () {
+        if (!abrirAba(a.u)) aviso('O navegador bloqueou a nova aba. Libere pop-ups para este site e peça de novo.');
+      } };
+      if (a.q) acao.abrirBusca = function (assunto) {
+        if (!abrirAba(a.q + encodeURIComponent(assunto))) aviso('O navegador bloqueou a nova aba. Libere pop-ups para este site e peça de novo.');
+      };
+      P.registrarAcao(acao);
+    });
+    // Endereço digitado ("globo.com", "abrir www.uol.com.br"): abre em outra aba, só https.
+    if (P.registrarSiteLivre) P.registrarSiteLivre(function (u) {
+      if (!abrirAba(u)) aviso('O navegador bloqueou a nova aba. Libere pop-ups para este site e peça de novo.');
     });
     function abrirAba(u) { var w = null; try { w = window.open(u, '_blank', 'noopener'); } catch (e) { w = null; } return !!w; }
     SISTEMAS.forEach(function (a) {
