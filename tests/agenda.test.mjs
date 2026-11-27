@@ -188,3 +188,29 @@ test('agenda (push): lista o que vai avisar com o app fechado, respeitando antec
   it = T.pushItens().filter((x) => x.i && x.i.startsWith('n|' + k));
   assert.deepEqual([...it.map((x) => x.t)], ['Agora · 03:00', 'Agora · 10:00']);
 });
+
+test('agenda: modo Textos — anotação longa aparece inteira no calendário e cabe até 2000 caracteres', () => {
+  const longo = 'Visita à família Souza para entregar o encaminhamento ao CRAS e combinar o retorno. ' + 'Levar documentos, conferir o CadÚnico e anotar as demandas. '.repeat(20) + 'FIM-DO-TEXTO';
+  assert.ok(longo.length > 500 && longo.length < 2000);
+  assert.ok(T.MAX_TEXTO >= 2000, 'limite de salvamento aumentado (era 500)');
+  assert.equal(T.parseQuick('amanhã 14h ' + longo).text, longo, 'a entrada rápida não corta o texto');
+  const dia = new Date(2026, 10, 26, 12);
+  T.setDays({ '2026-11-26': [{ text: longo, cat: 'visita' }, { text: 'Outra anotação curta' }] });
+  for (const v of [{ full: true, dots: false }, { full: false, dots: false }]) {
+    T.setView(Object.assign({ cat: '', week: false, hideDone: false }, v));
+    const html = T.cellHtml(dia, 10, '2026-11-26', '2026-11-26', false);
+    assert.ok(html.includes('FIM-DO-TEXTO') && html.includes('Outra anotação curta'), 'texto completo no HTML da célula');
+  }
+  T.setView({ full: false, dots: false });
+});
+
+test('agenda: modo Textos — CSS quebra a linha, deixa a célula crescer e vale também no celular', () => {
+  const fonte = fs.readFileSync(new URL('../console/agenda.js', import.meta.url), 'utf8');
+  assert.match(fonte, /\.ag-grid\.full\{grid-template-rows:none;grid-auto-rows:minmax\(min-content,max-content\);align-content:start\}/);   // min-content: a linha nunca fica menor que o texto (minmax(54px,auto) deixava o texto vazar)
+  assert.match(fonte, /\.ag-grid\.full \.ag-note\{white-space:normal;overflow:visible;text-overflow:clip/);
+  // as barrinhas coloridas do celular não podem valer no modo Textos
+  const barras = fonte.match(/'\.ag-cal:not\(\.wk\) \.ag-grid:not\(\.dots\)[^']*/g) || [];
+  assert.ok(barras.length >= 6);
+  assert.ok(barras.every((r) => r.includes(':not(.dots):not(.full)')), 'toda regra de barra exclui .full');
+  assert.match(fonte, /data-full-btn/);
+});
