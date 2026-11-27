@@ -1686,8 +1686,35 @@
   function relogio() { var d = new Date(); rel.textContent = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); }
   relogio(); setInterval(relogio, 30000);
 
+  // PWA: registra o service worker e mantém o app atualizado sozinho (mesmo comportamento do Anona).
+  //  - ao voltar para o app (aba ou janela visível) e de tempos em tempos, confere se há versão nova;
+  //  - versão nova que assume o controle recarrega a página, mas NUNCA por cima de texto que a pessoa está digitando
+  //    (nesse caso espera e tenta de novo; o texto digitado não se perde).
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    try { navigator.serviceWorker.register('sw.js').catch(function () {}); } catch (e) { /* segue */ }
+    try {
+      var haviaControle = !!navigator.serviceWorker.controller;
+      var recarregarPendente = false, recarregando = false;
+      var textoEmEdicao = function () {
+        var campos = document.querySelectorAll('textarea, input[type=text], input[type=password], input[type=email], input[type=search]');
+        for (var i = 0; i < campos.length; i++) { if (campos[i].value && String(campos[i].value).trim()) return true; }
+        return false;
+      };
+      var recarregarSePuder = function () {
+        if (!recarregarPendente || recarregando) return;
+        if (textoEmEdicao()) return; // tenta de novo na próxima volta ao app
+        recarregando = true; location.reload();
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (!haviaControle) { haviaControle = true; return; } // primeira instalação: nada a recarregar
+        recarregarPendente = true; recarregarSePuder();
+      });
+      navigator.serviceWorker.register('sw.js').then(function (reg) {
+        if (reg.waiting) { try { reg.waiting.postMessage('SKIP_WAITING'); } catch (e) { /* segue */ } }
+        var conferir = function () { try { reg.update().catch(function () {}); } catch (e) { /* sem rede */ } recarregarSePuder(); };
+        document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') conferir(); });
+        setInterval(conferir, 10 * 60 * 1000);
+      }).catch(function () {});
+    } catch (e) { /* segue */ }
   }
 
   // ------------------------------------------------------------ entrada
