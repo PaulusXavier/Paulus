@@ -2,6 +2,7 @@
 //   dist/paulus.v1.js       módulo do navegador (shared/*.mjs + client/*.mjs em um arquivo só, sem import/export)
 //   dist/versao.json        versão, commit e impressão digital (sha256) de cada arquivo: os apps e o console comparam com ela para saber se há novidade
 //   dist/pdf-lib.min.js     editor de PDF (vendor/), carregado sob demanda
+//   dist/jspdf.umd.min.js + dist/jszip.min.js   geração local de relatórios PDF individuais
 //   dist/pdf-encrypt.umd.js proteção AES-256 de PDF (vendor/), carregada sob demanda no console
 //   dist/conhecimento.json  base de normas completa (cópia de knowledge/conhecimento.json; pesada)
 //   dist/conhecimento-<pacote>.json  um arquivo por pacote (geral = leis e decretos, leve; psicologia = referências do CFP)
@@ -46,7 +47,7 @@ export function juntar() {
 
 // Impressão digital dos arquivos que os apps baixam. Muda só quando o conteúdo muda; é o que permite atualizar sozinho (versao.json)
 // e fazer o service worker do console trocar de cache a cada publicação.
-const ARQUIVOS_VERSIONADOS = ['paulus.v1.js', 'conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'pdf-encrypt.umd.js', 'leaflet.js', 'lugares-boa-vista.json', 'login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'relatorios-ui.mjs', 'relatorios-bf.mjs', 'xlsx.bundle.js', 'index.html'];
+const ARQUIVOS_VERSIONADOS = ['paulus.v1.js', 'conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'pdf-encrypt.umd.js', 'jspdf.umd.min.js', 'jszip.min.js', 'relatorio-individual-pdf.mjs', 'leaflet.js', 'lugares-boa-vista.json', 'login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'relatorios-ui.mjs', 'relatorios-bf.mjs', 'xlsx.bundle.js', 'index.html'];
 export function gerarVersao(saida, extra) {
   const arquivos = {};
   for (const n of ARQUIVOS_VERSIONADOS) {
@@ -80,6 +81,10 @@ export function construir() {
   if (existsSync(lugares)) copyFileSync(lugares, join(saida, 'lugares-boa-vista.json'));
   // pdf-lib (MIT), carregado pelo navegador só no primeiro pedido de PDF; fica ao lado do paulus.v1.js
   copyFileSync(join(RAIZ, 'vendor', 'pdf-lib.min.js'), join(saida, 'pdf-lib.min.js'));
+  // Gerador PDF e ZIP local das planilhas de relatórios; os dados não saem do navegador.
+  copyFileSync(join(RAIZ, 'vendor', 'jspdf.umd.min.js'), join(saida, 'jspdf.umd.min.js'));
+  copyFileSync(join(RAIZ, 'vendor', 'jszip.min.js'), join(saida, 'jszip.min.js'));
+  copyFileSync(join(RAIZ, 'vendor', 'relatorio-pdf.LICENSE.md'), join(saida, 'relatorio-pdf.LICENSE.md'));
   // AES-256 (MIT), carregado apenas quando o formulário local de senha é confirmado
   copyFileSync(join(RAIZ, 'vendor', 'pdf-encrypt.umd.js'), join(saida, 'pdf-encrypt.umd.js'));
   copyFileSync(join(RAIZ, 'vendor', 'pdf-encrypt.LICENSE.md'), join(saida, 'pdf-encrypt.LICENSE.md'));
@@ -97,7 +102,7 @@ export function construir() {
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'console.html'));
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'index.html')); // a raiz do site (…/Paulus/) abre o console
   // tela de login (carrega o console.js só depois de entrar) e o próprio console.js, se existir
-  for (const f of ['login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'relatorios-ui.mjs']) { const o = join(RAIZ, 'console', f); if (existsSync(o)) copyFileSync(o, join(saida, f)); }
+  for (const f of ['login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'relatorios-ui.mjs', 'relatorio-individual-pdf.mjs']) { const o = join(RAIZ, 'console', f); if (existsSync(o)) copyFileSync(o, join(saida, f)); }
   copyFileSync(join(RAIZ, 'shared', 'relatorios-bf.mjs'), join(saida, 'relatorios-bf.mjs'));
   copyFileSync(join(RAIZ, 'vendor', 'xlsx-js-style', 'xlsx.bundle.js'), join(saida, 'xlsx.bundle.js'));
   // instalável (PWA): procura em console/ e, se não achar, na raiz do repositório
