@@ -361,8 +361,8 @@
 
   // ------------------------------------------------------------ mensagens
   function limparBoasVindas() { var o = log.querySelector('.hi'); if (o) o.remove(); document.body.classList.remove('vazio'); }
-  var KIND = { ia: 'IA', norma: 'NORMA', busca: 'BUSCA', acao: 'AÇÃO', acao_desconhecida: 'AÇÃO', calculo: 'CÁLCULO', matematica: 'MATEMÁTICA', psicometria: 'ANÁLISE DE DADOS', grafico: 'GRÁFICO', rota: 'ROTA', geo: 'GEO', pdf: 'PDF', modelo: 'MODELO 3D', qr: 'QR CODE', revisao: 'REVISÃO', espanhol: 'IDIOMA', ingles: 'IDIOMA', crise: 'SOCORRO', bloqueio: 'PRIVACIDADE', erro: 'ERRO', sem_resposta: 'SEM RESPOSTA', pens: 'PROCESSANDO' };
-  var LOCAL = { norma: 1, busca: 1, acao: 1, acao_desconhecida: 1, calculo: 1, matematica: 1, psicometria: 1, grafico: 1, rota: 1, geo: 1, pdf: 1, modelo: 1, qr: 1, revisao: 1, espanhol: 1, ingles: 1, crise: 1, bloqueio: 1, sem_resposta: 1 };
+  var KIND = { ia: 'IA', norma: 'NORMA', busca: 'BUSCA', acao: 'AÇÃO', acao_desconhecida: 'AÇÃO', calculo: 'CÁLCULO', matematica: 'MATEMÁTICA', psicometria: 'ANÁLISE DE DADOS', grafico: 'GRÁFICO', rota: 'ROTA', geo: 'GEO', pdf: 'PDF', modelo: 'MODELO 3D', qr: 'QR CODE', revisao: 'REVISÃO', espanhol: 'IDIOMA', ingles: 'IDIOMA', crise: 'SOCORRO', bloqueio: 'PRIVACIDADE', erro: 'ERRO', sem_resposta: 'SEM RESPOSTA', saudacao: 'CONVERSA', pens: 'PROCESSANDO' };
+  var LOCAL = { norma: 1, busca: 1, acao: 1, acao_desconhecida: 1, calculo: 1, matematica: 1, psicometria: 1, grafico: 1, rota: 1, geo: 1, pdf: 1, modelo: 1, qr: 1, revisao: 1, espanhol: 1, ingles: 1, crise: 1, bloqueio: 1, sem_resposta: 1, saudacao: 1 };
   var nResp = 0, vozPendente = false;
   function cabeca(quem, kind, id) {
     var c = h('div', { class: 'mh' }, [h('span', { class: 'q', text: quem })]);
