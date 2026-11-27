@@ -36,7 +36,7 @@
   /* ---------- estado ---------- */
   var state = { days: {}, locked: {}, dirty: {}, code: '', key: null, db: null, unsub: null, sync: 'off', lastSync: null, connecting: '' };
   var ui = null, month = new Date(), chosen = new Date(), tab = 'month', editing = null, armed = null, armTimer = null, alerted = {};
-  var view = { week: false, hideDone: false, dots: false, cat: '' };
+  var view = { week: false, hideDone: false, dots: false, full: false, cat: '' };
 
   /* ---------- utilidades ---------- */
   function pad(n) { return String(n).padStart(2, '0'); }
@@ -209,7 +209,8 @@
       return true;
     } catch (_) { return false; }
   }
-  function loadView() { try { var v = JSON.parse(lsGet(VIEW) || '{}'); view.week = !!v.week; view.hideDone = !!v.hideDone; view.dots = v.dots === undefined ? isMobile() : !!v.dots; view.cat = cleanCat(v.cat); } catch (_) { /* padrão */ } }
+  var MAX_TEXTO = 2000; // caracteres por anotação (antes 500: o fim do texto era cortado sem aviso)
+  function loadView() { try { var v = JSON.parse(lsGet(VIEW) || '{}'); view.week = !!v.week; view.hideDone = !!v.hideDone; view.dots = v.dots === undefined ? isMobile() : !!v.dots; view.full = v.full === undefined ? !isMobile() : !!v.full; if (view.full && view.dots) { if (v.full === undefined) view.full = false; else view.dots = false; } view.cat = cleanCat(v.cat); } catch (_) { /* padrão */ } }
   function saveView() { lsSet(VIEW, JSON.stringify(view)); }
 
   /* ---------- nuvem (Firestore do Argo) ---------- */
@@ -376,7 +377,7 @@
     if (ed) {
       var list = rows(ed.k).slice(), cur = list[ed.i];
       if (!cur) { cancelEdit(); return; }
-      var nk = key(p.date), upd = Object.assign({}, cur, { text: p.text.slice(0, 500), time: p.time || '', cat: p.cat || '' });
+      var nk = key(p.date), upd = Object.assign({}, cur, { text: p.text.slice(0, MAX_TEXTO), time: p.time || '', cat: p.cat || '' });
       var ups = [];
       if (nk === ed.k) { list[ed.i] = upd; ups.push({ k: ed.k, entries: list }); }
       else { list.splice(ed.i, 1); ups.push({ k: ed.k, entries: list }, { k: nk, entries: rows(nk).concat([upd]) }); }
@@ -384,7 +385,7 @@
       if (isMobile()) { try { input.blur(); } catch (_) { /* ok */ } buzz(15); }
       commit(ups, 'Anotação atualizada.'); return;
     }
-    var entry = { text: p.text.slice(0, 500), time: p.time || '', cat: p.cat || '', done: false, createdAt: createdAt };
+    var entry = { text: p.text.slice(0, MAX_TEXTO), time: p.time || '', cat: p.cat || '', done: false, createdAt: createdAt };
     var updates;
     if (p.rec) {
       var series = 's' + createdAt.toString(36);
@@ -618,8 +619,8 @@
     var html = '', cells;
     if (view.week) { cells = weekDates(chosen); cells.forEach(function (d) { html += cellHtml(d, d.getMonth(), today, sel, true); }); }
     else { var start = new Date(y, m, 1 - new Date(y, m, 1).getDay(), 12); for (var i = 0; i < 42; i++) html += cellHtml(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i, 12), m, today, sel, false); }
-    var grid = q('[data-grid]'); grid.innerHTML = html; grid.classList.toggle('wk', view.week); grid.classList.toggle('dots', !!view.dots && !view.week);
-    q('[data-dots-btn]').setAttribute('aria-pressed', !!view.dots);
+    var grid = q('[data-grid]'); grid.innerHTML = html; grid.classList.toggle('wk', view.week); grid.classList.toggle('dots', !!view.dots && !view.week); grid.classList.toggle('full', !!view.full && !view.dots && !view.week);
+    q('[data-dots-btn]').setAttribute('aria-pressed', !!view.dots); q('[data-full-btn]').setAttribute('aria-pressed', !!view.full && !view.dots);
     q('[data-dock-view-t]').textContent = view.week ? 'Mês' : 'Semana';
     q('[data-view-week]').setAttribute('aria-pressed', view.week); q('[data-view-month]').setAttribute('aria-pressed', !view.week);
     q('[data-done-btn]').setAttribute('aria-pressed', !view.hideDone);
@@ -739,6 +740,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
 .ag-n{display:inline-block;min-width:21px;padding:1px 4px;border-radius:2px;text-align:center;font:600 12px var(--mono);color:var(--t)}\
 .ag-tag{display:block;margin-top:2px;padding:1px 5px;border-radius:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 10px var(--hud);border-left:3px solid}.ag-feriado{background:#ff6b5e2b;border-color:var(--fer);color:#ffc2bb}.ag-facultativo{background:#ffb3472b;border-color:var(--fac);color:#ffd9a3}.ag-pagamento{background:#6ee7a82b;border-color:var(--pag);color:#b8f5d3}.ag-extra{background:#6fb6ff2b;border-color:var(--ext);color:#c3e0ff}.ag-mds{background:#b48cff2b;border-color:var(--mds);color:#dcc9ff}\
 .ag-note{display:block;margin-top:2px;padding:1px 5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;border-left:3px solid var(--cat,#7fb7c4);background:#0c3347;border-radius:0 2px 2px 0}.ag-grid.wk .ag-note{white-space:normal;font-size:12px;padding:3px 6px}.ag-note b{font:600 10px var(--mono);color:var(--c2)}.ag-note.done{opacity:.5;text-decoration:line-through}.ag-more{display:block;margin-top:2px;font:10px var(--mono);color:var(--mut)}\
+.ag-grid.full{grid-template-rows:none;grid-auto-rows:minmax(min-content,max-content);align-content:start}.ag-grid.full .ag-cell{overflow:visible}.ag-grid.full .ag-note{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:1.3;font-size:11.5px;padding:2px 6px}.ag-grid.full .ag-tag{white-space:normal;overflow:visible;text-overflow:clip;max-height:none;overflow-wrap:anywhere}\
 .ag-legend{display:flex;gap:6px;flex-wrap:wrap;padding:7px 0 0}.ag-lg{padding:2px 8px;border-radius:2px;font:600 10px var(--mono);border-left:3px solid;letter-spacing:.04em}\
 .ag-side{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto;padding:2px 2px 8px 10px;border-left:1px solid var(--ln);scrollbar-width:thin;scrollbar-color:var(--ln2) transparent}\
 .ag-add{display:flex;gap:5px}.ag-add input,.ag-search{flex:1;min-width:0;padding:9px 11px;min-height:38px;border:1px solid var(--ln2);background:#04141dcc;border-radius:3px;color:var(--t);font:13px var(--mono)}.ag-add input::placeholder,.ag-search::placeholder{color:#5f8e9b}.ag-add input:focus,.ag-search:focus{border-color:var(--c);box-shadow:0 0 12px #37e6ff55}\
@@ -832,12 +834,13 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     'html #pa-agenda{height:100vh;height:100dvh;overscroll-behavior:contain;-webkit-text-size-adjust:100%;text-size-adjust:100%}',
     '.ag-week{position:sticky;top:0;z-index:3;background:var(--bg)}.ag-week div{padding:7px 0;font-size:11px;letter-spacing:.08em}',
     /* mês: o texto das anotações vira barras coloridas (até 3 por dia); o texto completo está na folha do dia */
-    '.ag-cal:not(.wk) .ag-grid:not(.dots) .ag-cell{min-height:60px;padding:4px 3px 5px}',
-    '.ag-cal:not(.wk) .ag-grid:not(.dots) .ag-n{font-size:14px;min-width:26px;padding:3px 4px;font-weight:700}',
-    '.ag-cal:not(.wk) .ag-grid:not(.dots) .ag-note{height:5px;margin-top:3px;padding:0;font-size:0;line-height:0;overflow:hidden;border-left:0;border-radius:3px;background:var(--cat,#7fb7c4)}',
-    '.ag-cal:not(.wk) .ag-grid:not(.dots) .ag-note>*{display:none}',
-    '.ag-cal:not(.wk) .ag-grid:not(.dots) .ag-note~.ag-note~.ag-note~.ag-note{display:none}',
-    '.ag-cal:not(.wk) .ag-grid:not(.dots) .ag-note.done{opacity:.35;text-decoration:none}',
+    '.ag-cal:not(.wk) .ag-grid:not(.dots):not(.full) .ag-cell{min-height:60px;padding:4px 3px 5px}',
+    '.ag-cal:not(.wk) .ag-grid:not(.dots):not(.full) .ag-n{font-size:14px;min-width:26px;padding:3px 4px;font-weight:700}',
+    '.ag-cal:not(.wk) .ag-grid:not(.dots):not(.full) .ag-note{height:5px;margin-top:3px;padding:0;font-size:0;line-height:0;overflow:hidden;border-left:0;border-radius:3px;background:var(--cat,#7fb7c4)}',
+    '.ag-cal:not(.wk) .ag-grid:not(.dots):not(.full) .ag-note>*{display:none}',
+    '.ag-cal:not(.wk) .ag-grid:not(.dots):not(.full) .ag-note~.ag-note~.ag-note~.ag-note{display:none}',
+    '.ag-cal:not(.wk) .ag-grid:not(.dots):not(.full) .ag-note.done{opacity:.35;text-decoration:none}',
+    '.ag-cal:not(.wk) .ag-grid.full .ag-cell{min-height:60px;padding:4px 3px 5px}.ag-cal:not(.wk) .ag-grid.full .ag-note{font-size:10px;line-height:1.25;padding:2px 3px;border-left-width:2px}.ag-cal:not(.wk) .ag-grid.full .ag-note .ag-ck{display:none}.ag-cal:not(.wk) .ag-grid.full .ag-n{font-size:14px;min-width:26px;padding:3px 4px;font-weight:700}.ag-cal:not(.wk) .ag-grid.full .ag-cell .ag-tag{max-height:none;overflow:visible}',
     '.ag-cal:not(.wk) .ag-cell .ag-tag{font-size:9.5px;line-height:1.25;padding:1px 3px;white-space:normal;max-height:2.5em;overflow:hidden;border-left-width:2px}',
     '.ag-cell.sel{box-shadow:inset 0 0 0 2px var(--c),0 0 14px #37e6ff55 inset}',
     '.ag-cell:active{background:#37e6ff33}',
@@ -861,7 +864,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
 <button type="button" class="ag-btn" data-prev aria-label="Mês anterior">‹</button><select data-select aria-label="Mês"></select><button type="button" class="ag-btn" data-next aria-label="Próximo mês">›</button>\
 <button type="button" class="ag-btn" data-today>Hoje</button>\
 <span class="ag-seg" role="group" aria-label="Visão"><button type="button" class="ag-btn" data-view-month aria-pressed="true">Mês</button><button type="button" class="ag-btn" data-view-week aria-pressed="false">Semana</button></span>\
-<button type="button" class="ag-btn" data-done-btn aria-pressed="true" title="Mostrar ou ocultar concluídas no calendário">Concluídas</button><button type="button" class="ag-btn" data-dots-btn aria-pressed="false" title="Calendário só com pontos coloridos por tipo (V)">Pontos</button>\
+<button type="button" class="ag-btn" data-done-btn aria-pressed="true" title="Mostrar ou ocultar concluídas no calendário">Concluídas</button><button type="button" class="ag-btn" data-dots-btn aria-pressed="false" title="Calendário só com pontos coloridos por tipo (V)">Pontos</button><button type="button" class="ag-btn" data-full-btn aria-pressed="false" title="Mostrar o texto inteiro de cada anotação dentro do dia, com quebra de linha (E)">Textos</button>\
 <button type="button" class="ag-btn" data-stats>Estatísticas</button><button type="button" class="ag-btn" data-print title="Imprimir o mês (ou salvar em PDF)">Imprimir</button><button type="button" class="ag-btn" data-pdf-mes title="Baixar em PDF as anotações do mês (com aviso de LGPD)">PDF do mês</button><button type="button" class="ag-btn" data-pdf-tudo title="Baixar em PDF todas as anotações guardadas">PDF de tudo</button><button type="button" class="ag-btn" data-keys title="Atalhos do teclado" aria-label="Atalhos do teclado">⌨</button><button type="button" class="ag-btn" data-ics title="Baixar feriados, pagamentos e datas do MDS">.ics</button>\
 <button type="button" class="ag-btn" data-notify>Avisos</button><button type="button" class="ag-btn" data-connect>⟳ Sincronizar</button><button type="button" class="ag-btn" data-lock>Trancar</button><span class="ag-zoom" role="group" aria-label="Tamanho"><button type="button" class="ag-btn" data-zoom-out aria-label="Diminuir o tamanho" title="Diminuir">A−</button><button type="button" class="ag-btn" data-zoom-val aria-label="Tamanho atual (clique para seguir o aplicativo)">100%</button><button type="button" class="ag-btn" data-zoom-in aria-label="Aumentar o tamanho" title="Aumentar">A+</button></span><button type="button" class="ag-btn" data-close>✕ Fechar</button></header>\
 <div class="ag-strip"><span class="ag-chip" data-date-head></span><span class="ag-chip" data-date-kind></span><span class="ag-chip" data-date-notes></span><button type="button" class="ag-chip late" data-late hidden></button><span class="ag-chip mds" data-mds-next hidden></span><span class="ag-chip" data-sync-chip></span><span class="ag-chip ag-status" data-status role="status" aria-live="polite"></span></div>\
@@ -869,7 +872,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
 <div class="ag-body"><section class="ag-cal" aria-label="Calendário"><div class="ag-mlabel"><span data-label></span><span data-year></span></div><div class="ag-week" aria-hidden="true">' + WEEK.map(function (x) { return '<div>' + x + '</div>'; }).join('') + '</div><div class="ag-grid" data-grid role="grid" aria-label="Dias do mês"></div><div class="ag-legend" data-legend></div><div class="ag-filter" data-filter role="group" aria-label="Filtrar por tipo"></div></section>\
 <aside class="ag-side" aria-label="Anotações">\
 <div class="ag-sheethead" data-sheethead><button type="button" class="ag-grab" data-sheet-tall aria-label="Ampliar ou reduzir"><i></i></button><span data-sheet-title></span><button type="button" class="ag-sheetx" data-sheet-x aria-label="Fechar">✕</button></div>\
-<div><div class="ag-add"><input data-entry placeholder="Anotar… ex.: amanhã 14h #visita Silva" aria-label="Nova anotação" maxlength="560" autocomplete="off" enterkeyhint="done" autocapitalize="sentences"><button type="button" data-add aria-label="Salvar anotação">＋</button><button type="button" data-cancel-edit hidden aria-label="Cancelar edição">✕</button></div><div class="ag-hint" data-hint></div><div class="ag-quick" data-quick aria-label="Atalhos de data e hora"></div><div class="ag-catbar" data-catbar></div></div>\
+<div><div class="ag-add"><input data-entry placeholder="Anotar… ex.: amanhã 14h #visita Silva" aria-label="Nova anotação" maxlength="2060" autocomplete="off" enterkeyhint="done" autocapitalize="sentences"><button type="button" data-add aria-label="Salvar anotação">＋</button><button type="button" data-cancel-edit hidden aria-label="Cancelar edição">✕</button></div><div class="ag-hint" data-hint></div><div class="ag-quick" data-quick aria-label="Atalhos de data e hora"></div><div class="ag-catbar" data-catbar></div></div>\
 <div class="ag-card" data-day-card></div>\
 <div><input class="ag-search" data-search placeholder="Buscar anotações, datas, tipos…" aria-label="Buscar" type="search"><div class="ag-tabs" data-tabs role="tablist"><button type="button" role="tab" data-tab="month">Neste mês</button><button type="button" role="tab" data-tab="pending">Pendências</button><button type="button" role="tab" data-tab="next">Próximos</button><button type="button" role="tab" data-tab="all">Todas</button></div><div class="ag-small" data-summary></div><div data-events></div></div>\
 </aside></div>\
@@ -1011,7 +1014,8 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     q('[data-months]').onclick = function (e) { var b = e.target.closest('[data-m]'); if (b) { month = new Date(month.getFullYear(), +b.dataset.m, 1, 12); chosen = new Date(month.getFullYear(), month.getMonth(), 1, 12); render(); } };
     q('[data-view-month]').onclick = function () { view.week = false; saveView(); render(); }; q('[data-view-week]').onclick = function () { view.week = true; saveView(); render(); };
     q('[data-done-btn]').onclick = function () { view.hideDone = !view.hideDone; saveView(); render(); };
-    q('[data-dots-btn]').onclick = function () { view.dots = !view.dots; saveView(); render(); };
+    q('[data-dots-btn]').onclick = function () { view.dots = !view.dots; if (view.dots) view.full = false; saveView(); render(); };
+    q('[data-full-btn]').onclick = function () { view.full = !(view.full && !view.dots); if (view.full) view.dots = false; saveView(); render(); };
     q('[data-filter]').onclick = function (e) { var b = e.target.closest('[data-f]'); if (!b) return; view.cat = cleanCat(b.dataset.f); saveView(); render(); };
     var grid = q('[data-grid]');
     // Arrastar uma anotação para outro dia (computador).
@@ -1100,7 +1104,8 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
       else if (kk === ']') moveMonth(1);
       else if (kk === 'w') { view.week = !view.week; saveView(); render(); }
       else if (kk === 'd') { view.hideDone = !view.hideDone; saveView(); render(); }
-      else if (kk === 'v') { view.dots = !view.dots; saveView(); render(); }
+      else if (kk === 'v') { view.dots = !view.dots; if (view.dots) view.full = false; saveView(); render(); }
+      else if (kk === 'e') { view.full = !(view.full && !view.dots); if (view.full) view.dots = false; saveView(); render(); }
       else if (kk === 'f') { var cs = [''].concat(Object.keys(CATS)); view.cat = cs[(cs.indexOf(view.cat) + 1) % cs.length]; saveView(); render(); }
       else if (kk === '+' || kk === '=') stepZoom(1);
       else if (kk === '-') stepZoom(-1);
@@ -1755,7 +1760,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
   window.PaulusAgenda = {
     abrir: open, init: init, saudacao: greeting, avisos: openAvisos,
     // Ganchos para teste e para o resto do Paulus (somente leitura).
-    _teste: { checkAlerts: checkAlerts, dueAlerts: dueAlerts, applyAction: applyAction, quickSet: quickSet, snoozed: snoozed, snoozeSet: snoozeSet, alertId: alertId, weekSummary: weekSummary, dailyText: dailyText, eveText: eveText, inQuiet: inQuiet, pushItens: pushItens, notify: notify, prefs: function () { return prefs; }, derive: derive, enc: enc, dec: dec, parseQuick: parseQuick, relDay: relDay, addDays: addDays, dotsHtml: dotsHtml, progressHtml: progressHtml, groupedHtml: groupedHtml, planMove: planMove, cellHtml: cellHtml, setView: function (v) { Object.assign(view, v); }, setDays: function (d) { state.days = d; }, days: function () { return state.days; }, computeYear: computeYear, easter: easter, setKey: function (k) { state.key = k; } },
+    _teste: { MAX_TEXTO: MAX_TEXTO, checkAlerts: checkAlerts, dueAlerts: dueAlerts, applyAction: applyAction, quickSet: quickSet, snoozed: snoozed, snoozeSet: snoozeSet, alertId: alertId, weekSummary: weekSummary, dailyText: dailyText, eveText: eveText, inQuiet: inQuiet, pushItens: pushItens, notify: notify, prefs: function () { return prefs; }, derive: derive, enc: enc, dec: dec, parseQuick: parseQuick, relDay: relDay, addDays: addDays, dotsHtml: dotsHtml, progressHtml: progressHtml, groupedHtml: groupedHtml, planMove: planMove, cellHtml: cellHtml, setView: function (v) { Object.assign(view, v); }, setDays: function (d) { state.days = d; }, days: function () { return state.days; }, computeYear: computeYear, easter: easter, setKey: function (k) { state.key = k; } },
     pendencias: function (k) { return rows(k || key(new Date())).filter(function (e) { return !e.done; }).map(function (e) { return { texto: e.text, hora: e.time || '', tipo: e.cat || '' }; }); }
   };
 })();
