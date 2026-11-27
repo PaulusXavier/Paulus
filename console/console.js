@@ -1215,6 +1215,25 @@
       { id: 'sis-cadunico', t: 'CadÚnico (Dataprev)', r: ['cadunico', 'cad unico', 'cadastro unico', 'cadunico dataprev', 'dataprev'], u: 'https://cadunico.dataprev.gov.br/portal/' },
       { id: 'sis-drive', t: 'Pasta no Google Drive', r: ['drive', 'google drive', 'minha pasta', 'pasta do drive'], u: 'https://drive.google.com/drive/folders/1nR7c8AsrhwWPyBYfmWkOmEIfyH349gXR' }
     ];
+    // Sites comuns da internet: abrem digitando só o nome ("youtube", "gmail", "google e gmail") ou com verbo ("abrir o youtube").
+    // nome: true = vale sem verbo, mas só quando a frase inteira é o nome (pergunta que cita o site segue para a IA). Só o endereço de entrada: nenhum login passa pelo Paulus.
+    var SITES = [
+      { id: 'site-google', t: 'Google', r: ['google', 'pesquisar no google', 'buscador'], u: 'https://www.google.com/' },
+      { id: 'site-gmail', t: 'Gmail', r: ['gmail', 'g mail', 'email google', 'meu email'], u: 'https://mail.google.com/' },
+      { id: 'site-youtube', t: 'YouTube', r: ['youtube', 'you tube', 'youtuber', 'yutube', 'yotube'], u: 'https://www.youtube.com/' },
+      { id: 'site-maps', t: 'Google Maps', r: ['google maps', 'maps', 'google mapas'], u: 'https://www.google.com/maps' },
+      { id: 'site-whatsapp', t: 'WhatsApp Web', r: ['whatsapp', 'whats app', 'zap', 'whatsapp web', 'zap web'], u: 'https://web.whatsapp.com/' },
+      { id: 'site-instagram', t: 'Instagram', r: ['instagram', 'insta'], u: 'https://www.instagram.com/' },
+      { id: 'site-facebook', t: 'Facebook', r: ['facebook', 'face'], u: 'https://www.facebook.com/' },
+      { id: 'site-tradutor', t: 'Google Tradutor', r: ['tradutor', 'google tradutor'], u: 'https://translate.google.com/' },
+      { id: 'site-wikipedia', t: 'Wikipédia', r: ['wikipedia'], u: 'https://pt.wikipedia.org/' }
+    ];
+    SITES.forEach(function (a) {
+      P.registrarAcao({ id: a.id, titulo: a.t, rotulos: a.r, nome: true, executar: function () {
+        var w = null; try { w = window.open(a.u, '_blank', 'noopener'); } catch (e) { w = null; }
+        if (!w) aviso('O navegador bloqueou a nova aba. Libere pop-ups para este site e peça de novo.');
+      } });
+    });
     function abrirAba(u) { var w = null; try { w = window.open(u, '_blank', 'noopener'); } catch (e) { w = null; } return !!w; }
     SISTEMAS.forEach(function (a) {
       P.registrarAcao({ id: a.id, titulo: a.t, rotulos: a.r, executar: function () {
