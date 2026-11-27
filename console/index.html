@@ -1438,13 +1438,16 @@ body{
 .bf-report-field p{min-height:2.8em;margin:8px 0 0;overflow-wrap:anywhere;color:var(--mut);font:12px/1.45 var(--hud)}
 .bf-report-actions{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
 .bf-report-actions button{min-height:44px;padding:0 16px;border-radius:12px}
-.bf-report-actions #bf-gerar,.bf-report-actions #bf-div-gerar{background:var(--c);color:var(--bg);border-color:var(--c);font-weight:700}
-.bf-report-actions #bf-gerar:disabled,.bf-report-actions #bf-div-gerar:disabled{opacity:.48;cursor:not-allowed}
+.bf-report-actions #bf-gerar,.bf-report-actions #bf-div-gerar,.bf-report-actions #bf-pdf-gerar{background:var(--c);color:var(--bg);border-color:var(--c);font-weight:700}
+.bf-report-actions #bf-gerar:disabled,.bf-report-actions #bf-div-gerar:disabled,.bf-report-actions #bf-pdf-gerar:disabled{opacity:.48;cursor:not-allowed}
 #bf-status{min-height:1.5em;margin:0;color:var(--c2);font:13px/1.5 var(--hud)}
 .bf-report-section{display:grid;gap:10px;padding-top:14px;border-top:1px solid var(--bd)}
 .bf-report-section h3{margin:0;font:600 15px/1.35 var(--hud);color:var(--t)}
 .bf-report-section p{margin:0;color:var(--mut);font:13px/1.5 var(--hud)}
 .bf-report-section #bf-div-status{min-height:1.5em;overflow-wrap:anywhere;color:var(--c2);font:13px/1.5 var(--hud)}
+.bf-report-section #bf-pdf-status{min-height:1.5em;overflow-wrap:anywhere;color:var(--c2);font:13px/1.5 var(--hud)}
+.bf-report-check{display:flex;align-items:flex-start;gap:9px;color:var(--mut);font:13px/1.5 var(--hud)}
+.bf-report-check input{margin:3px 0 0;accent-color:var(--c);flex:none}
 @media(max-width:520px){.bf-report-inner{padding:18px 14px}.bf-report-grid{grid-template-columns:1fr}}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
@@ -1517,7 +1520,7 @@ body{
 <dialog id="bf-report" class="bf-report" aria-labelledby="bf-report-title">
   <div class="bf-report-inner">
     <div class="bf-report-head">
-      <div><h2 id="bf-report-title">Relatórios locais</h2><p>Etapas 1 e 2 · Famílias Recorrentes e divisão por técnico</p></div>
+      <div><h2 id="bf-report-title">Relatórios locais</h2><p>Etapas 1, 2 e 3 · tabelas, divisão por técnico e PDFs individuais</p></div>
       <button id="bf-fechar" class="bf-report-close" type="button" aria-label="Fechar e limpar os ficheiros">×</button>
     </div>
     <p class="bf-report-note">As planilhas são lidas e comparadas neste aparelho. Não são anexadas à conversa, gravadas ou enviadas à rede/IA. Limite: 5 MB por ficheiro.</p>
@@ -1533,6 +1536,14 @@ body{
       <div class="bf-report-field"><label for="bf-div-input">Planilha para dividir (.xlsx, .xls ou .csv)</label><input id="bf-div-input" type="file" accept=".xlsx,.xls,.csv"><p id="bf-div-status" role="status" aria-live="polite">Ainda não escolhida.</p></div>
       <div class="bf-report-actions"><button id="bf-div-gerar" type="button" disabled>Dividir e gerar Excel</button></div>
       <p>O Excel terá uma aba de resumo e uma aba por técnico. A planilha original não é alterada.</p>
+    </section>
+    <section class="bf-report-section" aria-labelledby="bf-pdf-title">
+      <h3 id="bf-pdf-title">Etapa 3 · Relatório Individual em PDF</h3>
+      <p>Depois de preparar a divisão da etapa 2, gere um relatório PDF por técnico sem voltar a escolher a planilha. Com vários técnicos, os PDFs são descarregados juntos num ZIP.</p>
+      <p id="bf-pdf-status" role="status" aria-live="polite">Aguardando a divisão da planilha na etapa 2.</p>
+      <label class="bf-report-check"><input id="bf-pdf-visita" type="checkbox" checked><span>Incluir uma caixa <strong>Visita</strong> por família para marcar à mão no relatório.</span></label>
+      <div class="bf-report-actions"><button id="bf-pdf-gerar" type="button" disabled>Gerar PDF(s) individual(is)</button></div>
+      <p>Cada PDF inclui resumo de famílias/registos, contagem por efeito e tabela de membros. O PDF é criado no aparelho; a otimização da rota de visitas será acrescentada numa etapa posterior.</p>
     </section>
     <p class="bf-report-note">Ao fechar esta janela, os dados temporários são removidos. É necessária uma tabela de condicionalidades com a coluna “Efeito” e NIS ou CPF do responsável.</p>
   </div>
