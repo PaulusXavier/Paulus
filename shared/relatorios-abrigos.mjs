@@ -7,8 +7,8 @@
 
 export const ABRIGOS = ['Rondon 1', 'Rondon 5', 'PRA', 'Tuaronoko'];
 export const EFEITOS = ['Famílias em Alerta', 'Famílias em Bloqueio', 'Famílias Suspensas'];
-export const MAX_ARQUIVOS = 30;
-export const MAX_BYTES = 50 * 1024 * 1024;
+export const MAX_ARQUIVOS = 60;
+export const MAX_BYTES = 80 * 1024 * 1024;
 
 // Cronograma de Repercussão POR ANO: mês de repercussão, meses de referência de Educação e Saúde
 // e a data limite para o beneficiário entrar com recurso.
