@@ -2566,12 +2566,44 @@ const PISTAS = [
   { todas: [/\b(?:cras|creas)\b/, /\b(?:quantos|quantas|equipe|equipes|capacidade|implantacao|equipamentos?|unidades|estrutura)\b/], doc: 'censo-suas-2025-roraima-psicologos', fator: 1.4 },
   { todas: [/\bvenezuel\w+|\bacolhida\b|\bmigrantes?\b|\brefugi\w+/], doc: 'roraima-operacao-acolhida-2026', fator: 1.3 },
   // "Quem pode receber cesta básica / aluguel social" é pergunta sobre benefício eventual: o decreto sobe, senão os cadernos longos do PAIF, que repetem "cesta básica", ocupam todas as vagas.
-  { todas: [/\b(?:cestas? basicas?|aluguel social|auxilio aluguel|auxilio funeral|auxilio natalidade|beneficios? eventua(?:l|is))\b/], doc: 'decreto-6307-2007', fator: 1.6 }
+  { todas: [/\b(?:cestas? basicas?|aluguel social|auxilio aluguel|auxilio funeral|auxilio natalidade|beneficios? eventua(?:l|is))\b/], doc: 'decreto-6307-2007', fator: 1.6 },
+  // Pergunta sobre o fazer do psicólogo numa unidade ou com um público: a referência técnica do CFP daquele tema sobe. "nao": pergunta de número vai para o dado (Censo, IBGE).
+  { nao: [/\b(?:quantos|quantas|quantidade|censo|equipes?|rh|profissionais|carga horaria|vinculos?|contratad\w+|concursad\w+|efetiv\w+|cobertura|lotad\w+)\b/], todas: [/\bpsicolog\w*/, /\bcras\b/, /\b(?:atribuicoes?|atuacao|atua|atuar|faz|fazer|papel|funcao|funcoes|trabalho|como|orientacoes|referencia tecnica|deve|deveria)\b/], doc: 'cfp-ref-cras-2021', fator: 1.6 },
+  { nao: [/\b(?:quantos|quantas|quantidade|censo|equipes?|rh|profissionais|carga horaria|vinculos?|contratad\w+|concursad\w+|efetiv\w+|cobertura|lotad\w+)\b/], todas: [/\bpsicolog\w*/, /\bcreas\b/, /\b(?:atribuicoes?|atuacao|atua|atuar|faz|fazer|papel|funcao|funcoes|trabalho|como|orientacoes|referencia tecnica|deve|deveria)\b/], doc: 'cfp-ref-creas-2013', fator: 1.6 },
+  { nao: [/\b(?:quantos|quantas|quantidade|censo|equipes?|rh|profissionais|carga horaria|vinculos?|contratad\w+|concursad\w+|efetiv\w+|cobertura|lotad\w+)\b/], todas: [/\bpsicolog\w*/, /\b(?:caps|raps|saude mental)\b/], doc: 'cfp-ref-caps-2022', fator: 1.4 },
+  { nao: [/\b(?:quantos|quantas|quantidade|populacao|habitantes|censo|vivem|terras?|demografia|ibge|numero de)\b/], todas: [/\bpsicolog\w*|\batendimento\b|\batuacao\b/, /\b(?:indigenas?|indios?|aldeias?|povos originarios)\b/], doc: 'cfp-ref-povos-indigenas-2024', fator: 1.6 },
+  { nao: [/\b(?:quantos|quantas|quantidade|populacao|habitantes|censo|vivem|terras?|demografia|ibge|numero de)\b/], todas: [/\b(?:indigenas?|indios?|aldeias?|povos originarios|povos tradicionais)\b/], doc: 'cfp-ref-povos-indigenas-2024', fator: 1.4 },
+  { todas: [/\b(?:relatorios?|laudos?|pareceres?|declaracoes?|atestados?|avaliacao)\b/, /\bpsicolog\w*/], doc: 'cfp-avaliacao-psicologica-guia', fator: 2.3 },
+  { todas: [/\b(?:bebes?|primeira infancia|gestantes?|gravidas?|criancas? pequenas?|recem nascid\w+|0 a 6|ate 6 anos|seis anos)\b/], doc: 'paif-trilha-4-primeira-infancia-2026', fator: 1.9 },
+  { todas: [/\b(?:quilombol\w+|quilombos?)\b/], doc: 'cfp-ref-quilombolas-2025', fator: 1.6 },
+  { todas: [/\b(?:situacao de rua|morador(?:es)? de rua|pop rua|centro pop)\b/], doc: 'cfp-ref-pop-rua-2025', fator: 1.5 },
+  { todas: [/\b(?:idos[oa]s?|pessoas? idosas?|velhice|envelhecimento)\b/, /\b(?:psicolog\w+|atendimento|atuacao|medida protetiva|judicializ\w+|violencia|maus tratos|estatuto)\b/], doc: 'cfp-ref-pessoas-idosas-2025', fator: 1.5 },
+  { todas: [/\b(?:prisional|presidio|penitenciaria|preso|presos|apenados?|egressos?|privad[oa]s? de liberdade)\b/], doc: 'cfp-ref-prisional-2021', fator: 1.5 },
+  { todas: [/\b(?:socioeducativ\w+|ato infracional|adolescente em conflito com a lei|internacao de adolescente|medida em meio aberto)\b/], doc: 'cfp-ref-socioeducativas-2021', fator: 1.5 },
+  { todas: [/\b(?:desastres?|emergencias?|calamidade|enchente|alagamento)\b/, /\b(?:psicolog\w+|atuacao|atendimento|apoio psicossocial)\b/], doc: 'cfp-ref-riscos-desastres-2021', fator: 1.5 },
+  { todas: [/\b(?:hiv|aids|ist|ists|infeccoes sexualmente)\b/], doc: 'cfp-ref-ist-hiv-aids-2020', fator: 1.5 },
+  { todas: [/\b(?:violencia sexual|abuso sexual|estupro|exploracao sexual)\b/], doc: 'cfp-ref-violencia-sexual-2020', fator: 1.4 },
+  { todas: [/\b(?:violencia (?:contra a )?mulher|violencia domestica|maria da penha|feminicidio)\b/], doc: 'cfp-ref-mulher-violencia-2013', fator: 1.4 },
+  { todas: [/\b(?:hospital|hospitalar|enfermaria|uti)\b/, /\bpsicolog\w*/], doc: 'cfp-ref-hospitalar-sus-2019', fator: 1.5 },
+  { todas: [/\b(?:escola|escolar|educacao basica)\b/, /\bpsicolog\w*/], doc: 'cfp-ref-educacao-basica-2019', fator: 1.4 },
+  // RAPS: a sigla é pergunta sobre a rede; os documentos da RAPS sobem sobre as referências do CFP que só a citam.
+  { todas: [/\braps\b|\brede de atencao psicossocial\b/], doc: 'raps-guia-apoio', fator: 1.6 },
+  { todas: [/\braps\b|\brede de atencao psicossocial\b/], doc: 'raps-portaria-3088-2011-resumo', fator: 1.6 },
+  { todas: [/\b(?:portaria 3088|portaria 3\.?088)\b/], doc: 'raps-portaria-3088-2011-resumo', fator: 1.8 },
+  // Bolsa Família: regra de proteção, unipessoal e revisão cadastral.
+  { todas: [/\bregra de protecao\b|\bretorno garantido\b|\bregra de transicao\b|\bunipessoais?\b|\bfamilia unipessoal\b|\baverigua\w+\b|\brevisao cadastral\b/], doc: 'pbf-regra-protecao-retorno-revisao-2026', fator: 1.6 },
+  { todas: [/\b(?:calendario|datas?|quando)\b/, /\b(?:pagamento|pagamentos|deposito|repasse)\b/, /\b(?:bolsa|pbf|bf|beneficio)\b/], doc: 'pbf-calendario-operacional-2026', fator: 1.4 },
+  { todas: [/\bsicon\b|\bcondicionalidades?\b/, /\b(?:registro|registrar|lancar|lancamento|repercussao|efeito|descumprimento|acompanhamento)\b/], doc: 'sicon-condicionalidades-gestao', fator: 1.3 },
+  // Normas e trabalhadores do SUAS.
+  { todas: [/\b(?:trabalhadores?|recursos humanos|rh|equipe de referencia|profissionais do suas)\b/, /\b(?:suas|cras|creas|resolucao cnas|nob)\b/], doc: 'nob-rh-suas-anotada-2011', fator: 1.5 },
+  { todas: [/\bresolucao cnas\b|\bresolucao do cnas\b/, /\b(?:trabalhadores?|categorias profissionais|profissionais)\b/], doc: 'resolucao-cnas-17-2011', fator: 1.8 },
+  { todas: [/\b(?:tfd|tratamento fora de domicilio|cartao sus|regulacao)\b/], doc: 'sus-regulacao-acesso-cartao-tfd-resumo', fator: 1.5 },
+  { todas: [/\b(?:ouvidoria|controle social|conselho de saude|direitos do usuario)\b/], doc: 'sus-controle-social-ouvidoria-direitos-resumo', fator: 1.4 }
 ];
 
 function fatorPista(doc, consultaNorm) {
   let f = 1;
-  for (const p of PISTAS) if (p.doc === doc && p.todas.every(function (r) { return r.test(consultaNorm); })) f = Math.max(f, p.fator);
+  for (const p of PISTAS) if (p.doc === doc && p.todas.every(function (r) { return r.test(consultaNorm); }) && !(p.nao && p.nao.some(function (r) { return r.test(consultaNorm); }))) f = Math.max(f, p.fator);
   return f;
 }
 

@@ -7,7 +7,7 @@
 <meta name="paulus-endpoint" content="https://paulus-ia.paulo-ae18.workers.dev">
 <!-- Login pelo Firebase (opcional): chave web do projeto (Firebase → Configurações do projeto → Geral → Chave de API da Web). Vazio = sem Firebase. -->
 <meta name="paulus-firebase-key" content="AIzaSyAIj8Un7IVal25a-aaJGspcL_C1O6-SZno">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self' https://firestore.googleapis.com https://*.workers.dev https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://routing.openstreetmap.de; img-src 'self' data: https://tile.openstreetmap.org; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'unsafe-inline'; connect-src 'self' https://firestore.googleapis.com https://*.workers.dev https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://routing.openstreetmap.de; img-src 'self' data: https://tile.openstreetmap.org; object-src 'none'; base-uri 'none'; form-action 'none'">
 <style>
 /* =====================================================================
    PAULUS_IA · CONSOLE — interface estilo J.A.R.V.I.S.
@@ -1455,7 +1455,7 @@ body{
 <div id="lc">
 <canvas id="lgo" aria-hidden="true"></canvas>
 <h1 id="lgt" class="lt">PAULUS_IA</h1>
-<div class="ls">Acesso restrito aos profissionais do SUAS</div>
+<div class="ls">Acesso Restrito a Paulo Xavier</div>
 <form id="lgform" autocomplete="on" novalidate>
 <div class="lf"><label for="lgu">Usuário</label>
 <div class="lb" id="lgub"><input id="lgu" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="40" placeholder="seu usuário" aria-describedby="lgs" disabled></div></div>
@@ -1556,9 +1556,7 @@ body{
 <script src="lembretes.js"></script>
 <script src="notas.js"></script>
 <script src="agenda-datas.js"></script>
-<script src="agenda-firebase-config.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" defer></script>
+<script src="agenda-mds.js"></script>
 <script src="agenda.js"></script>
 <script src="docs.js"></script>
 <script src="login.js"></script>

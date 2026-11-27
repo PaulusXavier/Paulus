@@ -1,7 +1,7 @@
 // Service worker do Console do Paulus: guarda a tela para abrir sem internet. Rede primeiro (atualiza sozinho), cache como reserva.
 // Só arquivos do próprio site; as perguntas à IA (Worker, outro domínio) nunca passam pelo cache.
-var V = 'paulus-console-dde2090e9b48';
-var BASE = ['./', 'index.html', 'paulus.v1.js', 'login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'docs.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
+var V = 'paulus-console-95feb8239451';
+var BASE = ['./', 'index.html', 'paulus.v1.js', 'login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
 // Para funcionar sem internet logo na primeira vez: a base de normas, o editor de PDF e o mapa também ficam guardados na instalação.
 // Um a um e sem derrubar a instalação se algum falhar (arquivo pesado, rede lenta, ainda não publicado): o que faltar entra no cache quando for usado.
 // A base entra UMA vez, inteira (é o que o console carrega). Os pacotes geral/psicologia são as duas metades dela e só servem aos apps que os copiam.
@@ -59,5 +59,16 @@ self.addEventListener('fetch', function (e) {
       if (r.mode === 'navigate') return caches.match('index.html').then(function (i) { return i || caches.match('./'); }).then(function (i) { return i || Response.error(); });
       return Response.error();
     });
+  }));
+});
+
+// Toque num aviso da agenda: foca o Paulus aberto (e pede para abrir a agenda) ou abre uma janela nova já na agenda.
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (lista) {
+    for (var i = 0; i < lista.length; i++) {
+      if ('focus' in lista[i]) { lista[i].postMessage({ paulusAgenda: 'abrir' }); return lista[i].focus(); }
+    }
+    return self.clients.openWindow('./#agenda');
   }));
 });
