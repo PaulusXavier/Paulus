@@ -662,7 +662,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
 <span class="ag-seg" role="group" aria-label="Visão"><button type="button" class="ag-btn" data-view-month aria-pressed="true">Mês</button><button type="button" class="ag-btn" data-view-week aria-pressed="false">Semana</button></span>\
 <button type="button" class="ag-btn" data-done-btn aria-pressed="true" title="Mostrar ou ocultar concluídas no calendário">Concluídas</button>\
 <button type="button" class="ag-btn" data-stats>Estatísticas</button><button type="button" class="ag-btn" data-ics title="Baixar feriados, pagamentos e datas do MDS">.ics</button>\
-<button type="button" class="ag-btn" data-notify>Avisos</button><button type="button" class="ag-btn" data-connect>⟳ Sincronizar</button><button type="button" class="ag-btn" data-lock>Trancar</button><button type="button" class="ag-btn" data-close>✕ Fechar</button></header>\
+<button type="button" class="ag-btn" data-notify>Avisos</button><button type="button" class="ag-btn" data-connect>⟳ Sincronizar</button><button type="button" class="ag-btn" data-lock>Trancar</button><span class="ag-zoom" role="group" aria-label="Tamanho"><button type="button" class="ag-btn" data-zoom-out aria-label="Diminuir o tamanho" title="Diminuir">A−</button><button type="button" class="ag-btn" data-zoom-val aria-label="Tamanho atual (clique para seguir o aplicativo)">100%</button><button type="button" class="ag-btn" data-zoom-in aria-label="Aumentar o tamanho" title="Aumentar">A+</button></span><button type="button" class="ag-btn" data-close>✕ Fechar</button></header>\
 <div class="ag-strip"><span class="ag-chip" data-date-head></span><span class="ag-chip" data-date-kind></span><span class="ag-chip" data-date-notes></span><button type="button" class="ag-chip late" data-late hidden></button><span class="ag-chip mds" data-mds-next hidden></span><span class="ag-chip" data-sync-chip></span><span class="ag-chip ag-status" data-status role="status" aria-live="polite"></span></div>\
 <div class="ag-months" data-months></div>\
 <div class="ag-body"><section class="ag-cal" aria-label="Calendário"><div class="ag-mlabel"><span data-label></span><span data-year></span></div><div class="ag-week" aria-hidden="true">' + WEEK.map(function (x) { return '<div>' + x + '</div>'; }).join('') + '</div><div class="ag-grid" data-grid role="grid" aria-label="Dias do mês"></div><div class="ag-legend" data-legend></div></section>\
@@ -681,10 +681,61 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
 <div class="ag-row"><button type="button" class="ag-btn primary" data-unlock>Desbloquear e conectar</button><button type="button" class="ag-btn" data-disconnect>Desconectar da nuvem</button><button type="button" class="ag-btn" data-setup-close>Fechar</button></div></div></div>\
 <div class="ag-modal" data-stats-modal hidden role="dialog" aria-modal="true" aria-label="Estatísticas da agenda"><div class="ag-box"><h3 data-stats-title>Estatísticas</h3><div class="ag-seg" data-scope><button type="button" class="ag-btn" data-s="year">Ano</button><button type="button" class="ag-btn" data-s="month">Mês</button></div><div data-stats-body></div><div class="ag-row"><button type="button" class="ag-btn" data-stats-close>Fechar</button></div></div></div>';
 
+
+  /* ---------- tema claro (segue o aplicativo: body.claro) e tamanho (zoom) ---------- */
+  var ZOOMS = [0.85, 1, 1.15, 1.3, 1.5, 1.75], ZKEY = 'paulus.agenda.zoom', TAM_Z = { p: 0.85, m: 1, g: 1.15, gg: 1.3 };
+  var THEME_CSS = [
+    ':root{--pa-z:1}',
+    '#pa-agenda{zoom:var(--pa-z);inset:calc(10px / var(--pa-z)) calc(14px / var(--pa-z)) calc(22px / var(--pa-z))}',
+    '@media(max-width:700px){#pa-agenda{inset:calc(4px / var(--pa-z))}}@media(max-width:560px){#pa-agenda{inset:0}}',
+    '.pa-ov .pa-box{zoom:var(--pa-z);max-height:calc((100dvh - 28px) / var(--pa-z))}',
+    '.ag-zoom{display:inline-flex}.ag-zoom .ag-btn{min-width:34px}.ag-zoom .ag-btn:not(:first-child){border-left:0}.ag-zoom .ag-btn:first-child{border-radius:3px 0 0 3px}.ag-zoom .ag-btn:last-child{border-radius:0 3px 3px 0}.ag-zoom [data-zoom-val]{min-width:52px;font-family:var(--mono)}',
+    'body.claro #pa-agenda,body.claro .pa-ov{--c:#0b7a91;--c2:#075a6c;--t:#0e2a33;--mut:#46646e;--bg:#eef5f8;--pn:#fff;--pn2:#e6f1f5;--ln:#0b7a9138;--ln2:#0b7a9180;--fer:#c0392b;--fac:#a85a00;--pag:#17794a;--ext:#1f5fa8;--mds:#6b3fc4}',
+    'body.claro #pa-agenda{background:linear-gradient(180deg,#f9fcfd,#e8f1f4);box-shadow:0 0 0 1px #0b7a9155,0 18px 60px #0b2a3555;backdrop-filter:none}',
+    'body.claro #pa-agenda::before{display:none}',
+    'body.claro .ag-top{background:linear-gradient(90deg,#0b7a9114,transparent 60%)}',
+    'body.claro .ag-title{text-shadow:none}',
+    'body.claro .ag-led{background:#9bb0b8;box-shadow:0 0 0 2px #0002}body.claro .ag-led-ok{background:#17794a;box-shadow:0 0 8px #17794a88,0 0 0 2px #0002}body.claro .ag-led-connecting{background:var(--fac);box-shadow:0 0 8px var(--fac)}body.claro .ag-led-error{background:var(--fer);box-shadow:0 0 8px var(--fer)}',
+    'body.claro .ag-btn,body.claro .ag-top select{background:#fff}body.claro .ag-btn:hover{background:#dff0f5;box-shadow:0 0 0 2px #0b7a9133}body.claro .ag-btn[aria-pressed="true"],body.claro .ag-btn.on,body.claro .ag-btn.primary{background:#0b7a9122;color:var(--c2)}body.claro .ag-top select option{background:#fff;color:#0e2a33}',
+    'body.claro .ag-chip{background:#ffffffd0}body.claro .ag-chip.late{color:#a32d20}body.claro .ag-chip.mds{color:#5a2fb0}body.claro .ag-status{background:none}body.claro .ag-status.ag-bad{color:#b3261e}',
+    'body.claro .ag-months button{background:#ffffffa8}body.claro .ag-months .on{background:#0b7a9124;box-shadow:none}',
+    'body.claro .ag-cell{background:#ffffffb8}body.claro .ag-cell:hover{background:#dff0f5}body.claro .ag-cell.weekend{background:#e4eef2}body.claro .ag-cell.sel{background:#0b7a9126;box-shadow:inset 0 0 0 2px var(--c)}body.claro .ag-cell.today .ag-n{color:#fff;box-shadow:none}body.claro .ag-cell.late::after{box-shadow:none}',
+    'body.claro .ag-feriado{background:#c0392b22;color:#8a241a}body.claro .ag-facultativo{background:#a85a0022;color:#7a4200}body.claro .ag-pagamento{background:#17794a22;color:#0f5c37}body.claro .ag-extra{background:#1f5fa822;color:#174a85}body.claro .ag-mds{background:#6b3fc422;color:#4f2c99}',
+    'body.claro .ag-note{background:#e1eff3}body.claro .ag-card{background:#fff}body.claro .ag-mdsbox{background:#6b3fc414}body.claro .ag-mdsbox a{color:#4f2c99}body.claro .ag-tabs button.on{background:#0b7a9114}',
+    'body.claro .ag-add input,body.claro .ag-search{background:#fff}body.claro .ag-add input::placeholder,body.claro .ag-search::placeholder{color:#7a98a2}body.claro .ag-add input:focus,body.claro .ag-search:focus,body.claro .ag-box input:focus{box-shadow:0 0 0 2px #0b7a9133}',
+    'body.claro .ag-add button{background:#0b7a9120}body.claro .ag-add button:hover{background:#0b7a9140}',
+    'body.claro .ag-chk span{background:#fff}body.claro .ag-chk input:checked+span{box-shadow:none}body.claro .ag-chk input:checked+span::after{border-color:#fff}body.claro .ag-cat{color:#fff}body.claro .ag-eact .ag-danger{color:#a32d20}',
+    'body.claro .ag-locked,body.claro .ag-modal{background:#eef5f8e8}body.claro .ag-box{background:#fff;box-shadow:0 10px 40px #0b2a3533,0 0 0 1px #0b7a9155}body.claro .ag-box input[type=text],body.claro .ag-box input[type=password]{background:#fff}',
+    'body.claro .ag-st-error,body.claro .ag-msg{color:#b3261e}body.claro .ag-kpis div{background:#ffffffb8}body.claro .ag-hb-t{background:#e3eef2}',
+    'body.claro .pa-ov{background:#0e2a3366}body.claro .pa-box{background:#fff;box-shadow:0 18px 60px #0b2a3555,0 0 0 1px #0b7a9155}body.claro .pa-pill{background:#0b7a9114}body.claro .pa-x,body.claro .pa-day,body.claro .pa-today,body.claro .pa-sync,body.claro .pa-btn,body.claro .pa-box select,body.claro .pa-box input[type=time]{background:#fff}',
+    'body.claro .pa-day.is-today{background:#e0f0f5;box-shadow:none}body.claro .pa-n,body.claro .pa-tag{color:#fff}body.claro .pa-n.ok{color:var(--pag)}body.claro .pa-late{color:#a32d20;background:#c0392b14;border-color:#c0392b88}',
+    'body.claro .pa-btn.primary{background:#0b7a91;color:#fff;border-color:#0b7a91}body.claro .pa-prog span{background:#0b7a9122}body.claro .pa-box h3,body.claro .pa-title{color:var(--c2)}',
+    'body.claro .pa-clock circle:first-of-type{fill:#fff;stroke:#0b7a91}body.claro .pa-clock line:not([data-h]):not([data-m]):not([data-s]){stroke:#0b7a91}body.claro .pa-clock text{fill:#46646e}body.claro .pa-clock [data-h]{stroke:#0e2a33}body.claro .pa-clock [data-m]{stroke:#075a6c}body.claro .pa-clock circle:last-of-type{fill:#0b7a91}',
+    'body.claro #pa-toast{background:#fffffff5;color:#0e2a33;border-color:#0b7a91;box-shadow:0 6px 24px #0b2a3544}body.claro #pa-toast b{color:#075a6c}body.claro #pa-toast span{color:#46646e}'
+  ].join('\n');
+  function injectTheme() {
+    if (document.getElementById('pa-theme-css')) return;
+    var st = document.createElement('style'); st.id = 'pa-theme-css'; st.textContent = THEME_CSS; document.head.appendChild(st);
+  }
+  // Tamanho: se a pessoa escolheu A−/A+, vale a escolha; senão acompanha o "tamanho do texto" do aplicativo (html[data-tam]).
+  function zoomSaved() { var v = parseFloat(lsGet(ZKEY)); return ZOOMS.indexOf(v) >= 0 ? v : null; }
+  function zoomNow() { var s = zoomSaved(); return s != null ? s : (TAM_Z[document.documentElement.getAttribute('data-tam')] || 1); }
+  function applyZoom() {
+    var z = zoomNow();
+    document.documentElement.style.setProperty('--pa-z', String(z));
+    if (ui) { var b = q('[data-zoom-val]'); if (b) { b.textContent = Math.round(z * 100) + '%'; b.title = zoomSaved() != null ? 'Voltar ao tamanho do aplicativo' : 'Acompanhando o tamanho do aplicativo'; } }
+  }
+  function stepZoom(dir) {
+    var z = zoomNow(), i = 0, best = 1e9;
+    ZOOMS.forEach(function (v, k) { if (Math.abs(v - z) < best) { best = Math.abs(v - z); i = k; } });
+    i = Math.max(0, Math.min(ZOOMS.length - 1, i + dir));
+    lsSet(ZKEY, String(ZOOMS[i])); applyZoom();
+  }
+
   /* ---------- montagem e eventos ---------- */
   function create() {
     if (ui) return;
-    var css = document.createElement('style'); css.textContent = CSS; document.head.appendChild(css);
+    var css = document.createElement('style'); css.textContent = CSS; document.head.appendChild(css); injectTheme();
     ui = document.createElement('section'); ui.id = 'pa-agenda'; ui.hidden = true; ui.setAttribute('aria-label', 'Agenda Paulus'); ui.innerHTML = HTML;
     document.body.appendChild(ui);
     var sel = q('[data-select]'); MONTHS.forEach(function (n, i) { var o = document.createElement('option'); o.value = i; o.textContent = n; sel.appendChild(o); });
@@ -703,6 +754,9 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
       else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); q('[data-entry]').focus(); }
     };
     q('[data-close]').onclick = function () { open(false); };
+    q('[data-zoom-out]').onclick = function () { stepZoom(-1); }; q('[data-zoom-in]').onclick = function () { stepZoom(1); };
+    q('[data-zoom-val]').onclick = function () { lsSet(ZKEY, null); applyZoom(); };
+    applyZoom();
     q('[data-connect]').onclick = showSetup; q('[data-unlock-open]').onclick = showSetup; q('[data-lock]').onclick = lock;
     q('[data-ics]').onclick = exportIcs;
     q('[data-notify]').onclick = openAvisos;
@@ -762,6 +816,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
 
   /* ---------- estilo comum das janelas extras ---------- */
   function injectCss() {
+    injectTheme(); applyZoom();
     if (document.getElementById('pa-extra-css')) return;
     var c = [
       '.pa-ov{--c:#37e6ff;--c2:#8ff4ff;--t:#d6f7ff;--mut:#7fb7c4;--bg:#030d14;--pn:#071a25;--ln:#37e6ff33;--ln2:#37e6ff77;--fer:#ff6b5e;--fac:#ffb347;--pag:#6ee7a8;--mds:#b48cff;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--hud:"Bahnschrift","DIN Alternate","Segoe UI",system-ui,sans-serif;position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;padding:14px;background:#02090fcc;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);font:13px/1.4 var(--hud);color:var(--t)}',
@@ -1052,6 +1107,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
 
   function init() {
     state.code = lsGet(CODE) || ''; loadView(); loadPrefs();
+    applyZoom(); try { new MutationObserver(applyZoom).observe(document.documentElement, { attributes: true, attributeFilter: ['data-tam'] }); } catch (_) { /* sem observador */ }
     if (keyRestore()) {
       if (loadLocal()) { if (state.code) connect(false); } else { state.key = null; }
     }
