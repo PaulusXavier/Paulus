@@ -4,6 +4,8 @@
 // PASSO 1 (este arquivo): leitura do relatório de condicionalidades do MDS + "Famílias Recorrentes"
 // (famílias que aparecem em dois meses, por técnico). A leitura e a gravação do .xlsx ficam na camada
 // do console (passo 2); aqui tudo é função pura, testável em Node: `node --test tests/relatorios-bf.test.mjs`.
+// A interface da etapa 1 está em console/relatorios-ui.mjs; o processamento permanece neste módulo puro,
+// para poder ser testado no Node e reutilizado sem enviar os dados para a conversa ou para a IA.
 //
 // Entrada de planilha: abas = [{ nome: 'Paulo Xavier - Psicólogo', linhas: [[...], [...]] }]  (matriz de células).
 // Nada é guardado; o chamador decide o que fazer com o resultado e descarta os dados.
