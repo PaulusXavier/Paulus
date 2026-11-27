@@ -72,8 +72,15 @@ self.addEventListener('fetch', function (e) {
 self.addEventListener('notificationclick', function (e) {
   var acao = e.action === 'concluir' || e.action === 'adiar' ? e.action : '';
   var id = e.notification && e.notification.data && e.notification.data.id ? String(e.notification.data.id) : '';
+  var lemb = e.notification && e.notification.data && e.notification.data.lembrete ? String(e.notification.data.lembrete) : '';
+  var minLemb = e.action === 'adiar10' ? 10 : e.action === 'adiar60' ? 60 : 0;
   e.notification.close();
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (lista) {
+    // Lembrete adiado pelo botão do aviso: sem abrir a tela quando o app já está aberto.
+    if (lemb && minLemb) {
+      if (lista.length) { lista.forEach(function (c) { c.postMessage({ paulusLembrete: 'adiar', id: lemb, min: minLemb }); }); return; }
+      return self.clients.openWindow('./#lembrete!adiar=' + minLemb + '&id=' + encodeURIComponent(lemb));
+    }
     if (acao && id) {
       if (lista.length) { lista.forEach(function (c) { c.postMessage({ paulusAgenda: 'acao', acao: acao, id: id }); }); return; }
       return self.clients.openWindow('./#agenda!acao=' + acao + '&id=' + encodeURIComponent(id));
