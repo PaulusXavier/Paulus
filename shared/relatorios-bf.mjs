@@ -113,6 +113,139 @@ export function bfLerFamilias(abas) {
   return { mes, familias };
 }
 
+const TECNICOS_VOLANTE = [
+  { nome: 'Paulo Xavier', formacao: 'Psicólogo', cor: '0B2F7A' },
+  { nome: 'Danilo Braga', formacao: 'Psicólogo', cor: '159947' },
+  { nome: 'Keomara Teles', formacao: 'Assistente Social', cor: 'DB2777' }
+];
+const valorPreenchido = (v) => String(v == null ? '' : v).trim() !== '';
+const primeiraLetra = (v) => String(v == null ? '' : v).trim().charAt(0).toLocaleUpperCase('pt-BR') || '—';
+
+// Prepara a planilha MDS do Território Volante para a divisão local por técnico.
+// Cada família fica inteira com um técnico, mesmo quando os integrantes estão em várias linhas.
+export function bfPrepararDivisaoTecnicos(abas) {
+  const candidatas = [];
+  (abas || []).forEach((aba) => {
+    if (bfNorm(aba.nome).startsWith('resumo')) return;
+    const linhas = (aba.linhas || []).filter(cheia);
+    const indiceCabecalho = linhas.slice(0, 25).findIndex((linha) => {
+      const cabecalho = linha.map(bfNorm);
+      return cabecalho.some((h) => h.includes('nome'))
+        && cabecalho.some((h) => h === 'efeito' || h === 'bairro' || h.includes('nis'));
+    });
+    if (indiceCabecalho >= 0) candidatas.push({ nome: aba.nome, linhas, indiceCabecalho });
+  });
+  const escolhida = candidatas.find((c) => bfNorm(c.nome).includes('volante')) || candidatas[0];
+  if (!escolhida) return { ok: false, motivo: 'sem-tabela', texto: 'Não encontrei a tabela de condicionalidades. Confirme se há uma linha de cabeçalho com nome e Efeito, Bairro ou NIS.' };
+
+  const cabecalho = escolhida.linhas[escolhida.indiceCabecalho].slice();
+  const headerNorm = cabecalho.map(bfNorm);
+  const linhasDados = escolhida.linhas.slice(escolhida.indiceCabecalho + 1).filter(cheia).map((linha) => linha.slice());
+  if (!linhasDados.length) return { ok: false, motivo: 'sem-dados', texto: 'Não encontrei famílias abaixo do cabeçalho da tabela enviada.' };
+
+  const nisRespIdx = headerNorm.findIndex((h) => h.includes('nis') && h.includes('responsavel'));
+  const cpfRespIdx = headerNorm.findIndex((h) => h.includes('cpf'));
+  let nomeIdx = headerNorm.findIndex((h) => h === 'nome do responsavel familiar');
+  if (nomeIdx < 0) nomeIdx = headerNorm.findIndex((h) => h.includes('nome') && h.includes('responsavel'));
+  if (nomeIdx < 0) nomeIdx = headerNorm.findIndex((h) => h.includes('nome'));
+  if (nomeIdx < 0) nomeIdx = headerNorm.findIndex((h) => h.includes('responsavel') && h.includes('familiar'));
+  if (nomeIdx < 0) nomeIdx = 0;
+  const mesIdx = headerNorm.findIndex((h) => h.includes('mes') && h.includes('repercuss'));
+  const colunasId = headerNorm.map((h, i) => h.includes('nis') || h.includes('cpf') ? i : -1).filter((i) => i >= 0);
+  for (const linha of linhasDados) colunasId.forEach((i) => { linha[i] = bfIdentificador(linha[i]); });
+
+  let mesRepercussao = '';
+  if (mesIdx >= 0) {
+    const linhaComMes = linhasDados.find((linha) => valorPreenchido(linha[mesIdx]));
+    if (linhaComMes) mesRepercussao = String(linhaComMes[mesIdx]).trim();
+  }
+  if (!mesRepercussao) {
+    for (const valor of escolhida.linhas.slice(0, escolhida.indiceCabecalho).flat()) {
+      const texto = String(valor == null ? '' : valor).trim();
+      const correspondencia = texto.match(/(?:per[ií]odo|m[eê]s)\s+da\s+repercuss[aã]o\s*:\s*(.+)/i);
+      if (correspondencia) { mesRepercussao = correspondencia[1].trim(); break; }
+    }
+  }
+
+  // As linhas dos outros integrantes herdam os campos da família na linha imediatamente anterior.
+  const idsFamilia = [...new Set([nisRespIdx, cpfRespIdx, nomeIdx].filter((i) => i >= 0))];
+  const acharColuna = (fn) => headerNorm.findIndex(fn);
+  const colunasFamilia = [...new Set([...idsFamilia,
+    acharColuna((h) => h === 'bairro'),
+    acharColuna((h) => h.includes('endereco')),
+    acharColuna((h) => h.includes('referencia') && h.includes('endereco')),
+    acharColuna((h) => h === 'efeito'), mesIdx
+  ].filter((i) => i >= 0))];
+  if (idsFamilia.length) {
+    for (let i = 1; i < linhasDados.length; i++) {
+      const linha = linhasDados[i];
+      if (idsFamilia.every((col) => !valorPreenchido(linha[col])) && linha.some(valorPreenchido)) {
+        colunasFamilia.forEach((col) => {
+          if (!valorPreenchido(linha[col])) linha[col] = linhasDados[i - 1][col] == null ? '' : linhasDados[i - 1][col];
+        });
+      }
+    }
+  }
+
+  const grupos = new Map();
+  linhasDados.forEach((linha, i) => {
+    const nis = nisRespIdx >= 0 && valorPreenchido(linha[nisRespIdx]) ? String(linha[nisRespIdx]).trim() : '';
+    const cpf = cpfRespIdx >= 0 && valorPreenchido(linha[cpfRespIdx]) ? String(linha[cpfRespIdx]).trim() : '';
+    const id = nis || cpf;
+    const nome = String(linha[nomeIdx] == null ? '' : linha[nomeIdx]).trim();
+    const chave = id ? `${nis ? 'nis' : 'cpf'}:${id}` : (nome ? `nome:${bfNorm(nome)}` : `linha:${i}`);
+    if (!grupos.has(chave)) grupos.set(chave, { nome, linhas: [] });
+    const grupo = grupos.get(chave);
+    if (!grupo.nome && nome) grupo.nome = nome;
+    grupo.linhas.push(linha);
+  });
+  const listaGrupos = [...grupos.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+  const totalFamilias = listaGrupos.length;
+  const base = Math.floor(totalFamilias / TECNICOS_VOLANTE.length);
+  const resto = totalFamilias % TECNICOS_VOLANTE.length;
+  let cursor = 0;
+  const profissionais = TECNICOS_VOLANTE.map((tecnico, i) => {
+    const tamanho = base + (i < resto ? 1 : 0);
+    const gruposDoTecnico = listaGrupos.slice(cursor, cursor + tamanho);
+    cursor += tamanho;
+    const primeiras = gruposDoTecnico.length ? gruposDoTecnico[0].nome : '';
+    const ultimas = gruposDoTecnico.length ? gruposDoTecnico[gruposDoTecnico.length - 1].nome : '';
+    return {
+      ...tecnico,
+      totalFamilias: gruposDoTecnico.length,
+      linhas: gruposDoTecnico.flatMap((grupo) => grupo.linhas),
+      faixa: gruposDoTecnico.length ? `${primeiraLetra(primeiras)} a ${primeiraLetra(ultimas)}` : '—'
+    };
+  });
+
+  const usados = new Set();
+  const nomeResumo = bfNomeAbaSeguro('Resumo da divisão', usados);
+  const abasSaida = [{
+    nome: nomeResumo, tipo: 'resumo-tabela', cor: '0B2F7A',
+    aoa: [
+      ['Técnico responsável', 'Formação', 'Nº de famílias', 'Faixa alfabética (A a Z)', 'Mês de Repercussão'],
+      ...profissionais.map((p) => [p.nome, p.formacao, p.totalFamilias, p.faixa, mesRepercussao || 'Não identificado no arquivo enviado']),
+      ['Total', '', totalFamilias, '', '']
+    ],
+    formulas: [{ celula: 'C5', f: 'SUM(C2:C4)', v: totalFamilias }]
+  }];
+  profissionais.forEach((p) => {
+    const formacaoAba = p.formacao.replace(/Assistente Social/i, 'Assist. Social');
+    const nomeAba = bfNomeAbaSeguro(`${p.nome} - ${formacaoAba}`, usados);
+    abasSaida.push({ nome: nomeAba, tipo: 'tecnico', tecnico: p.nome, cor: p.cor, aoa: [cabecalho, ...p.linhas] });
+  });
+  const mesArquivo = String(mesRepercussao || '').trim().replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim();
+  const nomeArquivo = mesArquivo
+    ? `Território Volante - Divisão por técnico - ${mesArquivo}.xlsx`
+    : 'Território Volante - Divisão por técnico.xlsx';
+  return {
+    ok: true, nomeArquivo, mesRepercussao, totalFamilias, totalRegistros: linhasDados.length,
+    tecnicos: profissionais.map(({ nome, formacao, totalFamilias: total, faixa, cor }) => ({ nome, formacao, totalFamilias: total, faixa, cor })),
+    abas: abasSaida,
+    texto: `Planilha pronta: ${totalFamilias} família(s) distribuída(s) por ordem alfabética entre os três técnicos, com os integrantes mantidos juntos.`
+  };
+}
+
 const COR_TECNICO = { 'Paulo Xavier': '0B2F7A', 'Danilo Braga': '159947', 'Keomara Teles': 'DB2777' };
 const ORDEM_CONHECIDA = ['Paulo Xavier', 'Danilo Braga', 'Keomara Teles'];
 const NAO_IDENTIFICADO = 'Não identificado';
