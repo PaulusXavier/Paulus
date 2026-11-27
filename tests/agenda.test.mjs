@@ -108,3 +108,47 @@ test('agenda: filtro por tipo e modo pontos no calendário', () => {
   assert.match(pontos, /ag-cell h2/, '3 pendentes = intensidade média');
   T.setView({ dots: false });
 });
+
+
+test('agenda (celular): atalhos de data e hora trocam só o começo do texto', () => {
+  assert.equal(T.quickSet('Visita Silva', 'day', 'amanhã'), 'amanhã Visita Silva ');
+  assert.equal(T.quickSet('amanhã Visita Silva', 'time', '14:00'), 'amanhã 14:00 Visita Silva ');
+  assert.equal(T.quickSet('amanhã 14:00 Visita Silva', 'day', 'sex'), 'sex 14:00 Visita Silva ');
+  assert.equal(T.quickSet('sex 14:00 Visita Silva', 'time', '09:00'), 'sex 09:00 Visita Silva ');
+  assert.equal(T.quickSet('15/12 #prazo RMA', 'day', 'hoje'), 'hoje #prazo RMA ');
+  // o que sai da troca continua sendo entendido pela entrada rápida
+  const p = T.parseQuick(T.quickSet('Reunião CRAS', 'time', '09:00'));
+  assert.equal(p.time, '09:00'); assert.equal(p.text, 'Reunião CRAS');
+});
+
+test('agenda (avisos): horário, antecedência, perdidos e adiados', () => {
+  const agora = new Date(); agora.setHours(10, 0, 0, 0);
+  const k = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+  T.setDays({ [k]: [
+    { text: 'Atendimento', time: '10:05', createdAt: 1, done: false },   // daqui a 5 min
+    { text: 'Reunião', time: '09:00', createdAt: 2, done: false },       // passou há 1 h: perdido
+    { text: 'Visita', time: '09:55', createdAt: 3, done: false },        // passou há 5 min: ainda é aviso normal
+    { text: 'Feito', time: '10:00', createdAt: 4, done: true },          // concluída não avisa
+    { text: 'Tarde', time: '15:00', createdAt: 5, done: false },
+    { text: 'Sem hora', createdAt: 6, done: false }
+  ] });
+  T.prefs().lead = 0;
+  let d = T.dueAlerts(agora);
+  assert.deepEqual([...d.fresh.map((a) => a.e.text)], ['Visita']);
+  assert.deepEqual([...d.missed.map((a) => a.e.text)], ['Reunião']);
+  T.prefs().lead = 5;
+  d = T.dueAlerts(agora);
+  assert.deepEqual([...d.fresh.map((a) => a.e.text)].sort(), ['Atendimento', 'Visita']);
+  T.prefs().lead = 0;
+});
+
+test('agenda (avisos): botão Concluir do aviso conclui a anotação certa; anotação apagada é ignorada', () => {
+  const k = '2026-11-27';
+  T.setDays({ [k]: [{ text: 'A', time: '08:00', createdAt: 11, done: false }, { text: 'B', time: '08:00', createdAt: 12, done: false }] });
+  assert.equal(T.applyAction('concluir', T.alertId(k, { createdAt: 12 }, '08:00', 1)), true);
+  assert.deepEqual([...T.days()[k].map((e) => e.done)], [false, true]);
+  assert.equal(T.applyAction('concluir', 'n|2026-11-27|999|08:00'), true);          // não existe mais: nada acontece
+  assert.deepEqual([...T.days()[k].map((e) => e.done)], [false, true]);
+  assert.equal(T.applyAction('concluir', 'lixo'), false);
+  assert.equal(T.applyAction('concluir', 'n|../../x|1|08:00'), false);
+});
