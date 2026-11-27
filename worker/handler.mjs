@@ -36,6 +36,7 @@
 // O Worker não grava nada: nem pergunta, nem resposta, nem IP (o IP só fica na memória, por um minuto).
 
 import { firebaseLigado, verificarFirebase } from './firebase.mjs';
+import { tratarPush } from './push.mjs';
 import { loginLigado, entrar, criarSessao, verificarSessao, tokenDoPedido, criarFreio, normalizarUsuario, MAX_SENHA, MAX_USUARIO } from './auth.mjs';
 import { temDadoPessoal, temIdentificacaoPessoal, limparMarcacao } from '../shared/pii.mjs';
 import { docSaneado } from '../shared/documento.mjs';
@@ -458,7 +459,14 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
       const sessao = await criarSessao(env, conta, { lembrar: dados.lembrar === true });
       return json({ ok: true, token: sessao.token, usuario: sessao.usuario, expira: sessao.expira });
     }
-    if (exigeLogin && !(await sessaoDoPedido())) return json({ erro: 'Entre para usar o Paulus.' }, 401);
+    const sessaoAtual = exigeLogin ? await sessaoDoPedido() : null;
+    if (exigeLogin && !sessaoAtual) return json({ erro: 'Entre para usar o Paulus.' }, 401);
+    // Avisos com o app fechado (worker/push.mjs): só com login, porque cada usuário tem o seu próprio Durable Object.
+    if (rota.indexOf('/push/') === 0) {
+      if (!exigeLogin) return json({ ligado: false, erro: 'Avisos com o app fechado exigem o login do Paulus ligado.' }, 404);
+      if (estourouLimite(ipDoPedido)) return json({ erro: 'Muitos pedidos. Aguarde para tentar de novo.' }, 429);
+      return tratarPush(request, env, json, sessaoAtual && sessaoAtual.usuario, rota);
+    }
     // Rotas de pesquisa externa têm os mesmos controlos de origem, autenticação e limite por IP do chat.
     // A página/PDF é sempre recolhida como dado público, nunca como instrução para executar.
     if (rota === '/pesquisa' || rota === '/pesquisa/pagina' || rota === '/pesquisa/pdf' || rota === '/investigacao' || rota === '/voz-ia' || consultaEstadoWorkflow) {
