@@ -1,10 +1,10 @@
 {
- "versao": "0.37.0",
- "build": "073140d66a6b",
+ "versao": "0.38.0",
+ "build": "ba82a7c63d72",
  "commit": null,
  "arquivos": {
   "paulus.v1.js": {
-   "sha256": "be9a69151f26ce2f",
+   "sha256": "195b175210bb1c35",
    "bytes": 1258392
   },
   "conhecimento.json": {
@@ -72,20 +72,20 @@
    "bytes": 19932
   },
   "relatorios-ui.mjs": {
-   "sha256": "8ca6eb0a3278aaf0",
-   "bytes": 8568
+   "sha256": "4d930fd77e34f061",
+   "bytes": 11125
   },
   "relatorios-bf.mjs": {
-   "sha256": "cb9605f3743a383c",
-   "bytes": 12906
+   "sha256": "569d3078ae546949",
+   "bytes": 20442
   },
   "xlsx.bundle.js": {
    "sha256": "1c7abf2993ff2cd6",
    "bytes": 425020
   },
   "index.html": {
-   "sha256": "d0ff0352cbecf597",
-   "bytes": 138723
+   "sha256": "a152bbc47de743c7",
+   "bytes": 140144
   }
  }
 }
