@@ -1154,9 +1154,9 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
   }
   /* ---------- avisos (notificações do sistema) ---------- */
   var AVISOS = 'paulus.agenda.avisos', ENVIADOS = 'paulus.agenda.enviados', MUDO = 'paulus.agenda.saudacao-mudo', VISTO = 'paulus.agenda.saudacao-visto';
-  var prefs = { lead: 0, daily: '', mute: '', hide: false, vib: true, atTime: true, eve: '', quiet: false, qFrom: '22:00', qTo: '07:00' }, sent = { d: '', ids: {} }, ADIADOS = 'paulus.agenda.adiados', LEMBRAR = 'paulus.agenda.lembrar';
+  var prefs = { lead: 0, daily: '', mute: '', hide: false, vib: true, atTime: true, push: false, eve: '', quiet: false, qFrom: '22:00', qTo: '07:00' }, sent = { d: '', ids: {} }, ADIADOS = 'paulus.agenda.adiados', LEMBRAR = 'paulus.agenda.lembrar';
   function loadPrefs() {
-    try { var p = JSON.parse(lsGet(AVISOS) || '{}'); prefs.lead = [0, 5, 15, 30, 60, 120].indexOf(+p.lead) >= 0 ? +p.lead : 0; prefs.daily = /^\d\d:\d\d$/.test(p.daily || '') ? p.daily : ''; prefs.mute = typeof p.mute === 'string' ? p.mute : ''; prefs.hide = !!p.hide; prefs.vib = p.vib !== false; prefs.atTime = p.atTime !== false; prefs.eve = /^\d\d:\d\d$/.test(p.eve || '') ? p.eve : ''; prefs.quiet = !!p.quiet; prefs.qFrom = /^\d\d:\d\d$/.test(p.qFrom || '') ? p.qFrom : '22:00'; prefs.qTo = /^\d\d:\d\d$/.test(p.qTo || '') ? p.qTo : '07:00'; } catch (_) { /* padrão */ }
+    try { var p = JSON.parse(lsGet(AVISOS) || '{}'); prefs.lead = [0, 5, 15, 30, 60, 120].indexOf(+p.lead) >= 0 ? +p.lead : 0; prefs.daily = /^\d\d:\d\d$/.test(p.daily || '') ? p.daily : ''; prefs.mute = typeof p.mute === 'string' ? p.mute : ''; prefs.hide = !!p.hide; prefs.vib = p.vib !== false; prefs.atTime = p.atTime !== false; prefs.push = p.push === true; prefs.eve = /^\d\d:\d\d$/.test(p.eve || '') ? p.eve : ''; prefs.quiet = !!p.quiet; prefs.qFrom = /^\d\d:\d\d$/.test(p.qFrom || '') ? p.qFrom : '22:00'; prefs.qTo = /^\d\d:\d\d$/.test(p.qTo || '') ? p.qTo : '07:00'; } catch (_) { /* padrão */ }
     try { var e = JSON.parse(lsGet(ENVIADOS) || '{}'); sent = e && e.d === key(new Date()) ? { d: e.d, ids: e.ids || {} } : { d: key(new Date()), ids: {} }; } catch (_) { sent = { d: key(new Date()), ids: {} }; }
   }
   function savePrefs() { lsSet(AVISOS, JSON.stringify(prefs)); }
@@ -1317,6 +1317,122 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     notify(ttl, a.e.text + cat, a.base || a.id, { actions: true, stay: a.falta <= 0, when: quando.getTime(), hidden: 'Compromisso às ' + a.t, data: { id: a.base || a.id } });
     if (ui) status((a.falta > 0 ? 'Em ' + a.falta + ' min: ' : 'Agora: ') + a.e.text, false);
   }
+
+  /* ---------- avisos com o app fechado (Web Push; docs/PUSH.md) ----------
+     O app entrega ao Worker só: a hora, um código (hash) e um bloco CIFRADO com uma chave que fica neste aparelho (IndexedDB "paulus-push").
+     O Worker manda o bloco na hora certa; o sw.js decifra e mostra. O texto das anotações nunca sai daqui em claro. */
+  var PUSH_ID = 'paulus.agenda.push.id', pushTimer = 0, pushSig = '', pushOcupado = false;
+  function pushEndpoint() { var m = document.querySelector('meta[name="paulus-endpoint"]'); return ((m && m.content) || '').replace(/\/+$/, ''); }
+  function pushSuporte() { try { return !!(pushEndpoint() && 'serviceWorker' in navigator && 'PushManager' in window && typeof Notification !== 'undefined' && window.indexedDB && window.crypto && crypto.subtle); } catch (_) { return false; } }
+  function pushToken() { var S = window.PaulusSessao; if (!S || !S.token) return Promise.resolve(''); try { return Promise.resolve(typeof S.token === 'function' ? S.token() : S.token).then(function (t) { return t || ''; }, function () { return ''; }); } catch (_) { return Promise.resolve(''); } }
+  function pushApi(rota, corpo) {
+    return pushToken().then(function (tk) {
+      var h = { 'Content-Type': 'application/json' }; if (tk) h.Authorization = 'Bearer ' + tk;
+      return fetch(pushEndpoint() + rota, { method: 'POST', headers: h, body: JSON.stringify(corpo || {}), credentials: 'omit' }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.erro || 'Falha ' + r.status + '.'); e.status = r.status; e.codigo = j.erro; throw e; } return j; });
+      });
+    });
+  }
+  function pushB64(bytes) { var u = new Uint8Array(bytes), t = ''; for (var i = 0; i < u.length; i++) t += String.fromCharCode(u[i]); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  function pushDeB64(t) { var s = String(t).replace(/-/g, '+').replace(/_/g, '/'), b = atob(s + '='.repeat((4 - (s.length % 4)) % 4)), u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
+  function pushIdb() { return new Promise(function (ok, no) { var r = indexedDB.open('paulus-push', 1); r.onupgradeneeded = function () { r.result.createObjectStore('kv'); }; r.onsuccess = function () { ok(r.result); }; r.onerror = function () { no(r.error); }; }); }
+  function pushLer(k) { return pushIdb().then(function (db) { return new Promise(function (ok, no) { var q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = function () { ok(q.result); }; q.onerror = function () { no(q.error); }; }); }); }
+  function pushGravar(k, v) { return pushIdb().then(function (db) { return new Promise(function (ok, no) { var t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = function () { ok(); }; t.onerror = function () { no(t.error); }; }); }); }
+  function pushChaveAes() {
+    return pushLer('aes').then(function (c) {
+      if (c) return c;
+      return crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']).then(function (nova) { return pushGravar('aes', nova).then(function () { return nova; }); });
+    });
+  }
+  function pushCifrar(chave, obj) {
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, chave, new TextEncoder().encode(JSON.stringify(obj))).then(function (ct) { var u = new Uint8Array(12 + ct.byteLength); u.set(iv, 0); u.set(new Uint8Array(ct), 12); return pushB64(u); });
+  }
+  function pushHash(t) { return crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)).then(function (h) { return pushB64(h).slice(0, 20); }); }
+  // O que deve avisar nos próximos dias (mesmas regras de dueAlerts: antecedência, "de novo na hora", silêncio, dia silenciado).
+  function pushItens() {
+    var now = Date.now(), out = [], hoje = key(new Date()), lead = prefs.lead;
+    var okTempo = function (ms) { var dt = new Date(ms); if (ms <= now + 5000 || inQuiet(dt)) return false; if (prefs.mute && prefs.mute === hoje && key(dt) === hoje) return false; return true; };
+    var texto = function (t, b, hidden) { return prefs.hide ? { t: 'Agenda Paulus', b: hidden } : { t: t, b: b }; };
+    for (var d = 0; d < 14; d++) {
+      var dia = new Date(); dia.setHours(12, 0, 0, 0); dia.setDate(dia.getDate() + d); var k = key(dia);
+      rows(k).forEach(function (e, i) {
+        var t = cleanTime(e.time); if (!t || e.done) return;
+        var hm = t.split(':'), quando = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate(), +hm[0], +hm[1], 0, 0).getTime();
+        var id = alertId(k, e, t, i), cat = cleanCat(e.cat) ? ' (' + CATS[e.cat].label + ')' : '', corpo = e.text + cat;
+        if (lead > 0 && okTempo(quando - lead * 60000)) out.push(Object.assign({ id: id, at: quando - lead * 60000, i: id, a: 1, w: quando }, texto('Em ' + lead + ' min · ' + t, corpo, 'Compromisso às ' + t)));
+        if ((lead === 0 || prefs.atTime) && okTempo(quando)) out.push(Object.assign({ id: lead > 0 ? id + '|h' : id, at: quando, i: lead > 0 ? id + '|h' : id, a: 1, s: 1, w: quando }, texto('Agora · ' + t, corpo, 'Compromisso às ' + t)));
+      });
+    }
+    // Resumos de hoje e de amanhã noite (só o que ainda vem hoje; o texto reflete o que está marcado agora)
+    var hm2 = function (hhmm, dia0) { var p = hhmm.split(':'); return new Date(dia0.getFullYear(), dia0.getMonth(), dia0.getDate(), +p[0], +p[1], 0, 0).getTime(); };
+    if (prefs.daily && !wasSent('resumo|' + hoje) && okTempo(hm2(prefs.daily, new Date()))) { var dt = dailyText(); if (!dt.empty) out.push(Object.assign({ id: 'resumo' + hoje, at: hm2(prefs.daily, new Date()), i: 'resumo|' + hoje }, texto(dt.title, dt.body, 'Seu resumo do dia está pronto'))); }
+    if (prefs.eve && !wasSent('noite|' + hoje) && okTempo(hm2(prefs.eve, new Date()))) { var et = eveText(); if (!et.empty) out.push(Object.assign({ id: 'noite' + hoje, at: hm2(prefs.eve, new Date()), i: 'noite|' + hoje }, texto(et.title, et.body, 'Seu resumo de amanhã está pronto'))); }
+    // Lembretes do chat ("me lembre às 15h de ...")
+    try { var L = window.PaulusLembretes; if (L && L.pendentes) L.pendentes().forEach(function (l) { if (l.quando > now + 5000 && l.quando < now + 14 * 86400000) out.push({ id: 'l' + l.id, at: l.quando, i: l.id, l: l.id, w: l.quando, t: prefs.hide ? 'Paulus · lembrete' : 'Paulus · lembrete', b: prefs.hide ? 'Você tem um lembrete.' : l.texto }); }); } catch (_) { /* sem lembretes */ }
+    out.sort(function (a, b) { return a.at - b.at; });
+    return out.slice(0, 300);
+  }
+  function pushAssinatura(j) { return navigator.serviceWorker.ready.then(function (reg) {
+    return reg.pushManager.getSubscription().then(function (sub) { return sub || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pushDeB64(j.chave) }); });
+  }); }
+  // Liga: pede a chave pública ao Worker, assina o push do navegador e registra a assinatura (idempotente).
+  function pushLigar() {
+    if (!pushSuporte()) return Promise.reject(new Error('Este navegador não oferece avisos com o app fechado.'));
+    var permissao = Notification.permission === 'granted' ? Promise.resolve('granted') : Notification.requestPermission();
+    return permissao.then(function (p) {
+      if (p !== 'granted') throw new Error('Libere as notificações do site para ativar.');
+      return pushApi('/push/chave');
+    }).then(function (j) {
+      if (!j.chave) throw new Error(j.erro || 'O Worker ainda não está configurado para isso (docs/PUSH.md).');
+      return pushAssinatura(j).catch(function () { return navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription().then(function (x) { return x ? x.unsubscribe() : 0; }).then(function () { return pushAssinatura(j); }); }); });
+    }).then(function (sub) {
+      var o = sub.toJSON(); if (!o.keys) throw new Error('O navegador não devolveu as chaves do aviso.');
+      return pushChaveAes().then(function () { return pushApi('/push/assinar', { endpoint: o.endpoint, p256dh: o.keys.p256dh, auth: o.keys.auth }); });
+    }).then(function (j) { lsSet(PUSH_ID, j.id); pushSig = ''; return pushSyncAgora(); });
+  }
+  function pushDesligar() {
+    var id = lsGet(PUSH_ID) || '';
+    var fim = function () { lsSet(PUSH_ID, ''); pushSig = ''; };
+    return (id ? pushApi('/push/cancelar', { id: id }).catch(function () { /* sem rede: o Worker limpa sozinho quando a assinatura morrer */ }) : Promise.resolve()).then(function () {
+      return navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (x) { return x ? x.unsubscribe() : 0; }).catch(function () { /* ok */ });
+    }).then(fim, fim);
+  }
+  // Manda a lista de avisos ao Worker (só quando mudou).
+  function pushSyncAgora() {
+    pushTimer = 0;
+    var id = lsGet(PUSH_ID) || '';
+    if (!prefs.push || !id || !state.key || !pushSuporte() || Notification.permission !== 'granted' || pushOcupado) return Promise.resolve(false);
+    var itens = pushItens(), sig = JSON.stringify([id, prefs.hide, prefs.lead, itens.map(function (x) { return x.id + '@' + x.at + '#' + (x.b || '').length; })]);
+    if (sig === pushSig) return Promise.resolve(false);
+    pushOcupado = true;
+    return pushChaveAes().then(function (chave) {
+      return Promise.all(itens.map(function (x) { var c = { t: x.t, b: x.b, i: x.i, a: x.a, l: x.l, w: x.w, s: x.s, v: prefs.vib ? 1 : 0 }; return Promise.all([pushHash(x.id), pushCifrar(chave, c)]).then(function (r) { return { id: r[0], at: x.at, blob: r[1] }; }); }));
+    }).then(function (lista) { return pushApi('/push/agendar', { id: id, itens: lista }); }).then(function () { pushSig = sig; pushOcupado = false; return true; }, function (e) {
+      pushOcupado = false;
+      if (e && e.status === 404 && e.codigo === 'sem-assinatura') { return pushLigar().then(function () { return true; }, function () { return false; }); }   // o Worker perdeu a assinatura: assina de novo
+      return false;
+    });
+  }
+  function pushSync() { if (pushTimer || !prefs.push) return; pushTimer = setTimeout(function () { pushSyncAgora(); }, 2500); }
+  // Avisos que o aparelho já mostrou com o app fechado: não repetir como "perdidos" ao abrir.
+  function pushEntregues() {
+    if (!prefs.push || !window.indexedDB) return Promise.resolve();
+    return pushLer('entregues').then(function (ids) {
+      if (!ids || !ids.length) return;
+      ids.forEach(function (id) { alerted[id] = 1; markSent(id); if (/^[a-z0-9]{6,20}$/.test(id)) { try { if (window.PaulusLembretes && window.PaulusLembretes.marcarAvisado) window.PaulusLembretes.marcarAvisado(id); } catch (_) { /* ok */ } } });
+      return pushGravar('entregues', []);
+    }).catch(function () { /* sem IndexedDB */ });
+  }
+  function retomar() { pushEntregues().then(function () { checkAlerts(); }, function () { checkAlerts(); }); }
+  // Teste ponta a ponta: um aviso em 10 s pelo servidor (feche o app e espere).
+  function pushTeste() {
+    var id = lsGet(PUSH_ID) || ''; if (!id) return Promise.reject(new Error('Ative primeiro os avisos com o app fechado.'));
+    return pushChaveAes().then(function (chave) { return pushCifrar(chave, { t: 'Agenda Paulus', b: 'Teste pelo servidor: funciona com o app fechado.', i: 'teste' + Date.now(), v: prefs.vib ? 1 : 0 }); }).then(function (blob) {
+      return pushApi('/push/agendar', { id: id, somar: true, itens: [{ id: 'teste' + (Date.now() % 100000), at: Date.now() + 10000, blob: blob }] });
+    });
+  }
+
   function inQuiet(now) {
     if (!prefs.quiet) return false;
     var n = now.getHours() * 60 + now.getMinutes(), a = minutes(prefs.qFrom), b = minutes(prefs.qTo);
@@ -1337,6 +1453,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
   function checkAlerts() {
     if (!state.key) return;
     updateBadge();
+    pushSync();
     if (mutedAlerts()) return;
     if (inQuiet(new Date())) return;               // horário de silêncio: nada toca; ao terminar, o que passou vira um aviso só
     var now = new Date(), k = key(now), nowMin = now.getHours() * 60 + now.getMinutes(), d = dueAlerts(now);
@@ -1396,9 +1513,12 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
       '<div class="pa-row"><input type="checkbox" id="pa-av-q" data-av-quiet-on' + (prefs.quiet ? ' checked' : '') + '><label for="pa-av-q">Silêncio das</label><input type="time" data-av-qfrom value="' + esc(prefs.qFrom) + '" style="width:auto"><span>às</span><input type="time" data-av-qto value="' + esc(prefs.qTo) + '" style="width:auto"></div>' +
       '<div class="pa-row"><input type="checkbox" id="pa-av-d" data-av-daily-on' + (prefs.daily ? ' checked' : '') + '><label for="pa-av-d">Resumo do dia, às</label><input type="time" data-av-daily value="' + esc(prefs.daily || '08:00') + '" style="width:auto"></div>' +
       '<div class="pa-row"><input type="checkbox" id="pa-av-m" data-av-mute' + (mutedAlerts() ? ' checked' : '') + '><label for="pa-av-m">Silenciar os avisos hoje</label></div>' +
+      '<div class="pa-row"><input type="checkbox" id="pa-av-p" data-av-push' + (prefs.push ? ' checked' : '') + (pushSuporte() ? '' : ' disabled') + '><label for="pa-av-p">Avisar mesmo com o app fechado <span class="pa-muted">(o texto vai cifrado; o servidor só vê a hora)</span></label></div>' +
+      '<p class="pa-note" data-av-push-st>' + esc(pushSuporte() ? (prefs.push ? 'Avisos com o app fechado: ligados neste aparelho.' : 'Desligado. Ative para receber avisos até com o app fechado.') : 'Indisponível aqui (precisa do Worker configurado e de um navegador com push).') + '</p>' +
+      '<div class="pa-btns"><button type="button" class="pa-btn" data-av-push-teste' + (prefs.push ? '' : ' hidden') + '>Testar com o app fechado (aviso em 10 s)</button></div>' +
       '<div class="pa-row"><input type="checkbox" id="pa-av-h" data-av-hide' + (prefs.hide ? ' checked' : '') + '><label for="pa-av-h">Esconder o texto na tela bloqueada <span class="pa-muted">(mostra só "Compromisso às 14:00")</span></label></div>' +
       '<div class="pa-row"><input type="checkbox" id="pa-av-v" data-av-vib' + (prefs.vib ? ' checked' : '') + '><label for="pa-av-v">Vibrar ao avisar</label></div>' +
-      '<p class="pa-muted" style="margin:12px 0 0">Os avisos saem com o Paulus aberto ou em segundo plano, enquanto o celular o mantiver ativo. No Android, para não perder avisos: Configurações → Apps → Paulus → Bateria → "Sem restrições". Com o app fechado, nada é enviado — por isso, ao abrir, o Paulus avisa o que passou. No aviso, use <b>Concluir</b> ou <b>+10 min</b> sem abrir o app.</p>' +
+      '<p class="pa-muted" style="margin:12px 0 0">Os avisos saem com o Paulus aberto ou em segundo plano, enquanto o celular o mantiver ativo. No Android, para não perder avisos: Configurações → Apps → Paulus → Bateria → "Sem restrições". Com o app fechado, só saem avisos se você ligar "Avisar mesmo com o app fechado"; senão, ao abrir, o Paulus avisa o que passou. No aviso, use <b>Concluir</b> ou <b>+10 min</b> sem abrir o app.</p>' +
       '<div class="pa-pair" style="margin-top:12px"><button type="button" class="pa-btn" data-av-test>Enviar aviso de teste</button><button type="button" class="pa-btn" data-av-close>Fechar</button></div></div></div>', 'Avisos da agenda');
     var g = function (s) { return o.querySelector(s); };
     var fechar = function () { o.classList.remove('on'); };
@@ -1407,13 +1527,25 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
       prefs.mute = g('[data-av-mute]').checked ? key(new Date()) : ''; prefs.hide = g('[data-av-hide]').checked; prefs.vib = g('[data-av-vib]').checked; prefs.atTime = g('[data-av-attime]').checked;
       prefs.eve = g('[data-av-eve-on]').checked && /^\d\d:\d\d$/.test(g('[data-av-eve]').value) ? g('[data-av-eve]').value : '';
       prefs.quiet = g('[data-av-quiet-on]').checked && /^\d\d:\d\d$/.test(g('[data-av-qfrom]').value) && /^\d\d:\d\d$/.test(g('[data-av-qto]').value); if (/^\d\d:\d\d$/.test(g('[data-av-qfrom]').value)) prefs.qFrom = g('[data-av-qfrom]').value; if (/^\d\d:\d\d$/.test(g('[data-av-qto]').value)) prefs.qTo = g('[data-av-qto]').value;
-      savePrefs();
+      savePrefs(); pushSync();
     };
     g('[data-av-x]').onclick = g('[data-av-close]').onclick = function () { salvar(); fechar(); };
     o.onclick = function (e) { if (e.target === o) { salvar(); fechar(); } };
     o.onkeydown = function (e) { if (e.key === 'Escape') { salvar(); fechar(); } };
     ['[data-av-lead]', '[data-av-daily-on]', '[data-av-daily]', '[data-av-mute]', '[data-av-hide]', '[data-av-vib]', '[data-av-attime]', '[data-av-eve-on]', '[data-av-eve]', '[data-av-quiet-on]', '[data-av-qfrom]', '[data-av-qto]'].forEach(function (s) { g(s).onchange = salvar; });
     swipeDown(o.querySelector('.pa-box'), o.querySelector('[data-grab]'), function () { salvar(); fechar(); });
+    var pst = g('[data-av-push-st]'), ptb = g('[data-av-push-teste]'), pck = g('[data-av-push]');
+    pck.onchange = function () {
+      pck.disabled = true;
+      if (pck.checked) {
+        pst.textContent = 'Ativando…';
+        pushLigar().then(function () { prefs.push = true; savePrefs(); pst.textContent = 'Avisos com o app fechado: ligados neste aparelho.'; ptb.hidden = false; pushSync(); }, function (e) { pck.checked = false; prefs.push = false; savePrefs(); pst.textContent = (e && e.message) || 'Não consegui ativar.'; }).then(function () { pck.disabled = false; });
+      } else {
+        prefs.push = false; savePrefs(); ptb.hidden = true;
+        pushDesligar().then(function () { pst.textContent = 'Desligado.'; pck.disabled = false; });
+      }
+    };
+    ptb.onclick = function () { pst.textContent = 'Enviando… feche o Paulus agora: o aviso chega em 10 s.'; pushTeste().then(function () { /* aguardando */ }, function (e) { pst.textContent = (e && e.message) || 'Falhou.'; }); };
     var pb = g('[data-av-perm-btn]');
     pb.onclick = function () {
       Notification.requestPermission().then(function (p) {
@@ -1589,10 +1721,12 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     if (keyRestore()) {
       if (loadLocal()) { if (state.code) connect(false); drainActions(); } else { state.key = null; }
     }
-    setInterval(checkAlerts, 15000);
+    setInterval(retomar, 15000);
+    // Renova a assinatura do push se o navegador a trocou (sem pedir permissão de novo).
+    if (prefs.push) setTimeout(function () { try { if (pushSuporte() && Notification.permission === 'granted') pushLigar().catch(function () { /* tenta na próxima abertura */ }); } catch (_) { /* ok */ } }, 6000);
     // O celular congela o app em segundo plano: ao voltar à tela (ou ao ligar a tela), confere na hora o que venceu.
-    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { checkAlerts(); updateBadge(); } });
-    window.addEventListener('pageshow', checkAlerts); window.addEventListener('focus', checkAlerts);
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { retomar(); updateBadge(); } });
+    window.addEventListener('pageshow', retomar); window.addEventListener('focus', retomar);
     window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEvt = e; });
     window.addEventListener('appinstalled', function () { installEvt = null; });
     // Internet de volta: reconecta sozinho se a sincronização tinha caído; o cartão de abertura acompanha.
@@ -1621,7 +1755,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
   window.PaulusAgenda = {
     abrir: open, init: init, saudacao: greeting, avisos: openAvisos,
     // Ganchos para teste e para o resto do Paulus (somente leitura).
-    _teste: { checkAlerts: checkAlerts, dueAlerts: dueAlerts, applyAction: applyAction, quickSet: quickSet, snoozed: snoozed, snoozeSet: snoozeSet, alertId: alertId, weekSummary: weekSummary, dailyText: dailyText, eveText: eveText, inQuiet: inQuiet, notify: notify, prefs: function () { return prefs; }, derive: derive, enc: enc, dec: dec, parseQuick: parseQuick, relDay: relDay, addDays: addDays, dotsHtml: dotsHtml, progressHtml: progressHtml, groupedHtml: groupedHtml, planMove: planMove, cellHtml: cellHtml, setView: function (v) { Object.assign(view, v); }, setDays: function (d) { state.days = d; }, days: function () { return state.days; }, computeYear: computeYear, easter: easter, setKey: function (k) { state.key = k; } },
+    _teste: { checkAlerts: checkAlerts, dueAlerts: dueAlerts, applyAction: applyAction, quickSet: quickSet, snoozed: snoozed, snoozeSet: snoozeSet, alertId: alertId, weekSummary: weekSummary, dailyText: dailyText, eveText: eveText, inQuiet: inQuiet, pushItens: pushItens, notify: notify, prefs: function () { return prefs; }, derive: derive, enc: enc, dec: dec, parseQuick: parseQuick, relDay: relDay, addDays: addDays, dotsHtml: dotsHtml, progressHtml: progressHtml, groupedHtml: groupedHtml, planMove: planMove, cellHtml: cellHtml, setView: function (v) { Object.assign(view, v); }, setDays: function (d) { state.days = d; }, days: function () { return state.days; }, computeYear: computeYear, easter: easter, setKey: function (k) { state.key = k; } },
     pendencias: function (k) { return rows(k || key(new Date())).filter(function (e) { return !e.done; }).map(function (e) { return { texto: e.text, hora: e.time || '', tipo: e.cat || '' }; }); }
   };
 })();

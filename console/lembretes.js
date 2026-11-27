@@ -199,6 +199,8 @@
     l.quando = Date.now() + Math.max(1, Math.min(+min || 10, 24 * 60)) * 60000; l.avisado = false;
     lista.sort(function (a, b) { return a.quando - b.quando; }); gravar(); return true;
   }
+  // O aviso já saiu pelo servidor (push) com o app fechado: não repetir ao abrir.
+  function marcarAvisado(id) { ler(); var l = lista.filter(function (x) { return x.id === id; })[0]; if (!l || l.avisado) return false; l.avisado = true; gravar(); return true; }
   function init(o) {
     cfg = o || {}; ler();
     if (temporizador) clearInterval(temporizador);
@@ -216,7 +218,7 @@
   }
 
   window.PaulusLembretes = {
-    init: init, adiar: adiar, interpretar: interpretar, executar: executar, disparar: disparar, pendentes: pendentes,
+    init: init, adiar: adiar, marcarAvisado: marcarAvisado, interpretar: interpretar, executar: executar, disparar: disparar, pendentes: pendentes,
     recibo: function () { var r = ultimo; ultimo = null; return r; },
     _quandoDe: quandoDe, _redefinir: function () { lista = null; }
   };
