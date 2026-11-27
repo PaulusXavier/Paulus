@@ -1448,6 +1448,22 @@ body{
 .bf-report-section #bf-pdf-status{min-height:1.5em;overflow-wrap:anywhere;color:var(--c2);font:13px/1.5 var(--hud)}
 .bf-report-check{display:flex;align-items:flex-start;gap:9px;color:var(--mut);font:13px/1.5 var(--hud)}
 .bf-report-check input{margin:3px 0 0;accent-color:var(--c);flex:none}
+.ab-abrigo{display:grid;gap:8px;padding:13px;border:1px solid var(--bd);border-radius:14px;background:#02070c}
+.ab-abrigo h4{margin:0;font:600 14px var(--hud);color:var(--t)}
+.ab-efeito label{display:block;margin-bottom:6px;font:600 12px var(--hud);color:var(--t)}
+.ab-efeito input[type=file]{display:block;width:100%;max-width:100%;color:var(--mut);font:12px/1.4 var(--hud)}
+.ab-arquivos{margin:6px 0 0;padding:0;list-style:none;display:grid;gap:4px}
+.ab-arquivos li{display:flex;align-items:center;gap:6px;font:12px var(--hud);color:var(--mut)}
+.ab-arquivos .ab-nome{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ab-arquivos button{min-width:32px;min-height:32px;border-radius:8px}
+.ab-gerar{min-height:44px;padding:0 16px;border-radius:12px;background:var(--c);color:var(--bg);border:1px solid var(--c);font-weight:700}
+.ab-gerar:disabled{opacity:.48;cursor:not-allowed}
+#ab-total[data-cheio="1"]{color:#f87171}
+#ab-status{min-height:1.5em;overflow-wrap:anywhere;color:var(--c2);font:13px/1.5 var(--hud)}
+.ab-crono{font:12px var(--hud);color:var(--mut)}
+.ab-crono table{width:100%;border-collapse:collapse;margin-top:6px}
+.ab-crono th,.ab-crono td{padding:4px 6px;border-bottom:1px solid var(--bd);text-align:left}
+#ab-mes{width:100%;min-height:40px;border-radius:10px}
 @media(max-width:520px){.bf-report-inner{padding:18px 14px}.bf-report-grid{grid-template-columns:1fr}}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
@@ -1520,7 +1536,7 @@ body{
 <dialog id="bf-report" class="bf-report" aria-labelledby="bf-report-title">
   <div class="bf-report-inner">
     <div class="bf-report-head">
-      <div><h2 id="bf-report-title">Relatórios locais</h2><p>Etapas 1, 2 e 3 · tabelas, divisão por técnico e PDFs individuais</p></div>
+      <div><h2 id="bf-report-title">Relatórios locais</h2><p>Etapas 1 a 3 e 5 · tabelas, divisão por técnico, PDFs individuais e abrigos</p></div>
       <button id="bf-fechar" class="bf-report-close" type="button" aria-label="Fechar e limpar os ficheiros">×</button>
     </div>
     <p class="bf-report-note">As planilhas são lidas e comparadas neste aparelho. Não são anexadas à conversa, gravadas ou enviadas à rede/IA. Limite: 5 MB por ficheiro.</p>
@@ -1545,6 +1561,16 @@ body{
       <label class="bf-report-check"><input id="bf-pdf-rota" type="checkbox" checked><span>Ordenar por blocos de visita e sugerir sequência local por bairro, rua e número.</span></label>
       <div class="bf-report-actions"><button id="bf-pdf-gerar" type="button" disabled>Gerar PDF(s) individual(is)</button></div>
       <p>Cada PDF inclui resumo por efeito e por bloco, e começa o detalhamento de cada bloco numa página nova. A ordem é uma sugestão local por texto, sem mapa, trânsito nem cálculo de distância; confirme endereços e ajuste a sequência antes da visita.</p>
+    </section>
+    <section class="bf-report-section" aria-labelledby="bf-ab-title">
+      <h3 id="bf-ab-title">Etapa 5 · Relatórios dos Abrigos (Operação Acolhida)</h3>
+      <p>Junte as folhas resumo (PDF, uma por família) de cada abrigo num único PDF, com capa e uma divisória por efeito: Alerta, Bloqueio e Suspensão. Até 60 PDFs e 80 MB no total. Os arquivos não saem do aparelho.</p>
+      <div class="bf-report-field"><label id="ab-mes-rotulo" for="ab-mes">Mês de repercussão</label><select id="ab-mes"><option value="">Escolher…</option></select></div>
+      <details class="ab-crono"><summary>Cronograma de Repercussão</summary><table><thead><tr><th>Mês</th><th>Educação</th><th>Saúde</th><th>Recurso até</th></tr></thead><tbody id="ab-cronograma"></tbody></table></details>
+      <label class="bf-report-check"><input id="ab-manter" type="checkbox"><span>Manter as folhas do abrigo na janela depois de gerar o PDF.</span></label>
+      <p id="ab-total" role="status">0/60 arquivos</p>
+      <div id="ab-lista"></div>
+      <p id="ab-status" role="status" aria-live="polite"></p>
     </section>
     <p class="bf-report-note">Ao fechar esta janela, os dados temporários são removidos. É necessária uma tabela de condicionalidades com a coluna “Efeito” e NIS ou CPF do responsável.</p>
   </div>
@@ -1618,5 +1644,6 @@ body{
 <script src="agenda.js"></script>
 <script src="docs.js"></script>
 <script type="module" src="relatorios-ui.mjs"></script>
+<script type="module" src="abrigos-ui.mjs"></script>
 <script src="login.js"></script>
 </body></html>
