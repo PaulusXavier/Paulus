@@ -1,4 +1,4 @@
-# Relatórios locais no Paulus — etapas 1 a 5
+# Relatórios locais no Paulus — etapas 1 a 6
 
 As tabelas e os relatórios são preparados no navegador. Os ficheiros não são anexados à conversa, enviados à IA nem gravados pelo fluxo. A etapa 1 cria o Excel **Famílias Recorrentes**; a etapa 2 divide a planilha do Território Volante por técnico; a etapa 3 cria PDFs individuais a partir dessa divisão; a etapa 4 organiza o detalhamento desses PDFs por blocos de visita.
 
@@ -45,10 +45,24 @@ Junta as folhas resumo (PDF, uma por família) enviadas a cada abrigo — **Rond
 
 **Todo início de ano:** adicione (sem apagar o ano anterior) a chave do ano novo em `CRONOGRAMAS_REPERCUSSAO_POR_ANO`, no formato de 2026, com os dados do comunicado de Condicionalidades. O ano mais recente passa a valer sozinho no menu, na tabela e nas capas.
 
-PDFs criptografados ou inválidos são recusados com o nome do arquivo e o grupo. Esta etapa não lê endereço nem organiza por rota: isso é a união da Rota de Visita, que continua como etapa futura.
+PDFs criptografados ou inválidos são recusados com o nome do arquivo e o grupo. Esta etapa não lê endereço nem organiza por rota: isso é a Etapa 6.
+
+## Etapa 6 — Rota de Visita: unificar folhas de família
+
+Junta as folhas resumo (PDF, uma por família) das visitas do dia num único PDF, na ordem de visita: **Bloco 1 · Bairro Professora Araceli Souto Maior** e depois **Bloco 2 · Bairro 13 de Setembro**.
+
+1. Adicione os PDFs em cada bloco (até 30 arquivos e 50 MB no total; PDF repetido, com o mesmo nome e tamanho, é recusado).
+2. O Paulus lê o endereço de cada folha, um arquivo de cada vez. Lê **só o quadro "II - Endereço da família"** (rua, número e bairro): componentes, nomes e CPF não entram na leitura. Se a folha for escaneada (sem texto), o endereço é lido por OCR no aparelho e a linha avisa "confira com atenção". Se não achar, digite rua e número no campo da folha ou use **Tentar de novo**.
+3. Quando termina de ler um bloco com pelo menos dois endereços, o Paulus organiza a rota sozinho (partida: Rua Santo Agostinho, nº 193 — Centenário). Dá para usar **Sugerir ordem de visita deste bloco** ou **Organizar rota** (os dois blocos). Folhas sem endereço ficam no fim do bloco.
+4. Ajuste a ordem com ↑ e ↓. Ao gerar o PDF, o que você ajustou à mão vira aprendizado: as ruas que você pôs em sequência passam a contar como vizinhas na próxima ordem. **Só nomes de rua e bairro** são guardados (nunca número, nome ou arquivo), no `localStorage` deste aparelho; o botão **Apagar o que aprendi das ruas** remove tudo.
+5. **Gerar PDF unificado da rota** cria: capa (partida e quantidade por bloco), página(s) de **roteiro** (a ordem com o endereço lido de cada folha, 19 por página), uma divisória por bloco e as folhas na ordem. O arquivo é `Visitas - Folhas de Familia Unificadas - [data].pdf`. Depois de gerar, as folhas são limpas, a menos que **Manter as folhas** esteja marcado.
+
+**OCR (opcional):** a leitura de folhas escaneadas usa o tesseract.js e o idioma português, que ficam na pasta `vendor/tesseract` (cerca de 15 MB). Copie a pasta `vendor/tesseract` do Anona para `vendor/tesseract` do Paulus; o `npm run build` a copia para `dist/tesseract`. Sem essa pasta, o build avisa e as folhas escaneadas caem em "digite o endereço"; folhas com texto continuam funcionando.
+
+A ordem é uma sugestão local baseada no texto, sem mapa, trânsito ou distância; confira os endereços antes de sair.
 
 ## Privacidade, dependências e limites
 
 A leitura das planilhas, comparação, divisão, ordenação e geração de PDF/ZIP acontecem no navegador. As bibliotecas XLSX, jsPDF e JSZip, bem como o módulo local de ordenação, são servidos pelo Paulus e podem ser colocados na cache offline do navegador. Os ficheiros dos utilizadores não são enviados para a rede nem para a IA, não são guardados em `localStorage` e são descartados da memória de trabalho ao fechar a janela. O Paulus mantém a sua ligação normal à IA para conversas, mas estes botões não fazem pedidos de IA e não consomem essa cota.
 
-A divisão é fixa para os três técnicos do Território Volante e escolhe apenas uma aba da planilha de entrada; não combina abas de dados diferentes. O PDF é preparado a partir da divisão atual da etapa 2, usa apenas as colunas listadas acima e não altera os ficheiros originais. PDFs de Relatório Individual de planilhas organizadas fora desse fluxo e a união de folhas de visita por rota (com leitura de endereço e OCR) ficam para etapas futuras.
+A divisão é fixa para os três técnicos do Território Volante e escolhe apenas uma aba da planilha de entrada; não combina abas de dados diferentes. O PDF é preparado a partir da divisão atual da etapa 2, usa apenas as colunas listadas acima e não altera os ficheiros originais. PDFs de Relatório Individual de planilhas organizadas fora desse fluxo ficam para etapas futuras.
