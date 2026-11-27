@@ -1424,15 +1424,15 @@ body{
   #log .m.p .mc{font-size:17px;line-height:1.7}
 }
 .verificacao{padding:8px 10px;border:1px solid var(--bd2);border-radius:8px;color:var(--c2);font-size:12px}
-.bf-report{width:min(640px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:min(92dvh,760px);overflow:auto;padding:0;border:1px solid var(--bd2);border-radius:18px;background:var(--bg2);color:var(--t);box-shadow:0 24px 80px #0009}
-.bf-report::backdrop{background:#000a;backdrop-filter:blur(3px)}
-.bf-report-inner{padding:22px;display:grid;gap:14px}
-.bf-report-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.bf-report{position:fixed;inset:0;width:100vw;max-width:100vw;height:100vh;height:100dvh;max-height:none;margin:0;overflow:auto;padding:0;border:0;border-radius:0;background:var(--bg);color:var(--t);box-shadow:none}
+.bf-report::backdrop{background:var(--bg)}
+.bf-report-inner{box-sizing:border-box;width:100%;max-width:1100px;margin:0 auto;min-height:100%;padding:max(22px,env(safe-area-inset-top)) 28px 40px;display:grid;gap:14px;align-content:start}
+.bf-report-head{position:sticky;top:0;z-index:2;padding:12px 0;background:var(--bg);border-bottom:1px solid var(--bd);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .bf-report-head h2{margin:0;font:600 20px/1.25 var(--hud);color:var(--t)}
 .bf-report-head p,.bf-report-note{margin:5px 0 0;color:var(--mut);font:13px/1.5 var(--hud)}
 .bf-report-close{min-width:40px;width:40px;height:40px;min-height:40px;border-radius:12px;font-size:20px}
 .bf-report-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.bf-report-field{min-width:0;padding:13px;border:1px solid var(--bd);border-radius:14px;background:#02070c}
+.bf-report-field{min-width:0;padding:13px;border:1px solid var(--bd);border-radius:14px;background:var(--panel2)}
 .bf-report-field label{display:block;margin-bottom:8px;font:600 13px var(--hud);color:var(--t)}
 .bf-report-field input[type=file]{display:block;width:100%;max-width:100%;color:var(--mut);font:12px/1.4 var(--hud)}
 .bf-report-field p{min-height:2.8em;margin:8px 0 0;overflow-wrap:anywhere;color:var(--mut);font:12px/1.45 var(--hud)}
@@ -1448,7 +1448,7 @@ body{
 .bf-report-section #bf-pdf-status{min-height:1.5em;overflow-wrap:anywhere;color:var(--c2);font:13px/1.5 var(--hud)}
 .bf-report-check{display:flex;align-items:flex-start;gap:9px;color:var(--mut);font:13px/1.5 var(--hud)}
 .bf-report-check input{margin:3px 0 0;accent-color:var(--c);flex:none}
-.ab-abrigo{display:grid;gap:8px;padding:13px;border:1px solid var(--bd);border-radius:14px;background:#02070c}
+.ab-abrigo{display:grid;gap:8px;padding:13px;border:1px solid var(--bd);border-radius:14px;background:var(--panel2)}
 .ab-abrigo h4{margin:0;font:600 14px var(--hud);color:var(--t)}
 .ab-efeito label{display:block;margin-bottom:6px;font:600 12px var(--hud);color:var(--t)}
 .ab-efeito input[type=file]{display:block;width:100%;max-width:100%;color:var(--mut);font:12px/1.4 var(--hud)}
@@ -1486,7 +1486,7 @@ body{
 .mds-restaurar input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .bf-report-actions #mds-baixar,.bf-report-actions #mds-apagar,.bf-report-actions #mds-backup,.bf-report-actions #mds-apagar-tudo{min-height:44px}
 .bf-report-actions #mds-baixar:disabled,.bf-report-actions #mds-apagar:disabled,.bf-report-actions #mds-backup:disabled,.bf-report-actions #mds-apagar-tudo:disabled{opacity:.48;cursor:not-allowed}
-@media(max-width:520px){.bf-report-inner{padding:18px 14px}.bf-report-grid{grid-template-columns:1fr}}
+@media(max-width:520px){.bf-report-inner{padding:14px}.bf-report-grid{grid-template-columns:1fr}}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
 <svg id="hx" aria-hidden="true" focusable="false"><defs><pattern id="hxp" width="56" height="97" patternUnits="userSpaceOnUse" patternTransform="scale(.9)"><path d="M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z M28 62 L28 95 M54 47 L82 62 M2 47 L-26 62" fill="none" stroke="currentColor" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#hxp)"/></svg>
