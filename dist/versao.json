@@ -1,11 +1,11 @@
 {
  "versao": "0.36.0",
- "build": "f382d319b0ab",
+ "build": "ad5159954ca1",
  "commit": null,
  "arquivos": {
   "paulus.v1.js": {
-   "sha256": "d7f7876b61843c06",
-   "bytes": 1186570
+   "sha256": "5c7565f32d74239d",
+   "bytes": 1258392
   },
   "conhecimento.json": {
    "sha256": "f1fc25a0cd5a5906",
@@ -36,8 +36,8 @@
    "bytes": 37203
   },
   "console.js": {
-   "sha256": "58d0ec82ca66001d",
-   "bytes": 151182
+   "sha256": "d6c49cf7edcf008b",
+   "bytes": 152994
   },
   "advanced.js": {
    "sha256": "7c5c9b174b43dc9b",
@@ -48,16 +48,16 @@
    "bytes": 2731
   },
   "lembretes.js": {
-   "sha256": "57081c80cf61c3d6",
-   "bytes": 14374
+   "sha256": "440ca50d0ee1f500",
+   "bytes": 15579
   },
   "notas.js": {
    "sha256": "68c49304561a1e3e",
    "bytes": 24307
   },
   "agenda.js": {
-   "sha256": "865a352b960bb4ae",
-   "bytes": 128351
+   "sha256": "35d67199373e1bf3",
+   "bytes": 157025
   },
   "agenda-datas.js": {
    "sha256": "08dafb313e11b1f4",

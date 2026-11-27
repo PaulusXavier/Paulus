@@ -1,6 +1,6 @@
 // Service worker do Console do Paulus: guarda a tela para abrir sem internet. Rede primeiro (atualiza sozinho), cache como reserva.
 // Só arquivos do próprio site; as perguntas à IA (Worker, outro domínio) nunca passam pelo cache.
-var V = 'paulus-console-f382d319b0ab';
+var V = 'paulus-console-ad5159954ca1';
 var BASE = ['./', 'index.html', 'paulus.v1.js', 'login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
 // Para funcionar sem internet logo na primeira vez: a base de normas, o editor de PDF e o mapa também ficam guardados na instalação.
 // Um a um e sem derrubar a instalação se algum falhar (arquivo pesado, rede lenta, ainda não publicado): o que faltar entra no cache quando for usado.
@@ -63,9 +63,17 @@ self.addEventListener('fetch', function (e) {
 });
 
 // Toque num aviso da agenda: foca o Paulus aberto (e pede para abrir a agenda) ou abre uma janela nova já na agenda.
+// Botões do aviso (Concluir / +10 min): com o Paulus aberto, só avisa a página e NÃO tira a pessoa do que estava fazendo;
+// com o Paulus fechado, abre uma janela com #agenda!acao=...&id=... e a página aplica a ação.
 self.addEventListener('notificationclick', function (e) {
+  var acao = e.action === 'concluir' || e.action === 'adiar' ? e.action : '';
+  var id = e.notification && e.notification.data && e.notification.data.id ? String(e.notification.data.id) : '';
   e.notification.close();
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (lista) {
+    if (acao && id) {
+      if (lista.length) { lista.forEach(function (c) { c.postMessage({ paulusAgenda: 'acao', acao: acao, id: id }); }); return; }
+      return self.clients.openWindow('./#agenda!acao=' + acao + '&id=' + encodeURIComponent(id));
+    }
     for (var i = 0; i < lista.length; i++) {
       if ('focus' in lista[i]) { lista[i].postMessage({ paulusAgenda: 'abrir' }); return lista[i].focus(); }
     }

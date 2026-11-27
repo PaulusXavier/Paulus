@@ -8761,6 +8761,138 @@ function psiSemBase(texto) {
   return 'Consigo fazer essa análise aqui no aparelho, sem IA e sem gastar cota, mas preciso da base. Anexe um arquivo **CSV, TSV ou TXT** (clipe ao lado do campo de texto; se estiver no Excel, use "Salvar como CSV"), com uma linha de títulos e uma linha por participante, e peça de novo, por exemplo: "alfa de Cronbach dos itens q1 a q10" ou "teste t de ansiedade por sexo". Não coloque nome, CPF ou telefone: colunas assim são ignoradas.';
 }
 
+// ---- shared/est-nucleo.mjs ----
+// Núcleo numérico de estatística no aparelho (sem IA, sem rede): amplitude studentizada (Tukey) e comparações múltiplas.
+
+
+// ------------------------------------------------------------------ quadratura de Gauss-Legendre
+const EST_GL = {};
+function estNosGL(n) {
+  if (EST_GL[n]) return EST_GL[n];
+  const x = [], w = [];
+  for (let i = 0; i < n; i++) {
+    let z = Math.cos(Math.PI * (i + 0.75) / (n + 0.5)), pp = 1;
+    for (let it = 0; it < 100; it++) {
+      let p1 = 1, p2 = 0;
+      for (let j = 0; j < n; j++) { const p3 = p2; p2 = p1; p1 = ((2 * j + 1) * z * p2 - j * p3) / (j + 1); }
+      pp = n * (z * p1 - p2) / (z * z - 1);
+      const dz = p1 / pp; z -= dz; if (Math.abs(dz) < 1e-15) break;
+    }
+    x.push(z); w.push(2 / ((1 - z * z) * pp * pp));
+  }
+  return (EST_GL[n] = { x: x, w: w });
+}
+// Integra f em [a, b] com `paineis` subintervalos de n nós cada.
+function estIntegrar(f, a, b, paineis, n) {
+  const g = estNosGL(n || 32), h = (b - a) / paineis; let s = 0;
+  for (let p = 0; p < paineis; p++) {
+    const lo = a + p * h, m = lo + h / 2, r = h / 2;
+    for (let i = 0; i < g.x.length; i++) s += g.w[i] * f(m + r * g.x[i]);
+  }
+  return s * h / 2;
+}
+
+// ------------------------------------------------------------------ distribuição da amplitude studentizada
+function estPhi(z) { return psiNormCdf(z); }
+const EST_RAIZ2PI = Math.sqrt(2 * Math.PI);
+function estLgamma(x) { // Lanczos
+  const c = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+  let y = x, t = x + 5.5; t -= (x + 0.5) * Math.log(t); let s = 1.000000000190015;
+  for (let j = 0; j < 6; j++) s += c[j] / ++y;
+  return -t + Math.log(2.5066282746310005 * s / x);
+}
+// P(amplitude de k normais padrão <= w)
+function estAmplitudeNormal(w, k) {
+  if (w <= 0) return 0;
+  const f = function (z) { const d = psiNormCdf(z) - psiNormCdf(z - w); return Math.exp(-z * z / 2) / EST_RAIZ2PI * Math.pow(d, k - 1); };
+  return Math.min(1, k * estIntegrar(f, -8, 8 + w, 4, 24));
+}
+// Função de distribuição de Q = amplitude / (s) com gl graus de liberdade (equivale a ptukey do R / studentized_range.cdf do scipy).
+function estPTukey(q, k, gl) {
+  if (!(q > 0)) return 0;
+  if (k < 2) return NaN;
+  if (gl >= 1e5 || gl === Infinity) return estAmplitudeNormal(q, k);
+  const lc = Math.log(2) + (gl / 2) * Math.log(gl / 2) - estLgamma(gl / 2);
+  const dens = function (s) { return s <= 0 ? 0 : Math.exp(lc + (gl - 1) * Math.log(s) - gl * s * s / 2); };
+  const topo = 1 + 9 / Math.sqrt(gl);
+  const v = estIntegrar(function (s) { const d = dens(s); return d === 0 ? 0 : d * estAmplitudeNormal(q * s, k); }, 0, topo, 6, 24);
+  return Math.min(1, Math.max(0, v));
+}
+function estQTukey(p, k, gl) {
+  let lo = 0, hi = 1; while (estPTukey(hi, k, gl) < p && hi < 1e4) hi *= 2;
+  for (let i = 0; i < 50; i++) { const m = (lo + hi) / 2; if (estPTukey(m, k, gl) < p) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+}
+
+// ---- shared/est-posthoc.mjs ----
+// Comparações múltiplas (post hoc) no aparelho: Tukey HSD/Kramer, Bonferroni e Games-Howell, com pedido em português.
+
+
+
+const EST_NOMES = { tukey: 'Tukey HSD', bonferroni: 'Bonferroni', gameshowell: 'Games-Howell' };
+
+// v: coluna numérica; g: coluna de grupos. metodo: 'tukey' | 'bonferroni' | 'gameshowell'
+function estPostHoc(v, g, metodo) {
+  const gr = psiGrupos(v.valores, g);
+  const idx = []; gr.dados.forEach(function (a, i) { if (a.length >= 2) idx.push(i); });
+  const nomes = idx.map(function (i) { return gr.nomes[i]; }), gs = idx.map(function (i) { return gr.dados[i]; }), k = gs.length;
+  if (k < 3) return '### Comparações múltiplas: ' + v.nome + ' por ' + g.nome + '\n\nO post hoc só faz sentido com 3 ou mais grupos (cada um com 2 casos ou mais). Com 2 grupos use o teste t.';
+  const ns = gs.map(function (a) { return a.length; }), med = gs.map(psiMedia), vars = gs.map(psiVar), N = psiSoma(ns), glw = N - k;
+  const msw = psiSoma(gs.map(function (a, i) { return (ns[i] - 1) * vars[i]; })) / glw;
+  const m = k * (k - 1) / 2, alfa = 0.05;
+  let qcrit = 0, tcrit = 0;
+  if (metodo === 'tukey') qcrit = estQTukey(1 - alfa, k, glw);
+  if (metodo === 'bonferroni') tcrit = psiTInv(alfa / m, glw);
+  const linhas = [];
+  for (let i = 0; i < k - 1; i++) for (let j = i + 1; j < k; j++) {
+    const d = med[i] - med[j]; let ep, p, ic;
+    if (metodo === 'gameshowell') {
+      const a = vars[i] / ns[i], b = vars[j] / ns[j], gl = (a + b) * (a + b) / (a * a / (ns[i] - 1) + b * b / (ns[j] - 1));
+      ep = Math.sqrt((a + b) / 2); p = 1 - estPTukey(Math.abs(d) / ep, k, gl); const qc = estQTukey(1 - alfa, k, gl); ic = [d - qc * ep, d + qc * ep];
+    } else if (metodo === 'bonferroni') {
+      ep = Math.sqrt(msw * (1 / ns[i] + 1 / ns[j])); p = Math.min(1, psiTSf2(Math.abs(d) / ep, glw) * m); ic = [d - tcrit * ep, d + tcrit * ep];
+    } else {
+      ep = Math.sqrt(msw / 2 * (1 / ns[i] + 1 / ns[j])); p = 1 - estPTukey(Math.abs(d) / ep, k, glw); ic = [d - qcrit * ep, d + qcrit * ep];
+    }
+    if (p < 0) p = 0;
+    const dp = Math.sqrt(metodo === 'gameshowell' ? (vars[i] + vars[j]) / 2 : msw);
+    linhas.push([nomes[i] + ' − ' + nomes[j], psiF(d), psiF(ic[0]), psiF(ic[1]), psiPc(p) + estSig(p), psiF(dp > 0 ? d / dp : NaN)]);
+  }
+  const sig = linhas.filter(function (l) { return /\*$/.test(l[4]); }).map(function (l) { return l[0]; });
+  let t = '### Comparações múltiplas (' + EST_NOMES[metodo] + '): ' + v.nome + ' por ' + g.nome + '\n\n';
+  t += psiTabela(['Grupo', 'n', 'Média', 'DP'], gs.map(function (a, i) { return [nomes[i], String(ns[i]), psiF(med[i]), psiF(Math.sqrt(vars[i]))]; }));
+  t += '\n\n' + psiTabela(['Par', 'Diferença', 'IC95% inf.', 'IC95% sup.', 'p ajustado', 'd'], linhas);
+  t += '\n\n' + (sig.length ? 'Diferenças significativas (p < ,05): ' + sig.join('; ') + '.' : 'Nenhum par difere de forma significativa (p ≥ ,05).');
+  t += ' ' + (metodo === 'gameshowell' ? 'Games-Howell não supõe variâncias iguais nem n iguais (gl de Welch).' : metodo === 'bonferroni' ? 'Bonferroni multiplica o p de cada teste t por ' + m + ' (número de pares), com variância combinada (gl = ' + glw + ').' : 'Tukey-Kramer controla o erro tipo I nos ' + m + ' pares (variância combinada, gl = ' + glw + '; q crítico = ' + psiF(qcrit, 3) + ').');
+  t += ' d = diferença ÷ desvio-padrão (' + (metodo === 'gameshowell' ? 'médio dos dois grupos' : 'combinado') + '). * p < ,05, ** p < ,01, *** p < ,001.';
+  return t;
+}
+function estSig(p) { return p < 0.001 ? ' ***' : p < 0.01 ? ' **' : p < 0.05 ? ' *' : ''; }
+
+const EST_POSTHOC = /\bpost.?hoc\b|\btukey\b|\bbonferroni\b|games.?howell|comparac\w+ (multiplas|par a par|dois a dois)|\bpar a par\b|dois a dois/;
+
+// Pedido em português + tabela -> { texto, analise, avisos } ou null (quando não é post hoc ou falta informação).
+function estRespostaDoPedido(texto, tabela) {
+  if (!tabela) return null;
+  const n = psiNorm(texto).replace(/\s+/g, ' ');
+  if (!EST_POSTHOC.test(n)) return null;
+  const metodo = /games.?howell/.test(n) ? 'gameshowell' : /bonferroni/.test(n) ? 'bonferroni' : 'tukey';
+  const men = psiMencoes(n, tabela), nums = psiNumericasUteis(tabela);
+  const gm = men.filter(function (m) { return m.grupo; })[0];
+  let g = gm ? gm.c : null;
+  if (!g) { const c = men.map(function (m) { return m.c; }).filter(function (c) { return c.tipo === 'cat' || (psiPoucas(c) && c.nUnicos <= 8 && c.tipo === 'num'); }); g = c[0] || null; }
+  if (!g) { const c = tabela.colunas.filter(function (c) { return c.tipo === 'cat' && psiPoucas(c); }); if (c.length === 1) g = c[0]; }
+  const cab = 'Calculado neste aparelho, sem IA e sem rede: não gastou cota e a base não saiu daqui.';
+  if (!g) return { texto: 'Para o post hoc preciso saber qual coluna define os grupos, ex.: "Tukey de ' + (nums[0] ? nums[0].nome : 'x') + ' por grupo".', analise: 'posthoc', avisos: [cab] };
+  let vs = men.map(function (m) { return m.c; }).filter(function (c) { return c.tipo === 'num' && c !== g; });
+  if (!vs.length) vs = nums.filter(function (c) { return c !== g && !psiPoucas(c); });
+  if (!vs.length) return { texto: 'Não achei variável numérica para comparar entre os grupos de ' + g.nome + '. Cite a variável.', analise: 'posthoc', avisos: [cab] };
+  if (vs.length > 6) return { texto: 'São muitas variáveis (' + vs.length + '); cite até 6.', analise: 'posthoc', avisos: [cab] };
+  const ng = psiGrupos(vs[0].valores, g).nomes.length;
+  if (ng > 10) return { texto: 'A coluna ' + g.nome + ' tem ' + ng + ' valores: parece contínua, não um grupo.', analise: 'posthoc', avisos: [cab] };
+  return { texto: vs.map(function (v) { return estPostHoc(v, g, metodo); }).join('\n\n'), analise: 'posthoc', avisos: [cab].concat(tabela.avisos || []) };
+}
+
 // ---- shared/grafico.mjs ----
 // Gráficos de tabelas feitos inteiramente no aparelho: não usa IA, rede nem armazenamento.
 
@@ -10459,6 +10591,499 @@ const DIRETORIO_BOA_VISTA = [{"nome":"Abrigo Feminino Pastor Josué da Rocha Ara
 {"nome":"Ambulatório Coronel Mota","endereco":"R. Coronel Pinto, 664 - Centro, Boa Vista-RR","bairro":"Centro","grupo":"Urgência e Atenção Hospitalar"},
 {"nome":"HGRR","endereco":"Av. Brigadeiro Eduardo Gomes, 1364 - Aeroporto, Boa Vista-RR","bairro":"Aeroporto","grupo":"Urgência e Atenção Hospitalar","apelidos":["Hospital Geral de Roraima","Hospital Geral"]},
 {"nome":"UAA","endereco":"R. Bahia, 162-277 - Bairro dos Estados, Boa Vista-RR","bairro":"Bairro dos Estados","grupo":"Urgência e Atenção Hospitalar"}];
+
+// ---- shared/mapa-bairros.mjs ----
+// GERADO por scripts/gerar-mapa-bairros.mjs a partir de knowledge/documentos/mapa-boa-vista-osm.md. Não edite à mão.
+// Lugares com nome no OpenStreetMap, por bairro e categoria (mapa colaborativo: incompleto e pode estar desatualizado; não é cadastro oficial).
+const MAPA_BAIRROS = {"data":"2026-11-14","total":747,"categorias":{"assistência social":17,"saúde":78,"farmácias":57,"creches e pré-escolas":50,"escolas":181,"ensino superior":45,"cursos e escolas livres":4,"segurança e justiça":41,"órgãos públicos":84,"terceiro setor":4,"cultura, esporte e lazer":103,"templos":63,"bancos":20},"bairros":{"31 de março":{"t":14,"c":{"assistência social":1,"saúde":2,"farmácias":2,"ensino superior":1,"segurança e justiça":2,"órgãos públicos":5,"cultura, esporte e lazer":1}},"Aeroporto":{"t":7,"c":{"saúde":3,"escolas":3,"ensino superior":1}},"Alvorada":{"t":11,"c":{"saúde":1,"farmácias":2,"creches e pré-escolas":2,"escolas":1,"cultura, esporte e lazer":1,"templos":3,"bancos":1}},"Aparecida":{"t":1,"c":{"templos":1}},"Asa Branca":{"t":18,"c":{"saúde":2,"farmácias":2,"creches e pré-escolas":1,"escolas":6,"ensino superior":1,"órgãos públicos":1,"cultura, esporte e lazer":2,"templos":2,"bancos":1}},"Bairro dos Estados":{"t":6,"c":{"farmácias":2,"cultura, esporte e lazer":4}},"Bela Vista":{"t":1,"c":{"creches e pré-escolas":1}},"Buritis":{"t":9,"c":{"escolas":6,"segurança e justiça":1,"cultura, esporte e lazer":1,"templos":1}},"Caçari":{"t":3,"c":{"escolas":1,"farmácias":1,"órgãos públicos":1}},"Caimbe":{"t":2,"c":{"escolas":2}},"Calunga":{"t":1,"c":{"escolas":1}},"Cambará":{"t":10,"c":{"saúde":1,"farmácias":5,"escolas":1,"templos":2,"bancos":1}},"Canarinho":{"t":11,"c":{"escolas":2,"ensino superior":2,"cursos e escolas livres":1,"segurança e justiça":5,"órgãos públicos":1}},"Caranã":{"t":12,"c":{"creches e pré-escolas":1,"escolas":5,"farmácias":2,"segurança e justiça":2,"órgãos públicos":1,"cultura, esporte e lazer":1}},"Cauamé":{"t":5,"c":{"creches e pré-escolas":2,"escolas":3}},"Centenário":{"t":7,"c":{"creches e pré-escolas":4,"escolas":2,"templos":1}},"Centro":{"t":81,"c":{"saúde":9,"farmácias":4,"escolas":13,"segurança e justiça":4,"órgãos públicos":27,"terceiro setor":2,"cultura, esporte e lazer":10,"templos":6,"bancos":6}},"Cidade Satélite":{"t":10,"c":{"creches e pré-escolas":6,"escolas":3,"cultura, esporte e lazer":1}},"Cinturão Verde":{"t":6,"c":{"escolas":3,"cultura, esporte e lazer":3}},"Comunidade Nova Vida":{"t":1,"c":{"cultura, esporte e lazer":1}},"Conjunto AECO":{"t":6,"c":{"assistência social":1,"saúde":1,"órgãos públicos":1,"cultura, esporte e lazer":3}},"Conjunto Belvedere":{"t":2,"c":{"saúde":1,"cultura, esporte e lazer":1}},"Conjunto Boa Vista I":{"t":5,"c":{"saúde":1,"órgãos públicos":2,"terceiro setor":1,"cultura, esporte e lazer":1}},"Conjunto Boa Vista II":{"t":4,"c":{"saúde":1,"órgãos públicos":2,"cultura, esporte e lazer":1}},"Conjunto Caçari 1":{"t":2,"c":{"cultura, esporte e lazer":2}},"Conjunto Caçari 2":{"t":2,"c":{"cultura, esporte e lazer":2}},"Conjunto Caimbé":{"t":2,"c":{"cultura, esporte e lazer":2}},"Conjunto Caimbé I":{"t":7,"c":{"órgãos públicos":2,"cultura, esporte e lazer":2,"templos":2,"bancos":1}},"Conjunto Caimbé II":{"t":4,"c":{"farmácias":1,"escolas":1,"ensino superior":1,"templos":1}},"Conjunto Cambará":{"t":3,"c":{"segurança e justiça":1,"cultura, esporte e lazer":1,"templos":1}},"Conjunto Cidadão":{"t":1,"c":{"cultura, esporte e lazer":1}},"Conjunto Cruviana":{"t":4,"c":{"farmácias":1,"cultura, esporte e lazer":2,"templos":1}},"Conjunto do Servidor Público":{"t":2,"c":{"cultura, esporte e lazer":2}},"Conjunto dos Desembargadores e Conselheiros":{"t":10,"c":{"saúde":2,"farmácias":2,"segurança e justiça":1,"órgãos públicos":2,"cultura, esporte e lazer":3}},"Conjunto Mecejana":{"t":14,"c":{"assistência social":1,"saúde":1,"farmácias":4,"escolas":1,"segurança e justiça":2,"órgãos públicos":3,"cultura, esporte e lazer":1,"templos":1}},"Conjunto Monte Roraima":{"t":1,"c":{"cultura, esporte e lazer":1}},"Conjunto Paraná":{"t":1,"c":{"farmácias":1}},"Conjunto Pérola do Rio Branco IV - Etapa B":{"t":2,"c":{"segurança e justiça":1,"cultura, esporte e lazer":1}},"Conjunto Pricumã 1":{"t":1,"c":{"templos":1}},"Conjunto Pricumã 2":{"t":2,"c":{"saúde":1,"farmácias":1}},"Distrito Industrial Governador Aquilino Mota Duarte":{"t":2,"c":{"escolas":1,"segurança e justiça":1}},"Doutor Airton Rocha":{"t":1,"c":{"escolas":1}},"Doutor Silvio Botelho":{"t":4,"c":{"creches e pré-escolas":2,"escolas":2}},"Doutor Silvio Leite":{"t":7,"c":{"creches e pré-escolas":2,"escolas":5}},"Equatorial":{"t":14,"c":{"saúde":1,"farmácias":1,"creches e pré-escolas":5,"escolas":3,"templos":4}},"Estados":{"t":3,"c":{"escolas":3}},"Jardim Bela Vista":{"t":1,"c":{"escolas":1}},"Jardim Carana":{"t":2,"c":{"creches e pré-escolas":2}},"Jardim Floresta":{"t":9,"c":{"assistência social":1,"escolas":4,"ensino superior":1,"órgãos públicos":1,"templos":2}},"Jardim Tropical":{"t":2,"c":{"creches e pré-escolas":1,"escolas":1}},"João de Barro":{"t":1,"c":{"cultura, esporte e lazer":1}},"Jóquei Clube":{"t":8,"c":{"creches e pré-escolas":1,"escolas":6,"cultura, esporte e lazer":1}},"Laura Moreira":{"t":6,"c":{"creches e pré-escolas":3,"escolas":2,"ensino superior":1}},"Liberdade":{"t":13,"c":{"saúde":2,"farmácias":2,"creches e pré-escolas":1,"escolas":2,"segurança e justiça":2,"templos":3,"bancos":1}},"Loteamento Bom Futuro 1 - Etapa A":{"t":4,"c":{"assistência social":1,"saúde":1,"cultura, esporte e lazer":1,"templos":1}},"Loteamento Bom Futuro 1 - Etapa B":{"t":2,"c":{"órgãos públicos":1,"cultura, esporte e lazer":1}},"Loteamento Bom Futuro 2":{"t":1,"c":{"cultura, esporte e lazer":1}},"Loteamento Boulevard Satélite":{"t":1,"c":{"cultura, esporte e lazer":1}},"Loteamento Caracaranã":{"t":2,"c":{"templos":2}},"Loteamento Cidade Jardim III":{"t":1,"c":{"saúde":1}},"Loteamento Cidade Satélite I":{"t":1,"c":{"cultura, esporte e lazer":1}},"Loteamento Cidade Satélite II":{"t":1,"c":{"cultura, esporte e lazer":1}},"Loteamento Colina Park Chácara Clube":{"t":1,"c":{"cultura, esporte e lazer":1}},"Loteamento Garden Park Mall Residence":{"t":1,"c":{"cultura, esporte e lazer":1}},"Loteamento Granja Murupu":{"t":1,"c":{"órgãos públicos":1}},"Loteamento Jardim Olímpico I":{"t":1,"c":{"templos":1}},"Loteamento Jardim Satélite":{"t":1,"c":{"segurança e justiça":1}},"Loteamento Lipilândia":{"t":1,"c":{"cultura, esporte e lazer":1}},"Loteamento Manaíra 3":{"t":1,"c":{"segurança e justiça":1}},"Loteamento Monte Cristo 2":{"t":1,"c":{"farmácias":1}},"Loteamento Morada do Sol":{"t":1,"c":{"saúde":1}},"Loteamento Nova Canaã":{"t":1,"c":{"templos":1}},"Loteamento Novo Planalto":{"t":57,"c":{"assistência social":1,"saúde":10,"farmácias":2,"escolas":6,"ensino superior":14,"cursos e escolas livres":1,"órgãos públicos":13,"cultura, esporte e lazer":3,"templos":3,"bancos":4}},"Loteamento Park Caçari 4":{"t":1,"c":{"cultura, esporte e lazer":1}},"Loteamento Park Paraviana 2":{"t":1,"c":{"órgãos públicos":1}},"Loteamento Parque Caçari":{"t":1,"c":{"templos":1}},"Loteamento Parque Candelária":{"t":1,"c":{"farmácias":1}},"Loteamento Parque Cauamé 2":{"t":2,"c":{"saúde":1,"farmácias":1}},"Loteamento Parque dos Bandeirantes":{"t":1,"c":{"segurança e justiça":1}},"Loteamento Parque dos Cajueiros":{"t":1,"c":{"segurança e justiça":1}},"Loteamento Parque dos Rios 1":{"t":1,"c":{"cultura, esporte e lazer":1}},"Loteamento Parque dos Rios 2":{"t":1,"c":{"farmácias":1}},"Loteamento Parque Itália":{"t":3,"c":{"saúde":1,"cultura, esporte e lazer":2}},"Loteamento Parque Rio Branco":{"t":4,"c":{"saúde":3,"ensino superior":1}},"Loteamento Portal do Sol I":{"t":1,"c":{"segurança e justiça":1}},"Loteamento River Park 2":{"t":1,"c":{"cultura, esporte e lazer":1}},"Loteamento São Vicente Industrial":{"t":3,"c":{"escolas":1,"cultura, esporte e lazer":2}},"Loteamento Sítio Mirandinha":{"t":1,"c":{"cultura, esporte e lazer":1}},"Loteamento Vila Potiguar II":{"t":2,"c":{"saúde":1,"farmácias":1}},"Loteamento Vila Rorenge":{"t":1,"c":{"templos":1}},"Marechal Rondon":{"t":1,"c":{"assistência social":1}},"Mecejana":{"t":7,"c":{"assistência social":1,"saúde":1,"creches e pré-escolas":1,"escolas":3,"órgãos públicos":1}},"Monte Cristo":{"t":12,"c":{"escolas":9,"ensino superior":2,"cultura, esporte e lazer":1}},"Monte das Oliveiras":{"t":1,"c":{"cultura, esporte e lazer":1}},"Murupu":{"t":1,"c":{"escolas":1}},"Nossa Senhora Aparecida":{"t":4,"c":{"saúde":1,"escolas":2,"templos":1}},"Nova Canaã":{"t":8,"c":{"saúde":1,"farmácias":3,"escolas":1,"templos":3}},"Nova Cidade":{"t":7,"c":{"creches e pré-escolas":2,"escolas":4,"cultura, esporte e lazer":1}},"Olímpico":{"t":2,"c":{"cultura, esporte e lazer":2}},"PA Nova Amazônia":{"t":1,"c":{"escolas":1}},"PA Nova Amazônia Murupu":{"t":1,"c":{"escolas":1}},"Paraviana":{"t":6,"c":{"creches e pré-escolas":2,"escolas":1,"cultura, esporte e lazer":3}},"Pedra Pintada":{"t":3,"c":{"assistência social":1,"escolas":1,"cultura, esporte e lazer":1}},"Pintolândia":{"t":22,"c":{"saúde":8,"farmácias":5,"creches e pré-escolas":1,"escolas":4,"segurança e justiça":2,"órgãos públicos":1,"templos":1}},"Piscicultura":{"t":1,"c":{"ensino superior":1}},"Pricumã":{"t":7,"c":{"escolas":3,"saúde":1,"ensino superior":1,"segurança e justiça":1,"templos":1}},"Profª. Aracelis Souto Maior":{"t":2,"c":{"templos":2}},"Professora Araceli Souto Maior":{"t":1,"c":{"escolas":1}},"Raiar do Sol":{"t":9,"c":{"saúde":2,"farmácias":1,"creches e pré-escolas":3,"escolas":1,"templos":1,"bancos":1}},"Residencial Lago Verde":{"t":2,"c":{"cultura, esporte e lazer":2}},"Residencial Nova Esperança":{"t":1,"c":{"segurança e justiça":1}},"Residencial Primavera":{"t":1,"c":{"órgãos públicos":1}},"Rural":{"t":6,"c":{"escolas":6}},"Santa Luzia":{"t":3,"c":{"escolas":2,"templos":1}},"Santa Tereza":{"t":8,"c":{"farmácias":1,"creches e pré-escolas":1,"escolas":3,"órgãos públicos":1,"templos":2}},"São Bento":{"t":1,"c":{"escolas":1}},"São Francisco":{"t":26,"c":{"saúde":4,"farmácias":3,"escolas":7,"ensino superior":1,"cursos e escolas livres":2,"segurança e justiça":3,"órgãos públicos":3,"templos":2,"bancos":1}},"São Pedro":{"t":16,"c":{"saúde":2,"farmácias":1,"escolas":2,"segurança e justiça":1,"órgãos públicos":5,"cultura, esporte e lazer":1,"templos":1,"bancos":3}},"São Vicente":{"t":6,"c":{"saúde":2,"escolas":3,"segurança e justiça":1}},"Senador Hélio Campos":{"t":6,"c":{"creches e pré-escolas":2,"escolas":3,"terceiro setor":1}},"Sílvio Botelho":{"t":5,"c":{"ensino superior":1,"cultura, esporte e lazer":3,"templos":1}},"Tancredo Neves":{"t":18,"c":{"saúde":5,"farmácias":3,"creches e pré-escolas":2,"escolas":4,"segurança e justiça":1,"cultura, esporte e lazer":2,"templos":1}},"Treze de Setembro":{"t":10,"c":{"assistência social":3,"creches e pré-escolas":1,"escolas":4,"órgãos públicos":1,"cultura, esporte e lazer":1}},"Trinta e Um de Março":{"t":1,"c":{"templos":1}},"União":{"t":19,"c":{"saúde":1,"creches e pré-escolas":1,"escolas":1,"ensino superior":14,"cultura, esporte e lazer":2}},"Vila do Passarão":{"t":1,"c":{"escolas":1}},"Vila dos Suboficiais e Sargentos da Aeronáutica":{"t":1,"c":{"assistência social":1}},"Vila Militar do Exército":{"t":7,"c":{"assistência social":1,"saúde":1,"segurança e justiça":2,"cultura, esporte e lazer":1,"templos":2}},"Vila Militar Lobo D'Almada":{"t":18,"c":{"assistência social":2,"saúde":1,"segurança e justiça":2,"órgãos públicos":6,"cultura, esporte e lazer":7}},"Vila Passarão":{"t":1,"c":{"escolas":1}},"Zona rural e comunidades":{"t":24,"c":{"assistência social":1,"escolas":18,"ensino superior":2,"cultura, esporte e lazer":2,"templos":1}}}};
+
+// ---- shared/resposta-local.mjs ----
+// Respostas que o Worker dá SEM chamar a IA (poupa a cota gratuita do Workers AI).
+//
+//   respostaDeContagem(pergunta)            "quantas escolas tem no bairro Centro?", "quais UBS tem no Pricumã?", "qual bairro tem mais escolas?"
+//   respostaDeFatoBoaVista(pergunta, base)  "quantos habitantes tem Boa Vista?", "qual o PIB?", "quando foi fundada?" (seção exata da base)
+//   respostaDePolitica(pergunta, base)      "quando o benefício é bloqueado?", "qual o valor do Bolsa Família?" (seção exata dos guias curados)
+//   respostaDaBase(pergunta, achados, ctx)  "o que é o PAIF?" (definição de SIGLA, com trecho de aderência alta que de fato a define)
+//
+// Cada função devolve { texto, fontes | escolhidos } ou null. Regra de ouro: na dúvida devolve null e a pergunta segue para a IA, como antes.
+// Nada aqui interpreta caso, dá parecer ou completa número que a fonte não traz. O texto sai da fonte (diretório, mapa ou trecho da base)
+// com a fonte citada e o aviso de que ela pode estar desatualizada ou incompleta.
+//
+// RESPOSTA_LOCAL="desligado" (wrangler.toml) desliga tudo isto e manda toda pergunta para a IA.
+
+
+
+
+
+const FONTE_DIRETORIO = {
+  documento: 'Diretório de endereços do Argo SUAS',
+  norma: 'Diretório de equipamentos e serviços do app Argo SUAS, cadastrado pela equipe do Argo. Não é cadastro oficial completo: endereço, telefone e bairro mudam',
+  ano: 2026,
+  tipo: 'apoio'
+};
+
+// Tema delicado (violência, crise, suicídio...): nunca sai de tabela, a IA e o cartão de socorro cuidam.
+const RE_TEMA_SENSIVEL = /\b(?:suicid\w*|autolesao|automutil\w*|me matar|se matar|matar|violencia|violent\w*|abuso\w*|estupr\w*|maus tratos|agress\w*|ameaca\w*|denunci\w*|crise|surto|overdose|abandono|trafico|tortura|negligencia)\b/;
+
+// Qualquer sinal de decisão, caso concreto, texto a produzir ou conta: a IA responde.
+const RE_PEDE_MAIS = /\b(?:posso|devo|deve|pode(?:m)?|preciso|caso|situacao|dilema|etic[ao]s?|sigilo|recus\w*|e se|o que fazer|como (?:lidar|conduzir|abordar|proceder)|vale a pena|melhor|estou em duvida|nao sei|sera que|o que voce acha|explique|explica|compare|diferenca|resuma|resumo|escreva|redija|elabore|monte|crie|gere|faca|calcule|conta|simule|exemplo|passo a passo|minha|meu|nossa|nosso|aqui|vizinh\w*|essa familia|a familia|uma familia|ele|ela)\b/;
+
+const MAX_PALAVRAS_PERGUNTA = 20;
+const TETO_TRECHO = 700;
+
+// Corta no fim de uma frase para o trecho caber numa resposta (a fonte completa segue citada).
+function resumirTrechoLocal(texto, max) {
+  const t = String(texto || '');
+  if (t.length <= max) return t;
+  const corte = t.slice(0, max);
+  const fim = Math.max(corte.lastIndexOf('. '), corte.lastIndexOf('; '));
+  return (fim > max * 0.5 ? corte.slice(0, fim + 1) : corte.replace(/\s+\S*$/, '')) + ' [...]';
+}
+
+// ------------------------------------------------------------------ bairros
+
+// Duas fontes por bairro: o diretório do Argo (unidades que a equipe cadastrou, com nome) e o mapa colaborativo OpenStreetMap
+// (contagem de lugares por categoria, mais ampla e menos confiável). As grafias do mesmo bairro viram uma chave só.
+const SIN_CHAVE = {
+  'treze de setembro': '13 de setembro', 'trinta e um de marco': '31 de marco', 'sen helio campos': 'senador helio campos',
+  'santa teresa': 'santa tereza', 'nossa senhora aparecida': 'aparecida', 'conjunto cruviana': 'cruviana', 'conj cruviana': 'cruviana',
+  'conjunto dr airton rocha': 'dr airton rocha', 'airton rocha': 'dr airton rocha', 'silvio botelho': 'dr silvio botelho', 'silvio leite': 'dr silvio leite',
+  'equatorial': 'jardim equatorial', 'bairro uniao': 'uniao', 'joquei clube': 'joquei clube'
+};
+const NOME_FIXO = { '13 de setembro': '13 de Setembro', '31 de marco': '31 de Março', 'estados': 'Bairro dos Estados' };
+// O campo "bairro" às vezes traz lixo (CEP, "andar térreo", nome de escola): isso não é bairro.
+const RE_LIXO_BAIRRO = /^(?:cep\b|andar\b|antigo\b|profa?\b)/;
+const RE_RURAL = /^(?:zona rural|rural|comunidades?)\b/;
+
+function chaveDoBairro(bruto) {
+  let n = normalizar(bruto);
+  if (!n || RE_LIXO_BAIRRO.test(n)) return null;
+  n = n.replace(/^bairro\s+(?:dos\s+)?/, '').replace(/^doutor\s+/, 'dr ').replace(/^doutora\s+/, 'dra ').replace(/^conj\s+/, 'conjunto ');
+  return SIN_CHAVE[n] || n;
+}
+const limparNome = (b) => String(b).replace(/^\s*bairro\s+/i, '').replace(/^\s*Doutor\s/, 'Dr. ').replace(/^\s*Doutora\s/, 'Dra. ').trim();
+
+const MAPA_ROTULO = { 'escolas': 'escolas', 'creches e pré-escolas': 'creches e pré-escolas', 'ensino superior': 'instituições de ensino superior', 'saúde': 'lugares de saúde', 'bancos': 'agências bancárias', 'assistência social': 'lugares de assistência social' };
+
+// ------------------------------------------------------------------ categorias
+
+const ESTADUAL_ESCOLA = /^(?:cem|ceep|e\.?\s?e\.?\s?i?\.?|col[eé]gio|esc\.)\b/i;
+const grupoRe = (re) => (u) => re.test(u.grupo);
+
+// [id, singular, plural, onde aparece na pergunta, predicado sobre a unidade do diretório, categoria do mapa (ou null), aviso]
+const CATEGORIAS = [
+  ['creche', 'creche', 'creches', /\b(?:creches?|proinfancia|nucleos? de creche|pre escolas?)\b/, grupoRe(/Creches e Proinf/), 'creches e pré-escolas', ''],
+  ['escola', 'escola', 'escolas', /\b(?:escolas?|colegios?|ceems?|ensino fundamental|ensino medio)\b/,
+    (u) => /^Rede Municipal - Escolas$/.test(u.grupo) || (u.grupo === 'Rede Estadual' && ESTADUAL_ESCOLA.test(u.nome)), 'escolas',
+    'Para o número oficial de escolas, consulte o Censo Escolar (INEP) ou a Secretaria de Educação.'],
+  ['superior', 'instituição de ensino superior', 'instituições de ensino superior', /\b(?:faculdades?|universidades?|ensino superior|instituicoes? de ensino superior)\b/, grupoRe(/^Ensino Superior$/), 'ensino superior', ''],
+  ['cras', 'CRAS', 'CRAS', /\bcras\b/, grupoRe(/^CRAS\b/), null, ''],
+  ['creas', 'CREAS', 'CREAS', /\bcreas\b/, grupoRe(/^CREAS\b/), null, ''],
+  ['caps', 'CAPS', 'CAPS', /\bcaps\b/, grupoRe(/^CAPS\b/), null, ''],
+  ['ubs', 'UBS', 'UBS', /\b(?:ubs|ubss|unidades? basicas? de saude|postos? de saude)\b/, (u) => /^UBS\b/.test(u.nome) || /^UBS\b/.test(u.grupo), null, ''],
+  ['hospital', 'hospital', 'hospitais', /\bhospita(?:l|is)\b/, grupoRe(/^Hospitais$/), null, ''],
+  ['delegacia', 'delegacia', 'delegacias', /\bdelegacias?\b/, grupoRe(/^Delegacias\b|^Distritos Policiais$/), null, ''],
+  ['abrigo', 'abrigo', 'abrigos', /\b(?:abrigos?|casas? de passagem|acolhimento institucional)\b/, grupoRe(/^Abrigos\b|^Acolhimento Institucional$/), null, ''],
+  ['conselho', 'conselho', 'conselhos', /\bconselhos?\b/, grupoRe(/^Conselhos\b/), null, ''],
+  ['bombeiro', 'unidade do Corpo de Bombeiros', 'unidades do Corpo de Bombeiros', /\bbombeiros?\b/, grupoRe(/Bombeiros/), null, ''],
+  ['banco', 'agência bancária', 'agências bancárias', /\b(?:bancos?|agencias? bancarias?)\b/, grupoRe(/^Bancos$/), 'bancos', ''],
+  ['restaurante', 'Restaurante Cidadão', 'Restaurantes Cidadão', /\brestaurantes? cidadao\b/, grupoRe(/^Restaurante Cidad/), null, ''],
+  ['saude', 'unidade de saúde', 'unidades de saúde', /\b(?:unidades? de saude|equipamentos? de saude|servicos? de saude|saude)\b/,
+    grupoRe(/^(?:Aten[cç][aã]o B[aá]sica|UBS|CAPS|Hospitais|Urg[eê]ncia|Sa[uú]de|Gest[aã]o e Vigil[aâ]ncia em Sa[uú]de|Autismo)/), 'saúde',
+    'No diretório entram UBS, CAPS, hospitais, urgência e outros serviços de saúde; no mapa, também consultórios e clínicas.'],
+  ['suas', 'equipamento socioassistencial', 'equipamentos socioassistenciais', /\b(?:equipamentos? (?:socioassistenciais?|do suas|da assistencia social)|rede socioassistencial|unidades? do suas|assistencia social)\b/,
+    grupoRe(/^(?:CRAS|CREAS|Abrigos|Acolhimento|Atendimento e Benef|Programas Socioeducativos|Restaurante Cidad|Aten[cç][aã]o [àa] Pessoa Idosa|Programas para Pessoa Idosa|Outros Equipamentos Socioassistenciais|CAS$|Rede de Prote)/), 'assistência social',
+    'No diretório entram CRAS, CREAS, abrigos, acolhimento, benefícios eventuais, programas socioeducativos, Restaurante Cidadão e serviços para pessoa idosa.']
+];
+const GENERICA = ['todos', 'equipamento', 'equipamentos', /\b(?:equipamentos?|unidades?|servicos?|estabelecimentos?|locais|lugares)\b/, () => true, null, ''];
+
+// Palavras que mostram que a pessoa quer outra coisa (gente, atendimento, vaga), não a contagem de lugares.
+const RE_OUTRO_ASSUNTO = /\b(?:alunos?|matriculas?|vagas?|professores?|funcionarios?|profissionais|psicologos?|assistentes?|familias?|pessoas|criancas?|idosos?|beneficiarios?|atendimentos?|casos?|pacientes?|usuarios?|recebem|recebe|doencas?|orcamento|custo|salario|enderecos?|telefones?|horarios?)\b/;
+// Outro lugar que não Boa Vista: as fontes não respondem.
+const RE_OUTRO_LUGAR = /\b(?:roraima|estado|brasil|pais|pacaraima|rorainopolis|bonfim|canta|caracarai|mucajai|alto alegre|amajari|iracema|normandia|uiramuta|caroebe|sao luiz|sao joao da baliza|manaus|belem|macapa|brasilia)\b/;
+
+const RE_QUANTOS = /\b(?:quant[oa]s?|numero de|total de|qual (?:o )?(?:total|numero))\b/;
+const RE_LISTA = /\b(?:quais|liste|listar|lista|nomes? d[aeo]s?|me diga quais|mostre|relacione|cite)\b/;
+const RE_RANKING = /\b(?:qual|quais)\s+(?:e\s+)?(?:o\s+)?bairros?\b.*\b(?:mais|maior|concentra|menos)\b|\bbairros? (?:com|que) (?:mais|maior|menos)\b|\bonde (?:tem|ha|existem?) mais\b/;
+const RE_CIDADE = /\b(?:boa vista|bv|capital|cidade|municipio|no total|ao todo|em geral)\b/;
+
+function categoriaDaPergunta(n) {
+  for (const c of CATEGORIAS) if (c[3].test(n)) return { id: c[0], singular: c[1], plural: c[2], pred: c[4], osm: c[5], aviso: c[6], re: c[3] };
+  if (GENERICA[3].test(n)) return { id: GENERICA[0], singular: GENERICA[1], plural: GENERICA[2], pred: GENERICA[4], osm: null, aviso: GENERICA[6], re: GENERICA[3], generica: true };
+  return null;
+}
+
+// ------------------------------------------------------------------ índice (diretório + mapa)
+
+const CACHE = new WeakMap();
+
+function indiceDasFontes(diretorio, mapa) {
+  if (CACHE.has(diretorio) && CACHE.get(diretorio).mapa === mapa) return CACHE.get(diretorio);
+  const vistos = new Set();
+  const unidades = [];
+  const bairros = new Map(); // chave -> { nome, dir: [], osm: {t, c} | null }
+  const pegar = (chave, nome) => { if (!bairros.has(chave)) bairros.set(chave, { nome: NOME_FIXO[chave] || limparNome(nome), dir: [], osm: null }); return bairros.get(chave); };
+  for (const u of diretorio) {
+    if (!u || !u.nome) continue;
+    const k = normalizar(u.nome);
+    if (vistos.has(k)) continue; // a mesma unidade em dois grupos (UBS em "Atenção Básica" e "UBS") conta uma vez
+    vistos.add(k);
+    const chave = chaveDoBairro(u.bairro);
+    const un = { nome: String(u.nome).trim(), grupo: String(u.grupo || ''), chave: chave };
+    unidades.push(un);
+    if (chave) pegar(chave, u.bairro).dir.push(un);
+  }
+  const rural = { t: 0, c: {} };
+  if (mapa && mapa.bairros) {
+    for (const [nome, v] of Object.entries(mapa.bairros)) {
+      if (RE_RURAL.test(normalizar(nome))) { rural.t += v.t; for (const [c, q] of Object.entries(v.c)) rural.c[c] = (rural.c[c] || 0) + q; continue; }
+      const chave = chaveDoBairro(nome);
+      if (!chave) continue;
+      const b = pegar(chave, nome);
+      if (!b.osm) b.osm = { t: 0, c: {} };
+      b.osm.t += v.t;
+      for (const [c, q] of Object.entries(v.c)) b.osm.c[c] = (b.osm.c[c] || 0) + q;
+    }
+  }
+  const r = { mapa: mapa, unidades: unidades, bairros: bairros, rural: rural };
+  CACHE.set(diretorio, r);
+  return r;
+}
+
+const LOCATIVO = '(?:no|na|nos|nas|em|do|da|de|dos|das|ao|pelo|pela)\\s+(?:bairros?\\s+)?(?:o\\s+|a\\s+)?(?:do\\s+|da\\s+)?';
+const VARIANTES = new Map(); // chave -> grafias que a pessoa pode digitar
+for (const [v, c] of Object.entries(SIN_CHAVE)) { if (!VARIANTES.has(c)) VARIANTES.set(c, []); VARIANTES.get(c).push(v); }
+
+// Bairro citado na pergunta (o de nome mais longo que casar). Devolve { chave, bairro } | { desconhecido } | null.
+function bairroDaPergunta(n, indice) {
+  let achado = null;
+  for (const [chave, b] of indice.bairros) {
+    const formas = [chave].concat(VARIANTES.get(chave) || []);
+    if (NOME_FIXO[chave] === 'Bairro dos Estados') formas.push('bairro dos estados');
+    for (const f of formas) {
+      if (f.length < 4) continue;
+      const re = new RegExp('\\b' + LOCATIVO + f.replace(/ /g, '\\s+') + '\\b(?!\\s+(?:pop|de\\s+referencia|dia))');
+      if (re.test(n) && (!achado || f.length > achado.tam)) achado = { tam: f.length, chave: chave, bairro: b };
+    }
+  }
+  if (achado) return achado;
+  // "no bairro Xyz" com um nome que as fontes não têm: não é "zero", é "não consta".
+  const m = /\bbairros?\s+(?:do\s+|da\s+)?([a-z0-9][a-z0-9 ]{2,40}?)(?:\s*$|\s+(?:tem|ha|existe|existem|possui)\b)/.exec(n);
+  if (m) return { desconhecido: m[1].trim() };
+  return null;
+}
+
+const plural = (k, singular, pluralForma) => (k === 1 ? singular : pluralForma);
+const mesAno = (iso) => { const m = /^(\d{4})-(\d{2})/.exec(iso || ''); return m ? ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][Number(m[2]) - 1] + '/' + m[1] : ''; };
+
+// ------------------------------------------------------------------ contagem
+
+// diretorio e mapa são opcionais (testes): por padrão usa o diretório de Boa Vista e o mapa gerado em shared/mapa-bairros.mjs.
+function respostaDeContagem(pergunta, diretorio, mapa) {
+  const dir = Array.isArray(diretorio) ? diretorio : DIRETORIO_BOA_VISTA;
+  const mp = mapa === undefined ? MAPA_BAIRROS : mapa;
+  const n = normalizar(String(pergunta == null ? '' : pergunta));
+  if (!n || n.split(' ').length > 24) return null;
+  if (RE_OUTRO_LUGAR.test(n) && !/\bboa vista\b/.test(n)) return null;
+  if (RE_OUTRO_ASSUNTO.test(n) || RE_TEMA_SENSIVEL.test(n)) return null;
+
+  const quer = { contar: RE_QUANTOS.test(n), listar: RE_LISTA.test(n), ranking: RE_RANKING.test(n) };
+  if (!quer.contar && !quer.listar && !quer.ranking) return null;
+  const cat = categoriaDaPergunta(n);
+  if (!cat) return null;
+  // "quantos ... CATEGORIA": a categoria tem de estar perto da palavra de quantidade (senão é outra pergunta).
+  if (quer.contar && !quer.listar && !quer.ranking) {
+    const perto = new RegExp('(?:quant[oa]s?|numero de|total de)\\s+(?:[a-z0-9]+\\s+){0,2}' + cat.re.source);
+    if (!perto.test(n)) return null;
+  }
+
+  const indice = indiceDasFontes(dir, mp);
+  const lugar = bairroDaPergunta(n, indice);
+  const daCategoria = indice.unidades.filter(cat.pred);
+  const rotulo = (k) => plural(k, cat.singular, cat.plural);
+  const ate = mp && mp.data ? mesAno(mp.data) : '';
+  const usaMapa = !!mp && (!!cat.osm || !!cat.generica);
+  const fontes = [FONTE_DIRETORIO].concat(usaMapa ? [{ documento: 'Mapa de Boa Vista: lugares e serviços por bairro (OpenStreetMap)', norma: 'OpenStreetMap, ' + (mp.data || '') + ' (© colaboradores do OpenStreetMap, ODbL); mapa colaborativo, incompleto; não é cadastro oficial', ano: 2026, tipo: 'referencia' }] : []);
+  const rodape = (usaMapa
+    ? 'O mapa é colaborativo e o diretório traz só o que a equipe do Argo cadastrou: nenhum dos dois é cadastro oficial completo, e endereço e bairro mudam.'
+    : 'Fonte: diretório do Argo, cadastro da equipe (não é cadastro oficial completo); endereço e bairro mudam, confirme com a unidade.') + (cat.aviso ? '\n' + cat.aviso : '');
+  const resposta = (texto) => ({ texto: texto + '\n' + rodape, fontes: fontes });
+  const linhaMapa = (tot) => '- Mapa colaborativo (OpenStreetMap, ' + ate + '): **' + tot + '** ' + (cat.osm && MAPA_ROTULO[cat.osm] ? (tot === 1 ? MAPA_ROTULO[cat.osm].replace(/s$/, '') : MAPA_ROTULO[cat.osm]) : rotulo(tot)) + '.\n';
+
+  // Ranking: qual bairro tem mais
+  if (quer.ranking && !(lugar && lugar.bairro)) {
+    const menos = /\bmenos\b/.test(n);
+    let ordem;
+    let base;
+    if (cat.osm && mp) {
+      ordem = Array.from(indice.bairros.values()).map((b) => [b.nome, (b.osm && b.osm.c[cat.osm]) || 0]).filter((x) => x[1] > 0);
+      base = 'no mapa colaborativo (OpenStreetMap, ' + ate + ')';
+    } else {
+      ordem = Array.from(indice.bairros.values()).map((b) => [b.nome, b.dir.filter(cat.pred).length]).filter((x) => x[1] > 0);
+      base = 'no diretório do Argo (só entram as unidades com bairro na ficha)';
+    }
+    if (!ordem.length) return null;
+    ordem.sort((a, b) => (menos ? a[1] - b[1] : b[1] - a[1]) || a[0].localeCompare(b[0], 'pt-BR'));
+    let t = 'Bairros com ' + (menos ? 'menos ' : 'mais ') + cat.plural + ' ' + base + ':\n' + ordem.slice(0, 5).map(([b, k]) => '- ' + b + ': ' + k).join('\n');
+    const rur = cat.osm && indice.rural.c[cat.osm];
+    if (rur) t += '\nFora dos bairros (zona rural e comunidades, no mapa): ' + rur + '.';
+    return resposta(t);
+  }
+
+  // Bairro que as fontes não conhecem
+  if (lugar && lugar.desconhecido) {
+    return resposta('Não encontrei o bairro "' + lugar.desconhecido.replace(/\b[a-z]/g, (c) => c.toUpperCase()) + '" no diretório do Argo nem no mapa, então não consigo contar ' + cat.plural + ' nele. Pode ser grafia diferente ou um bairro sem lugares cadastrados; isso não quer dizer que não exista ' + cat.singular + ' lá.');
+  }
+
+  // Um bairro
+  if (lugar && lugar.bairro) {
+    const b = lugar.bairro;
+    const doBairro = b.dir.filter(cat.pred);
+    const semBairro = daCategoria.filter((u) => !u.chave).length;
+    const nota = semBairro ? '\n' + semBairro + ' ' + rotulo(semBairro) + ' do diretório estão sem bairro na ficha e não entram na conta do diretório, então o número real pode ser maior.' : '';
+    if (cat.generica) {
+      const partes = [];
+      if (b.osm) partes.push('- Mapa colaborativo (OpenStreetMap, ' + ate + '): **' + b.osm.t + '** lugares (' + Object.entries(b.osm.c).sort((x, y) => y[1] - x[1]).map(([c, q]) => c + ' ' + q).join('; ') + ').');
+      if (b.dir.length) {
+        const grupos = new Map();
+        for (const u of b.dir) grupos.set(u.grupo, (grupos.get(u.grupo) || []).concat(u.nome));
+        const lim = quer.listar ? 6 : 3;
+        partes.push('- Diretório do Argo: **' + b.dir.length + '** ' + plural(b.dir.length, 'equipamento', 'equipamentos') + ':\n' +
+          Array.from(grupos.entries()).sort((x, y) => y[1].length - x[1].length || x[0].localeCompare(y[0], 'pt-BR'))
+            .map(([g, nomes]) => '  - ' + g + ' (' + nomes.length + '): ' + nomes.slice(0, lim).join('; ') + (nomes.length > lim ? '; e mais ' + (nomes.length - lim) : '')).join('\n'));
+      }
+      if (!partes.length) return resposta('Não há nenhum lugar cadastrado no bairro **' + b.nome + '** nem no diretório do Argo nem no mapa.');
+      return resposta('No bairro **' + b.nome + '**:\n' + partes.join('\n'));
+    }
+    const noMapa = cat.osm && mp ? (b.osm ? (b.osm.c[cat.osm] || 0) : null) : null;
+    let t = 'No bairro **' + b.nome + '**:\n';
+    if (cat.osm && mp) t += b.osm ? linhaMapa(noMapa) : '- Mapa colaborativo: o bairro não aparece no mapa.\n';
+    t += '- Diretório do Argo: **' + doBairro.length + '** ' + rotulo(doBairro.length) + (doBairro.length && (doBairro.length <= 12 || quer.listar) ? ':\n' + doBairro.slice(0, 20).map((u) => '  - ' + u.nome).join('\n') : '.');
+    if (!doBairro.length && !noMapa) return resposta('Não há registro de ' + cat.singular + ' no bairro **' + b.nome + '** nem no diretório do Argo nem no mapa.' + nota);
+    return resposta(t + nota);
+  }
+
+  // Cidade toda (sem bairro citado)
+  if (cat.generica) {
+    if (!(RE_CIDADE.test(n) || quer.contar)) return null;
+    const grupos = new Map();
+    for (const u of daCategoria) grupos.set(u.grupo, (grupos.get(u.grupo) || 0) + 1);
+    const top = Array.from(grupos.entries()).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    let t = '';
+    if (mp) t += '- Mapa colaborativo (OpenStreetMap, ' + ate + '): **' + mp.total + '** lugares com nome em Boa Vista, em ' + Object.keys(mp.categorias).length + ' categorias.\n';
+    t += '- Diretório do Argo: **' + daCategoria.length + '** equipamentos e serviços cadastrados, em ' + grupos.size + ' grupos. Os maiores:\n' + top.map(([g, k]) => '  - ' + g + ': ' + k).join('\n');
+    return resposta('Boa Vista:\n' + t + '\nPara ver um bairro, pergunte por exemplo "quantos equipamentos tem no Centro?".');
+  }
+  const noMapa = cat.osm && mp ? mp.categorias[cat.osm] : null;
+  if (!daCategoria.length && !noMapa) return null;
+  const comBairro = daCategoria.filter((u) => u.chave).length;
+  let t = 'Em Boa Vista:\n';
+  if (noMapa) t += '- Mapa colaborativo (OpenStreetMap, ' + ate + '): **' + noMapa + '** ' + (MAPA_ROTULO[cat.osm] || cat.plural) + '.\n';
+  t += '- Diretório do Argo: **' + daCategoria.length + '** ' + rotulo(daCategoria.length) + (comBairro < daCategoria.length ? ' (' + comBairro + ' com bairro na ficha)' : '') + '.';
+  if (quer.listar && daCategoria.length <= 25) t += '\n' + daCategoria.map((u) => '  - ' + u.nome + (u.chave ? ' (' + indice.bairros.get(u.chave).nome + ')' : '')).join('\n');
+  return resposta(t);
+}
+
+// ------------------------------------------------------------------ dados de Boa Vista (seção exata da base)
+
+// Cada linha aponta para UMA seção da base (documento + título da seção). O texto vem da própria base, então acompanha as atualizações;
+// se a seção sumir, a linha deixa de responder e a pergunta segue para a IA. Casar palavra solta no texto errava (habitantes x habitacionais).
+// [quando a pergunta casa, documento, começo do título da seção]
+const FATOS_BOA_VISTA = [
+  [/\b(?:habitantes|populacao|quantas pessoas (?:moram|vivem)|moradores|indigenas)\b/, 'roraima-municipios-2022', 'Boa Vista (RR), população do município'],
+  [/\b(?:populacao|habitantes|cresceu|crescimento).*\b(?:tempo|decadas?|historia|evolucao|desde)\b|\bevolucao da populacao\b/, 'boa-vista-geografia-mapa', 'Boa Vista: população ao longo do tempo'],
+  [/\b(?:area|tamanho|extensao|km2|quilometros quadrados|altitude|onde fica|localizacao|latitude|fica em que)\b/, 'boa-vista-geografia-mapa', 'Boa Vista: onde fica e números básicos do mapa'],
+  [/\b(?:clima|chuva|chove|temperatura|relevo|vegetacao|lavrado|savana)\b/, 'boa-vista-geografia-mapa', 'Boa Vista: sítio, relevo, clima e vegetação'],
+  [/\b(?:fundada|fundacao|fundou|aniversario|criada|criacao|virou municipio|9 de julho)\b/, 'boa-vista-historia-fundacao', 'Boa Vista: da freguesia ao município'],
+  [/\b(?:quantos bairros|numero de bairros|lista de bairros|quais (?:sao )?os bairros)\b/, 'boa-vista-geografia-mapa', 'Boa Vista: quantos bairros tem, lista de 56 bairros (CepBrasil), parte 1'],
+  [/\b(?:pib|produto interno)\b/, 'boa-vista-economia-pib', 'Boa Vista: tamanho da economia'],
+  [/\b(?:setores da economia|principais setores|economia de boa vista|base da economia)\b/, 'boa-vista-economia-pib', 'Boa Vista: setores da economia'],
+  [/\b(?:cadunico|cadastro unico).*\b(?:familias|pessoas|cadastrad\w+|quantas|quantos)\b|\b(?:familias|pessoas|quantas|quantos)\b.*\b(?:cadunico|cadastro unico)\b/, 'boa-vista-diagnostico-socioterritorial-2026', 'Boa Vista, Cadastro Único: quantas famílias e pessoas estão cadastradas'],
+  [/\b(?:bolsa familia)\b.*\b(?:familias|pessoas|beneficiari\w+|quantas|quantos)\b|\b(?:familias|beneficiari\w+|quantas|quantos)\b.*\bbolsa familia\b/, 'boa-vista-diagnostico-socioterritorial-2026', 'Boa Vista, Programa Bolsa Família: famílias e pessoas beneficiárias'],
+  [/\b(?:bpc|beneficio de prestacao continuada)\b.*\b(?:beneficiari\w+|quantos|quantas|pessoas)\b|\b(?:beneficiari\w+|quantos|quantas)\b.*\b(?:bpc|prestacao continuada)\b/, 'boa-vista-diagnostico-socioterritorial-2026', 'Boa Vista, BPC: beneficiários registrados'],
+  [/\b(?:ivcad)\b/, 'boa-vista-diagnostico-socioterritorial-2026', 'IVCAD de Boa Vista: índice geral e dimensões'],
+  [/\b(?:prefeito|prefeita)\b/, 'boa-vista-transporte-gestao-2026', 'Boa Vista: quem é o prefeito'],
+  [/\b(?:passe livre)\b/, 'boa-vista-transporte-gestao-2026', 'Boa Vista: passe livre estudantil em 2026'],
+  [/\b(?:onibus|transporte coletivo|tarifa|ciclovias?)\b/, 'boa-vista-transporte-gestao-2026', 'Boa Vista: transporte coletivo, tarifa e empresas'],
+  [/\b(?:zona rural|assentamentos?|terras? indigenas?)\b/, 'boa-vista-geografia-mapa', 'Boa Vista: zona rural, assentamentos e terras indígenas'],
+  [/\b(?:distancia|quantos km|quilometros)\b.*\b(?:manaus|pacaraima|caracarai|brasilia|bonfim|estrada)\b|\bdistancias? por estrada\b/, 'boa-vista-geografia-mapa', 'Boa Vista: distâncias por estrada'],
+  [/\b(?:agua|esgoto|coleta de lixo|saneamento)\b/, 'boa-vista-geografia-mapa', 'Boa Vista: água, esgoto e coleta de lixo na cidade']
+];
+const RE_CAPITAL = /\b(?:boa vista|bv|capital (?:de roraima|roraimense)|a capital|da capital|na capital)\b/;
+const RE_PERGUNTA_DE_DADO = /^(?:qual|quais|quant[oa]s?|quando|onde|quem|como (?:e|sao|esta|estao)|o que (?:e|sao)|de que|em que|me (?:diga|fale)|fale|diga)\b|\b(?:tem|ha|existem?)\b/;
+
+// A pergunta cita um ano que a seção não traz ("população em 2010" x seção de 2022): não responde.
+const RE_ANO = /\b(?:19|20)\d{2}\b/g;
+function anoSemFonte(n, trecho) {
+  const anos = n.match(RE_ANO) || [];
+  if (!anos.length) return false;
+  const tudo = normalizar((trecho.titulo || '') + ' ' + (trecho.referencia || '') + ' ' + String(trecho.texto || ''));
+  return anos.some((a) => tudo.indexOf(a) === -1);
+}
+
+function acharSecao(base, docs, inicios) {
+  for (const doc of docs) for (const ini of inicios) {
+    const t = base.find((x) => x && x.doc === doc && normalizar(String(x.referencia || x.titulo || '')).indexOf(normalizar(ini)) === 0);
+    if (t) return t;
+  }
+  return null;
+}
+
+// base: lista de trechos ({ doc, titulo, referencia, texto, tipo }). Devolve { texto, escolhidos: [{ trecho }] } | null.
+function respostaDeFatoBoaVista(pergunta, base) {
+  if (!Array.isArray(base) || !base.length) return null;
+  const n = normalizar(String(pergunta == null ? '' : pergunta));
+  const palavras = n ? n.split(' ').length : 0;
+  if (palavras < 3 || palavras > MAX_PALAVRAS_PERGUNTA) return null;
+  if (!RE_CAPITAL.test(n) && !/\b(?:prefeito|prefeita)\b/.test(n)) return null;
+  if (RE_PEDE_MAIS.test(n) || RE_TEMA_SENSIVEL.test(n) || !RE_PERGUNTA_DE_DADO.test(n)) return null;
+  // Pergunta de outro lugar (Roraima inteiro, outro município) não é de Boa Vista.
+  if (RE_OUTRO_LUGAR.test(n.replace(/\bcapital de roraima\b/g, ' '))) return null;
+  const hit = FATOS_BOA_VISTA.filter((f) => f[0].test(n));
+  if (!hit.length) return null;
+  const escolhidos = [];
+  for (const [, doc, inicio] of hit) {
+    if (escolhidos.length >= 2) break;
+    const t = acharSecao(base, [doc], [inicio]);
+    if (t && !escolhidos.some((e) => e.trecho === t)) escolhidos.push({ trecho: t });
+  }
+  if (!escolhidos.length || escolhidos.some((e) => anoSemFonte(n, e.trecho))) return null;
+  const porTrecho = escolhidos.length === 1 ? TETO_TRECHO + 300 : TETO_TRECHO - 100;
+  const blocos = escolhidos.map((a, i) => {
+    const t = a.trecho;
+    const rotulo = [t.titulo || t.doc, t.referencia].filter(Boolean).join(' — ');
+    return (escolhidos.length > 1 ? (i + 1) + ') ' : '') + (rotulo ? '**' + rotulo + '**\n' : '') + resumirTrechoLocal(t.texto, porTrecho);
+  });
+  const tecnico = escolhidos.some((a) => a.trecho.tipo && a.trecho.tipo !== 'norma');
+  return { texto: blocos.join('\n\n') + '\n\n' + (tecnico ? 'Dado de material de apoio da base do Paulus (não é norma). Confira a fonte original antes de usar o número em documento.' : 'Trecho da base do Paulus. Confira a fonte oficial.'), escolhidos: escolhidos };
+}
+
+// ------------------------------------------------------------------ políticas públicas (perguntas frequentes, seção exata)
+
+// Mesma ideia da tabela de Boa Vista: cada linha aponta para UMA seção de guia curado da base (Bolsa Família, CadÚnico). Busca livre
+// trazia artigo errado ("valor do BPC" voltou um artigo sobre herdeiros), então aqui só entra pergunta que casa com a seção certa.
+// [quando a pergunta casa, documentos onde procurar (na ordem), começo do título da seção]
+const GBF = 'guia-bolsa-familia-cadunico-2026', BF26 = 'bolsa-familia-2026', CAD = 'cadunico-mds';
+const ASSUNTO_PBF = /\b(?:bolsa familia|pbf|cadunico|cadastro unico|sicon|condicionalidades?|repercussao|primeira infancia|beneficio de renda|renda de cidadania)\b/;
+const POLITICAS = [
+  [/\b(?:valor(?:es)?|quanto (?:recebe|paga|e|ganha)|piso|primeira infancia|bpi|brc|beneficio complementar)\b/, [GBF, BF26], ['Valores dos benefícios', 'Valores do benefício em 2026']],
+  [/\b(?:reajuste|aumento)\b/, [BF26], ['Reajuste de outubro de 2026']],
+  [/\b(?:regra de protecao|renda acima de 218|retorno garantido|passou da renda)\b/, [GBF], ['Regra de proteção (renda acima de R$ 218)']],
+  [/\b(?:quem (?:pode|tem direito)|quem recebe|elegiveis?|criterios?|renda per capita|como entrar|como participar|como conseguir)\b/, [GBF, BF26], ['Quem pode receber e como entrar', 'Como participar do Bolsa Família']],
+  [/\b(?:calendario de pagamento|data de pagamento|datas? de pagamento|quando (?:paga|pagam|cai)|prazo para saque)\b/, [GBF, BF26], ['Pagamento: datas e prazo para saque', 'Calendário de pagamento de outubro a dezembro de 2026']],
+  [/\b(?:sacar|saque|cartao|caixa tem)\b/, [GBF, BF26], ['Como sacar e movimentar o benefício', 'Como sacar o benefício']],
+  [/\b(?:atualiz\w+).*\b(?:cadunico|cadastro unico)\b|\b(?:cadunico|cadastro unico)\b.*\batualiz\w+|\bprazo (?:de|para) atualiza\w+/, [GBF, CAD], ['Atualização do CadÚnico', 'Atualização cadastral do CadÚnico']],
+  [/\b(?:qualificacao cadastral)\b/, [BF26], ['Ação de Qualificação Cadastral']],
+  [/\b(?:o que e)\b.*\b(?:cadunico|cadastro unico)\b/, [CAD], ['O que é o Cadastro Único']],
+  [/\b(?:quem pode se cadastrar|documentos? (?:para|do|de) (?:o )?(?:cadunico|cadastro unico)|o que levar|como (?:me |se )?cadastrar|como (?:fazer|faco) (?:o |meu )?(?:cadunico|cadastro unico))\b/, [CAD, GBF], ['Como se cadastrar no CadÚnico', 'Quem pode se cadastrar no CadÚnico e o que levar']],
+  [/\b(?:efeitos? do descumprimento|descumprimento das condicionalidades|advertencia|bloqueio|suspensao|cancelamento)\b/, [GBF], ['Efeitos do descumprimento das condicionalidades']],
+  [/\b(?:o que sao|quais sao|o que e)\b.*\bcondicionalidades?\b|\bcondicionalidades?\b.*\b(?:quais|o que)\b/, [GBF], ['Condicionalidades']],
+  [/\b(?:bloquead[oa]|suspens[oa]|cancelad[oa]|bloqueou|bloqueio)\b/, [BF26], ['Perguntas frequentes: o benefício foi bloqueado']],
+  [/\b(?:prazo|data) (?:de|do|para) recurso\b|\brecurso\b.*\b(?:prazo|ate quando|ate que dia)\b/, [GBF, BF26], ['Cronograma de repercussão 2026 e prazo de recurso', 'Cronograma de repercussão 2026']],
+  [/\b(?:recurso on line|recurso online|recurso no sicon)\b/, [GBF, BF26], ['Recurso on-line no Sicon', 'Recurso on-line (Sicon)']],
+  [/\b(?:devolucao|devolver)\b.*\b(?:valores?|beneficio)\b/, [GBF, BF26], ['Devolução voluntária de valores']],
+  [/\b(?:canais?|telefone|contato|0800|alo)\b.*\bbolsa familia\b|\bbolsa familia\b.*\b(?:canais?|telefone|contato|0800|atendimento)\b/, [GBF, BF26], ['Atendimento e contatos', 'Canais de atendimento do Bolsa Família']],
+  [/\b(?:significa|sigla)\b.*\b(?:brc|bpi|bco|bva|bvg|bnb)\b|\bsiglas?\b/, [BF26], ['Siglas do Bolsa Família e do CadÚnico']]
+];
+const RE_FORMA_POLITICA = /^(?:qual(?:is)?\b|quant[oa]s?\b|quando\b|quem\b|onde\b|o que (?:e|sao)\b|como (?:se |eu )?(?:faz|faco|fazer|saca|sacar|cadastra|cadastrar|atualiza|atualizar|entra|entrar|recorre|recorrer|funciona|devolver|participar|conseguir)\b|de que\b|em que\b|ate quando\b|o beneficio\b|o bolsa\b)/;
+
+function respostaDePolitica(pergunta, base) {
+  if (!Array.isArray(base) || !base.length) return null;
+  const n = normalizar(String(pergunta == null ? '' : pergunta));
+  const palavras = n ? n.split(' ').length : 0;
+  if (palavras < 3 || palavras > MAX_PALAVRAS_PERGUNTA) return null;
+  if (!RE_FORMA_POLITICA.test(n) || RE_PEDE_MAIS.test(n) || RE_TEMA_SENSIVEL.test(n)) return null;
+  if (!ASSUNTO_PBF.test(n) && !/\b(?:beneficio|bloquead[oa]|suspens[oa]|cancelad[oa])\b/.test(n)) return null;
+  if (/\b(?:bpc|loas|aluguel social|beneficio eventual|auxilio brasil|inss|aposentadoria|pensao)\b/.test(n)) return null;
+  if (RE_OUTRO_LUGAR.test(n)) return null;
+  const hit = POLITICAS.filter((f) => f[0].test(n));
+  // Mais de uma seção possível = pergunta ambígua ou composta: a IA responde.
+  if (hit.length !== 1) return null;
+  const t = acharSecao(base, hit[0][1], hit[0][2]);
+  if (!t || anoSemFonte(n, t)) return null;
+  const rotulo = [t.titulo || t.doc, t.referencia].filter(Boolean).join(' — ');
+  const tecnico = t.tipo && t.tipo !== 'norma';
+  return {
+    texto: '**' + rotulo + '**\n' + resumirTrechoLocal(t.texto, 1100) + '\n\n' + (tecnico ? 'Trecho de guia de orientação da base do Paulus (não é norma legal). Valores e prazos mudam: confirme no MDS.' : 'Trecho da base de normas do Paulus. Confira o texto oficial vigente.'),
+    escolhidos: [{ trecho: t }]
+  };
+}
+
+// ------------------------------------------------------------------ definição de sigla, direto da base
+
+const RE_DEFINICAO = /^(?:o que (?:e|sao|significa|quer dizer)\b)/;
+// Documentos que não servem de resposta direta: fichas de unidade (são da consulta) e mapa de lugares.
+const RE_DOC_FORA = /^(?:argo-|mapa-boa-vista-osm|diretorio)/;
+// Palavras de ligação e de pergunta: não precisam estar no trecho.
+const VAZIAS = new Set(('qual quais quanto quantos quanta quantas como onde quando quem sobre mais para pela pelo pelas pelos entre desde ate essa esse isso ' +
+  'esta este aquele aquela tem tinha existe existem sao foi eram sera pode podem deve ficam fica estao esta uma uns umas dizer significa quer ano anos ' +
+  'diga fale cidade municipio capital').split(' '));
+// 7 letras: "habitantes" (habitan) não casa com "habitacionais" (habitac)
+const radical = (w) => w.slice(0, 7);
+
+// Palavras de conteúdo da pergunta (sem as de ligação), reduzidas ao radical de 7 letras: "habitantes" e "habitante" casam.
+function termosDaPergunta(n) {
+  return Array.from(new Set(n.split(' ').filter((w) => w.length >= 4 && !VAZIAS.has(w)).map(radical)));
+}
+
+// "O que é X?": o trecho tem de DEFINIR X (X seguido de "é", "consiste", "constitui"... perto do começo), não só mencionar X.
+const ARTIGOS = new Set('o a os as um uma de do da dos das'.split(' '));
+function defineOTermo(trecho, n) {
+  const palavras = n.replace(RE_DEFINICAO, ' ').split(' ').filter((w) => w.length >= 3 && !ARTIGOS.has(w));
+  if (!palavras.length || palavras.length > 4) return false;
+  const re = new RegExp('\\b' + palavras.join('\\s+(?:[a-z0-9]+\\s+){0,2}?') + '\\b(?:\\s+[a-z0-9]+){0,3}?\\s+(?:e|consiste|constitui|sao|compreende|define|significa|refere)\\b');
+  return re.test(normalizar(String(trecho.texto || '').slice(0, 600)));
+}
+
+// O trecho responde esta pergunta? Todos os termos têm de aparecer no título ou no começo do trecho.
+function trechoCobre(trecho, termos, lugar) {
+  if (!termos.length) return false;
+  const tudo = normalizar((trecho.titulo || '') + ' ' + (trecho.referencia || '') + ' ' + String(trecho.texto || '').slice(0, 320));
+  if (lugar && tudo.indexOf(lugar) === -1) return false; // perguntou de Boa Vista: o trecho tem de ser de Boa Vista
+  return termos.every((t) => tudo.indexOf(t) !== -1);
+}
+
+// achados: resultado de buscarFontes (já com "aderencia"). ctx: { analise, partes, sobreSi, rota }, do que o Worker já sabe do pedido.
+// Só responde "o que é <SIGLA>?" (PAIF, CRAS, CREAS, BPC...): é uma entidade específica. Conceito genérico, caso, análise e outro
+// idioma seguem para a IA; fora definição de sigla, a busca livre errava (artigo trocado), então só as tabelas curadas respondem sem IA.
+function respostaDaBase(pergunta, achados, ctx) {
+  if (!Array.isArray(achados) || !achados.length) return null;
+  const c = ctx || {};
+  if (c.analise || c.sobreSi || c.rota || (c.partes || 0) >= 2) return null;
+  const n = normalizar(String(pergunta == null ? '' : pergunta));
+  const palavras = n ? n.split(' ').length : 0;
+  if (palavras < 3 || palavras > MAX_PALAVRAS_PERGUNTA) return null;
+  if (RE_PEDE_MAIS.test(n) || RE_TEMA_SENSIVEL.test(n)) return null;
+  const definicao = RE_DEFINICAO.test(n);
+  if (!definicao) return null;
+  if (!/\b[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{3,7}\b/.test(String(pergunta == null ? '' : pergunta))) return null;
+  const lugar = /\bboa vista\b/.test(n) ? 'boa vista' : '';
+  const termos = termosDaPergunta(n.replace(/\bboa vista\b/g, ' '));
+  // Só os 3 primeiros resultados, de aderência alta, fora das fichas de unidade e que de fato definem o termo.
+  const altas = achados.slice(0, 3).filter((a) => a && a.trecho && a.aderencia === 'alta' && !RE_DOC_FORA.test(String(a.trecho.doc || '')) &&
+    trechoCobre(a.trecho, termos, lugar) && defineOTermo(a.trecho, n));
+  if (!altas.length) return null;
+  const escolhidos = [];
+  const docs = new Set();
+  for (const a of altas) {
+    if (escolhidos.length >= 2) break;
+    const d = a.trecho.doc || a.trecho.titulo;
+    if (docs.has(d)) continue;
+    docs.add(d);
+    escolhidos.push(a);
+  }
+  const porTrecho = escolhidos.length === 1 ? TETO_TRECHO + 200 : TETO_TRECHO - 150;
+  const blocos = escolhidos.map((a, i) => {
+    const t = a.trecho;
+    const rotulo = [t.titulo || t.doc, t.referencia].filter(Boolean).join(' — ');
+    return (escolhidos.length > 1 ? (i + 1) + ') ' : '') + (rotulo ? '**' + rotulo + '**\n' : '') + resumirTrechoLocal(t.texto, porTrecho);
+  });
+  const tecnico = escolhidos.some((a) => a.trecho.tipo && a.trecho.tipo !== 'norma');
+  return {
+    texto: blocos.join('\n\n') + '\n\n' + (tecnico ? 'Trecho de material de apoio ou orientação técnica da base do Paulus (não é norma legal: orienta, não obriga). Confira o documento original.' : 'Trecho da base de normas do Paulus, sem interpretação do seu caso. Confira o texto oficial vigente.'),
+    escolhidos: escolhidos
+  };
+}
 
 // ---- shared/rota.mjs ----
 // Rotas do Paulus: ordem das paradas, distância, tempo e link do mapa. Sem IA, sem rede e sem eval. FONTE ÚNICA: navegador e Worker.
@@ -15869,11 +16494,20 @@ const EXT_SINAIS = {
   documentos: /\b(?:documentos?|cpf|rg|certidao|comprovantes?|titulo de eleitor|identidade|carteira|cartao)\b/,
   direito: /\b(?:tem direito|tem acesso|pode receber|podem receber|poderao receber|elegiveis?|elegibilidade|destina se|fazem jus|criterios?|requisitos?|renda familiar|renda per capita|familias? (?:com|cuja|em situacao)|pessoas? com deficiencia|idosos?)\b/,
   definicao: /\b(?:consiste|entende se|considera se|compreende|caracteriza se|define se|destina se|fica instituido|instituido|e um|e uma)\b/,
-  quem: /\b(?:compete|cabe|cabera|responsavel|responsaveis|gerido|gestao|coordena|coordenado|executa|executado|realiza|realizado|ofertado|referenciado)\b/
+  quem: /\b(?:compete|cabe|cabera|responsavel|responsaveis|gerido|gestao|coordena|coordenado|executa|executado|realiza|realizado|ofertado|referenciado)\b/,
+  // O que um profissional ou serviço faz: verbos de atribuição.
+  funcao: /\b(?:atribuicoes?|compete|cabe|incumbe|realiza|realizam|desenvolve|desenvolvem|acompanha|acompanham|oferta|ofertam|presta|prestam|participa|participam|elabora|elaboram|orienta|orientam|encaminha|encaminham|promove|promovem|executa)\b/,
+  // Como se faz: procedimento, etapa, forma de solicitar ou registrar.
+  procedimento: /\b(?:deve|devem|devera|deverao|mediante|por meio|atraves|procedimentos?|etapas?|passos?|inicia|iniciar|solicita|solicitado|apresentar|preencher|inscricao)\b/,
+  // Pergunta aberta com forma de pergunta (geral): qualquer frase que cubra o assunto; a cobertura exigida é maior (ver EXT_COBERTURA).
+  geral: /./
 };
+// Cobertura mínima do assunto pela frase (com o título do trecho). A pergunta aberta (geral) exige quase tudo.
+const EXT_COBERTURA = { geral: 0.85 };
+const EXT_RE_DEF_FORTE = /\b(?:consiste|entende se|considera se|compreende|caracteriza se|define se|destina se|fica instituido|instituido)\b/;
 
 // Palavras que só indicam o TIPO da pergunta (não o assunto): saem das raízes que a frase precisa cobrir.
-const EXT_SO_TIPO = /^(valor|valores|prazo|prazos|documento|documentos|direito|direitos|requisito|requisitos|criterio|criterios|elegivel|elegiveis|definicao|conceito|compete|responsavel|responsaveis)$/;
+const EXT_SO_TIPO = /^(valor|valores|prazo|prazos|documento|documentos|direito|direitos|requisito|requisitos|criterio|criterios|elegivel|elegiveis|definicao|conceito|compete|responsavel|responsaveis|atribuicao|atribuicoes|funcao|funcoes|atuacao|diferenca|diferencas|procedimento|procedimentos|etapa|etapas|passo|passos)$/;
 // Valor em reais ou porcentagem, lido no texto ORIGINAL da frase.
 const EXT_RE_VALOR = /R\$\s?\d|\b\d{1,3}(?:\.\d{3})*,\d{2}\b|\b\d+(?:,\d+)?\s?%/;
 // Frase de COMPETÊNCIA de órgão (ex.: "Compete ao INSS...") não responde "quem tem direito" nem "quais requisitos".
@@ -15889,7 +16523,7 @@ function extRaizes(texto) {
   const lista = [];
   normalizar(texto).split(' ').forEach(function (w) {
     if (w.length > 3 && !EXT_VAZIAS.test(w) && !EXT_SO_TIPO.test(w)) {
-      const r = w.slice(0, 6);
+      const r = w.slice(0, 7);
       if (lista.indexOf(r) === -1) lista.push(r);
     }
   });
@@ -15905,7 +16539,24 @@ function tipoDaPergunta(pergunta) {
   if (/\b(?:quem (?:tem direito|pode (?:receber|solicitar|ter|ser|acessar|participar))|tem direito|quais (?:familias|pessoas)|quem recebe|quais (?:sao )?(?:os )?(?:requisitos|criterios)|requisitos|criterios|elegibilidade|elegiveis|quem e elegivel|publico[ -]alvo|a quem se destina)\b/.test(n)) return 'direito';
   if (/\b(?:quem (?:e responsavel|cabe|compete|gerencia|coordena|executa|gere|faz)|compete a|responsavel por)\b/.test(n)) return 'quem';
   if (/^(?:o que (?:e|sao|significa|quer dizer)|defina|conceito de|qual o conceito)\b/.test(n)) return 'definicao';
+  if (/\b(?:o que (?:faz|fazem|cabe|compete)|quais (?:sao )?(?:as |os )?(?:atribuicoes|funcoes|atividades|competencias)|qual (?:e )?(?:o )?papel|como atua|atribuicoes d[oae]s?|funcoes d[oae]s?)\b/.test(n)) return 'funcao';
+  if (/\b(?:como (?:fazer|faco|se faz|funciona|solicitar|solicito|registrar|registro|requerer|elaborar|elaboro|montar|monto|proceder|encaminhar|encaminho|cadastrar|cadastro|inscrever)|o que fazer|passo a passo|qual (?:e )?o procedimento|quais (?:sao )?(?:as )?etapas)\b/.test(n)) return 'procedimento';
   return null;
+}
+
+// Pergunta aberta COM forma de pergunta ("quais os pontos de atenção da RAPS", "atendimento a pessoa idosa" não entra): só estas podem usar o tipo geral.
+function extPerguntaAberta(pergunta) {
+  return /^(?:quais|qual|quem|quando|onde|por que|porque|existe|existem|ha|tem|posso|pode|podem|devo|deve|e obrigatorio|e possivel)\b/.test(normalizar(pergunta));
+}
+
+// "diferença entre X e Y", "X ou Y?", "X x Y": devolve [lado1, lado2] ou null.
+function extLadosDaComparacao(pergunta) {
+  const n = normalizar(pergunta);
+  let m = n.match(/\b(?:diferenca|diferencas|diferenciar|comparar|comparacao|distincao)\s+(?:entre\s+)?(.+?)\s+(?:e|x|versus|vs|com)\s+(.+)$/);
+  if (!m) m = n.match(/^(?:o que (?:e|sao) )?(.+?)\s+(?:x|versus|vs)\s+(.+)$/);
+  if (!m) return null;
+  const a = m[1].trim(), b = m[2].trim();
+  return a && b && a.split(' ').length <= 6 && b.split(' ').length <= 6 ? [a, b] : null;
 }
 
 // Divide em frases sem cortar em "Art. 5º", "§ 2º." nem em valor como "R$ 1.518,00". Também quebra em linhas e itens de lista.
@@ -15963,7 +16614,12 @@ function extRotulo(trecho) {
 function responderPorExtracao(pergunta, achados, opcoes) {
   const o = opcoes || {};
   if (!Array.isArray(achados) || !achados.length) return null;
-  const tipo = tipoDaPergunta(pergunta);
+  if (!o.semComparar) {
+    const lados = extLadosDaComparacao(pergunta);
+    if (lados) return extComparar(pergunta, lados, achados);
+  }
+  let tipo = o.tipo || tipoDaPergunta(pergunta);
+  if (!tipo && extPerguntaAberta(pergunta)) tipo = 'geral';
   if (!tipo) return null;
   const raizes = extRaizes(pergunta.replace(/\bboa vista\b/gi, ' '));
   if (!raizes.length) return null;
@@ -15982,10 +16638,14 @@ function responderPorExtracao(pergunta, achados, opcoes) {
       const tem = raizes.filter(function (r) { return nf.indexOf(r) !== -1; });
       const comRotulo = raizes.filter(function (r) { return nf.indexOf(r) !== -1 || rotulo.indexOf(r) !== -1; });
       // a frase precisa cobrir a maior parte do assunto (com o título do trecho); sem nenhuma palavra do assunto na própria frase, o título tem de cobri-lo todo
-      if (comRotulo.length / raizes.length < 0.6) return;
+      if (comRotulo.length / raizes.length < (EXT_COBERTURA[tipo] || 0.6)) return;
       if (!tem.length && comRotulo.length < raizes.length) return;
       // definição: a frase tem de ser SOBRE o termo (ele aparece no começo), não citá-lo de passagem
-      if (tipo === 'definicao' && !tem.some(function (r) { const k = nf.indexOf(r); return k >= 0 && k < 70; })) return;
+      if (tipo === 'definicao' && !tem.some(function (r) { const k = nf.indexOf(r); return k >= 0 && k < 100; })) return;
+      // definição: "é um/uma..." só vale colado ao termo (no máximo uma palavra no meio); "A gestão do CAPS-AD também é um espaço" fala de outra coisa
+      if (tipo === 'definicao' && !EXT_RE_DEF_FORTE.test(nf) && !tem.some(function (r) { const k = nf.indexOf(r); return k >= 0 && /^\S*(?:\s+\S+){0,1}?\s+(?:e|sao)\s+(?:um|uma|o|a|os|as)\b/.test(nf.slice(k)); })) return;
+      // pergunta com UMA só palavra de assunto: ela tem de estar no título do trecho ou no começo da frase (senão "depressivos" no fim de uma frase de outro quadro serviria)
+      if (raizes.length === 1 && rotulo.indexOf(raizes[0]) === -1 && nf.indexOf(raizes[0]) > 70) return;
       const score = tem.length / raizes.length + comRotulo.length / raizes.length * 0.5 - ia * 0.05 - ordem * 0.002;
       candidatas.push({ frase: frase, ia: ia, score: score });
     });
@@ -16035,6 +16695,109 @@ function responderPorExtracao(pergunta, achados, opcoes) {
   const refs = ordemFontes.map(function (i, k) { return '- [' + (k + 1) + '] ' + (extRotulo(achados[i].trecho) || 'Base de normas'); });
   const texto = 'O que a base de normas diz sobre isso (frases copiadas dos textos, cada uma com a sua fonte):\n\n' + linhas.join('\n') + '\n\n**Fontes**\n' + refs.join('\n');
   return { texto: texto, frases: frases, fontes: ordemFontes, avisos: avisos, tipo: tipo };
+}
+
+
+// Comparação ("diferença entre PAIF e PAEFI"): a definição de CADA lado, tirada da base, lado a lado. Se um dos lados não tem frase de definição, null
+// (mostrar só um lado como se fosse a comparação enganaria).
+function extComparar(pergunta, lados, achados) {
+  const partes = [];
+  for (let i = 0; i < lados.length; i++) {
+    const r = responderPorExtracao('o que é ' + lados[i], achados, { max: 1, tipo: 'definicao', semComparar: true });
+    if (!r || !r.frases.length) return null;
+    partes.push({ lado: lados[i], r: r });
+  }
+  const ordemFontes = [];
+  const frases = [];
+  partes.forEach(function (p) {
+    p.r.frases.forEach(function (f) {
+      const idx = p.r.fontes[f.fonte - 1];
+      let pos = ordemFontes.indexOf(idx);
+      if (pos === -1) { ordemFontes.push(idx); pos = ordemFontes.length - 1; }
+      frases.push({ texto: f.texto, fonte: pos + 1, achado: idx, lado: p.lado });
+    });
+  });
+  const linhas = partes.map(function (p) {
+    return '**' + p.lado.toUpperCase() + '**\n' + frases.filter(function (f) { return f.lado === p.lado; }).map(function (f) { return '- ' + f.texto + ' [' + f.fonte + ']'; }).join('\n');
+  });
+  const refs = ordemFontes.map(function (i, k) { return '- [' + (k + 1) + '] ' + (extRotulo(achados[i].trecho) || 'Base de normas'); });
+  const texto = 'O que a base de normas diz de cada um (frases copiadas dos textos, cada uma com a sua fonte):\n\n' + linhas.join('\n\n') + '\n\n**Fontes**\n' + refs.join('\n');
+  return { texto: texto, frases: frases, fontes: ordemFontes, tipo: 'comparacao',
+    avisos: ['Frases copiadas da base de normas, uma definição para cada lado: o app não compara nem interpreta. Confira o texto oficial vigente.'] };
+}
+
+// ---- shared/saudacao-local.mjs ----
+// Resposta a cumprimento, agradecimento, confirmação e despedida SEM IA (poupa cota e funciona sem internet).
+//
+//   respostaDeSaudacao(texto, idioma) -> { texto, tipo } | null
+//
+// Só é chamada quando shared/pedido.mjs já classificou a mensagem como 'saudacao' (todas as palavras são de cumprimento).
+// Não inventa nada: diz o que o Paulus faz (as mesmas capacidades da ficha de saudação do prompt) e devolve a conversa para a pessoa.
+// Os nomes têm prefixo Saud/SAUD porque o arquivo do navegador junta todos os módulos num só escopo (scripts/build.mjs).
+
+
+
+const SAUD_TIPOS = [
+  // ordem importa: agradecimento e despedida antes de cumprimento ("obrigado, tchau" é despedida)
+  ['despedida', /\b(?:tchau|ate (?:logo|mais|amanha|breve)|adeus|bye|goodbye|hasta (?:luego|pronto|manana)|chao)\b/],
+  ['agradecimento', /\b(?:obrigad[oa]s?|valeu|brigad[oa]|agradeco|thanks?|thank you|gracias|muchas gracias)\b/],
+  ['confirmacao', /\b(?:ok|okay|certo|entendi|entendido|beleza|perfeito|otimo|show|combinado|tudo bem|blz|sim|ta bom|de acordo|great|perfect|understood|got it|sure|cool|nice|vale|claro|listo)\b/],
+  ['cumprimento', /./]
+];
+
+const SAUD_TEXTOS = {
+  pt: {
+    cumprimento: 'Posso tirar dúvidas do SUAS e da prática, citar normas da base, ajudar a escrever registro, relatório e ofício e orientar no uso do app. O que você precisa?',
+    agradecimento: 'De nada! Se surgir outra dúvida do SUAS, de norma ou de texto, é só chamar.',
+    confirmacao: 'Certo. Se quiser seguir, é só dizer o que precisa.',
+    despedida: 'Até logo! Quando precisar, é só chamar.'
+  },
+  es: {
+    cumprimento: 'Puedo resolver dudas del SUAS y de la práctica, citar normas de la base, ayudar a escribir registros, informes y oficios y orientar en el uso de la app. ¿Qué necesita?',
+    agradecimento: '¡De nada! Si surge otra duda del SUAS, de normas o de texto, solo avise.',
+    confirmacao: 'Listo. Si quiere seguir, solo diga qué necesita.',
+    despedida: '¡Hasta luego! Cuando lo necesite, solo avise.'
+  },
+  en: {
+    cumprimento: 'I can answer questions about SUAS and practice, cite norms from the knowledge base, help write records, reports and official letters, and guide you in using the app. What do you need?',
+    agradecimento: "You're welcome! If another question about SUAS, norms or writing comes up, just ask.",
+    confirmacao: 'Okay. If you want to continue, just tell me what you need.',
+    despedida: 'Goodbye! Whenever you need, just ask.'
+  }
+};
+
+// "bom dia" / "boa tarde" / "boa noite" (e buenos días, good morning) devolvem a saudação da mesma hora do dia.
+function saudAbertura(n, idioma) {
+  if (idioma === 'es') {
+    if (/\bbuenos dias\b/.test(n)) return '¡Buenos días! ';
+    if (/\bbuenas tardes\b/.test(n)) return '¡Buenas tardes! ';
+    if (/\bbuenas noches\b/.test(n)) return '¡Buenas noches! ';
+    return '¡Hola! ';
+  }
+  if (idioma === 'en') {
+    if (/\bgood morning\b/.test(n)) return 'Good morning! ';
+    if (/\bgood afternoon\b/.test(n)) return 'Good afternoon! ';
+    if (/\bgood evening\b/.test(n)) return 'Good evening! ';
+    return 'Hello! ';
+  }
+  if (/\bbom dia\b/.test(n)) return 'Bom dia! ';
+  if (/\bboa tarde\b/.test(n)) return 'Boa tarde! ';
+  if (/\bboa noite\b/.test(n)) return 'Boa noite! ';
+  return 'Oi! ';
+}
+
+function respostaDeSaudacao(texto, idioma) {
+  const n = normalizar(texto);
+  if (!n) return null;
+  const lang = idioma === 'es' || idioma === 'en' ? idioma : 'pt';
+  let tipo = 'cumprimento';
+  for (let i = 0; i < SAUD_TIPOS.length; i++) {
+    if (SAUD_TIPOS[i][1].test(n)) { tipo = SAUD_TIPOS[i][0]; break; }
+  }
+  // "bom dia, obrigado" ainda é cumprimento: se há saudação de hora, ela vence o agradecimento
+  if (tipo !== 'despedida' && /\b(?:bom dia|boa tarde|boa noite|buenos dias|buenas tardes|buenas noches|good (?:morning|afternoon|evening))\b/.test(n)) tipo = 'cumprimento';
+  const corpo = SAUD_TEXTOS[lang][tipo];
+  return { tipo: tipo, texto: tipo === 'cumprimento' ? saudAbertura(n, lang) + corpo : corpo };
 }
 
 // ---- shared/rotinas.mjs ----
@@ -16932,6 +17695,9 @@ function memEhSensivel(texto) { return MEM_RE_SENSIVEL.test(normalizar(texto)); 
 
 
 
+
+
+
 const AVISO_PESSOAL = 'Para proteger as famílias, não consigo analisar mensagens com nome, documento, telefone ou endereço residencial. Reescreva a pergunta sem identificar ninguém.';
 
 // Igual ao limite do Worker (worker/prompt.mjs). Antes eram 5 aqui, e o Argo mandava até 10 (lista de bairros, "liste todos").
@@ -17111,7 +17877,7 @@ function registrarAcao(a) {
     throw new Error('Paulus.registrarAcao: use { id, rotulos:[...], executar() }');
   }
   estado.acoes = estado.acoes.filter(function (x) { return x.id !== a.id; });
-  estado.acoes.push({ id: a.id, titulo: String(a.titulo || a.rotulos[0] || a.id), rotulos: a.rotulos.map(normalizar).filter(Boolean), descricao: a.descricao || '', executar: a.executar, confirmar: !!a.confirmar, fechar: !!a.fechar });
+  estado.acoes.push({ id: a.id, titulo: String(a.titulo || a.rotulos[0] || a.id), rotulos: a.rotulos.map(normalizar).filter(Boolean), descricao: a.descricao || '', executar: a.executar, confirmar: !!a.confirmar, fechar: !!a.fechar, nome: !!a.nome });
 }
 
 // Busca dentro do app. { id, rotulos:['unidade','equipamento'], buscar(consulta) -> [{titulo, detalhe?, abrir?()}] }
@@ -17302,6 +18068,31 @@ function tratarAcaoSolta(resto) {
   a.rotulos.slice().sort(function (x, y) { return y.length - x.length; }).forEach(function (r) { sobra = sobra.split(' ' + r + ' ').join(' '); });
   if (sobra.split(/\s+/).filter(Boolean).some(function (w) { return !LIGACAO[w]; })) return null;
   return tratarAcao(resto);
+}
+
+// Nome solto ("youtube", "gmail", "google e gmail"): ações registradas com { nome: true } abrem só digitando o nome, SEM verbo.
+// Só vale se a frase inteira for o nome (ou vários nomes) mais palavras de ligação; qualquer outra palavra manda a frase para a IA
+// ("como criar um e-mail no gmail" é pergunta, não abre nada). Ações que pedem confirmação nunca entram.
+function tratarNomeSolto(alvo) {
+  const lista = estado.acoes.filter(function (x) { return x.nome && !x.fechar && !x.confirmar; });
+  if (!lista.length) return null;
+  let sobra = ' ' + alvo + ' ';
+  const achadas = [], pos = new Map();
+  const pares = [];
+  lista.forEach(function (a) { a.rotulos.forEach(function (r) { pares.push([r, a]); }); });
+  pares.sort(function (x, y) { return y[0].length - x[0].length; });
+  pares.forEach(function (par) {
+    const chave = ' ' + par[0] + ' ';
+    if (sobra.indexOf(chave) !== -1 && achadas.indexOf(par[1]) === -1) {
+      achadas.push(par[1]); pos.set(par[1], (' ' + alvo + ' ').indexOf(chave));
+      sobra = sobra.split(chave).join(' ');
+    }
+  });
+  if (!achadas.length || achadas.length > 4) return null;
+  if (sobra.split(/\s+/).filter(Boolean).some(function (w) { return !LIGACAO[w]; })) return null;
+  achadas.sort(function (x, y) { return pos.get(x) - pos.get(y); });
+  achadas.forEach(function (a) { a.executar(); estado.mem.aprenderAcao(a.id); });
+  return { tipo: 'acao', acao: achadas.map(function (a) { return a.id; }).join(','), texto: 'Pronto: ' + achadas.map(function (a) { return a.titulo; }).join(', ') + '.', executada: true };
 }
 
 // Verbo de fechar: só vale se a frase for SÓ o pedido e houver ação de fechar registrada com aquele rótulo; senão null (segue para a IA).
@@ -17993,7 +18784,7 @@ function respostaDePsicometria(t, o) {
   if (estado.psi.chave !== chave) { let tb = null; try { tb = psiLerTabela(doc.texto); } catch (e) { tb = null; } estado.psi = { chave: chave, tabela: tb }; }
   if (!estado.psi.tabela) return null;
   let r = null;
-  try { r = psiRespostaDoPedido(t, estado.psi.tabela); } catch (e) { r = null; }
+  try { r = estRespostaDoPedido(t, estado.psi.tabela) || psiRespostaDoPedido(t, estado.psi.tabela); } catch (e) { r = null; }
   if (!r) return null;
   const avisos = r.avisos.slice();
   if (doc.texto.length >= 599000) avisos.push('O arquivo é muito grande e foi lido só até o limite do aplicativo: as últimas linhas podem ter ficado de fora.');
@@ -18159,6 +18950,8 @@ async function perguntarFluxo(texto, opcoes) {
     if (m) { const fecha = tratarFechar(m[2]); if (fecha) return fecha; }
     m = REG_BUSCA.exec(alvo);
     if (m) return tratarBusca(m[2]);
+    const soNome = tratarNomeSolto(alvo);
+    if (soNome) return soNome;
   }
 
   // Pedido de modelo 3D didático ("me manda o modelo 3D do sistema solar"): entrega o modelo-base no aparelho, sem IA.
@@ -18256,6 +19049,11 @@ async function perguntarFluxo(texto, opcoes) {
   const extraCota = pausada ? { semIA: true, motivoSemIA: semIAMotivo, cotaEsgotada: semIAMotivo === 'cota', renova: semIAMotivo === 'cota' ? estado.pausaIA.renova : 0 } : {};
 
   // Sem IA, cumprimento e pedido de ajuste não têm o que responder da base de normas (um trecho de norma no lugar de "mais curto" confundiria).
+  if (modo === 'saudacao') {
+    // Cumprimento, agradecimento, confirmação e despedida têm resposta pronta no aparelho (shared/saudacao-local.mjs): não precisa de IA nem de rede.
+    const sd = respostaDeSaudacao(t, idiomaDoPedido(t, hist).resposta);
+    if (sd) return Object.assign({ tipo: 'saudacao', texto: sd.texto, fontes: [], avisos: [], local: true, motivo: motivo }, extraCota);
+  }
   if (modo === 'saudacao' || modo === 'refinamento' || modo === 'continuar' || modo === 'porque' || modo === 'contestacao') {
     if (pausada) {
       const dica = 'A base de normas, os cálculos, as datas, as rotas, o PDF e a revisão de ortografia continuam funcionando sem a IA.';
@@ -18293,6 +19091,15 @@ async function perguntarFluxo(texto, opcoes) {
       return rm;
     }
   }
+  // Respostas locais que o Worker também dá sem IA (shared/resposta-local.mjs): contagem por bairro, dado de Boa Vista, pergunta frequente de política
+  // (Bolsa Família, CadÚnico) e definição de sigla. Sem IA, valem mais que o trecho solto da norma.
+  const rl = respostaLocalDoAparelho(t, achados, modo);
+  if (rl) {
+    const rr = { tipo: 'norma', local: true, texto: rl.texto, fontes: rl.fontes, avisos: rl.avisos, pergunta: t, docs: docs };
+    if (pausada) { Object.assign(rr, extraCota); rr.avisos = rr.avisos.concat([quandoVoltaIA()]); }
+    estado.mem.aprenderPergunta(t, docs);
+    return rr;
+  }
   if (achados.length) {
     const rn = pausada ? respostaDasNormasSemIA(achados, t) : respostaDasNormas(achados, t);
     rn.pergunta = t; rn.docs = docs;
@@ -18312,6 +19119,22 @@ async function perguntarFluxo(texto, opcoes) {
       : 'Sem internet ou sem IA ligada, e não encontrei isso na base de normas.',
     motivo: motivo
   };
+}
+
+// Resposta local da base, sem IA: só português, só pergunta simples (sem caso concreto, conta ou assunto sensível). Devolve { texto, fontes, avisos } ou null.
+function respostaLocalDoAparelho(t, achados, modo) {
+  if (modo !== 'normal' && modo !== 'consulta') return null;
+  if (idiomaDoPedido(t, []).resposta !== 'pt') return null;
+  if (/\b(?:posso|devo|meu|minha|meus|minhas|nosso|nossa|dele|dela|caso|situacao)\b/.test(normalizar(t))) return null;
+  try {
+    const c = respostaDeContagem(t);
+    if (c) return { texto: c.texto, fontes: c.fontes || [], avisos: ['Dado do diretório de Boa Vista do Paulus, que pode estar desatualizado ou incompleto: confirme antes de usar em atendimento.'] };
+    const base = estado.base;
+    const d = respostaDeFatoBoaVista(t, base) || respostaDePolitica(t, base) || respostaDaBase(t, achados, { analise: false, partes: 0, sobreSi: false, rota: false });
+    if (!d) return null;
+    return { texto: d.texto, fontes: d.escolhidos.map(function (a) { return fonteDe(a.trecho, a); }),
+      avisos: ['Trecho da base de normas do Paulus, mostrado sem IA. Confira o texto oficial vigente.'] };
+  } catch (e) { return null; }
 }
 
 // Consulta SÓ a base de normas, no aparelho: sem IA, sem rede, sem ação/busca do app.
@@ -18339,7 +19162,7 @@ const Paulus = { init, perguntar,
   // Matemática no aparelho, sem IA (v0.28.0): resolver(texto) -> { texto, itens, resolvida, parcial, topicos, avisos } ou null
   matematica: { responder: respostaDeMatematicaLocal },
   // Psicometria/estatística no aparelho, sem IA: ler(csv) -> tabela ou null; responder(texto, tabela) -> { texto, analise, avisos } ou null
-  psicometria: { ler: psiLerTabela, responder: psiRespostaDoPedido },
+  psicometria: { ler: psiLerTabela, responder: function (t, tb) { return estRespostaDoPedido(t, tb) || psiRespostaDoPedido(t, tb); } },
   // Gráficos no aparelho, sem IA ou rede; devolve SVG exportável.
   grafico: { responder: graficoResponder, svg: graficoSVG },
   // Modelos 3D didáticos (v0.20.0; mapa de Roraima v0.21.0): ler(texto) -> pedido ou null; responder(texto) -> resultado ou null; catalogo; url(modelo); baixar(modelo)
