@@ -29,6 +29,8 @@ import { classificarPedido, ehRefinamento, pedidoSobreResposta, consultaDoPedido
 import { marcarFontesUsadas, citacoesSemFonte } from '../shared/verificacao.mjs';
 import { respostaDoPedido } from '../shared/calculo-mais.mjs';
 import { responderPorExtracao } from '../shared/resposta-extrativa.mjs';
+import { respostaDeSaudacao } from '../shared/saudacao-local.mjs';
+import { respostaDeContagem, respostaDeFatoBoaVista, respostaDePolitica, respostaDaBase } from '../shared/resposta-local.mjs';
 import { respostaDeMatematicaLocal } from '../shared/matematica-local.mjs';
 import { psiLerTabela, psiRespostaDoPedido, psiSemBase } from '../shared/psicometria.mjs';
 import { graficoResponder, graficoSVG } from '../shared/grafico.mjs';
@@ -1375,6 +1377,11 @@ async function perguntarFluxo(texto, opcoes) {
   const extraCota = pausada ? { semIA: true, motivoSemIA: semIAMotivo, cotaEsgotada: semIAMotivo === 'cota', renova: semIAMotivo === 'cota' ? estado.pausaIA.renova : 0 } : {};
 
   // Sem IA, cumprimento e pedido de ajuste não têm o que responder da base de normas (um trecho de norma no lugar de "mais curto" confundiria).
+  if (modo === 'saudacao') {
+    // Cumprimento, agradecimento, confirmação e despedida têm resposta pronta no aparelho (shared/saudacao-local.mjs): não precisa de IA nem de rede.
+    const sd = respostaDeSaudacao(t, idiomaDoPedido(t, hist).resposta);
+    if (sd) return Object.assign({ tipo: 'saudacao', texto: sd.texto, fontes: [], avisos: [], local: true, motivo: motivo }, extraCota);
+  }
   if (modo === 'saudacao' || modo === 'refinamento' || modo === 'continuar' || modo === 'porque' || modo === 'contestacao') {
     if (pausada) {
       const dica = 'A base de normas, os cálculos, as datas, as rotas, o PDF e a revisão de ortografia continuam funcionando sem a IA.';
@@ -1412,6 +1419,15 @@ async function perguntarFluxo(texto, opcoes) {
       return rm;
     }
   }
+  // Respostas locais que o Worker também dá sem IA (shared/resposta-local.mjs): contagem por bairro, dado de Boa Vista, pergunta frequente de política
+  // (Bolsa Família, CadÚnico) e definição de sigla. Sem IA, valem mais que o trecho solto da norma.
+  const rl = respostaLocalDoAparelho(t, achados, modo);
+  if (rl) {
+    const rr = { tipo: 'norma', local: true, texto: rl.texto, fontes: rl.fontes, avisos: rl.avisos, pergunta: t, docs: docs };
+    if (pausada) { Object.assign(rr, extraCota); rr.avisos = rr.avisos.concat([quandoVoltaIA()]); }
+    estado.mem.aprenderPergunta(t, docs);
+    return rr;
+  }
   if (achados.length) {
     const rn = pausada ? respostaDasNormasSemIA(achados, t) : respostaDasNormas(achados, t);
     rn.pergunta = t; rn.docs = docs;
@@ -1431,6 +1447,22 @@ async function perguntarFluxo(texto, opcoes) {
       : 'Sem internet ou sem IA ligada, e não encontrei isso na base de normas.',
     motivo: motivo
   };
+}
+
+// Resposta local da base, sem IA: só português, só pergunta simples (sem caso concreto, conta ou assunto sensível). Devolve { texto, fontes, avisos } ou null.
+function respostaLocalDoAparelho(t, achados, modo) {
+  if (modo !== 'normal' && modo !== 'consulta') return null;
+  if (idiomaDoPedido(t, []).resposta !== 'pt') return null;
+  if (/\b(?:posso|devo|meu|minha|meus|minhas|nosso|nossa|dele|dela|caso|situacao)\b/.test(normalizar(t))) return null;
+  try {
+    const c = respostaDeContagem(t);
+    if (c) return { texto: c.texto, fontes: c.fontes || [], avisos: ['Dado do diretório de Boa Vista do Paulus, que pode estar desatualizado ou incompleto: confirme antes de usar em atendimento.'] };
+    const base = estado.base;
+    const d = respostaDeFatoBoaVista(t, base) || respostaDePolitica(t, base) || respostaDaBase(t, achados, { analise: false, partes: 0, sobreSi: false, rota: false });
+    if (!d) return null;
+    return { texto: d.texto, fontes: d.escolhidos.map(function (a) { return fonteDe(a.trecho, a); }),
+      avisos: ['Trecho da base de normas do Paulus, mostrado sem IA. Confira o texto oficial vigente.'] };
+  } catch (e) { return null; }
 }
 
 // Consulta SÓ a base de normas, no aparelho: sem IA, sem rede, sem ação/busca do app.
