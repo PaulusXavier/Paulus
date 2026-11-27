@@ -1,4 +1,4 @@
-import { bfLerFamilias, bfCompararRecorrentes } from './relatorios-bf.mjs';
+import { bfLerFamilias, bfCompararRecorrentes, bfPrepararDivisaoTecnicos } from './relatorios-bf.mjs';
 
 (function () {
   'use strict';
@@ -14,11 +14,15 @@ import { bfLerFamilias, bfCompararRecorrentes } from './relatorios-bf.mjs';
   const atualEstado = $('bf-atual-status');
   const estado = $('bf-status');
   const gerar = $('bf-gerar');
+  const divisaoInput = $('bf-div-input');
+  const divisaoEstado = $('bf-div-status');
+  const divisaoGerar = $('bf-div-gerar');
   const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   const MAX_BYTES = 5 * 1024 * 1024;
   const BORDA = { style: 'thin', color: { rgb: 'D9E0E3' } };
   const BORDAS = { top: BORDA, bottom: BORDA, left: BORDA, right: BORDA };
   const arquivos = { anterior: null, atual: null };
+  let arquivoDivisao = null;
   let biblioteca = null;
 
   function carregarXlsx() {
@@ -42,20 +46,26 @@ import { bfLerFamilias, bfCompararRecorrentes } from './relatorios-bf.mjs';
     gerar.disabled = !(arquivos.anterior && arquivos.atual);
   }
 
-  async function lerPlanilha(file) {
+  async function lerAbasPlanilha(file) {
     if (file.size > MAX_BYTES) throw new Error('Cada ficheiro pode ter no máximo 5 MB.');
     const XLSX = await carregarXlsx();
     const ext = (file.name.split('.').pop() || '').toLowerCase();
     let workbook;
     if (ext === 'csv') {
       workbook = XLSX.read(await file.text(), { type: 'string', raw: true });
-    } else {
+    } else if (ext === 'xlsx' || ext === 'xls') {
       workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false, raw: true });
+    } else {
+      throw new Error('Escolha um ficheiro .xlsx, .xls ou .csv.');
     }
-    const abas = workbook.SheetNames.map((nome) => ({
+    return workbook.SheetNames.map((nome) => ({
       nome,
       linhas: XLSX.utils.sheet_to_json(workbook.Sheets[nome], { header: 1, defval: '', raw: true })
     }));
+  }
+
+  async function lerPlanilha(file) {
+    const abas = await lerAbasPlanilha(file);
     const dados = bfLerFamilias(abas);
     if (!dados.familias.size) throw new Error('Não encontrei famílias numa tabela de condicionalidades com a coluna “Efeito” e identificador NIS/CPF do responsável.');
     return { dados, nome: file.name };
@@ -75,7 +85,7 @@ import { bfLerFamilias, bfCompararRecorrentes } from './relatorios-bf.mjs';
       larguras[c] = { wch: Math.min(c === 6 || c === 9 ? 54 : 36, Math.max(11, Math.min(30, max + 2))) };
     }
     ws['!cols'] = larguras;
-    if (!resumo) {
+    if (aba.tipo === 'todas' || aba.tipo === 'tecnico' || aba.tipo === 'mudaram') {
       ws['!autofilter'] = { ref: ws['!ref'] };
       ws['!freeze'] = { xSplit: 0, ySplit: 1 };
     }
@@ -147,6 +157,28 @@ import { bfLerFamilias, bfCompararRecorrentes } from './relatorios-bf.mjs';
     }
   }
 
+  async function processarDivisao(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    arquivoDivisao = null;
+    divisaoGerar.disabled = true;
+    divisaoEstado.textContent = 'A ler e organizar apenas neste aparelho…';
+    input.disabled = true;
+    try {
+      const abas = await lerAbasPlanilha(file);
+      const relatorio = bfPrepararDivisaoTecnicos(abas);
+      if (!relatorio.ok) throw new Error(relatorio.texto || 'Não consegui dividir esta planilha.');
+      arquivoDivisao = { relatorio, nome: file.name };
+      divisaoEstado.textContent = `${relatorio.totalFamilias} família(s) · ${relatorio.totalRegistros} registo(s) · ${relatorio.mesRepercussao || 'mês não identificado'} · ${file.name}`;
+    } catch (erro) {
+      divisaoEstado.textContent = erro && erro.message ? erro.message : 'Não consegui ler esta planilha.';
+    } finally {
+      input.disabled = false;
+      input.value = '';
+      divisaoGerar.disabled = !arquivoDivisao;
+    }
+  }
+
   function descarregar(XLSX, relatorio) {
     const bytes = XLSX.write(criarWorkbook(XLSX, relatorio), { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([bytes], { type: MIME_XLSX });
@@ -167,6 +199,10 @@ import { bfLerFamilias, bfCompararRecorrentes } from './relatorios-bf.mjs';
     atualInput.value = '';
     mostrarResultado('anterior', 'Ainda não escolhida.');
     mostrarResultado('atual', 'Ainda não escolhida.');
+    arquivoDivisao = null;
+    divisaoInput.value = '';
+    divisaoEstado.textContent = 'Ainda não escolhida.';
+    divisaoGerar.disabled = true;
     estado.textContent = '';
     actualizarBotao();
   }
@@ -176,6 +212,7 @@ import { bfLerFamilias, bfCompararRecorrentes } from './relatorios-bf.mjs';
   $('bf-limpar').addEventListener('click', limpar);
   anteriorInput.addEventListener('change', () => processar('anterior', anteriorInput));
   atualInput.addEventListener('change', () => processar('atual', atualInput));
+  divisaoInput.addEventListener('change', () => processarDivisao(divisaoInput));
   gerar.addEventListener('click', async () => {
     if (!arquivos.anterior || !arquivos.atual) return;
     gerar.disabled = true;
@@ -192,6 +229,23 @@ import { bfLerFamilias, bfCompararRecorrentes } from './relatorios-bf.mjs';
     } finally {
       gerar.textContent = 'Gerar Excel';
       actualizarBotao();
+    }
+  });
+  divisaoGerar.addEventListener('click', async () => {
+    if (!arquivoDivisao) return;
+    const relatorio = arquivoDivisao.relatorio;
+    divisaoGerar.disabled = true;
+    divisaoGerar.textContent = 'A preparar Excel…';
+    divisaoEstado.textContent = 'A criar o ficheiro no aparelho; a planilha original não é alterada nem enviada.';
+    try {
+      const XLSX = await carregarXlsx();
+      descarregar(XLSX, relatorio);
+      divisaoEstado.textContent = `${relatorio.totalFamilias} família(s) dividida(s) por ordem alfabética em três abas de técnico. Excel criado no aparelho e descarregado.`;
+    } catch (erro) {
+      divisaoEstado.textContent = erro && erro.message ? erro.message : 'Não consegui gerar a planilha dividida.';
+    } finally {
+      divisaoGerar.textContent = 'Dividir e gerar Excel';
+      divisaoGerar.disabled = !arquivoDivisao;
     }
   });
   dialogo.addEventListener('close', limpar);
