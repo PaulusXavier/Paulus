@@ -828,7 +828,28 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     '.ag-swipehint{display:block}',
     '.ag-modal{align-items:flex-end;padding:0}.ag-modal .ag-box{width:100%;border-radius:16px 16px 0 0;clip-path:none;max-height:92%;padding-bottom:calc(16px + env(safe-area-inset-bottom))}',
     '.ag-kpis{grid-template-columns:repeat(3,1fr)}',
+    /* Android: leitura e toque melhores */
+    'html #pa-agenda{height:100vh;height:100dvh;overscroll-behavior:contain;-webkit-text-size-adjust:100%;text-size-adjust:100%}',
+    '.ag-week{position:sticky;top:0;z-index:3;background:var(--bg)}.ag-week div{padding:7px 0;font-size:11px;letter-spacing:.08em}',
+    /* mês: o texto das anotações vira barras coloridas (até 3 por dia); o texto completo está na folha do dia */
+    '.ag-cal:not(.wk) .ag-grid:not(.dots) .ag-cell{min-height:60px;padding:4px 3px 5px}',
+    '.ag-cal:not(.wk) .ag-grid:not(.dots) .ag-n{font-size:14px;min-width:26px;padding:3px 4px;font-weight:700}',
+    '.ag-cal:not(.wk) .ag-grid:not(.dots) .ag-note{height:5px;margin-top:3px;padding:0;font-size:0;line-height:0;overflow:hidden;border-left:0;border-radius:3px;background:var(--cat,#7fb7c4)}',
+    '.ag-cal:not(.wk) .ag-grid:not(.dots) .ag-note>*{display:none}',
+    '.ag-cal:not(.wk) .ag-grid:not(.dots) .ag-note~.ag-note~.ag-note~.ag-note{display:none}',
+    '.ag-cal:not(.wk) .ag-grid:not(.dots) .ag-note.done{opacity:.35;text-decoration:none}',
+    '.ag-cal:not(.wk) .ag-cell .ag-tag{font-size:9.5px;line-height:1.25;padding:1px 3px;white-space:normal;max-height:2.5em;overflow:hidden;border-left-width:2px}',
+    '.ag-cell.sel{box-shadow:inset 0 0 0 2px var(--c),0 0 14px #37e6ff55 inset}',
+    '.ag-cell:active{background:#37e6ff33}',
+    '.ag-dock button{font-size:11px;letter-spacing:.04em}',
+    '.ag-chip{padding:7px 11px;font-size:12px}',
+    '.ag-sheetx{width:44px;height:44px}',
+    '.ag-foot{font-size:11.5px}',
     '}',
+    /* toque não deixa "hover" preso depois de tocar */
+    '@media(hover:none){.ag-cell:hover{background:#06202c66}.ag-cell.sel:hover{background:#37e6ff1f}.ag-btn:hover{background:#0a2634cc;border-color:var(--ln2);box-shadow:none}.ag-btn[aria-pressed="true"]:hover,.ag-btn.on:hover{background:#37e6ff26;border-color:var(--c)}.ag-btn.primary:hover{background:#37e6ff33;border-color:var(--c)}}',
+    /* celular deitado: barra mais baixa e folha mais alta */
+    '@media(max-width:960px) and (max-height:480px) and (orientation:landscape){html #pa-agenda{--dock:46px}.ag-dock button{flex-direction:row;gap:6px;font-size:11px}.ag-dock .fab b{width:38px;height:38px;margin-top:-14px;font-size:22px}#pa-agenda .ag-side{max-height:80%}.ag-cal:not(.wk) .ag-grid:not(.dots) .ag-cell{min-height:46px}}',
     '@media(max-width:700px) and (max-height:620px){.ag-months{display:none}}',
     'body.claro .ag-dock{background:linear-gradient(180deg,#ffffffee,#eef5f8f5)}body.claro .ag-dock button b{color:#075a6c}body.claro .ag-dock .fab b{color:#fff;background:#0b7a91;box-shadow:0 4px 14px #0b7a9188,0 0 0 4px #eef5f8}',
     'body.claro #pa-agenda .ag-side{background:linear-gradient(180deg,#fff,#eef5f8);box-shadow:0 -12px 40px #0b2a3544}body.claro .ag-sheetx{background:#fff}body.claro .ag-quick button{background:#fff}'
