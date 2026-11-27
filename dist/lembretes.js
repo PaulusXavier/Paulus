@@ -164,6 +164,19 @@
   function pedirPermissao() {
     try { if (typeof Notification !== 'undefined' && Notification.permission === 'default' && cfg.pedirNotificacao === true) Notification.requestPermission(); } catch (e) { /* sem notificação do sistema */ }
   }
+  // Notificação do sistema. No Android o "new Notification" é proibido: o aviso sai pelo service worker (como o da agenda), e o "new" fica só de reserva no computador.
+  function sistema(l) {
+    try {
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted' || document.visibilityState === 'visible') return;
+      var o = { body: l.texto, tag: l.id, icon: 'icon-192.png', badge: 'icon-192.png', lang: 'pt-BR', renotify: true, vibrate: [180, 90, 180], data: { abrir: 'agenda' } };
+      var simples = function () { try { new Notification('Paulus · lembrete', { body: l.texto, tag: l.id }); } catch (e) { /* segue */ } };
+      if (typeof navigator !== 'undefined' && navigator.serviceWorker && navigator.serviceWorker.ready) {
+        Promise.race([navigator.serviceWorker.ready.then(function (r) { return r.showNotification('Paulus · lembrete', o); }), new Promise(function (_, no) { setTimeout(no, 2500); })]).catch(simples);
+      } else simples();
+    } catch (e) { /* segue */ }
+  }
+  // Celular: ao voltar à tela, confere na hora o que venceu (o navegador congela os temporizadores em segundo plano).
+  function aoVoltar() { try { if (document.visibilityState === 'visible') disparar(); } catch (e) { /* segue */ } }
   function disparar(agora) {
     var t = (agora || new Date()).getTime(), vencidos = ler().filter(function (l) { return !l.avisado && l.quando <= t; });
     if (!vencidos.length) return [];
@@ -173,7 +186,7 @@
     if (!mudo()) {
       vencidos.forEach(function (l) {
         if (typeof cfg.avisar === 'function') { try { cfg.avisar(l); } catch (e) { /* segue */ } }
-        try { if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.visibilityState !== 'visible') new Notification('Paulus · lembrete', { body: l.texto, tag: l.id }); } catch (e) { /* segue */ }
+        sistema(l);
       });
     }
     return vencidos;
@@ -183,6 +196,7 @@
     if (temporizador) clearInterval(temporizador);
     disparar();
     temporizador = setInterval(function () { disparar(); }, 20000);
+    try { document.addEventListener('visibilitychange', aoVoltar); window.addEventListener('pageshow', aoVoltar); } catch (e) { /* sem documento (testes) */ }
   }
 
   window.PaulusLembretes = {

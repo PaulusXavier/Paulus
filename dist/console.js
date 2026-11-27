@@ -361,8 +361,8 @@
 
   // ------------------------------------------------------------ mensagens
   function limparBoasVindas() { var o = log.querySelector('.hi'); if (o) o.remove(); document.body.classList.remove('vazio'); }
-  var KIND = { ia: 'IA', norma: 'NORMA', busca: 'BUSCA', acao: 'AÇÃO', acao_desconhecida: 'AÇÃO', calculo: 'CÁLCULO', matematica: 'MATEMÁTICA', psicometria: 'ANÁLISE DE DADOS', grafico: 'GRÁFICO', rota: 'ROTA', geo: 'GEO', pdf: 'PDF', modelo: 'MODELO 3D', qr: 'QR CODE', revisao: 'REVISÃO', espanhol: 'IDIOMA', ingles: 'IDIOMA', crise: 'SOCORRO', bloqueio: 'PRIVACIDADE', erro: 'ERRO', sem_resposta: 'SEM RESPOSTA', pens: 'PROCESSANDO' };
-  var LOCAL = { norma: 1, busca: 1, acao: 1, acao_desconhecida: 1, calculo: 1, matematica: 1, psicometria: 1, grafico: 1, rota: 1, geo: 1, pdf: 1, modelo: 1, qr: 1, revisao: 1, espanhol: 1, ingles: 1, crise: 1, bloqueio: 1, sem_resposta: 1 };
+  var KIND = { ia: 'IA', norma: 'NORMA', busca: 'BUSCA', acao: 'AÇÃO', acao_desconhecida: 'AÇÃO', calculo: 'CÁLCULO', matematica: 'MATEMÁTICA', psicometria: 'ANÁLISE DE DADOS', grafico: 'GRÁFICO', rota: 'ROTA', geo: 'GEO', pdf: 'PDF', modelo: 'MODELO 3D', qr: 'QR CODE', revisao: 'REVISÃO', espanhol: 'IDIOMA', ingles: 'IDIOMA', crise: 'SOCORRO', bloqueio: 'PRIVACIDADE', erro: 'ERRO', sem_resposta: 'SEM RESPOSTA', saudacao: 'CONVERSA', pens: 'PROCESSANDO' };
+  var LOCAL = { norma: 1, busca: 1, acao: 1, acao_desconhecida: 1, calculo: 1, matematica: 1, psicometria: 1, grafico: 1, rota: 1, geo: 1, pdf: 1, modelo: 1, qr: 1, revisao: 1, espanhol: 1, ingles: 1, crise: 1, bloqueio: 1, sem_resposta: 1, saudacao: 1 };
   var nResp = 0, vozPendente = false;
   function cabeca(quem, kind, id) {
     var c = h('div', { class: 'mh' }, [h('span', { class: 'q', text: quem })]);
@@ -1215,6 +1215,25 @@
       { id: 'sis-cadunico', t: 'CadÚnico (Dataprev)', r: ['cadunico', 'cad unico', 'cadastro unico', 'cadunico dataprev', 'dataprev'], u: 'https://cadunico.dataprev.gov.br/portal/' },
       { id: 'sis-drive', t: 'Pasta no Google Drive', r: ['drive', 'google drive', 'minha pasta', 'pasta do drive'], u: 'https://drive.google.com/drive/folders/1nR7c8AsrhwWPyBYfmWkOmEIfyH349gXR' }
     ];
+    // Sites comuns da internet: abrem digitando só o nome ("youtube", "gmail", "google e gmail") ou com verbo ("abrir o youtube").
+    // nome: true = vale sem verbo, mas só quando a frase inteira é o nome (pergunta que cita o site segue para a IA). Só o endereço de entrada: nenhum login passa pelo Paulus.
+    var SITES = [
+      { id: 'site-google', t: 'Google', r: ['google', 'pesquisar no google', 'buscador'], u: 'https://www.google.com/' },
+      { id: 'site-gmail', t: 'Gmail', r: ['gmail', 'g mail', 'email google', 'meu email'], u: 'https://mail.google.com/' },
+      { id: 'site-youtube', t: 'YouTube', r: ['youtube', 'you tube', 'youtuber', 'yutube', 'yotube'], u: 'https://www.youtube.com/' },
+      { id: 'site-maps', t: 'Google Maps', r: ['google maps', 'maps', 'google mapas'], u: 'https://www.google.com/maps' },
+      { id: 'site-whatsapp', t: 'WhatsApp Web', r: ['whatsapp', 'whats app', 'zap', 'whatsapp web', 'zap web'], u: 'https://web.whatsapp.com/' },
+      { id: 'site-instagram', t: 'Instagram', r: ['instagram', 'insta'], u: 'https://www.instagram.com/' },
+      { id: 'site-facebook', t: 'Facebook', r: ['facebook', 'face'], u: 'https://www.facebook.com/' },
+      { id: 'site-tradutor', t: 'Google Tradutor', r: ['tradutor', 'google tradutor'], u: 'https://translate.google.com/' },
+      { id: 'site-wikipedia', t: 'Wikipédia', r: ['wikipedia'], u: 'https://pt.wikipedia.org/' }
+    ];
+    SITES.forEach(function (a) {
+      P.registrarAcao({ id: a.id, titulo: a.t, rotulos: a.r, nome: true, executar: function () {
+        var w = null; try { w = window.open(a.u, '_blank', 'noopener'); } catch (e) { w = null; }
+        if (!w) aviso('O navegador bloqueou a nova aba. Libere pop-ups para este site e peça de novo.');
+      } });
+    });
     function abrirAba(u) { var w = null; try { w = window.open(u, '_blank', 'noopener'); } catch (e) { w = null; } return !!w; }
     SISTEMAS.forEach(function (a) {
       P.registrarAcao({ id: a.id, titulo: a.t, rotulos: a.r, executar: function () {
@@ -1607,7 +1626,7 @@
   (function () {
     var MN = $('mn'), hrx = document.querySelector('header .hr'); if (!MN || !hrx || !window.matchMedia) return;
     var menu = document.createElement('div'); menu.id = 'mnp'; menu.hidden = true; menu.setAttribute('role', 'group'); menu.setAttribute('aria-label', 'Mais opções'); document.body.appendChild(menu);
-    var ORDEM = ['ins', 'sair', 'ex', 'fo', 'nv', 'cq', 'sx', 'nt', 'jv', 'ap', 'vc', 'vz'], FICA = { nv: 1, jv: 1 }, ROT = { ins: 'Instalar o app', sair: 'Sair da conta', ex: 'Salvar a conversa', fo: 'Modo foco', cq: 'Cota da IA', sx: 'Meus sistemas', nt: 'Anotações e compras', ap: 'Aparência', vc: 'Escolher a voz', vz: 'Ler respostas em voz alta' };
+    var ORDEM = ['ins', 'sair', 'ex', 'rb', 'fo', 'nv', 'cq', 'sx', 'nt', 'jv', 'ap', 'vc', 'vz'], FICA = { nv: 1, jv: 1 }, ROT = { ins: 'Instalar o app', sair: 'Sair da conta', ex: 'Salvar a conversa', rb: 'Relatórios locais (sem IA)', fo: 'Modo foco', cq: 'Cota da IA', sx: 'Meus sistemas', nt: 'Anotações e compras', ap: 'Aparência', vc: 'Escolher a voz', vz: 'Ler respostas em voz alta' };
     var mm = matchMedia('(max-width:640px)');
     function fecharMenu() { menu.hidden = true; MN.setAttribute('aria-expanded', 'false'); MN.classList.remove('on'); }
     function ajustar() {

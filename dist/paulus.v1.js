@@ -19182,7 +19182,7 @@ const Paulus = { init, perguntar,
   investigacao: { iniciar: iniciarInvestigacao, estado: estadoInvestigacao },
   vozIA: { transcrever: transcreverAudio },
   rotinas: { criarGestor: createRoutineManager, armazenamentoLocal: createLocalStorageAdapter },
-  temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.36.0',
+  temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.37.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,

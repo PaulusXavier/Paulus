@@ -1,0 +1,199 @@
+import { bfLerFamilias, bfCompararRecorrentes } from './relatorios-bf.mjs';
+
+(function () {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  const abrir = $('rb');
+  const dialogo = $('bf-report');
+  if (!abrir || !dialogo) return;
+
+  const anteriorInput = $('bf-ant');
+  const atualInput = $('bf-atual');
+  const anteriorEstado = $('bf-ant-status');
+  const atualEstado = $('bf-atual-status');
+  const estado = $('bf-status');
+  const gerar = $('bf-gerar');
+  const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  const MAX_BYTES = 5 * 1024 * 1024;
+  const BORDA = { style: 'thin', color: { rgb: 'D9E0E3' } };
+  const BORDAS = { top: BORDA, bottom: BORDA, left: BORDA, right: BORDA };
+  const arquivos = { anterior: null, atual: null };
+  let biblioteca = null;
+
+  function carregarXlsx() {
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    if (biblioteca) return biblioteca;
+    biblioteca = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = new URL('./xlsx.bundle.js', import.meta.url).href;
+      script.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error('A biblioteca local de planilhas não iniciou.'));
+      script.onerror = () => reject(new Error('Não consegui carregar o leitor local de planilhas.'));
+      document.head.appendChild(script);
+    }).catch((erro) => { biblioteca = null; throw erro; });
+    return biblioteca;
+  }
+
+  function mostrarResultado(slot, texto) {
+    (slot === 'anterior' ? anteriorEstado : atualEstado).textContent = texto;
+  }
+
+  function actualizarBotao() {
+    gerar.disabled = !(arquivos.anterior && arquivos.atual);
+  }
+
+  async function lerPlanilha(file) {
+    if (file.size > MAX_BYTES) throw new Error('Cada ficheiro pode ter no máximo 5 MB.');
+    const XLSX = await carregarXlsx();
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    let workbook;
+    if (ext === 'csv') {
+      workbook = XLSX.read(await file.text(), { type: 'string', raw: true });
+    } else {
+      workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false, raw: true });
+    }
+    const abas = workbook.SheetNames.map((nome) => ({
+      nome,
+      linhas: XLSX.utils.sheet_to_json(workbook.Sheets[nome], { header: 1, defval: '', raw: true })
+    }));
+    const dados = bfLerFamilias(abas);
+    if (!dados.familias.size) throw new Error('Não encontrei famílias numa tabela de condicionalidades com a coluna “Efeito” e identificador NIS/CPF do responsável.');
+    return { dados, nome: file.name };
+  }
+
+  function aplicarEstilos(XLSX, ws, aba) {
+    const intervalo = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    const cor = String(aba.cor || '0B2F7A').replace(/^#/, '').slice(-6).toUpperCase();
+    const resumo = aba.tipo === 'resumo';
+    const larguras = [];
+    for (let c = intervalo.s.c; c <= intervalo.e.c; c++) {
+      let max = 10;
+      for (let r = intervalo.s.r; r <= intervalo.e.r; r++) {
+        const celula = ws[XLSX.utils.encode_cell({ r, c })];
+        if (celula && celula.v != null) max = Math.max(max, String(celula.v).length);
+      }
+      larguras[c] = { wch: Math.min(c === 6 || c === 9 ? 54 : 36, Math.max(11, Math.min(30, max + 2))) };
+    }
+    ws['!cols'] = larguras;
+    if (!resumo) {
+      ws['!autofilter'] = { ref: ws['!ref'] };
+      ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+    }
+    ws['!tabColor'] = { rgb: cor };
+    ws['!margins'] = { left: 0.25, right: 0.25, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 };
+    ws['!pageSetup'] = { orientation: 'landscape', fitToWidth: 1, fitToHeight: 0 };
+    for (let r = intervalo.s.r; r <= intervalo.e.r; r++) {
+      for (let c = intervalo.s.c; c <= intervalo.e.c; c++) {
+        const ref = XLSX.utils.encode_cell({ r, c });
+        const celula = ws[ref] || (ws[ref] = { t: 's', v: '' });
+        const cabecalho = !resumo && r === intervalo.s.r;
+        const titulo = resumo && r === intervalo.s.r;
+        const numero = typeof celula.v === 'number';
+        celula.s = cabecalho ? {
+          font: { name: 'Arial', sz: 10, bold: true, color: { rgb: 'FFFFFF' } },
+          fill: { patternType: 'solid', fgColor: { rgb: cor } },
+          alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+          border: BORDAS
+        } : titulo ? {
+          font: { name: 'Arial', sz: 11, bold: true, color: { rgb: cor } },
+          fill: { patternType: 'solid', fgColor: { rgb: 'F5F3EF' } },
+          alignment: { vertical: 'center', wrapText: true },
+          border: BORDAS
+        } : {
+          font: { name: 'Arial', sz: 10, bold: resumo && c === 0, color: { rgb: '1F2937' } },
+          fill: { patternType: 'solid', fgColor: { rgb: r % 2 ? 'FFFFFF' : 'F5F8F9' } },
+          alignment: { horizontal: numero ? 'right' : 'left', vertical: 'center', wrapText: true },
+          border: BORDAS
+        };
+      }
+    }
+  }
+
+  function criarWorkbook(XLSX, relatorio) {
+    const workbook = XLSX.utils.book_new();
+    relatorio.abas.forEach((aba) => {
+      const ws = XLSX.utils.aoa_to_sheet(aba.aoa);
+      (aba.formulas || []).forEach((item) => {
+        ws[item.celula] = { t: typeof item.v === 'number' ? 'n' : 's', f: item.f, v: item.v };
+      });
+      aplicarEstilos(XLSX, ws, aba);
+      XLSX.utils.book_append_sheet(workbook, ws, aba.nome);
+    });
+    return workbook;
+  }
+
+  async function processar(slot, input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    arquivos[slot] = null;
+    actualizarBotao();
+    mostrarResultado(slot, 'A ler apenas neste aparelho…');
+    estado.textContent = '';
+    input.disabled = true;
+    try {
+      arquivos[slot] = await lerPlanilha(file);
+      const item = arquivos[slot];
+      mostrarResultado(slot, `${item.dados.mes || 'Mês não identificado'} · ${item.dados.familias.size} família(s) · ${item.nome}`);
+      estado.textContent = arquivos.anterior && arquivos.atual
+        ? 'As duas planilhas estão prontas. Gere o Excel quando confirmar que os meses estão correctos.'
+        : 'Escolha também a planilha do outro mês para comparar.';
+    } catch (erro) {
+      mostrarResultado(slot, erro && erro.message ? erro.message : 'Não consegui ler esta planilha.');
+      estado.textContent = '';
+    } finally {
+      input.disabled = false;
+      input.value = '';
+      actualizarBotao();
+    }
+  }
+
+  function descarregar(XLSX, relatorio) {
+    const bytes = XLSX.write(criarWorkbook(XLSX, relatorio), { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([bytes], { type: MIME_XLSX });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = relatorio.nomeArquivo;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  function limpar() {
+    arquivos.anterior = null;
+    arquivos.atual = null;
+    anteriorInput.value = '';
+    atualInput.value = '';
+    mostrarResultado('anterior', 'Ainda não escolhida.');
+    mostrarResultado('atual', 'Ainda não escolhida.');
+    estado.textContent = '';
+    actualizarBotao();
+  }
+
+  abrir.addEventListener('click', () => dialogo.showModal());
+  $('bf-fechar').addEventListener('click', () => dialogo.close());
+  $('bf-limpar').addEventListener('click', limpar);
+  anteriorInput.addEventListener('change', () => processar('anterior', anteriorInput));
+  atualInput.addEventListener('change', () => processar('atual', atualInput));
+  gerar.addEventListener('click', async () => {
+    if (!arquivos.anterior || !arquivos.atual) return;
+    gerar.disabled = true;
+    gerar.textContent = 'A preparar Excel…';
+    estado.textContent = 'A comparar no aparelho; os ficheiros não são enviados.';
+    try {
+      const resultado = bfCompararRecorrentes(arquivos.anterior.dados, arquivos.atual.dados);
+      if (!resultado.ok) throw new Error(resultado.texto || 'Não foi possível comparar as planilhas.');
+      const XLSX = await carregarXlsx();
+      descarregar(XLSX, resultado);
+      estado.textContent = `${resultado.total} família(s) recorrente(s); ${resultado.mudaram} mudou/mudaram de técnico. Excel gerado no aparelho e descarregado.`;
+    } catch (erro) {
+      estado.textContent = erro && erro.message ? erro.message : 'Não consegui gerar o relatório.';
+    } finally {
+      gerar.textContent = 'Gerar Excel';
+      actualizarBotao();
+    }
+  });
+  dialogo.addEventListener('close', limpar);
+  actualizarBotao();
+})();
