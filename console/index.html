@@ -1474,6 +1474,18 @@ body{
 #rv-aprendido,#rv-status{overflow-wrap:anywhere;font:13px/1.5 var(--hud)}
 #rv-status{min-height:1.5em;color:var(--c2)}
 .bf-report-actions #rv-apagar{min-height:36px;padding:0 12px;border-radius:10px}
+.mds-sub{margin:4px 0 0;font:600 14px var(--hud);color:var(--t)}
+#mds-lista,#mds-bairros{width:100%;max-width:100%;border-radius:10px;font:12px var(--hud)}
+#mds-lista{min-height:40px}
+#mds-armaz,#mds-info{margin:0;color:var(--mut);font:12px/1.45 var(--hud);overflow-wrap:anywhere}
+#mds-status{min-height:1.5em;overflow-wrap:anywhere;color:var(--c2);font:13px/1.5 var(--hud)}
+#mds-status[data-erro="1"]{color:#f87171}
+.mds-backup{font:13px/1.5 var(--hud);color:var(--mut)}
+.mds-backup summary{cursor:pointer;color:var(--t);font-weight:600}
+.mds-restaurar{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border:1px solid var(--bd2);border-radius:12px;cursor:pointer;color:var(--t);font:13px var(--hud);position:relative;overflow:hidden}
+.mds-restaurar input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.bf-report-actions #mds-baixar,.bf-report-actions #mds-apagar,.bf-report-actions #mds-backup,.bf-report-actions #mds-apagar-tudo{min-height:44px}
+.bf-report-actions #mds-baixar:disabled,.bf-report-actions #mds-apagar:disabled,.bf-report-actions #mds-backup:disabled,.bf-report-actions #mds-apagar-tudo:disabled{opacity:.48;cursor:not-allowed}
 @media(max-width:520px){.bf-report-inner{padding:18px 14px}.bf-report-grid{grid-template-columns:1fr}}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
@@ -1546,7 +1558,7 @@ body{
 <dialog id="bf-report" class="bf-report" aria-labelledby="bf-report-title">
   <div class="bf-report-inner">
     <div class="bf-report-head">
-      <div><h2 id="bf-report-title">Relatórios locais</h2><p>Etapas 1 a 3, 5 e 6 · tabelas, divisão por técnico, PDFs individuais, abrigos e rota de visita</p></div>
+      <div><h2 id="bf-report-title">Relatórios locais</h2><p>Etapas 1 a 3 e 5 a 7 · tabelas, divisão por técnico, PDFs individuais, abrigos, rota de visita e planilhas do MDS</p></div>
       <button id="bf-fechar" class="bf-report-close" type="button" aria-label="Fechar e limpar os ficheiros">×</button>
     </div>
     <p class="bf-report-note">As planilhas são lidas e comparadas neste aparelho. Não são anexadas à conversa, gravadas ou enviadas à rede/IA. Limite: 5 MB por ficheiro.</p>
@@ -1594,7 +1606,26 @@ body{
       <p id="rv-status" role="status" aria-live="polite"></p>
       <p>A ordem é uma sugestão local por texto (partida: Rua Santo Agostinho, nº 193 — Centenário), sem mapa, trânsito nem distância. Confira os endereços e ajuste com ↑ e ↓: o Paulus aprende, neste aparelho, quais ruas você costuma visitar em sequência.</p>
     </section>
-    <p class="bf-report-note">Ao fechar esta janela, os dados temporários são removidos. É necessária uma tabela de condicionalidades com a coluna “Efeito” e NIS ou CPF do responsável.</p>
+    <section class="bf-report-section" aria-labelledby="bf-mds-title">
+      <h3 id="bf-mds-title">Etapa 7 · Planilhas do MDS guardadas neste aparelho</h3>
+      <p>Envie a planilha bruta de Repercussão de Condicionalidades. O Paulus organiza por técnico do CRAS (Resumo + uma aba por técnico), baixa o Excel e guarda uma cópia <strong>só neste navegador</strong>: nada vai à nuvem nem à IA. A cópia tem NIS, CPF e nomes; em outro aparelho ela não aparece, por isso use o backup. Até 5 MB por planilha.</p>
+      <div class="bf-report-field"><label for="mds-input">Planilha bruta do MDS (.xlsx, .xls ou .csv)</label><input id="mds-input" type="file" accept=".xlsx,.xls,.csv"></div>
+      <p id="mds-armaz" role="status">Nada guardado neste aparelho.</p>
+      <div class="bf-report-field"><label for="mds-lista">Planilha guardada</label><select id="mds-lista"><option value="">Nenhuma planilha guardada</option></select><p id="mds-info" role="status"></p></div>
+      <div class="bf-report-actions"><button id="mds-baixar" type="button" disabled>Baixar organizada</button><button id="mds-apagar" type="button" disabled>Apagar esta</button></div>
+      <div class="bf-report-field"><label for="mds-bairros">Filtrar por bairro (opcional)</label><select id="mds-bairros" multiple size="6" disabled></select><p>Use Ctrl (Windows) ou Command (Mac) para escolher vários bairros. Sem escolha, baixa todos (<code>_completa</code>); com escolha, <code>_filtrada</code>.</p></div>
+      <div class="bf-report-actions"><button id="mds-filtrada" class="ab-gerar" type="button" disabled>Baixar planilha filtrada</button></div>
+      <h4 class="mds-sub">Relatórios individuais — técnicos gerais</h4>
+      <p>Gera um PDF de Relatório de Repercussão Individual para cada aba de técnico da planilha escolhida (um PDF por técnico, num ZIP). O <strong>Território Volante</strong> fica de fora: ele tem as etapas 2 e 3.</p>
+      <label class="bf-report-check"><input id="mds-visita" type="checkbox" checked><span>Incluir uma caixa <strong>Visita</strong> por família para marcar à mão.</span></label>
+      <div class="bf-report-actions"><button id="mds-pdf" class="ab-gerar" type="button" disabled>Gerar PDF por técnico</button></div>
+      <details class="mds-backup"><summary>Backup das planilhas guardadas</summary>
+        <p>O backup (.json) tem o mesmo formato do Anona: um app lê o arquivo do outro. Restaurar não apaga o que já está guardado, só acrescenta o que faltar. Guarde o arquivo num lugar seguro: ele contém dados pessoais.</p>
+        <div class="bf-report-actions"><button id="mds-backup" type="button" disabled>Baixar backup (.json)</button><label class="mds-restaurar">Restaurar backup<input id="mds-restaurar" type="file" accept=".json,application/json"></label><button id="mds-apagar-tudo" type="button" disabled>Apagar todas</button></div>
+      </details>
+      <p id="mds-status" role="status" aria-live="polite"></p>
+    </section>
+    <p class="bf-report-note">Ao fechar esta janela, os dados temporários são removidos; só as planilhas guardadas na etapa 7 ficam neste aparelho até você apagá-las. É necessária uma tabela de condicionalidades com a coluna “Efeito” e NIS ou CPF do responsável.</p>
   </div>
 </dialog>
 <aside id="rl" class="rail" aria-label="Sistemas">
@@ -1668,5 +1699,6 @@ body{
 <script type="module" src="relatorios-ui.mjs"></script>
 <script type="module" src="abrigos-ui.mjs"></script>
 <script type="module" src="rota-visita-ui.mjs"></script>
+<script type="module" src="planilhas-mds-ui.mjs"></script>
 <script src="login.js"></script>
 </body></html>

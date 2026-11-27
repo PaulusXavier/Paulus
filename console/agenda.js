@@ -504,6 +504,31 @@
   }
   function status(t, bad) { if (!ui) return; var e = q('[data-status]'); e.textContent = t; e.classList.toggle('ag-bad', !!bad); e.setAttribute('role', bad ? 'alert' : 'status'); }
 
+  /* ---------- PDF das anotações (mês ou tudo): gerado no aparelho, com cabeçalho e aviso de LGPD ---------- */
+  var pdfLib = null;
+  function loadJsPdf() {
+    if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
+    if (pdfLib) return pdfLib;
+    pdfLib = new Promise(function (ok, fail) {
+      var sc = document.createElement('script'); sc.src = new URL('./jspdf.umd.min.js', document.baseURI).href;
+      sc.onload = function () { window.jspdf && window.jspdf.jsPDF ? ok(window.jspdf.jsPDF) : fail(new Error('A biblioteca local de PDF não iniciou.')); };
+      sc.onerror = function () { fail(new Error('Não consegui carregar a biblioteca local de PDF.')); };
+      document.head.appendChild(sc);
+    }).catch(function (e) { pdfLib = null; throw e; });
+    return pdfLib;
+  }
+  function exportNotesPdf(onlyMonth) {
+    if (needKey()) return;
+    status('Preparando o PDF das anotações neste aparelho…', false);
+    Promise.all([loadJsPdf(), import('./agenda-pdf.mjs')]).then(function (r) {
+      var out = r[1].gerarPdfAnotacoes(state.days, { jsPDF: r[0], escopo: onlyMonth ? { mes: month.getMonth(), ano: month.getFullYear() } : {} });
+      if (!out.ok) { status(out.texto, true); return; }
+      var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([out.bytes], { type: 'application/pdf' })); a.download = out.nomeArquivo;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 30000);
+      status('PDF com ' + out.totalAnotacoes + ' anotação(ões) gerado neste aparelho. Contém dados de pessoas atendidas: guarde com cuidado.', false);
+    }).catch(function (e) { status(e && e.message ? e.message : 'Não consegui gerar o PDF das anotações.', true); });
+  }
+
   /* ---------- exportar .ics (feriados, pagamentos e datas do MDS) ---------- */
   function exportIcs() {
     var y = month.getFullYear(), info = yearData(y), keys = Object.keys(info.map).sort(), md = Object.keys(mds()).filter(function (k) { return k.slice(0, 4) === String(y); }).sort();
@@ -816,7 +841,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
 <button type="button" class="ag-btn" data-today>Hoje</button>\
 <span class="ag-seg" role="group" aria-label="Visão"><button type="button" class="ag-btn" data-view-month aria-pressed="true">Mês</button><button type="button" class="ag-btn" data-view-week aria-pressed="false">Semana</button></span>\
 <button type="button" class="ag-btn" data-done-btn aria-pressed="true" title="Mostrar ou ocultar concluídas no calendário">Concluídas</button><button type="button" class="ag-btn" data-dots-btn aria-pressed="false" title="Calendário só com pontos coloridos por tipo (V)">Pontos</button>\
-<button type="button" class="ag-btn" data-stats>Estatísticas</button><button type="button" class="ag-btn" data-print title="Imprimir o mês (ou salvar em PDF)">Imprimir</button><button type="button" class="ag-btn" data-keys title="Atalhos do teclado" aria-label="Atalhos do teclado">⌨</button><button type="button" class="ag-btn" data-ics title="Baixar feriados, pagamentos e datas do MDS">.ics</button>\
+<button type="button" class="ag-btn" data-stats>Estatísticas</button><button type="button" class="ag-btn" data-print title="Imprimir o mês (ou salvar em PDF)">Imprimir</button><button type="button" class="ag-btn" data-pdf-mes title="Baixar em PDF as anotações do mês (com aviso de LGPD)">PDF do mês</button><button type="button" class="ag-btn" data-pdf-tudo title="Baixar em PDF todas as anotações guardadas">PDF de tudo</button><button type="button" class="ag-btn" data-keys title="Atalhos do teclado" aria-label="Atalhos do teclado">⌨</button><button type="button" class="ag-btn" data-ics title="Baixar feriados, pagamentos e datas do MDS">.ics</button>\
 <button type="button" class="ag-btn" data-notify>Avisos</button><button type="button" class="ag-btn" data-connect>⟳ Sincronizar</button><button type="button" class="ag-btn" data-lock>Trancar</button><span class="ag-zoom" role="group" aria-label="Tamanho"><button type="button" class="ag-btn" data-zoom-out aria-label="Diminuir o tamanho" title="Diminuir">A−</button><button type="button" class="ag-btn" data-zoom-val aria-label="Tamanho atual (clique para seguir o aplicativo)">100%</button><button type="button" class="ag-btn" data-zoom-in aria-label="Aumentar o tamanho" title="Aumentar">A+</button></span><button type="button" class="ag-btn" data-close>✕ Fechar</button></header>\
 <div class="ag-strip"><span class="ag-chip" data-date-head></span><span class="ag-chip" data-date-kind></span><span class="ag-chip" data-date-notes></span><button type="button" class="ag-chip late" data-late hidden></button><span class="ag-chip mds" data-mds-next hidden></span><span class="ag-chip" data-sync-chip></span><span class="ag-chip ag-status" data-status role="status" aria-live="polite"></span></div>\
 <div class="ag-months" data-months></div>\
@@ -994,6 +1019,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     q('[data-connect]').onclick = showSetup; q('[data-unlock-open]').onclick = showSetup; q('[data-lock]').onclick = lock;
     q('[data-ics]').onclick = exportIcs;
     q('[data-print]').onclick = function () { window.print(); };
+    q('[data-pdf-mes]').onclick = function () { exportNotesPdf(true); }; q('[data-pdf-tudo]').onclick = function () { exportNotesPdf(false); };
     q('[data-keys]').onclick = function () { status('Atalhos: T hoje · N anotar · / buscar · [ ] mês anterior/próximo · W mês/semana · D ocultar concluídas · V pontos · F filtrar por tipo · + − tamanho · P imprimir · setas movem o dia · arraste uma anotação para outro dia', false); };
     q('[data-day-card]').addEventListener('click', function (e) {
       if (!e.target.closest('[data-done-all]')) return;
