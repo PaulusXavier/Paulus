@@ -1,4 +1,4 @@
-# Relatórios locais no Paulus — etapas 1 a 4
+# Relatórios locais no Paulus — etapas 1 a 5
 
 As tabelas e os relatórios são preparados no navegador. Os ficheiros não são anexados à conversa, enviados à IA nem gravados pelo fluxo. A etapa 1 cria o Excel **Famílias Recorrentes**; a etapa 2 divide a planilha do Território Volante por técnico; a etapa 3 cria PDFs individuais a partir dessa divisão; a etapa 4 organiza o detalhamento desses PDFs por blocos de visita.
 
@@ -34,8 +34,21 @@ Esta é uma **sugestão local baseada no texto**, não um serviço de roteamento
 
 O relatório inclui, quando presentes, NIS/CPF e nome do responsável, endereço, bairro, referência, NIS/nome do integrante, Motivo 1, Motivo 2 e Efeito. Identificadores numéricos têm os zeros à esquerda restaurados; campos familiares em branco nas linhas dos integrantes são herdados da família; integrantes duplicados são eliminados para a contagem.
 
+## Etapa 5 — Relatórios dos Abrigos (Operação Acolhida)
+
+Junta as folhas resumo (PDF, uma por família) enviadas a cada abrigo — **Rondon 1, Rondon 5, PRA e Tuaronoko** — num único PDF por abrigo.
+
+1. Na janela **Relatórios locais**, escolha o **mês de repercussão** (cronograma do ano mais recente cadastrado em `shared/relatorios-abrigos.mjs`).
+2. Em cada abrigo, adicione os PDFs nos três grupos: **Famílias em Alerta**, **Famílias em Bloqueio** e **Famílias Suspensas**. Use ↑ e ↓ para ajustar a ordem e × para remover. Limite: 60 PDFs e 80 MB no total, somando todos os abrigos.
+3. Escolha **Gerar PDF — [abrigo]**. O PDF tem A4 paisagem, com capa (mês de repercussão, referência de frequência de Educação e Saúde, **data limite de recurso**, quantidade por efeito e condicionalidades do Programa), uma divisória por efeito (grupos vazios são pulados) e as folhas na ordem escolhida.
+4. O arquivo é `Abrigo [abrigo] - Repercussao [mês] - [data].pdf`. Depois de gerar, as folhas daquele abrigo são limpas, a menos que a opção **Manter as folhas** esteja marcada; os outros abrigos não são afetados.
+
+**Todo início de ano:** adicione (sem apagar o ano anterior) a chave do ano novo em `CRONOGRAMAS_REPERCUSSAO_POR_ANO`, no formato de 2026, com os dados do comunicado de Condicionalidades. O ano mais recente passa a valer sozinho no menu, na tabela e nas capas.
+
+PDFs criptografados ou inválidos são recusados com o nome do arquivo e o grupo. Esta etapa não lê endereço nem organiza por rota: isso é a união da Rota de Visita, que continua como etapa futura.
+
 ## Privacidade, dependências e limites
 
 A leitura das planilhas, comparação, divisão, ordenação e geração de PDF/ZIP acontecem no navegador. As bibliotecas XLSX, jsPDF e JSZip, bem como o módulo local de ordenação, são servidos pelo Paulus e podem ser colocados na cache offline do navegador. Os ficheiros dos utilizadores não são enviados para a rede nem para a IA, não são guardados em `localStorage` e são descartados da memória de trabalho ao fechar a janela. O Paulus mantém a sua ligação normal à IA para conversas, mas estes botões não fazem pedidos de IA e não consomem essa cota.
 
-A divisão é fixa para os três técnicos do Território Volante e escolhe apenas uma aba da planilha de entrada; não combina abas de dados diferentes. O PDF é preparado a partir da divisão atual da etapa 2, usa apenas as colunas listadas acima e não altera os ficheiros originais. PDFs de Relatório Individual de planilhas organizadas fora desse fluxo e a união especializada de folhas de visita ficam para etapas futuras.
+A divisão é fixa para os três técnicos do Território Volante e escolhe apenas uma aba da planilha de entrada; não combina abas de dados diferentes. O PDF é preparado a partir da divisão atual da etapa 2, usa apenas as colunas listadas acima e não altera os ficheiros originais. PDFs de Relatório Individual de planilhas organizadas fora desse fluxo e a união de folhas de visita por rota (com leitura de endereço e OCR) ficam para etapas futuras.
