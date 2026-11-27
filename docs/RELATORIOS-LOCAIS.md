@@ -61,6 +61,20 @@ Junta as folhas resumo (PDF, uma por família) das visitas do dia num único PDF
 
 A ordem é uma sugestão local baseada no texto, sem mapa, trânsito ou distância; confira os endereços antes de sair.
 
+## Etapa 7 — Planilhas do MDS guardadas neste aparelho
+
+1. Na janela **Relatórios locais**, envie a planilha bruta de Repercussão (.xlsx, .xls ou .csv, até 5 MB). O Paulus organiza por técnico do CRAS (aba **Resumo do território** com fórmulas + uma aba por técnico), baixa `Repercussão [Mês] de [Ano] (CRAS Cristiana).xlsx` e guarda uma cópia **só neste navegador** (IndexedDB). Nada vai à nuvem nem à IA. Bairros não reconhecidos são listados no aviso.
+2. **Planilha guardada**: escolha uma da lista para baixar de novo, apagar ou usar nos itens abaixo.
+3. **Filtrar por bairro**: escolha bairros (Ctrl/Command para vários) e baixe a planilha `_filtrada`; sem escolha, `_completa`.
+4. **Relatórios individuais — técnicos gerais**: um PDF por aba de técnico (num ZIP), no mesmo formato do PDF da etapa 3. O Território Volante fica de fora (etapas 2 e 3). O mês vem do registro guardado.
+5. **Backup**: baixa/restaura `.json` no mesmo formato do Anona (os dois apps leem o arquivo um do outro). Restaurar só acrescenta o que falta e valida cada campo.
+
+A cópia guardada contém NIS, CPF e nomes. Fechar a janela não a apaga; use **Apagar esta** ou **Apagar todas**. Código: `shared/planilhas-mds.mjs` (testes em `tests/planilhas-mds.test.mjs`) e `console/planilhas-mds-ui.mjs`.
+
+## Agenda — PDF das anotações
+
+Na agenda, **PDF do mês** e **PDF de tudo** geram, no aparelho, um PDF com cabeçalho, anotações por dia (hora, tipo, caixa de conclusão), "Página X de Y" e aviso de LGPD no rodapé. Exige a agenda destrancada. Código: `console/agenda-pdf.mjs` (testes em `tests/agenda-pdf.test.mjs`).
+
 ## Privacidade, dependências e limites
 
 A leitura das planilhas, comparação, divisão, ordenação e geração de PDF/ZIP acontecem no navegador. As bibliotecas XLSX, jsPDF e JSZip, bem como o módulo local de ordenação, são servidos pelo Paulus e podem ser colocados na cache offline do navegador. Os ficheiros dos utilizadores não são enviados para a rede nem para a IA, não são guardados em `localStorage` e são descartados da memória de trabalho ao fechar a janela. O Paulus mantém a sua ligação normal à IA para conversas, mas estes botões não fazem pedidos de IA e não consomem essa cota.
