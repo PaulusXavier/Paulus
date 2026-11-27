@@ -210,7 +210,7 @@
     } catch (_) { return false; }
   }
   var MAX_TEXTO = 2000; // caracteres por anotação (antes 500: o fim do texto era cortado sem aviso)
-  function loadView() { try { var v = JSON.parse(lsGet(VIEW) || '{}'); view.week = !!v.week; view.hideDone = !!v.hideDone; view.dots = v.dots === undefined ? isMobile() : !!v.dots; view.full = v.full === undefined ? !isMobile() : !!v.full; if (view.full && view.dots) { if (v.full === undefined) view.full = false; else view.dots = false; } view.cat = cleanCat(v.cat); } catch (_) { /* padrão */ } }
+  function loadView() { try { var v = JSON.parse(lsGet(VIEW) || '{}'); view.week = !!v.week; view.hideDone = false; /* concluídas sempre aparecem ao abrir; o botão Concluídas só esconde nesta sessão */ view.dots = v.dots === undefined ? isMobile() : !!v.dots; view.full = v.full === undefined ? !isMobile() : !!v.full; if (view.full && view.dots) { if (v.full === undefined) view.full = false; else view.dots = false; } view.cat = cleanCat(v.cat); } catch (_) { /* padrão */ } }
   function saveView() { lsSet(VIEW, JSON.stringify(view)); }
 
   /* ---------- nuvem (Firestore do Argo) ---------- */
@@ -704,7 +704,7 @@
         if (search) { if (norm(e.text).indexOf(search) < 0 && dt.indexOf(search) < 0 && (!cleanCat(e.cat) || CATS[cleanCat(e.cat) || 'atendimento'].label.toLowerCase().indexOf(search) < 0)) return; }
         else if (tab === 'month' && k.slice(0, 7) !== mk) return;
         else if (tab === 'pending' && e.done) return;
-        else if (tab === 'next' && (k < t || e.done)) return;
+        else if (tab === 'next' && k < t) return;
         ev.push({ k: k, i: i, e: e });
       });
     });
