@@ -34,6 +34,7 @@ import { respostaDeContagem, respostaDeFatoBoaVista, respostaDePolitica, respost
 import { respostaDeMatematicaLocal } from '../shared/matematica-local.mjs';
 import { psiLerTabela, psiRespostaDoPedido, psiSemBase } from '../shared/psicometria.mjs';
 import { graficoResponder, graficoSVG } from '../shared/grafico.mjs';
+import { estRespostaDoPedido } from '../shared/est-posthoc.mjs';
 import { respostaDeRota, lerPedidoDeRota } from '../shared/rota.mjs';
 import { respostaDeModelo, lerPedidoDeModelo, urlDoModelo, MODELOS_3D } from '../shared/modelos.mjs';
 import { lerPedidoDeQr, respostaDeQr, qrExtrairLinks, qrGerar, qrArquivo, qrCapacidadeBytes } from '../shared/qrcode.mjs';
@@ -1139,7 +1140,7 @@ function respostaDePsicometria(t, o) {
   if (estado.psi.chave !== chave) { let tb = null; try { tb = psiLerTabela(doc.texto); } catch (e) { tb = null; } estado.psi = { chave: chave, tabela: tb }; }
   if (!estado.psi.tabela) return null;
   let r = null;
-  try { r = psiRespostaDoPedido(t, estado.psi.tabela); } catch (e) { r = null; }
+  try { r = estRespostaDoPedido(t, estado.psi.tabela) || psiRespostaDoPedido(t, estado.psi.tabela); } catch (e) { r = null; }
   if (!r) return null;
   const avisos = r.avisos.slice();
   if (doc.texto.length >= 599000) avisos.push('O arquivo é muito grande e foi lido só até o limite do aplicativo: as últimas linhas podem ter ficado de fora.');
@@ -1517,7 +1518,7 @@ const Paulus = { init, perguntar,
   // Matemática no aparelho, sem IA (v0.28.0): resolver(texto) -> { texto, itens, resolvida, parcial, topicos, avisos } ou null
   matematica: { responder: respostaDeMatematicaLocal },
   // Psicometria/estatística no aparelho, sem IA: ler(csv) -> tabela ou null; responder(texto, tabela) -> { texto, analise, avisos } ou null
-  psicometria: { ler: psiLerTabela, responder: psiRespostaDoPedido },
+  psicometria: { ler: psiLerTabela, responder: function (t, tb) { return estRespostaDoPedido(t, tb) || psiRespostaDoPedido(t, tb); } },
   // Gráficos no aparelho, sem IA ou rede; devolve SVG exportável.
   grafico: { responder: graficoResponder, svg: graficoSVG },
   // Modelos 3D didáticos (v0.20.0; mapa de Roraima v0.21.0): ler(texto) -> pedido ou null; responder(texto) -> resultado ou null; catalogo; url(modelo); baixar(modelo)
