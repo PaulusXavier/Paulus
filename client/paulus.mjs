@@ -232,7 +232,7 @@ function registrarAcao(a) {
     throw new Error('Paulus.registrarAcao: use { id, rotulos:[...], executar() }');
   }
   estado.acoes = estado.acoes.filter(function (x) { return x.id !== a.id; });
-  estado.acoes.push({ id: a.id, titulo: String(a.titulo || a.rotulos[0] || a.id), rotulos: a.rotulos.map(normalizar).filter(Boolean), descricao: a.descricao || '', executar: a.executar, confirmar: !!a.confirmar, fechar: !!a.fechar });
+  estado.acoes.push({ id: a.id, titulo: String(a.titulo || a.rotulos[0] || a.id), rotulos: a.rotulos.map(normalizar).filter(Boolean), descricao: a.descricao || '', executar: a.executar, confirmar: !!a.confirmar, fechar: !!a.fechar, nome: !!a.nome });
 }
 
 // Busca dentro do app. { id, rotulos:['unidade','equipamento'], buscar(consulta) -> [{titulo, detalhe?, abrir?()}] }
@@ -423,6 +423,31 @@ function tratarAcaoSolta(resto) {
   a.rotulos.slice().sort(function (x, y) { return y.length - x.length; }).forEach(function (r) { sobra = sobra.split(' ' + r + ' ').join(' '); });
   if (sobra.split(/\s+/).filter(Boolean).some(function (w) { return !LIGACAO[w]; })) return null;
   return tratarAcao(resto);
+}
+
+// Nome solto ("youtube", "gmail", "google e gmail"): ações registradas com { nome: true } abrem só digitando o nome, SEM verbo.
+// Só vale se a frase inteira for o nome (ou vários nomes) mais palavras de ligação; qualquer outra palavra manda a frase para a IA
+// ("como criar um e-mail no gmail" é pergunta, não abre nada). Ações que pedem confirmação nunca entram.
+function tratarNomeSolto(alvo) {
+  const lista = estado.acoes.filter(function (x) { return x.nome && !x.fechar && !x.confirmar; });
+  if (!lista.length) return null;
+  let sobra = ' ' + alvo + ' ';
+  const achadas = [], pos = new Map();
+  const pares = [];
+  lista.forEach(function (a) { a.rotulos.forEach(function (r) { pares.push([r, a]); }); });
+  pares.sort(function (x, y) { return y[0].length - x[0].length; });
+  pares.forEach(function (par) {
+    const chave = ' ' + par[0] + ' ';
+    if (sobra.indexOf(chave) !== -1 && achadas.indexOf(par[1]) === -1) {
+      achadas.push(par[1]); pos.set(par[1], (' ' + alvo + ' ').indexOf(chave));
+      sobra = sobra.split(chave).join(' ');
+    }
+  });
+  if (!achadas.length || achadas.length > 4) return null;
+  if (sobra.split(/\s+/).filter(Boolean).some(function (w) { return !LIGACAO[w]; })) return null;
+  achadas.sort(function (x, y) { return pos.get(x) - pos.get(y); });
+  achadas.forEach(function (a) { a.executar(); estado.mem.aprenderAcao(a.id); });
+  return { tipo: 'acao', acao: achadas.map(function (a) { return a.id; }).join(','), texto: 'Pronto: ' + achadas.map(function (a) { return a.titulo; }).join(', ') + '.', executada: true };
 }
 
 // Verbo de fechar: só vale se a frase for SÓ o pedido e houver ação de fechar registrada com aquele rótulo; senão null (segue para a IA).
@@ -1280,6 +1305,8 @@ async function perguntarFluxo(texto, opcoes) {
     if (m) { const fecha = tratarFechar(m[2]); if (fecha) return fecha; }
     m = REG_BUSCA.exec(alvo);
     if (m) return tratarBusca(m[2]);
+    const soNome = tratarNomeSolto(alvo);
+    if (soNome) return soNome;
   }
 
   // Pedido de modelo 3D didático ("me manda o modelo 3D do sistema solar"): entrega o modelo-base no aparelho, sem IA.
