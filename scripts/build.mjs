@@ -47,7 +47,7 @@ export function juntar() {
 
 // Impressão digital dos arquivos que os apps baixam. Muda só quando o conteúdo muda; é o que permite atualizar sozinho (versao.json)
 // e fazer o service worker do console trocar de cache a cada publicação.
-const ARQUIVOS_VERSIONADOS = ['paulus.v1.js', 'conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'pdf-encrypt.umd.js', 'jspdf.umd.min.js', 'jszip.min.js', 'relatorio-individual-pdf.mjs', 'visitas.mjs', 'leaflet.js', 'lugares-boa-vista.json', 'login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'docs.js', 'relatorios-ui.mjs', 'relatorios-bf.mjs', 'relatorios-abrigos.mjs', 'abrigos-ui.mjs', 'rota-folhas.mjs', 'rota-visita-ui.mjs', 'xlsx.bundle.js', 'index.html'];
+const ARQUIVOS_VERSIONADOS = ['paulus.v1.js', 'conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'pdf-encrypt.umd.js', 'jspdf.umd.min.js', 'jszip.min.js', 'relatorio-individual-pdf.mjs', 'visitas.mjs', 'leaflet.js', 'lugares-boa-vista.json', 'login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'docs.js', 'relatorios-ui.mjs', 'relatorios-bf.mjs', 'relatorios-abrigos.mjs', 'abrigos-ui.mjs', 'rota-folhas.mjs', 'rota-visita-ui.mjs', 'planilhas-mds.mjs', 'planilhas-mds-ui.mjs', 'agenda-pdf.mjs', 'xlsx.bundle.js', 'index.html'];
 export function gerarVersao(saida, extra) {
   const arquivos = {};
   for (const n of ARQUIVOS_VERSIONADOS) {
@@ -102,10 +102,11 @@ export function construir() {
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'console.html'));
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'index.html')); // a raiz do site (…/Paulus/) abre o console
   // tela de login (carrega o console.js só depois de entrar) e o próprio console.js, se existir
-  for (const f of ['login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'relatorios-ui.mjs', 'relatorio-individual-pdf.mjs', 'abrigos-ui.mjs', 'rota-visita-ui.mjs']) { const o = join(RAIZ, 'console', f); if (existsSync(o)) copyFileSync(o, join(saida, f)); }
+  for (const f of ['login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'relatorios-ui.mjs', 'relatorio-individual-pdf.mjs', 'abrigos-ui.mjs', 'rota-visita-ui.mjs', 'planilhas-mds-ui.mjs', 'agenda-pdf.mjs']) { const o = join(RAIZ, 'console', f); if (existsSync(o)) copyFileSync(o, join(saida, f)); }
   copyFileSync(join(RAIZ, 'shared', 'relatorios-bf.mjs'), join(saida, 'relatorios-bf.mjs'));
   copyFileSync(join(RAIZ, 'shared', 'relatorios-abrigos.mjs'), join(saida, 'relatorios-abrigos.mjs'));
   copyFileSync(join(RAIZ, 'shared', 'rota-folhas.mjs'), join(saida, 'rota-folhas.mjs'));
+  copyFileSync(join(RAIZ, 'shared', 'planilhas-mds.mjs'), join(saida, 'planilhas-mds.mjs'));
   copyFileSync(join(RAIZ, 'shared', 'visitas.mjs'), join(saida, 'visitas.mjs'));
   copyFileSync(join(RAIZ, 'vendor', 'xlsx-js-style', 'xlsx.bundle.js'), join(saida, 'xlsx.bundle.js'));
   // OCR local (tesseract.js + idioma português), opcional: só lê endereço de folhas escaneadas na Rota de Visita. Copie vendor/tesseract do Anona (docs/RELATORIOS-LOCAIS.md).
