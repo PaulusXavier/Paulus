@@ -239,7 +239,7 @@
     });
     state.days = cloud; state.locked = locked; state.lastSync = new Date();
     saveLocal(); render();
-    setSync('ok', 'Conectado ao Firebase do Argo' + (unread ? ' · ' + unread + ' dia(s) de outra senha ignorado(s)' : ''));
+    setSync('ok', !docs ? 'Conectado, mas não há anotações com o código "' + state.code + '". Confira o código no Argo (Agenda → sincronização).' : 'Conectado ao Firebase do Argo' + (unread ? ' · ' + unread + ' dia(s) de outra senha ignorado(s)' : ''));
     if (resend.length) cloudWrite(resend).catch(function () { /* continua pendente */ });
   }
   function forCloud(e) { var o = Object.assign({}, e, { text: enc(e.text) }); if (typeof o.createdAt !== 'number') o.createdAt = Date.now(); return o; }
@@ -404,7 +404,7 @@
     return 'agenda-' + Array.prototype.map.call(b, function (x) { return 'abcdefghijkmnpqrstuvwxyz23456789'[x % 32]; }).join('');
   }
   function unlock() {
-    var pass = q('[data-pass]').value, code = q('[data-code]').value.trim().toLowerCase().replace(/\s+/g, '-');
+    var pass = q('[data-pass]').value.trim(), code = q('[data-code]').value.trim().toLowerCase().replace(/\s+/g, '-');
     if (code && !validCode(code)) { setupMsg('O código não pode ter barras nem ser só pontos.'); return; }
     if (!pass && !state.key) { setupMsg('Digite a senha da equipe (a mesma do Argo).'); return; }
     var go = pass ? derive(pass) : Promise.resolve(state.key);
