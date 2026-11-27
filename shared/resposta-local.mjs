@@ -32,7 +32,7 @@ const MAX_PALAVRAS_PERGUNTA = 20;
 const TETO_TRECHO = 700;
 
 // Corta no fim de uma frase para o trecho caber numa resposta (a fonte completa segue citada).
-function resumirTrecho(texto, max) {
+function resumirTrechoLocal(texto, max) {
   const t = String(texto || '');
   if (t.length <= max) return t;
   const corte = t.slice(0, max);
@@ -352,7 +352,7 @@ export function respostaDeFatoBoaVista(pergunta, base) {
   const blocos = escolhidos.map((a, i) => {
     const t = a.trecho;
     const rotulo = [t.titulo || t.doc, t.referencia].filter(Boolean).join(' — ');
-    return (escolhidos.length > 1 ? (i + 1) + ') ' : '') + (rotulo ? '**' + rotulo + '**\n' : '') + resumirTrecho(t.texto, porTrecho);
+    return (escolhidos.length > 1 ? (i + 1) + ') ' : '') + (rotulo ? '**' + rotulo + '**\n' : '') + resumirTrechoLocal(t.texto, porTrecho);
   });
   const tecnico = escolhidos.some((a) => a.trecho.tipo && a.trecho.tipo !== 'norma');
   return { texto: blocos.join('\n\n') + '\n\n' + (tecnico ? 'Dado de material de apoio da base do Paulus (não é norma). Confira a fonte original antes de usar o número em documento.' : 'Trecho da base do Paulus. Confira a fonte oficial.'), escolhidos: escolhidos };
@@ -404,7 +404,7 @@ export function respostaDePolitica(pergunta, base) {
   const rotulo = [t.titulo || t.doc, t.referencia].filter(Boolean).join(' — ');
   const tecnico = t.tipo && t.tipo !== 'norma';
   return {
-    texto: '**' + rotulo + '**\n' + resumirTrecho(t.texto, 1100) + '\n\n' + (tecnico ? 'Trecho de guia de orientação da base do Paulus (não é norma legal). Valores e prazos mudam: confirme no MDS.' : 'Trecho da base de normas do Paulus. Confira o texto oficial vigente.'),
+    texto: '**' + rotulo + '**\n' + resumirTrechoLocal(t.texto, 1100) + '\n\n' + (tecnico ? 'Trecho de guia de orientação da base do Paulus (não é norma legal). Valores e prazos mudam: confirme no MDS.' : 'Trecho da base de normas do Paulus. Confira o texto oficial vigente.'),
     escolhidos: [{ trecho: t }]
   };
 }
@@ -476,7 +476,7 @@ export function respostaDaBase(pergunta, achados, ctx) {
   const blocos = escolhidos.map((a, i) => {
     const t = a.trecho;
     const rotulo = [t.titulo || t.doc, t.referencia].filter(Boolean).join(' — ');
-    return (escolhidos.length > 1 ? (i + 1) + ') ' : '') + (rotulo ? '**' + rotulo + '**\n' : '') + resumirTrecho(t.texto, porTrecho);
+    return (escolhidos.length > 1 ? (i + 1) + ') ' : '') + (rotulo ? '**' + rotulo + '**\n' : '') + resumirTrechoLocal(t.texto, porTrecho);
   });
   const tecnico = escolhidos.some((a) => a.trecho.tipo && a.trecho.tipo !== 'norma');
   return {
