@@ -172,3 +172,19 @@ test('agenda (avisos): com antecedência o aviso volta na hora, sem duplicar; re
   T.prefs().quiet = false;
   assert.equal(typeof T.eveText().title, 'string');
 });
+
+test('agenda (push): lista o que vai avisar com o app fechado, respeitando antecedência, silêncio e "esconder texto"', () => {
+  const amanha = new Date(); amanha.setDate(amanha.getDate() + 1); amanha.setHours(12, 0, 0, 0);
+  const k = `${amanha.getFullYear()}-${String(amanha.getMonth() + 1).padStart(2, '0')}-${String(amanha.getDate()).padStart(2, '0')}`;
+  T.setDays({ [k]: [{ text: 'Visita Silva', time: '10:00', createdAt: 7, done: false }, { text: 'Feita', time: '11:00', createdAt: 8, done: true }, { text: 'De madrugada', time: '03:00', createdAt: 9, done: false }, { text: 'Sem hora', createdAt: 10, done: false }] });
+  const p = T.prefs(); Object.assign(p, { lead: 15, atTime: true, quiet: true, qFrom: '22:00', qTo: '07:00', hide: false, daily: '', eve: '', mute: '' });
+  let it = T.pushItens().filter((x) => x.i && x.i.startsWith('n|' + k));
+  assert.deepEqual([...it.map((x) => x.t)], ['Em 15 min · 10:00', 'Agora · 10:00']);     // 03:00 cai no silêncio; concluída e sem hora não entram
+  assert.equal(it[0].b, 'Visita Silva'); assert.ok(it[1].i.endsWith('|h')); assert.equal(it[1].s, 1);
+  p.hide = true;
+  it = T.pushItens().filter((x) => x.i && x.i.startsWith('n|' + k));
+  assert.equal(it[0].b, 'Compromisso às 10:00'); assert.equal(it[0].t, 'Agenda Paulus');
+  p.lead = 0; p.hide = false; p.quiet = false;
+  it = T.pushItens().filter((x) => x.i && x.i.startsWith('n|' + k));
+  assert.deepEqual([...it.map((x) => x.t)], ['Agora · 03:00', 'Agora · 10:00']);
+});
