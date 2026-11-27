@@ -50,6 +50,7 @@ import { sanearEstado } from '../shared/conversa.mjs';
 import { escopoDaConversa } from '../shared/escopo.mjs';
 import { respostaDiretaDaFicha } from '../shared/consulta-direta.mjs';
 import { respostaDeContagem, respostaDeFatoBoaVista, respostaDePolitica, respostaDaBase } from '../shared/resposta-local.mjs';
+import { respostaDeSaudacao } from '../shared/saudacao-local.mjs';
 import { ehPerguntaSobreSi, temasDaPergunta, montarAutoconhecimento, fichaComoTexto } from '../shared/autoconhecimento.mjs';
 import { montarMensagens, montarMensagensSaudacao, preferenciasValidas, fichasComoTexto, baseAppComoTexto, panoramaComoTexto } from './prompt.mjs';
 import { montarMensagensInterpretacao, lerInterpretacao } from './interpretar.mjs';
@@ -654,6 +655,11 @@ export function criarManipulador({ base, apps, indice: indicePronto, habilidades
     if (respostaLocalLigada && !imagemLida && !documento && (modo === 'normal' || modo === 'consulta')) {
       const contagem = respostaDeContagem(pergunta);
       if (contagem) return responderLocal(contagem.texto, contagem.fontes);
+    }
+    // Cumprimento, agradecimento, confirmação e despedida ("oi", "obrigado", "ok"): resposta pronta, sem chamar a IA (shared/saudacao-local.mjs).
+    if (respostaLocalLigada && !imagemLida && !documento && modo === 'saudacao') {
+      const sd = respostaDeSaudacao(pergunta, idiomaDoPedido(pergunta, hist).resposta);
+      if (sd) return responderLocal(sd.texto, []);
     }
 
     // Cota do dia esgotada (marcada há pouco): não monta busca, raciocínio nem prompt para uma chamada que vai falhar. O navegador responde com a base de normas.
