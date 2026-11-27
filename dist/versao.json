@@ -1,10 +1,10 @@
 {
- "versao": "0.38.0",
- "build": "ba82a7c63d72",
+ "versao": "0.39.0",
+ "build": "65205c5ce284",
  "commit": null,
  "arquivos": {
   "paulus.v1.js": {
-   "sha256": "195b175210bb1c35",
+   "sha256": "4148495c5d3f0aeb",
    "bytes": 1258392
   },
   "conhecimento.json": {
@@ -26,6 +26,18 @@
   "pdf-encrypt.umd.js": {
    "sha256": "5331d84c0cf6bc74",
    "bytes": 59251
+  },
+  "jspdf.umd.min.js": {
+   "sha256": "85ba2cc3ff858a20",
+   "bytes": 365730
+  },
+  "jszip.min.js": {
+   "sha256": "acc7e41455a80765",
+   "bytes": 97630
+  },
+  "relatorio-individual-pdf.mjs": {
+   "sha256": "c09ba577c9b2cfb8",
+   "bytes": 14835
   },
   "leaflet.js": {
    "sha256": "db49d009c841f5ca",
@@ -72,20 +84,20 @@
    "bytes": 19932
   },
   "relatorios-ui.mjs": {
-   "sha256": "4d930fd77e34f061",
-   "bytes": 11125
+   "sha256": "16daf63565db1676",
+   "bytes": 15576
   },
   "relatorios-bf.mjs": {
-   "sha256": "569d3078ae546949",
-   "bytes": 20442
+   "sha256": "a9a9a16c994fc949",
+   "bytes": 30120
   },
   "xlsx.bundle.js": {
    "sha256": "1c7abf2993ff2cd6",
    "bytes": 425020
   },
   "index.html": {
-   "sha256": "a152bbc47de743c7",
-   "bytes": 140144
+   "sha256": "4da2c1fec667f499",
+   "bytes": 141509
   }
  }
 }

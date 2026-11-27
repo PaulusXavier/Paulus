@@ -246,6 +246,175 @@ export function bfPrepararDivisaoTecnicos(abas) {
   };
 }
 
+const BF_COLUNAS_RELATORIO = [
+  { nome: 'NIS do Responsável Familiar', id: 'nis', match: (h) => h.includes('nis') && h.includes('responsavel') },
+  { nome: 'CPF do Responsável', id: 'cpf', match: (h) => h.includes('cpf') && h.includes('responsavel') },
+  { nome: 'Nome do Responsável Familiar', id: 'nome-responsavel', match: (h) => h.includes('nome') && h.includes('responsavel') },
+  { nome: 'Endereço', id: 'endereco', match: (h) => h === 'endereco' },
+  { nome: 'Bairro', id: 'bairro', match: (h) => h === 'bairro' },
+  { nome: 'Referência do endereço', id: 'referencia', match: (h) => h.includes('referencia') && h.includes('endereco') },
+  { nome: 'NIS do Integrante', id: 'nis-integrante', match: (h) => h.includes('nis') && h.includes('integrante') },
+  { nome: 'Nome do Integrante', id: 'nome-integrante', match: (h) => h.includes('nome') && h.includes('integrante') },
+  { nome: 'Motivo 1', id: 'motivo-1', match: (h) => h === 'motivo 1' },
+  { nome: 'Motivo 2', id: 'motivo-2', match: (h) => h === 'motivo 2' },
+  { nome: 'Efeito', id: 'efeito', match: (h) => h === 'efeito' }
+];
+
+const bfChaveCabecalho = (valor) => bfNorm(valor).replace(/\(.*?\)/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+const bfLinhaTemDados = (linha) => Array.isArray(linha) && linha.some((v) => String(v == null ? '' : v).trim() !== '');
+
+function bfDetectarCabecalhoRelatorio(linhas) {
+  for (let i = 0; i < Math.min(linhas.length, 25); i++) {
+    const chaves = (linhas[i] || []).map(bfChaveCabecalho);
+    if (chaves.includes('efeito') && chaves.some((h) => h.includes('nome'))) return i;
+  }
+  for (let i = 0; i < Math.min(linhas.length, 25); i++) {
+    if ((linhas[i] || []).map(bfChaveCabecalho).includes('efeito')) return i;
+  }
+  return -1;
+}
+
+function bfFormacaoRelatorio(nomeAba, valorColuna) {
+  const conhecidas = ['Psicólogo', 'Psicóloga', 'Assistente Social', 'Pedagogo', 'Pedagoga', 'Advogado', 'Advogada', 'Educador Social', 'Terapeuta Ocupacional'];
+  const partes = String(nomeAba || '').split(' - ');
+  let formacao = partes.length > 1 ? partes.slice(1).join(' - ').trim() : String(valorColuna || '').trim();
+  if (/^assist\.?\s*social$/i.test(formacao)) formacao = 'Assistente Social';
+  const chave = bfNorm(formacao);
+  return conhecidas.find((item) => bfNorm(item) === chave)
+    || conhecidas.find((item) => chave.length >= 3 && bfNorm(item).startsWith(chave))
+    || String(valorColuna || formacao || '').trim();
+}
+
+function bfMesRelatorio(linhas, indiceCabecalho, indiceMes, dados) {
+  if (indiceMes >= 0) {
+    const valor = dados.map((linha) => String(linha[indiceMes] == null ? '' : linha[indiceMes]).trim()).find(Boolean);
+    if (valor) return valor;
+  }
+  for (const valor of (linhas || []).slice(0, Math.max(0, indiceCabecalho)).flat()) {
+    const m = String(valor == null ? '' : valor).trim().match(/(?:per[ií]odo|m[eê]s)\s+da\s+repercuss[aã]o\s*:\s*(.+)/i);
+    if (m) return m[1].trim();
+  }
+  return '—';
+}
+
+// Prepara dados para os PDFs individuais do Anona, sem desenhar nem guardar ficheiros.
+// Cada aba válida vira um relatório; abas de resumo e abas redundantes são ignoradas.
+export function bfPrepararRelatoriosIndividuais(abas) {
+  const candidatas = bfAbasUteis((abas || []).filter((aba) => !bfNorm(aba.nome).startsWith('resumo')))
+    .map((aba) => ({ aba, linhas: (aba.linhas || []).filter(bfLinhaTemDados) }))
+    .map((item) => ({ ...item, indiceCabecalho: bfDetectarCabecalhoRelatorio(item.linhas) }))
+    .filter((item) => item.indiceCabecalho >= 0);
+  const relatorios = [];
+
+  for (const { aba, linhas, indiceCabecalho } of candidatas) {
+    const cabecalho = linhas[indiceCabecalho] || [];
+    const chaves = cabecalho.map(bfChaveCabecalho);
+    const indicePorId = new Map();
+    BF_COLUNAS_RELATORIO.forEach((coluna) => {
+      const indice = chaves.findIndex(coluna.match);
+      if (indice >= 0) indicePorId.set(coluna.id, indice);
+    });
+    const indiceEfeito = indicePorId.get('efeito');
+    if (indiceEfeito == null) continue;
+
+    const dados = linhas.slice(indiceCabecalho + 1).filter(bfLinhaTemDados).map((linha) => linha.slice());
+    if (!dados.length) continue;
+    const indiceMes = chaves.findIndex((h) => h.includes('mes') && h.includes('repercuss'));
+    const indiceTecnico = chaves.findIndex((h) => h.includes('tecnico') && h.includes('equipe'));
+    const indiceFormacao = chaves.findIndex((h) => h === 'formacao');
+    const formacaoPlanilha = indiceFormacao >= 0
+      ? (dados.map((r) => String(r[indiceFormacao] || '').trim()).find(Boolean) || '') : '';
+    const formacao = bfFormacaoRelatorio(aba.nome, formacaoPlanilha);
+    const partesAba = String(aba.nome || '').split(' - ');
+    let tecnico = partesAba[0].trim();
+    if (!tecnico || /^(dados|planilha|territ[oó]rio volante|relat[oó]rio)$/i.test(tecnico)) tecnico = '';
+    if (!tecnico && indiceTecnico >= 0) {
+      tecnico = dados.map((r) => String(r[indiceTecnico] || '').trim())
+        .find((v) => v && !/^(territ[oó]rio volante|equipe volante)$/i.test(v)) || '';
+    }
+    if (/^(dados|planilha|territ[oó]rio volante|relat[oó]rio)$/i.test(tecnico)) tecnico = '';
+
+    const indicesId = ['nis', 'cpf', 'nome-responsavel'].map((id) => indicePorId.get(id)).filter((i) => i != null);
+    const indicesFamilia = ['nis', 'cpf', 'nome-responsavel', 'endereco', 'bairro', 'referencia', 'efeito', 'mes']
+      .map((id) => indicePorId.get(id) ?? (id === 'mes' ? indiceMes : undefined)).filter((i) => i != null);
+    const indicesIdentificador = [...new Set(['nis', 'cpf', 'nis-integrante'].map((id) => indicePorId.get(id)).filter((i) => i != null))];
+    for (const linha of dados) indicesIdentificador.forEach((i) => { linha[i] = bfIdentificador(linha[i]); });
+
+    // As linhas dos outros integrantes podem deixar em branco os campos da família.
+    if (indicesId.length) {
+      for (let i = 1; i < dados.length; i++) {
+        const linha = dados[i];
+        if (indicesId.every((col) => !String(linha[col] == null ? '' : linha[col]).trim()) && bfLinhaTemDados(linha)) {
+          indicesFamilia.forEach((col) => {
+            if (!String(linha[col] == null ? '' : linha[col]).trim()) linha[col] = dados[i - 1][col] == null ? '' : dados[i - 1][col];
+          });
+        }
+      }
+    }
+
+    const mes = bfMesRelatorio(linhas, indiceCabecalho, indiceMes, dados);
+    const colunas = BF_COLUNAS_RELATORIO.filter((coluna) => {
+      const indice = indicePorId.get(coluna.id);
+      return indice != null && (coluna.id === 'efeito' || dados.some((r) => String(r[indice] == null ? '' : r[indice]).trim()));
+    });
+    const indicePorIdSaida = new Map(colunas.map((coluna) => [coluna.id, indicePorId.get(coluna.id)]));
+    const idxNis = indicePorIdSaida.get('nis');
+    const idxCpf = indicePorIdSaida.get('cpf');
+    const idxNomeResp = indicePorIdSaida.get('nome-responsavel');
+    const idxNisInt = indicePorIdSaida.get('nis-integrante');
+    const idxNomeInt = indicePorIdSaida.get('nome-integrante');
+    const grupos = new Map();
+
+    dados.forEach((linha, i) => {
+      const nis = idxNis == null ? '' : String(linha[idxNis] || '').trim();
+      const cpf = idxCpf == null ? '' : String(linha[idxCpf] || '').trim();
+      const nome = idxNomeResp == null ? '' : String(linha[idxNomeResp] || '').trim();
+      const chave = nis ? `nis:${bfNorm(nis)}` : cpf ? `cpf:${bfNorm(cpf)}` : nome ? `nome:${bfNorm(nome)}` : `linha:${i}`;
+      if (!grupos.has(chave)) grupos.set(chave, { linhas: [], vistos: new Set() });
+      const grupo = grupos.get(chave);
+      const nisIntegrante = idxNisInt == null ? '' : String(linha[idxNisInt] || '').replace(/\D+/g, '');
+      const nomeIntegrante = idxNomeInt == null ? '' : bfNorm(linha[idxNomeInt]);
+      const idIntegrante = nisIntegrante || nomeIntegrante;
+      if (idIntegrante && grupo.vistos.has(idIntegrante)) return;
+      if (idIntegrante) grupo.vistos.add(idIntegrante);
+      grupo.linhas.push(linha);
+    });
+
+    const headers = ['Família', ...colunas.map((coluna) => coluna.nome)];
+    const rows = [];
+    const numeroPorChave = new Map();
+    const efeitoPorFamilia = new Map();
+    grupos.forEach((grupo, chave) => {
+      const numero = numeroPorChave.size + 1;
+      numeroPorChave.set(chave, numero);
+      for (const linha of grupo.linhas) {
+        const efeito = String(linha[indiceEfeito] == null ? '' : linha[indiceEfeito]).trim();
+        if (efeito) {
+          if (!efeitoPorFamilia.has(efeito)) efeitoPorFamilia.set(efeito, new Set());
+          efeitoPorFamilia.get(efeito).add(numero);
+        }
+        rows.push([numero, ...colunas.map((coluna) => linha[indicePorId.get(coluna.id)] ?? '')]);
+      }
+    });
+
+    const prioridade = ['alerta', 'bloqueio', 'suspensao', 'cancelamento'];
+    const efeitos = [...efeitoPorFamilia.entries()].map(([nome, familias]) => ({ nome, total: familias.size }))
+      .sort((a, b) => {
+        const ia = prioridade.indexOf(bfNorm(a.nome).replace(/[^a-z]/g, ''));
+        const ib = prioridade.indexOf(bfNorm(b.nome).replace(/[^a-z]/g, ''));
+        if (ia >= 0 || ib >= 0) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+        return a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' });
+      });
+    relatorios.push({
+      tecnico, formacao, mes, headers, rows, totalRegistros: rows.length,
+      totalFamilias: numeroPorChave.size, efeitos, cor: '0B2F7A'
+    });
+  }
+
+  if (!relatorios.length) return { ok: false, motivo: 'sem-tabela', texto: 'Não encontrei nenhuma aba com a coluna “Efeito” e registos para gerar o relatório individual.' };
+  return { ok: true, relatorios, total: relatorios.length, texto: `${relatorios.length} relatório(s) individual(is) preparado(s) localmente.` };
+}
+
 const COR_TECNICO = { 'Paulo Xavier': '0B2F7A', 'Danilo Braga': '159947', 'Keomara Teles': 'DB2777' };
 const ORDEM_CONHECIDA = ['Paulo Xavier', 'Danilo Braga', 'Keomara Teles'];
 const NAO_IDENTIFICADO = 'Não identificado';

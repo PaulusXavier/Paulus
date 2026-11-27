@@ -1,4 +1,5 @@
-import { bfLerFamilias, bfCompararRecorrentes, bfPrepararDivisaoTecnicos } from './relatorios-bf.mjs';
+import { bfLerFamilias, bfCompararRecorrentes, bfPrepararDivisaoTecnicos, bfPrepararRelatoriosIndividuais } from './relatorios-bf.mjs';
+import { gerarPdfRelatorioIndividual } from './relatorio-individual-pdf.mjs';
 
 (function () {
   'use strict';
@@ -17,13 +18,19 @@ import { bfLerFamilias, bfCompararRecorrentes, bfPrepararDivisaoTecnicos } from 
   const divisaoInput = $('bf-div-input');
   const divisaoEstado = $('bf-div-status');
   const divisaoGerar = $('bf-div-gerar');
+  const pdfEstado = $('bf-pdf-status');
+  const pdfGerar = $('bf-pdf-gerar');
+  const pdfVisita = $('bf-pdf-visita');
   const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   const MAX_BYTES = 5 * 1024 * 1024;
   const BORDA = { style: 'thin', color: { rgb: 'D9E0E3' } };
   const BORDAS = { top: BORDA, bottom: BORDA, left: BORDA, right: BORDA };
   const arquivos = { anterior: null, atual: null };
   let arquivoDivisao = null;
+  let relatoriosPdf = null;
   let biblioteca = null;
+  const bibliotecaPdf = { promise: null };
+  const bibliotecaZip = { promise: null };
 
   function carregarXlsx() {
     if (window.XLSX) return Promise.resolve(window.XLSX);
@@ -36,6 +43,27 @@ import { bfLerFamilias, bfCompararRecorrentes, bfPrepararDivisaoTecnicos } from 
       document.head.appendChild(script);
     }).catch((erro) => { biblioteca = null; throw erro; });
     return biblioteca;
+  }
+
+  function carregarScriptLocal(nome, pronto, estadoLocal, mensagem) {
+    if (pronto()) return Promise.resolve();
+    if (estadoLocal.promise) return estadoLocal.promise;
+    estadoLocal.promise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = new URL(`./${nome}`, import.meta.url).href;
+      script.onload = () => pronto() ? resolve() : reject(new Error(mensagem));
+      script.onerror = () => reject(new Error(mensagem));
+      document.head.appendChild(script);
+    }).catch((erro) => { estadoLocal.promise = null; throw erro; });
+    return estadoLocal.promise;
+  }
+
+  function carregarJsPdf() {
+    return carregarScriptLocal('jspdf.umd.min.js', () => !!(window.jspdf && window.jspdf.jsPDF), bibliotecaPdf, 'Não consegui carregar a biblioteca local de PDF.');
+  }
+
+  function carregarJsZip() {
+    return carregarScriptLocal('jszip.min.js', () => !!window.JSZip, bibliotecaZip, 'Não consegui carregar a biblioteca local para juntar os PDFs num ZIP.');
   }
 
   function mostrarResultado(slot, texto) {
@@ -161,22 +189,42 @@ import { bfLerFamilias, bfCompararRecorrentes, bfPrepararDivisaoTecnicos } from 
     const file = input.files && input.files[0];
     if (!file) return;
     arquivoDivisao = null;
+    relatoriosPdf = null;
     divisaoGerar.disabled = true;
+    pdfGerar.disabled = true;
     divisaoEstado.textContent = 'A ler e organizar apenas neste aparelho…';
+    pdfEstado.textContent = 'Aguardando a divisão da planilha…';
     input.disabled = true;
     try {
       const abas = await lerAbasPlanilha(file);
       const relatorio = bfPrepararDivisaoTecnicos(abas);
       if (!relatorio.ok) throw new Error(relatorio.texto || 'Não consegui dividir esta planilha.');
+      const preparados = bfPrepararRelatoriosIndividuais(relatorio.abas.map((aba) => ({ nome: aba.nome, linhas: aba.aoa })));
+      if (!preparados.ok) throw new Error(preparados.texto || 'Não consegui preparar os PDFs dos técnicos.');
       arquivoDivisao = { relatorio, nome: file.name };
+      relatoriosPdf = preparados.relatorios;
       divisaoEstado.textContent = `${relatorio.totalFamilias} família(s) · ${relatorio.totalRegistros} registo(s) · ${relatorio.mesRepercussao || 'mês não identificado'} · ${file.name}`;
+      pdfEstado.textContent = `${relatoriosPdf.length} PDF(s) individual(is) pronto(s) · ${relatoriosPdf.reduce((soma, item) => soma + item.totalFamilias, 0)} família(s). Pode gerar sem voltar a carregar o Excel.`;
     } catch (erro) {
       divisaoEstado.textContent = erro && erro.message ? erro.message : 'Não consegui ler esta planilha.';
+      pdfEstado.textContent = 'A geração de PDFs depende de uma divisão válida na etapa 2.';
     } finally {
       input.disabled = false;
       input.value = '';
       divisaoGerar.disabled = !arquivoDivisao;
+      pdfGerar.disabled = !relatoriosPdf;
     }
+  }
+
+  function descarregarBlob(blob, nomeArquivo) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nomeArquivo;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
 
   function descarregar(XLSX, relatorio) {
@@ -203,6 +251,9 @@ import { bfLerFamilias, bfCompararRecorrentes, bfPrepararDivisaoTecnicos } from 
     divisaoInput.value = '';
     divisaoEstado.textContent = 'Ainda não escolhida.';
     divisaoGerar.disabled = true;
+    relatoriosPdf = null;
+    pdfEstado.textContent = 'Aguardando a divisão da planilha na etapa 2.';
+    pdfGerar.disabled = true;
     estado.textContent = '';
     actualizarBotao();
   }
@@ -246,6 +297,43 @@ import { bfLerFamilias, bfCompararRecorrentes, bfPrepararDivisaoTecnicos } from 
     } finally {
       divisaoGerar.textContent = 'Dividir e gerar Excel';
       divisaoGerar.disabled = !arquivoDivisao;
+    }
+  });
+  pdfGerar.addEventListener('click', async () => {
+    if (!relatoriosPdf || !relatoriosPdf.length) return;
+    pdfGerar.disabled = true;
+    pdfGerar.textContent = 'A criar PDF(s)…';
+    pdfEstado.textContent = 'A gerar os ficheiros no aparelho; os dados não são enviados nem guardados.';
+    try {
+      await carregarJsPdf();
+      const gerados = relatoriosPdf.map((relatorio) => gerarPdfRelatorioIndividual(relatorio, {
+        jsPDF: window.jspdf.jsPDF,
+        incluirVisita: !!(pdfVisita && pdfVisita.checked)
+      }));
+      if (gerados.length === 1) {
+        descarregarBlob(new Blob([gerados[0].bytes], { type: 'application/pdf' }), gerados[0].nomeArquivo);
+        pdfEstado.textContent = 'PDF individual gerado e descarregado neste aparelho.';
+      } else {
+        await carregarJsZip();
+        const zip = new window.JSZip();
+        const usados = new Set();
+        gerados.forEach(({ nomeArquivo, bytes }) => {
+          let nome = nomeArquivo;
+          let sufixo = 2;
+          while (usados.has(nome)) nome = nomeArquivo.replace(/\.pdf$/i, ` (${sufixo++}).pdf`);
+          usados.add(nome);
+          zip.file(nome, bytes);
+        });
+        const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 4 } });
+        const dataArquivo = new Intl.DateTimeFormat('pt-BR').format(new Date()).replace(/\//g, '-');
+        descarregarBlob(blob, `Relatorios Individuais - ${dataArquivo}.zip`);
+        pdfEstado.textContent = `${gerados.length} PDFs individuais gerados localmente e descarregados num único ZIP.`;
+      }
+    } catch (erro) {
+      pdfEstado.textContent = erro && erro.message ? erro.message : 'Não consegui gerar os PDFs individuais.';
+    } finally {
+      pdfGerar.textContent = 'Gerar PDF(s) individual(is)';
+      pdfGerar.disabled = !relatoriosPdf;
     }
   });
   dialogo.addEventListener('close', limpar);
