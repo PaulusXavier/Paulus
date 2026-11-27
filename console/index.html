@@ -1424,6 +1424,24 @@ body{
   #log .m.p .mc{font-size:17px;line-height:1.7}
 }
 .verificacao{padding:8px 10px;border:1px solid var(--bd2);border-radius:8px;color:var(--c2);font-size:12px}
+.bf-report{width:min(640px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:min(92dvh,760px);overflow:auto;padding:0;border:1px solid var(--bd2);border-radius:18px;background:var(--bg2);color:var(--t);box-shadow:0 24px 80px #0009}
+.bf-report::backdrop{background:#000a;backdrop-filter:blur(3px)}
+.bf-report-inner{padding:22px;display:grid;gap:14px}
+.bf-report-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.bf-report-head h2{margin:0;font:600 20px/1.25 var(--hud);color:var(--t)}
+.bf-report-head p,.bf-report-note{margin:5px 0 0;color:var(--mut);font:13px/1.5 var(--hud)}
+.bf-report-close{min-width:40px;width:40px;height:40px;min-height:40px;border-radius:12px;font-size:20px}
+.bf-report-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.bf-report-field{min-width:0;padding:13px;border:1px solid var(--bd);border-radius:14px;background:#02070c}
+.bf-report-field label{display:block;margin-bottom:8px;font:600 13px var(--hud);color:var(--t)}
+.bf-report-field input[type=file]{display:block;width:100%;max-width:100%;color:var(--mut);font:12px/1.4 var(--hud)}
+.bf-report-field p{min-height:2.8em;margin:8px 0 0;overflow-wrap:anywhere;color:var(--mut);font:12px/1.45 var(--hud)}
+.bf-report-actions{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+.bf-report-actions button{min-height:44px;padding:0 16px;border-radius:12px}
+.bf-report-actions #bf-gerar{background:var(--c);color:var(--bg);border-color:var(--c);font-weight:700}
+.bf-report-actions #bf-gerar:disabled{opacity:.48;cursor:not-allowed}
+#bf-status{min-height:1.5em;margin:0;color:var(--c2);font:13px/1.5 var(--hud)}
+@media(max-width:520px){.bf-report-inner{padding:18px 14px}.bf-report-grid{grid-template-columns:1fr}}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
 <svg id="hx" aria-hidden="true" focusable="false"><defs><pattern id="hxp" width="56" height="97" patternUnits="userSpaceOnUse" patternTransform="scale(.9)"><path d="M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z M28 62 L28 95 M54 47 L82 62 M2 47 L-26 62" fill="none" stroke="currentColor" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#hxp)"/></svg>
@@ -1478,6 +1496,7 @@ body{
 <button id="ins" class="hb" hidden title="Instalar o app" aria-label="Instalar o app"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg></button>
 <button id="sair" class="hb" hidden title="Sair" aria-label="Sair da conta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
 <button id="ex" class="hb" title="Salvar a conversa em arquivo (.md)" aria-label="Salvar a conversa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg></button>
+<button id="rb" class="hb" title="Gerar tabelas e relatórios neste aparelho, sem IA" aria-label="Relatórios locais"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h4"/><path d="M7 4v16M17 4v16" opacity=".45"/></svg></button>
 <button id="fo" class="hb" title="Modo foco: esconde painéis e efeitos (Ctrl+Shift+F)" aria-label="Modo foco" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4"/><circle cx="12" cy="12" r="2.2"/></svg></button>
 <button id="nv" class="hb" title="Nova conversa (Ctrl+Shift+N)" aria-label="Nova conversa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4"/></svg></button>
 <button id="cq" class="hb" title="Cota da IA: quanto resta, quando acaba e quando renova" aria-label="Cota da IA" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4.2-5.2"/><path d="M12 6.2v1.4M6.3 9l1 1M17.7 9l-1 1"/></svg></button>
@@ -1491,6 +1510,22 @@ body{
 <span id="hr"></span>
 </div>
 </header>
+<dialog id="bf-report" class="bf-report" aria-labelledby="bf-report-title">
+  <div class="bf-report-inner">
+    <div class="bf-report-head">
+      <div><h2 id="bf-report-title">Relatórios locais</h2><p>Etapa 1 · Famílias Recorrentes</p></div>
+      <button id="bf-fechar" class="bf-report-close" type="button" aria-label="Fechar e limpar os ficheiros">×</button>
+    </div>
+    <p class="bf-report-note">As planilhas são lidas e comparadas neste aparelho. Não são anexadas à conversa, gravadas ou enviadas à rede/IA. Limite: 5 MB por ficheiro.</p>
+    <div class="bf-report-grid">
+      <div class="bf-report-field"><label for="bf-ant">Planilha do mês anterior (.xlsx, .xls ou .csv)</label><input id="bf-ant" type="file" accept=".xlsx,.xls,.csv"><p id="bf-ant-status" role="status">Ainda não escolhida.</p></div>
+      <div class="bf-report-field"><label for="bf-atual">Planilha do mês atual (.xlsx, .xls ou .csv)</label><input id="bf-atual" type="file" accept=".xlsx,.xls,.csv"><p id="bf-atual-status" role="status">Ainda não escolhida.</p></div>
+    </div>
+    <div class="bf-report-actions"><button id="bf-gerar" type="button" disabled>Gerar Excel</button><button id="bf-limpar" type="button">Limpar ficheiros</button></div>
+    <p id="bf-status" role="status" aria-live="polite"></p>
+    <p class="bf-report-note">Ao fechar esta janela, os dados temporários são removidos. É necessária uma tabela de condicionalidades com a coluna “Efeito” e NIS ou CPF do responsável.</p>
+  </div>
+</dialog>
 <aside id="rl" class="rail" aria-label="Sistemas">
 <section class="pn"><h3 class="pt">Sistemas</h3>
 <dl class="kv">
@@ -1559,5 +1594,6 @@ body{
 <script src="agenda-mds.js"></script>
 <script src="agenda.js"></script>
 <script src="docs.js"></script>
+<script type="module" src="relatorios-ui.mjs"></script>
 <script src="login.js"></script>
 </body></html>

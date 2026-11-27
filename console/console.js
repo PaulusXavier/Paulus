@@ -1626,7 +1626,7 @@
   (function () {
     var MN = $('mn'), hrx = document.querySelector('header .hr'); if (!MN || !hrx || !window.matchMedia) return;
     var menu = document.createElement('div'); menu.id = 'mnp'; menu.hidden = true; menu.setAttribute('role', 'group'); menu.setAttribute('aria-label', 'Mais opções'); document.body.appendChild(menu);
-    var ORDEM = ['ins', 'sair', 'ex', 'fo', 'nv', 'cq', 'sx', 'nt', 'jv', 'ap', 'vc', 'vz'], FICA = { nv: 1, jv: 1 }, ROT = { ins: 'Instalar o app', sair: 'Sair da conta', ex: 'Salvar a conversa', fo: 'Modo foco', cq: 'Cota da IA', sx: 'Meus sistemas', nt: 'Anotações e compras', ap: 'Aparência', vc: 'Escolher a voz', vz: 'Ler respostas em voz alta' };
+    var ORDEM = ['ins', 'sair', 'ex', 'rb', 'fo', 'nv', 'cq', 'sx', 'nt', 'jv', 'ap', 'vc', 'vz'], FICA = { nv: 1, jv: 1 }, ROT = { ins: 'Instalar o app', sair: 'Sair da conta', ex: 'Salvar a conversa', rb: 'Relatórios locais (sem IA)', fo: 'Modo foco', cq: 'Cota da IA', sx: 'Meus sistemas', nt: 'Anotações e compras', ap: 'Aparência', vc: 'Escolher a voz', vz: 'Ler respostas em voz alta' };
     var mm = matchMedia('(max-width:640px)');
     function fecharMenu() { menu.hidden = true; MN.setAttribute('aria-expanded', 'false'); MN.classList.remove('on'); }
     function ajustar() {
