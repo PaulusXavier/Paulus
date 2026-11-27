@@ -87,6 +87,7 @@ const estado = {
   base: [],
   indice: null,
   acoes: [],
+  siteLivre: null,
   buscas: [],
   historico: [],
   pessoas: criarRegistro(),   // quem é PESSOA_1 e qual é o CPF_1: só nesta aba, só em memória
@@ -233,7 +234,14 @@ function registrarAcao(a) {
     throw new Error('Paulus.registrarAcao: use { id, rotulos:[...], executar() }');
   }
   estado.acoes = estado.acoes.filter(function (x) { return x.id !== a.id; });
-  estado.acoes.push({ id: a.id, titulo: String(a.titulo || a.rotulos[0] || a.id), rotulos: a.rotulos.map(normalizar).filter(Boolean), descricao: a.descricao || '', executar: a.executar, confirmar: !!a.confirmar, fechar: !!a.fechar, nome: !!a.nome });
+  estado.acoes.push({ id: a.id, titulo: String(a.titulo || a.rotulos[0] || a.id), rotulos: a.rotulos.map(normalizar).filter(Boolean), descricao: a.descricao || '', executar: a.executar, confirmar: !!a.confirmar, fechar: !!a.fechar, nome: !!a.nome, abrirBusca: typeof a.abrirBusca === 'function' ? a.abrirBusca : null });
+}
+
+// Abridor de endereço digitado ("globo.com", "abrir uol.com.br"). { abrir(url) }: o app decide como abrir a aba (e avisa se o navegador barrar).
+// O núcleo só entrega endereços https de domínios comuns, sem usuário/senha na URL.
+function registrarSiteLivre(abrir) {
+  if (abrir !== null && typeof abrir !== 'function') throw new Error('Paulus.registrarSiteLivre: use uma função abrir(url) ou null');
+  estado.siteLivre = abrir;
 }
 
 // Busca dentro do app. { id, rotulos:['unidade','equipamento'], buscar(consulta) -> [{titulo, detalhe?, abrir?()}] }
@@ -449,6 +457,52 @@ function tratarNomeSolto(alvo) {
   achadas.sort(function (x, y) { return pos.get(x) - pos.get(y); });
   achadas.forEach(function (a) { a.executar(); estado.mem.aprenderAcao(a.id); });
   return { tipo: 'acao', acao: achadas.map(function (a) { return a.id; }).join(','), texto: 'Pronto: ' + achadas.map(function (a) { return a.titulo; }).join(', ') + '.', executada: true };
+}
+
+// Endereço digitado ("globo.com", "www.uol.com.br", "abrir https://exemplo.org/pagina"): abre direto, só se a frase for SÓ o endereço
+// (com verbo/cortesia/ligação opcionais). Só https, só domínios de terminação comum, nada de usuário@ nem porta; e-mail e nome de arquivo ficam de fora.
+const TLDS_SITE = { com: 1, br: 1, org: 1, net: 1, edu: 1, gov: 1, mil: 1, int: 1, io: 1, app: 1, dev: 1, info: 1, me: 1, tv: 1, co: 1, ai: 1, pt: 1, ar: 1, us: 1, uk: 1, de: 1, fr: 1, es: 1, it: 1, jp: 1, cn: 1, ca: 1, mx: 1, cl: 1, uy: 1, py: 1, pe: 1 };
+const VERBO_ENDERECO = { abrir: 1, abra: 1, abre: 1, acessar: 1, acesse: 1, acessa: 1, chamar: 1, chame: 1, chama: 1, entrar: 1, entre: 1, ir: 1, va: 1, vai: 1, leve: 1, me: 1, mostrar: 1, mostre: 1, navegar: 1, visitar: 1, visite: 1, ao: 1, a: 1, pagina: 1, por: 1, favor: 1, paulus: 1, pode: 1, poderia: 1, voce: 1, quero: 1, que: 1, preciso: 1, vamos: 1, vamo: 1, entao: 1, agora: 1 };
+function urlDeEndereco(palavra) {
+  let p = String(palavra || '').trim().replace(/^[("'“‘<]+/, '').replace(/[)"'”’>.,;:!?]+$/, '');
+  if (!p || p.length > 200 || /[@\s]/.test(p)) return '';
+  const m = /^(?:https?:\/\/)?((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+([a-z]{2,10}))(\/[^\s]*)?$/i.exec(p);
+  if (!m) return '';
+  if (!TLDS_SITE[m[2].toLowerCase()]) return '';
+  if (m[3] && /^\/+[^/]*[<>"{}|\\^`]/.test(m[3])) return '';
+  return 'https://' + m[1].toLowerCase() + (m[3] || '');
+}
+function tratarEnderecoSolto(t) {
+  if (typeof estado.siteLivre !== 'function') return null;
+  const palavras = String(t || '').trim().split(/\s+/).filter(Boolean);
+  if (!palavras.length || palavras.length > 7) return null;
+  let url = '';
+  for (const p of palavras) {
+    const u = urlDeEndereco(p);
+    if (u) { if (url) return null; url = u; continue; }   // dois endereços na mesma frase: segue para a IA
+    const w = normalizar(p);
+    if (w && !VERBO_ENDERECO[w] && !LIGACAO[w]) return null;
+  }
+  if (!url) return null;
+  const host = url.replace(/^https:\/\//, '').split('/')[0];
+  estado.siteLivre(url);
+  return { tipo: 'acao', acao: 'site-livre', texto: 'Pronto: abrindo ' + host + '.', executada: true };
+}
+
+// "pesquisar tênis no mercado livre", "buscar lofi no youtube", "pesquisar ECA no google": só vale com verbo de pesquisa + assunto + "no/na/em" + site
+// registrado com abrirBusca. Sem assunto ("buscar no youtube") ou com site desconhecido, segue o caminho de sempre. O assunto sai como foi digitado.
+function tratarBuscaNoSite(t) {
+  const m = /^\s*(?:(?:por favor|paulus|pode|poderia|voce pode|voce poderia|você pode|você poderia|quero que voce|quero que você|preciso que voce|preciso que você)\s+)*(?:pesquisar|pesquise|pesquisa|buscar|busque|procurar|procure)\s+(.+)\s+(?:no|na|nos|nas|pelo|pela|em)\s+(?:o\s+|a\s+)?(.+?)\s*[.!?]*\s*$/i.exec(String(t || ''));
+  if (!m) return null;
+  const assunto = m[1].trim();
+  if (!assunto || assunto.length > 200) return null;
+  const alvo = normalizar(m[2]).replace(/^(?:o|a|os|as|site|app|aplicativo)\s+/, '');
+  const a = estado.acoes.filter(function (x) { return x.abrirBusca && !x.fechar && !x.confirmar; })
+    .filter(function (x) { return x.rotulos.indexOf(alvo) !== -1; })[0];
+  if (!a) return null;
+  a.abrirBusca(assunto);
+  estado.mem.aprenderAcao(a.id);
+  return { tipo: 'acao', acao: a.id + ':busca', texto: 'Pronto: pesquisando "' + assunto + '" em ' + a.titulo + '.', executada: true };
 }
 
 // Verbo de fechar: só vale se a frase for SÓ o pedido e houver ação de fechar registrada com aquele rótulo; senão null (segue para a IA).
@@ -1287,6 +1341,12 @@ async function perguntarFluxo(texto, opcoes) {
     if (esp) return { tipo: esp.idioma === 'en' ? 'ingles' : 'espanhol', tipoLocal: esp.tipoLocal, texto: esp.texto, fontes: [], avisos: ['Resposta feita neste aparelho, sem IA e sem rede. Confira o sentido com a pessoa atendida.'], pergunta: '', docs: [] };
   }
 
+  // Endereço de site digitado sozinho ("globo.com", "abrir exemplo.org/busca?x=1"): antes da conta, para "?x=1" não virar equação.
+  if (!o.semAcoes) {
+    const fim = tratarEnderecoSolto(t);
+    if (fim) return fim;
+  }
+
   // Mensagem que É só uma conta ("quanto é 15% de 1200?", "mediana de 3, 5 e 9", "IMC de 70 kg e 1,75 m", "30 dias úteis a partir de 02/12/2026"):
   // o programa resolve no aparelho, exato, sem rede e sem gastar a cota da IA. Datas e idade já foram tratadas antes do filtro de dado pessoal.
   // Pergunta com mais assunto ("renda per capita de 3200 / 4, posso incluir no BPC?") segue para a IA, que recebe a conta já feita.
@@ -1298,6 +1358,8 @@ async function perguntarFluxo(texto, opcoes) {
   if (!o.semAcoes) {
     // cortesia no começo não atrapalha o comando: "por favor, termine a conversa", "pode fechar o mapa", "paulus, abre o argo"
     const alvo = normalizar(t).replace(/^((por favor|paulus|pode|poderia|voce pode|voce poderia|quero que voce|preciso que voce|vamos|vamo|entao|agora)\s+)+/, '');
+    const bsite = tratarBuscaNoSite(t);
+    if (bsite) return bsite;
     let m = REG_ACAO.exec(alvo);
     if (m) return tratarAcao(m[2]);
     m = REG_ACAO_SOLTO.exec(alvo);
@@ -1531,7 +1593,7 @@ const Paulus = { init, perguntar,
   equipeCras: { responder: respostaDeEquipeCras, dados: equipeCrasCristiana },
   geo: { responder: respostaDeGeo, tipo: geoTipoDePedido, coordenadas: geoLerCoordenadas, formatar: geoFormatarCoordenadas, endereco: geoNormalizarEndereco, montarEndereco: geoMontarEndereco, perto: function (centro, opcoes, o) { return geoPerto(centro, geoFontes(opcoes || {}), o); }, distanciaKm: geoDistanciaKm, links: geoLinksDeRota, gpx: geoParaGpx, kml: geoParaKml },
   // PDF no aparelho (v0.14.0): ler(texto, { temArquivo }) -> pedido ou null; responder(texto, arquivos) -> resultado; editar(operacoes, arquivos); baixar(arquivo)
-  pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { const pedido = lerPedidoDePdf(t, { temArquivo: l.length > 0 }); if (pedido && pedido.operacoes.some(function (op) { return op.op === 'proteger'; })) return respostaDePdf(t, l, Object.assign({ protegerLocal: cfg.pdfProtegerLocal }, opc || {})); return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, proteger: pdfProteger, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
+  pdf: { central: lerPedidoDeCentral, centralInstrucao: instrucaoDeCentral, centralTexto: textoDeCentral, ler: lerPedidoDePdf, responder: function (t, arquivos, opc) { return pdfLerArquivos(arquivos).then(function (l) { const pedido = lerPedidoDePdf(t, { temArquivo: l.length > 0 }); if (pedido && pedido.operacoes.some(function (op) { return op.op === 'proteger'; })) return respostaDePdf(t, l, Object.assign({ protegerLocal: cfg.pdfProtegerLocal }, opc || {})); return (l.length ? pdfCarregarLib() : Promise.resolve(null)).then(function (PDFLib) { return respostaDePdf(t, l, Object.assign({ PDFLib: PDFLib, converterImagem: pdfImagemParaPng }, opc || {})); }); }); }, editar: pdfEditarNoAparelho, proteger: pdfProteger, baixar: pdfBaixar, blob: pdfBlob, paginas: resolverPaginasPdf, lista: listaPaginasPdf }, visitas: { ordenar: ordenarVisitas, analisar: analisarEnderecoVisita, explicacao: EXPLICACAO_VISITAS, comSugestao: ordenarComSugestao, ruas: ruasDasVisitas, aprender: aprenderVizinhanca, vizinhancaVazia: vizinhancaVazia, resumoVizinhanca: resumoVizinhanca, explicar: explicacaoDaOrdem }, consultarNormas, registrarAcao, registrarSiteLivre, registrarBusca, avaliar, sugestoesPessoais, memoria, limpar, skin, iaLigada, voz: vozDoServidor,
   // Texto para a voz (v0.23.0): texto(bruto) limpa Markdown, fontes, links e símbolos; dividir(texto) -> trechos curtos; resumir(bruto) -> primeiras frases + "O restante está na tela."
   fala: { texto: falaTexto, dividir: falaDividir, resumir: falaResumir, trechos: falaTrechos, aprender: falaAprender, dicionario: falaDicionario },
   web: { pesquisar: pesquisarWeb, lerPagina: lerPaginaWeb, baixarPdf: baixarPdfPublico },
