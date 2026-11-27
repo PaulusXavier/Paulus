@@ -36,7 +36,7 @@
   /* ---------- estado ---------- */
   var state = { days: {}, locked: {}, dirty: {}, code: '', key: null, db: null, unsub: null, sync: 'off', lastSync: null, connecting: '' };
   var ui = null, month = new Date(), chosen = new Date(), tab = 'month', editing = null, armed = null, armTimer = null, alerted = {};
-  var view = { week: false, hideDone: false };
+  var view = { week: false, hideDone: false, dots: false, cat: '' };
 
   /* ---------- utilidades ---------- */
   function pad(n) { return String(n).padStart(2, '0'); }
@@ -57,6 +57,22 @@
       if (ta && tb) return ta < tb ? -1 : ta > tb ? 1 : a - b;
       if (ta) return -1; if (tb) return 1; return a - b;
     });
+  }
+
+  /* ---------- visão: filtro por tipo, rótulos de dia, pontos ---------- */
+  function catOk(e) { return !view.cat || cleanCat(e.cat) === view.cat; }
+  function dayDiff(k) { var t = new Date(); return Math.round((day(k) - new Date(t.getFullYear(), t.getMonth(), t.getDate(), 12)) / 86400000); }
+  function relDay(k) { var n = dayDiff(k); return n === 0 ? 'Hoje' : n === 1 ? 'Amanhã' : n === -1 ? 'Ontem' : n > 1 && n <= 7 ? 'Em ' + n + ' dias' : n < -1 && n >= -7 ? 'Há ' + (-n) + ' dias' : ''; }
+  function addDays(k, n) { var d = day(k); d.setDate(d.getDate() + n); return key(d); }
+  function dotsHtml(vis) {
+    if (!vis.length) return '';
+    var max = 8, ord = order(vis);
+    return '<span class="ag-dots">' + ord.slice(0, max).map(function (i) { var e = vis[i], c = cleanCat(e.cat); return '<i class="' + (e.done ? 'dn' : '') + '" style="--cat:' + (c ? CATS[c].color : '#7fb7c4') + '"></i>'; }).join('') + (ord.length > max ? '<em>+' + (ord.length - max) + '</em>' : '') + '</span>';
+  }
+  function progressHtml(all) {
+    if (!all.length) return '';
+    var d = all.filter(function (e) { return e.done; }).length, pct = Math.round(d / all.length * 100);
+    return '<div class="ag-prog" role="img" aria-label="' + d + ' de ' + all.length + ' concluídas"><i style="width:' + pct + '%"></i></div><p class="ag-small ag-progt">' + d + ' de ' + all.length + ' concluída' + (all.length === 1 ? '' : 's') + '</p>';
   }
 
   /* ---------- datas oficiais (feriados, pagamentos) e datas do MDS ---------- */
@@ -168,7 +184,7 @@
       return true;
     } catch (_) { return false; }
   }
-  function loadView() { try { var v = JSON.parse(lsGet(VIEW) || '{}'); view.week = !!v.week; view.hideDone = !!v.hideDone; } catch (_) { /* padrão */ } }
+  function loadView() { try { var v = JSON.parse(lsGet(VIEW) || '{}'); view.week = !!v.week; view.hideDone = !!v.hideDone; view.dots = v.dots === undefined ? (window.innerWidth < 560) : !!v.dots; view.cat = cleanCat(v.cat); } catch (_) { /* padrão */ } }
   function saveView() { lsSet(VIEW, JSON.stringify(view)); }
 
   /* ---------- nuvem (Firestore do Argo) ---------- */
@@ -362,6 +378,17 @@
   }
   function cancelEdit() { editing = null; q('[data-add]').textContent = '＋'; q('[data-cancel-edit]').hidden = true; q('[data-entry]').value = ''; hint(); }
   function toggleDone(k, i, v) { var l = rows(k).slice(); if (!l[i]) return; l[i] = Object.assign({}, l[i], { done: !!v }); commit([{ k: k, entries: l }], v ? 'Concluída.' : 'Reaberta.'); }
+  // Mudar uma anotação de dia (botões +1d/+7d/Hoje e arrastar no calendário): devolve as atualizações ou null.
+  function planMove(k, i, dest) {
+    var l = rows(k), e = l[i];
+    if (!e || typeof dest !== 'string' || !/^\d{4}-\d\d-\d\d$/.test(dest) || dest === k) return null;
+    return [{ k: k, entries: l.filter(function (x, j) { return j !== i; }) }, { k: dest, entries: rows(dest).concat([e]) }];
+  }
+  function moveEntry(k, i, dest) {
+    var ups = planMove(k, i, dest); if (!ups) return;
+    armed = null; if (editing && editing.k === k) cancelEdit();
+    commit(ups, 'Movida para ' + dlabel(day(dest), { weekday: 'short', day: '2-digit', month: '2-digit' }) + '.');
+  }
   function removeEntry(k, i, scope) {
     var l = rows(k), e = l[i]; if (!e) return;
     var ups = [];
@@ -516,13 +543,15 @@
   }
   function weekDates(d) { var s = new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay(), 12); return Array.apply(null, Array(7)).map(function (_, i) { return new Date(s.getFullYear(), s.getMonth(), s.getDate() + i, 12); }); }
   function cellHtml(d, m, today, sel, wide) {
-    var k = key(d), o = official(k), md = mds()[k] || [], all = rows(k), visIdx = all.map(function (e, i) { return i; }).filter(function (i) { return !(view.hideDone && all[i].done); }), vis = visIdx.map(function (i) { return all[i]; }), ord = order(vis), lim = 999, late = k < today && all.some(function (e) { return !e.done; });
+    var k = key(d), o = official(k), md = mds()[k] || [], all = rows(k), visIdx = all.map(function (e, i) { return i; }).filter(function (i) { return !(view.hideDone && all[i].done) && catOk(all[i]); }), vis = visIdx.map(function (i) { return all[i]; }), ord = order(vis), lim = 999, late = k < today && all.some(function (e) { return !e.done; });
     var pend = all.filter(function (e) { return !e.done; }).length;
     var notes = ord.slice(0, lim).map(function (i) {
       var e = vis[i], c = cleanCat(e.cat);
-      return '<span class="ag-note' + (e.done ? ' done' : '') + '"' + (c ? ' style="--cat:' + CATS[c].color + '"' : '') + '><button type="button" class="ag-ck" data-cdone="' + visIdx[i] + '" data-day="' + k + '" aria-pressed="' + (!!e.done) + '" aria-label="' + (e.done ? 'Reabrir' : 'Marcar como concluída') + ': ' + esc(e.text) + '" title="' + (e.done ? 'Concluída — clique para reabrir' : 'Marcar como concluída') + '">✓</button>' + (e.time ? '<b>' + esc(e.time) + '</b> ' : '') + esc(e.text) + '</span>';
+      return '<span class="ag-note' + (e.done ? ' done' : '') + '" draggable="true" data-dragday="' + k + '" data-dragi="' + visIdx[i] + '"' + (c ? ' style="--cat:' + CATS[c].color + '"' : '') + '><button type="button" class="ag-ck" data-cdone="' + visIdx[i] + '" data-day="' + k + '" aria-pressed="' + (!!e.done) + '" aria-label="' + (e.done ? 'Reabrir' : 'Marcar como concluída') + ': ' + esc(e.text) + '" title="' + (e.done ? 'Concluída — clique para reabrir' : 'Marcar como concluída') + '">✓</button>' + (e.time ? '<b>' + esc(e.time) + '</b> ' : '') + esc(e.text) + '</span>';
     }).join('') + (ord.length > lim ? '<span class="ag-more">+' + (ord.length - lim) + '</span>' : '');
-    return '<div class="ag-cell' + (d.getMonth() !== m ? ' out' : '') + (d.getDay() % 6 === 0 ? ' weekend' : '') + (k === today ? ' today' : '') + (k === sel ? ' sel' : '') + (late ? ' late' : '') + '" data-day="' + k + '" role="gridcell" tabindex="' + (k === sel ? 0 : -1) + '" aria-selected="' + (k === sel) + '" aria-label="' +
+    var pendV = vis.filter(function (e) { return !e.done; }).length;
+    if (view.dots && !wide) notes = dotsHtml(vis);
+    return '<div class="ag-cell' + (view.dots && !wide && pendV ? ' h' + (pendV > 3 ? 3 : pendV > 1 ? 2 : 1) : '') + (d.getMonth() !== m ? ' out' : '') + (d.getDay() % 6 === 0 ? ' weekend' : '') + (k === today ? ' today' : '') + (k === sel ? ' sel' : '') + (late ? ' late' : '') + '" data-day="' + k + '" role="gridcell" tabindex="' + (k === sel ? 0 : -1) + '" aria-selected="' + (k === sel) + '" aria-label="' +
       esc(dlabel(d, { weekday: 'long', day: 'numeric', month: 'long' }) + (o ? ', ' + officialName(k) : '') + (pend ? ', ' + pend + ' pendente(s)' : '')) + '"><span class="ag-n">' + d.getDate() + '</span>' +
       (o ? '<span class="ag-tag ag-' + esc(o[1]) + '">' + esc(officialName(k)) + '</span>' : '') +
       (md.length ? '<span class="ag-tag ag-mds">MDS' + (md.length > 1 ? ' ×' + md.length : '') + '</span>' : '') + notes + '</div>';
@@ -535,7 +564,8 @@
     var html = '', cells;
     if (view.week) { cells = weekDates(chosen); cells.forEach(function (d) { html += cellHtml(d, d.getMonth(), today, sel, true); }); }
     else { var start = new Date(y, m, 1 - new Date(y, m, 1).getDay(), 12); for (var i = 0; i < 42; i++) html += cellHtml(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i, 12), m, today, sel, false); }
-    var grid = q('[data-grid]'); grid.innerHTML = html; grid.classList.toggle('wk', view.week);
+    var grid = q('[data-grid]'); grid.innerHTML = html; grid.classList.toggle('wk', view.week); grid.classList.toggle('dots', !!view.dots && !view.week);
+    q('[data-dots-btn]').setAttribute('aria-pressed', !!view.dots);
     q('[data-view-week]').setAttribute('aria-pressed', view.week); q('[data-view-month]').setAttribute('aria-pressed', !view.week);
     q('[data-done-btn]').setAttribute('aria-pressed', !view.hideDone);
     q('[data-locked]').hidden = !!state.key;
@@ -551,7 +581,7 @@
     var mk = y + '-' + pad(m + 1), notes = 0, mdsN = 0; Object.keys(state.days).forEach(function (k) { if (k.slice(0, 7) === mk) notes += state.days[k].length; }); Object.keys(mds()).forEach(function (k) { if (k.slice(0, 7) === mk) mdsN += mds()[k].length; });
     q('[data-legend]').innerHTML = ['feriado:Feriado', 'facultativo:Facultativo', 'pagamento:Pagamento', 'extra:13º salário'].map(function (s) { var p = s.split(':'); return cnt[p[0]] ? '<span class="ag-lg ag-' + p[0] + '">' + p[1] + ' ' + cnt[p[0]] + '</span>' : ''; }).join('') + '<span class="ag-lg ag-mds">MDS ' + mdsN + '</span>';
     q('[data-footer]').textContent = (info.estimated ? 'Atenção: ' + y + ' ainda não tem datas oficiais cadastradas — mostrando só feriados calculados (sem pagamentos nem pontos facultativos). ' : '') + 'Anotações em ' + MONTHS[m].toLowerCase() + ': ' + notes + ' · dias úteis: ' + businessDays(y, m);
-    renderDay(); renderList(); paintSync();
+    renderFilter(); renderDay(); renderList(); paintSync();
   }
   function businessDays(y, m) {
     var n = 0, last = new Date(y, m + 1, 0).getDate(), info = yearData(y).map;
@@ -566,28 +596,51 @@
     });
     return best;
   }
-  function entryHtml(k, i, e, showDate) {
+  function entryHtml(k, i, e, showDate, nxt) {
     var d = day(k), isArm = armed && armed.k === k && armed.i === i;
-    return '<li class="ag-entry' + (e.done ? ' done' : '') + '"><label class="ag-chk"><input type="checkbox" data-done="' + i + '" data-day="' + k + '"' + (e.done ? ' checked' : '') + ' aria-label="Concluída"><span></span></label>' +
-      '<div class="ag-etext" data-jump="' + k + '">' + (showDate ? '<em class="ag-ed">' + d.getDate() + ' ' + MONTHS[d.getMonth()].slice(0, 3) + '</em>' : '') + (e.time ? '<b class="ag-et">' + esc(e.time) + '</b>' : '') + catBadge(e.cat) + '<span>' + esc(e.text) + '</span></div>' +
+    return '<li class="ag-entry' + (e.done ? ' done' : '') + (nxt ? ' next' : '') + '"><label class="ag-chk"><input type="checkbox" data-done="' + i + '" data-day="' + k + '"' + (e.done ? ' checked' : '') + ' aria-label="Concluída"><span></span></label>' +
+      '<div class="ag-etext" data-jump="' + k + '">' + (showDate ? '<em class="ag-ed">' + d.getDate() + ' ' + MONTHS[d.getMonth()].slice(0, 3) + '</em>' : '') + (nxt ? '<span class="ag-next">próxima</span>' : '') + (e.time ? '<b class="ag-et">' + esc(e.time) + '</b>' : '') + catBadge(e.cat) + '<span>' + esc(e.text) + '</span></div>' +
       '<div class="ag-eact">' + (isArm
         ? (e.series ? '<button type="button" class="ag-danger" data-del="' + i + '" data-day="' + k + '" data-scope="one">Só esta</button><button type="button" class="ag-danger" data-del="' + i + '" data-day="' + k + '" data-scope="series">Esta e as próximas</button>' : '<button type="button" class="ag-danger" data-del="' + i + '" data-day="' + k + '" data-scope="one">Apagar mesmo?</button>')
-        : '<button type="button" data-edit="' + i + '" data-day="' + k + '" aria-label="Editar anotação">✎</button><button type="button" data-arm="' + i + '" data-day="' + k + '" aria-label="Apagar anotação">×</button>') + '</div></li>';
+        : '<button type="button" data-edit="' + i + '" data-day="' + k + '" aria-label="Editar anotação">✎</button>' + (e.done ? '' : (k < key(new Date()) ? '<button type="button" class="ag-mv" data-move="today" data-day="' + k + '" data-i="' + i + '" title="Mover para hoje" aria-label="Mover para hoje">Hoje</button>' : '<button type="button" class="ag-mv" data-move="1" data-day="' + k + '" data-i="' + i + '" title="Adiar para amanhã" aria-label="Adiar para o dia seguinte">+1d</button>') + '<button type="button" class="ag-mv" data-move="7" data-day="' + k + '" data-i="' + i + '" title="Adiar uma semana" aria-label="Adiar uma semana">+7d</button>') + '<button type="button" data-arm="' + i + '" data-day="' + k + '" aria-label="Apagar anotação">×</button>') + '</div></li>';
   }
   function renderDay() {
-    var k = key(chosen), o = official(k), md = mds()[k] || [], all = rows(k), ord = order(all);
+    var k = key(chosen), o = official(k), md = mds()[k] || [], all = rows(k), ord = order(all).filter(function (i) { return catOk(all[i]); }), nextI = -1;
+    if (k === key(new Date())) { var nd = new Date(), hm = pad(nd.getHours()) + ':' + pad(nd.getMinutes()); ord.some(function (i) { var t = cleanTime(all[i].time); if (!all[i].done && t && t >= hm) { nextI = i; return true; } return false; }); }
     var src = md.map(function (it) {
       var s = mdsSource(it);
       return '<div class="ag-mdsbox"><b>MDS · ' + esc(mdsCat(it)) + '</b> ' + esc(mdsText(it)) + (it.obs ? '<small>' + esc(it.obs) + '</small>' : '') + (s && /^https:\/\//.test(s.url || '') ? '<small><a href="' + esc(s.url) + '" target="_blank" rel="noopener noreferrer">' + esc(s.nome) + '</a></small>' : '') + '</div>';
     }).join('');
-    q('[data-day-card]').innerHTML = '<h3>' + esc(dlabel(chosen, { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })) + '</h3>' + (o ? '<span class="ag-tag ag-' + esc(o[1]) + '">' + esc(kindText(k)) + '</span>' : '') + src +
-      (all.filter(function (e) { return !e.done; }).length > 1 ? '<button type="button" class="ag-btn ag-doneall" data-done-all>✓ Concluir todas do dia (' + all.filter(function (e) { return !e.done; }).length + ')</button>' : '') +
-      (ord.length ? '<ul class="ag-list">' + ord.map(function (i) { return entryHtml(k, i, all[i], false); }).join('') + '</ul>' : '<p class="ag-small">' + (state.key ? 'Sem anotações neste dia.' : 'Agenda trancada.') + '</p>');
+    q('[data-day-card]').innerHTML = '<h3>' + esc(dlabel(chosen, { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })) + (relDay(k) ? ' <small class="ag-rel">' + relDay(k) + '</small>' : '') + '</h3>' + (o ? '<span class="ag-tag ag-' + esc(o[1]) + '">' + esc(kindText(k)) + '</span>' : '') + src +
+      progressHtml(all) + (all.filter(function (e) { return !e.done; }).length > 1 ? '<button type="button" class="ag-btn ag-doneall" data-done-all>✓ Concluir todas do dia (' + all.filter(function (e) { return !e.done; }).length + ')</button>' : '') +
+      (ord.length ? '<ul class="ag-list">' + ord.map(function (i) { return entryHtml(k, i, all[i], false, i === nextI); }).join('') + '</ul>' : '<p class="ag-small">' + (state.key ? 'Sem anotações neste dia.' : 'Agenda trancada.') + '</p>');
+  }
+  // Lista de anotações com um cabeçalho por dia ("Hoje · qui, 26 nov", "Amanhã · ...", com feriado/pagamento ao lado).
+  function groupedHtml(list) {
+    var last = '', h = '';
+    list.forEach(function (x) {
+      if (x.k !== last) {
+        last = x.k;
+        var rel = relDay(x.k), o = official(x.k);
+        h += '<li class="ag-dayhead" data-jump="' + x.k + '"><b>' + (rel ? esc(rel) + ' · ' : '') + esc(dlabel(day(x.k), { weekday: 'short', day: '2-digit', month: 'short' })) + '</b>' + (o ? '<span class="ag-tag ag-' + esc(o[1]) + '">' + esc(officialName(x.k)) + '</span>' : '') + '</li>';
+      }
+      h += entryHtml(x.k, x.i, x.e, false);
+    });
+    return '<ul class="ag-list">' + h + '</ul>';
+  }
+  function renderFilter() {
+    var mk = month.getFullYear() + '-' + pad(month.getMonth() + 1), cnt = { all: 0 };
+    Object.keys(CATS).forEach(function (c) { cnt[c] = 0; });
+    Object.keys(state.days).forEach(function (k) { if (k.slice(0, 7) !== mk) return; state.days[k].forEach(function (e) { cnt.all++; var c = cleanCat(e.cat); if (c) cnt[c]++; }); });
+    q('[data-filter]').innerHTML = '<button type="button" data-f="" aria-pressed="' + !view.cat + '">Todos<span>' + cnt.all + '</span></button>' + Object.keys(CATS).map(function (c) {
+      return '<button type="button" data-f="' + c + '" style="--cat:' + CATS[c].color + '" aria-pressed="' + (view.cat === c) + '">' + CATS[c].label + '<span>' + cnt[c] + '</span></button>';
+    }).join('');
   }
   function renderList() {
     var search = norm(q('[data-search]').value), mk = month.getFullYear() + '-' + pad(month.getMonth() + 1), t = key(new Date()), ev = [];
     Object.keys(state.days).sort().forEach(function (k) {
       state.days[k].forEach(function (e, i) {
+        if (!catOk(e)) return;
         var dt = dlabel(day(k), { day: '2-digit', month: '2-digit', year: 'numeric' });
         if (search) { if (norm(e.text).indexOf(search) < 0 && dt.indexOf(search) < 0 && (!cleanCat(e.cat) || CATS[cleanCat(e.cat) || 'atendimento'].label.toLowerCase().indexOf(search) < 0)) return; }
         else if (tab === 'month' && k.slice(0, 7) !== mk) return;
@@ -599,7 +652,7 @@
     if (tab === 'next') ev.sort(function (a, b) { return a.k < b.k ? -1 : a.k > b.k ? 1 : 0; });
     q('[data-tabs]').querySelectorAll('[data-tab]').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab && !search); b.setAttribute('aria-selected', b.dataset.tab === tab && !search); });
     q('[data-summary]').textContent = search ? ev.length + ' resultado(s) para a busca' : tab === 'month' ? ev.length + ' anotação(ões) · ' + MONTHS[month.getMonth()] + ' ' + month.getFullYear() : tab === 'pending' ? ev.length + ' pendência(s)' : tab === 'all' ? ev.length + ' anotação(ões) no total · ' + ev.filter(function (x) { return x.e.done; }).length + ' concluída(s)' : ev.length + ' compromisso(s) futuro(s)';
-    q('[data-events]').innerHTML = ev.length ? '<ul class="ag-list">' + ev.slice(0, 1000).map(function (x) { return entryHtml(x.k, x.i, x.e, true); }).join('') + '</ul>' : '<p class="ag-small">' + (search ? 'Nada encontrado.' : tab === 'pending' ? 'Nenhuma pendência.' : tab === 'month' ? 'Nenhuma anotação neste mês.' : tab === 'all' ? 'Nenhuma anotação ainda.' : 'Nenhum compromisso futuro.') + '</p>';
+    q('[data-events]').innerHTML = ev.length ? groupedHtml(ev.slice(0, 1000)) : '<p class="ag-small">' + (search ? 'Nada encontrado.' : tab === 'pending' ? 'Nenhuma pendência.' : tab === 'month' ? 'Nenhuma anotação neste mês.' : tab === 'all' ? 'Nenhuma anotação ainda.' : 'Nenhum compromisso futuro.') + '</p>';
   }
   function goto(d) { chosen = d; if (d.getMonth() !== month.getMonth() || d.getFullYear() !== month.getFullYear()) month = new Date(d.getFullYear(), d.getMonth(), 1, 12); render(); }
   function moveMonth(n) { month = new Date(month.getFullYear(), month.getMonth() + n, 1, 12); var dim = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate(); chosen = new Date(month.getFullYear(), month.getMonth(), Math.min(chosen.getDate(), dim), 12); render(); }
@@ -651,6 +704,13 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
 .ag-bars{display:flex;align-items:flex-end;gap:3px;height:120px;margin:12px 0 4px;padding:0 2px;border-bottom:1px solid var(--ln2)}.ag-bar{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}.ag-bar-col{width:100%;display:flex;flex-direction:column-reverse;min-height:1px}.ag-bar-col i{display:block;min-height:0}.ag-bar span{margin-top:3px;font:8px var(--mono);color:var(--mut)}\
 .d{background:var(--c)}.p{background:var(--fac)}.l{background:var(--fer)}.ag-leg{display:flex;gap:12px;margin:16px 0 8px;font:10px var(--mono);color:var(--mut)}.ag-leg i{display:inline-block;width:9px;height:9px;margin-right:4px}\
 .ag-hb>div{display:grid;grid-template-columns:90px 1fr 26px;gap:8px;align-items:center;margin:4px 0;font:11px var(--mono)}.ag-hb-t{height:7px;background:#04141d;border:1px solid var(--ln)}.ag-hb-t i{display:block;height:100%}.ag-hb b{text-align:right;color:var(--c2)}\
+.ag-filter{display:flex;gap:4px;flex-wrap:wrap;padding:6px 0 0}#pa-agenda .ag-filter button{border:1px solid var(--cat,var(--ln2));background:transparent;color:var(--cat,var(--t));padding:3px 9px;border-radius:2px;font:600 10px var(--hud);letter-spacing:.05em;text-transform:uppercase}#pa-agenda .ag-filter button[aria-pressed="true"]{background:color-mix(in srgb,var(--cat,var(--c)) 26%,transparent);box-shadow:0 0 0 1px var(--cat,var(--c)) inset}.ag-filter button span{margin-left:5px;font:600 10px var(--mono);opacity:.8}\
+.ag-dots{display:flex;flex-wrap:wrap;gap:3px;align-items:center;margin-top:5px}.ag-dots i{width:8px;height:8px;border-radius:50%;background:var(--cat);box-shadow:0 0 5px var(--cat)}.ag-dots i.dn{background:transparent;border:1.5px solid var(--cat);box-shadow:none;opacity:.7}.ag-dots em{font:600 9px var(--mono);font-style:normal;color:var(--mut)}\
+.ag-cell.h1{background:color-mix(in srgb,var(--c) 8%,transparent)}.ag-cell.h2{background:color-mix(in srgb,var(--c) 16%,transparent)}.ag-cell.h3{background:color-mix(in srgb,var(--c) 26%,transparent)}.ag-cell.drop{outline:2px dashed var(--c2);outline-offset:-2px;background:#37e6ff33}.ag-note[draggable="true"]{cursor:grab}\
+.ag-dayhead{position:sticky;top:0;z-index:1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 0;padding:5px 2px 4px;border-bottom:1px solid var(--ln2);background:var(--bg);cursor:pointer;font:700 10.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--c2)}.ag-dayhead .ag-tag{margin:0}\
+.ag-prog{height:5px;margin:8px 0 3px;background:#04141d;border:1px solid var(--ln)}.ag-prog i{display:block;height:100%;background:var(--c);box-shadow:0 0 8px var(--c)}.ag-progt{margin:0 0 6px}.ag-rel{margin-left:6px;padding:1px 6px;border-radius:2px;background:#37e6ff26;color:var(--c2);font:600 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;vertical-align:1px}\
+.ag-entry.next{background:linear-gradient(90deg,#37e6ff1f,transparent);box-shadow:inset 3px 0 0 var(--c)}.ag-next{margin-right:6px;font:700 9px var(--mono);letter-spacing:.08em;color:var(--c2);text-transform:uppercase}#pa-agenda .ag-eact button.ag-mv{min-width:26px;padding:0 3px;font:600 10px var(--mono)}\
+@media(max-width:700px){.ag-grid{flex:none}.ag-body{grid-auto-rows:max-content}.ag-cal{flex:none}}\
 @media(max-width:860px){.ag-body{grid-template-columns:minmax(0,1fr) 270px}}\
 @media(max-width:700px){#pa-agenda{inset:4px}.ag-body{grid-template-columns:1fr;overflow:auto;align-content:start}.ag-cal{min-height:420px}.ag-grid{min-height:330px}.ag-side{border-left:0;border-top:1px solid var(--ln);padding:10px 0 0}.ag-months{grid-template-columns:repeat(6,1fr)}.ag-status{margin-left:0}}\
 @media(max-width:560px){#pa-agenda{inset:0;clip-path:none;border:0}.ag-top{gap:5px;padding:7px 8px}.ag-title small{display:none}.ag-btn,.ag-top select{padding:6px 8px}.ag-body{padding:4px 8px}.ag-cell{min-height:46px;padding:2px 3px}.ag-tag,.ag-note{font-size:8.5px}.ag-kpis{grid-template-columns:repeat(3,1fr)}}\
@@ -661,12 +721,12 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
 <button type="button" class="ag-btn" data-prev aria-label="Mês anterior">‹</button><select data-select aria-label="Mês"></select><button type="button" class="ag-btn" data-next aria-label="Próximo mês">›</button>\
 <button type="button" class="ag-btn" data-today>Hoje</button>\
 <span class="ag-seg" role="group" aria-label="Visão"><button type="button" class="ag-btn" data-view-month aria-pressed="true">Mês</button><button type="button" class="ag-btn" data-view-week aria-pressed="false">Semana</button></span>\
-<button type="button" class="ag-btn" data-done-btn aria-pressed="true" title="Mostrar ou ocultar concluídas no calendário">Concluídas</button>\
+<button type="button" class="ag-btn" data-done-btn aria-pressed="true" title="Mostrar ou ocultar concluídas no calendário">Concluídas</button><button type="button" class="ag-btn" data-dots-btn aria-pressed="false" title="Calendário só com pontos coloridos por tipo (V)">Pontos</button>\
 <button type="button" class="ag-btn" data-stats>Estatísticas</button><button type="button" class="ag-btn" data-print title="Imprimir o mês (ou salvar em PDF)">Imprimir</button><button type="button" class="ag-btn" data-keys title="Atalhos do teclado" aria-label="Atalhos do teclado">⌨</button><button type="button" class="ag-btn" data-ics title="Baixar feriados, pagamentos e datas do MDS">.ics</button>\
 <button type="button" class="ag-btn" data-notify>Avisos</button><button type="button" class="ag-btn" data-connect>⟳ Sincronizar</button><button type="button" class="ag-btn" data-lock>Trancar</button><span class="ag-zoom" role="group" aria-label="Tamanho"><button type="button" class="ag-btn" data-zoom-out aria-label="Diminuir o tamanho" title="Diminuir">A−</button><button type="button" class="ag-btn" data-zoom-val aria-label="Tamanho atual (clique para seguir o aplicativo)">100%</button><button type="button" class="ag-btn" data-zoom-in aria-label="Aumentar o tamanho" title="Aumentar">A+</button></span><button type="button" class="ag-btn" data-close>✕ Fechar</button></header>\
 <div class="ag-strip"><span class="ag-chip" data-date-head></span><span class="ag-chip" data-date-kind></span><span class="ag-chip" data-date-notes></span><button type="button" class="ag-chip late" data-late hidden></button><span class="ag-chip mds" data-mds-next hidden></span><span class="ag-chip" data-sync-chip></span><span class="ag-chip ag-status" data-status role="status" aria-live="polite"></span></div>\
 <div class="ag-months" data-months></div>\
-<div class="ag-body"><section class="ag-cal" aria-label="Calendário"><div class="ag-mlabel"><span data-label></span><span data-year></span></div><div class="ag-week" aria-hidden="true">' + WEEK.map(function (x) { return '<div>' + x + '</div>'; }).join('') + '</div><div class="ag-grid" data-grid role="grid" aria-label="Dias do mês"></div><div class="ag-legend" data-legend></div></section>\
+<div class="ag-body"><section class="ag-cal" aria-label="Calendário"><div class="ag-mlabel"><span data-label></span><span data-year></span></div><div class="ag-week" aria-hidden="true">' + WEEK.map(function (x) { return '<div>' + x + '</div>'; }).join('') + '</div><div class="ag-grid" data-grid role="grid" aria-label="Dias do mês"></div><div class="ag-legend" data-legend></div><div class="ag-filter" data-filter role="group" aria-label="Filtrar por tipo"></div></section>\
 <aside class="ag-side" aria-label="Anotações">\
 <div><div class="ag-add"><input data-entry placeholder="Anotar… ex.: amanhã 14h #visita Silva" aria-label="Nova anotação" maxlength="560" autocomplete="off"><button type="button" data-add aria-label="Salvar anotação">＋</button><button type="button" data-cancel-edit hidden aria-label="Cancelar edição">✕</button></div><div class="ag-hint" data-hint></div><div class="ag-catbar" data-catbar></div></div>\
 <div class="ag-card" data-day-card></div>\
@@ -711,6 +771,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     'body.claro .ag-add button{background:#0b7a9120}body.claro .ag-add button:hover{background:#0b7a9140}',
     'body.claro .ag-chk span{background:#fff}body.claro .ag-chk input:checked+span{box-shadow:none}body.claro .ag-chk input:checked+span::after{border-color:#fff}body.claro .ag-cat{color:#fff}body.claro .ag-eact .ag-danger{color:#a32d20}',
     'body.claro .ag-locked,body.claro .ag-modal{background:#eef5f8e8}body.claro .ag-box{background:#fff;box-shadow:0 10px 40px #0b2a3533,0 0 0 1px #0b7a9155}body.claro .ag-box input[type=text],body.claro .ag-box input[type=password]{background:#fff}',
+    'body.claro .ag-prog{background:#e3eef2}body.claro .ag-dots i{box-shadow:none}body.claro .ag-cell.drop{background:#0b7a9133}body.claro .ag-rel{background:#0b7a9120}body.claro .ag-entry.next{background:linear-gradient(90deg,#0b7a911f,transparent)}',
     'body.claro .ag-st-error,body.claro .ag-msg{color:#b3261e}body.claro .ag-kpis div{background:#ffffffb8}body.claro .ag-hb-t{background:#e3eef2}',
     'body.claro .pa-ov{background:#0e2a3366}body.claro .pa-box{background:#fff;box-shadow:0 18px 60px #0b2a3555,0 0 0 1px #0b7a9155}body.claro .pa-pill{background:#0b7a9114}body.claro .pa-x,body.claro .pa-day,body.claro .pa-today,body.claro .pa-sync,body.claro .pa-btn,body.claro .pa-box select,body.claro .pa-box input[type=time]{background:#fff}',
     'body.claro .pa-day.is-today{background:#e0f0f5;box-shadow:none}body.claro .pa-n,body.claro .pa-tag{color:#fff}body.claro .pa-n.ok{color:var(--pag)}body.claro .pa-late{color:#a32d20;background:#c0392b14;border-color:#c0392b88}',
@@ -750,7 +811,19 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     q('[data-months]').onclick = function (e) { var b = e.target.closest('[data-m]'); if (b) { month = new Date(month.getFullYear(), +b.dataset.m, 1, 12); chosen = new Date(month.getFullYear(), month.getMonth(), 1, 12); render(); } };
     q('[data-view-month]').onclick = function () { view.week = false; saveView(); render(); }; q('[data-view-week]').onclick = function () { view.week = true; saveView(); render(); };
     q('[data-done-btn]').onclick = function () { view.hideDone = !view.hideDone; saveView(); render(); };
+    q('[data-dots-btn]').onclick = function () { view.dots = !view.dots; saveView(); render(); };
+    q('[data-filter]').onclick = function (e) { var b = e.target.closest('[data-f]'); if (!b) return; view.cat = cleanCat(b.dataset.f); saveView(); render(); };
     var grid = q('[data-grid]');
+    // Arrastar uma anotação para outro dia (computador).
+    function soltar() { grid.querySelectorAll('.drop').forEach(function (n) { n.classList.remove('drop'); }); }
+    grid.addEventListener('dragstart', function (e) { var n = e.target.closest && e.target.closest('[data-dragday]'); if (!n || !e.dataTransfer) return; e.dataTransfer.setData('text/plain', n.dataset.dragday + '|' + n.dataset.dragi); e.dataTransfer.effectAllowed = 'move'; });
+    grid.addEventListener('dragover', function (e) { var c = e.target.closest('.ag-cell'); if (!c) return; e.preventDefault(); if (!c.classList.contains('drop')) { soltar(); c.classList.add('drop'); } });
+    grid.addEventListener('dragend', soltar);
+    grid.addEventListener('drop', function (e) {
+      var c = e.target.closest('.ag-cell'); if (!c) return; e.preventDefault(); soltar();
+      var p = String(e.dataTransfer.getData('text/plain') || '').split('|');
+      if (p.length === 2 && /^\d{4}-\d\d-\d\d$/.test(p[0])) moveEntry(p[0], +p[1], c.dataset.day);
+    });
     grid.onclick = function (e) { var cd = e.target.closest('[data-cdone]'); if (cd) { e.stopPropagation(); var ck = cd.dataset.day, ci = +cd.dataset.cdone; if (rows(ck)[ci]) toggleDone(ck, ci, !rows(ck)[ci].done); return; } var c = e.target.closest('[data-day]'); if (c) { chosen = day(c.dataset.day); render(); if (!view.week) { var n = q('[data-day="' + c.dataset.day + '"]'); if (n) n.focus({ preventScroll: true }); } } };
     grid.onkeydown = function (e) {
       if (e.target.closest('[data-cdone]')) return;
@@ -766,7 +839,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     q('[data-connect]').onclick = showSetup; q('[data-unlock-open]').onclick = showSetup; q('[data-lock]').onclick = lock;
     q('[data-ics]').onclick = exportIcs;
     q('[data-print]').onclick = function () { window.print(); };
-    q('[data-keys]').onclick = function () { status('Atalhos: T hoje · N anotar · / buscar · [ ] mês anterior/próximo · W mês/semana · D ocultar concluídas · + − tamanho · P imprimir · setas movem o dia', false); };
+    q('[data-keys]').onclick = function () { status('Atalhos: T hoje · N anotar · / buscar · [ ] mês anterior/próximo · W mês/semana · D ocultar concluídas · V pontos · F filtrar por tipo · + − tamanho · P imprimir · setas movem o dia · arraste uma anotação para outro dia', false); };
     q('[data-day-card]').addEventListener('click', function (e) {
       if (!e.target.closest('[data-done-all]')) return;
       var k = key(chosen), l = rows(k).map(function (x) { return Object.assign({}, x, { done: true }); });
@@ -797,6 +870,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     function listClick(e) {
       var t;
       if ((t = e.target.closest('[data-arm]'))) { armed = { k: t.dataset.day, i: +t.dataset.arm }; clearTimeout(armTimer); armTimer = setTimeout(function () { armed = null; render(); }, 5000); render(); return; }
+      if ((t = e.target.closest('[data-move]'))) { var mk0 = t.dataset.day, mv = t.dataset.move; moveEntry(mk0, +t.dataset.i, mv === 'today' ? key(new Date()) : addDays(mk0, +mv)); return; }
       if ((t = e.target.closest('[data-del]'))) { clearTimeout(armTimer); removeEntry(t.dataset.day, +t.dataset.del, t.dataset.scope); return; }
       if ((t = e.target.closest('[data-edit]'))) { startEdit(t.dataset.day, +t.dataset.edit); return; }
       if ((t = e.target.closest('[data-jump]'))) { goto(day(t.dataset.jump)); }
@@ -824,6 +898,8 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
       else if (kk === ']') moveMonth(1);
       else if (kk === 'w') { view.week = !view.week; saveView(); render(); }
       else if (kk === 'd') { view.hideDone = !view.hideDone; saveView(); render(); }
+      else if (kk === 'v') { view.dots = !view.dots; saveView(); render(); }
+      else if (kk === 'f') { var cs = [''].concat(Object.keys(CATS)); view.cat = cs[(cs.indexOf(view.cat) + 1) % cs.length]; saveView(); render(); }
       else if (kk === '+' || kk === '=') stepZoom(1);
       else if (kk === '-') stepZoom(-1);
       else if (kk === 'p') window.print();
@@ -1172,7 +1248,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
   window.PaulusAgenda = {
     abrir: open, init: init, saudacao: greeting, avisos: openAvisos,
     // Ganchos para teste e para o resto do Paulus (somente leitura).
-    _teste: { checkAlerts: checkAlerts, weekSummary: weekSummary, dailyText: dailyText, notify: notify, prefs: function () { return prefs; }, derive: derive, enc: enc, dec: dec, parseQuick: parseQuick, computeYear: computeYear, easter: easter, setKey: function (k) { state.key = k; } },
+    _teste: { checkAlerts: checkAlerts, weekSummary: weekSummary, dailyText: dailyText, notify: notify, prefs: function () { return prefs; }, derive: derive, enc: enc, dec: dec, parseQuick: parseQuick, relDay: relDay, addDays: addDays, dotsHtml: dotsHtml, progressHtml: progressHtml, groupedHtml: groupedHtml, planMove: planMove, cellHtml: cellHtml, setView: function (v) { Object.assign(view, v); }, setDays: function (d) { state.days = d; }, computeYear: computeYear, easter: easter, setKey: function (k) { state.key = k; } },
     pendencias: function (k) { return rows(k || key(new Date())).filter(function (e) { return !e.done; }).map(function (e) { return { texto: e.text, hora: e.time || '', tipo: e.cat || '' }; }); }
   };
 })();

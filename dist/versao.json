@@ -1,6 +1,6 @@
 {
  "versao": "0.36.0",
- "build": "95feb8239451",
+ "build": "f382d319b0ab",
  "commit": null,
  "arquivos": {
   "paulus.v1.js": {
@@ -56,8 +56,8 @@
    "bytes": 24307
   },
   "agenda.js": {
-   "sha256": "143b9dfb38b5cd30",
-   "bytes": 118419
+   "sha256": "865a352b960bb4ae",
+   "bytes": 128351
   },
   "agenda-datas.js": {
    "sha256": "08dafb313e11b1f4",
