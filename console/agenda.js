@@ -196,11 +196,12 @@
     if (e && e.message === 'outra-senha') return 'este dia tem notas feitas com outra senha; nada foi alterado';
     return c || (e && e.message) || 'erro desconhecido';
   }
-  function setSync(s, msg) { state.sync = s; if (msg !== undefined) { state.msg = msg; status(msg, s === 'error'); } paintSync(); }
+  function setSync(s, msg) { state.sync = s; if (msg !== undefined) { state.msg = msg; status(msg, s === 'error'); } paintSync(); refreshGreeting(); }
   function connect(force) {
     var code = state.code;
     if (!code || !state.key) return Promise.resolve();
     if (!force && state.connecting === code && (state.unsub || state.sync === 'connecting')) return Promise.resolve();
+    if (navigator.onLine === false) { state.connecting = ''; setSync('error', 'Sem internet: a agenda sincroniza quando a conexão voltar.'); return Promise.resolve(); }
     state.connecting = code;
     setSync('connecting', 'Conectando ao Firebase do Argo…');
     return ensureFirebase().then(function (fb) {
@@ -704,10 +705,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     q('[data-close]').onclick = function () { open(false); };
     q('[data-connect]').onclick = showSetup; q('[data-unlock-open]').onclick = showSetup; q('[data-lock]').onclick = lock;
     q('[data-ics]').onclick = exportIcs;
-    q('[data-notify]').onclick = function () {
-      if (!('Notification' in window)) { status('Este navegador não oferece avisos do sistema.', true); return; }
-      Notification.requestPermission().then(function (p) { status(p === 'granted' ? 'Avisos do sistema ativados.' : 'Permissão negada; o aviso aparece na agenda aberta.', p !== 'granted'); });
-    };
+    q('[data-notify]').onclick = openAvisos;
     q('[data-late]').onclick = function () { tab = 'pending'; q('[data-search]').value = ''; render(); if (window.confirm('Mover as atrasadas para hoje? (Cancelar só mostra a lista)')) rescheduleLate(); };
     q('[data-add]').onclick = addEntry; q('[data-cancel-edit]').onclick = cancelEdit;
     var inp = q('[data-entry]'); inp.oninput = hint; inp.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); addEntry(); } else if (e.key === 'Escape' && editing) { e.stopPropagation(); cancelEdit(); } };
@@ -749,29 +747,329 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
       else if (state.code && !state.unsub && state.sync !== 'connecting') connect(true);
     }
   }
+  /* ---------- avisos (notificações do sistema) ---------- */
+  var AVISOS = 'paulus.agenda.avisos', ENVIADOS = 'paulus.agenda.enviados', MUDO = 'paulus.agenda.saudacao-mudo', VISTO = 'paulus.agenda.saudacao-visto';
+  var prefs = { lead: 0, daily: '', mute: '' }, sent = { d: '', ids: {} };
+  function loadPrefs() {
+    try { var p = JSON.parse(lsGet(AVISOS) || '{}'); prefs.lead = [0, 5, 15, 30, 60].indexOf(+p.lead) >= 0 ? +p.lead : 0; prefs.daily = /^\d\d:\d\d$/.test(p.daily || '') ? p.daily : ''; prefs.mute = typeof p.mute === 'string' ? p.mute : ''; } catch (_) { /* padrão */ }
+    try { var e = JSON.parse(lsGet(ENVIADOS) || '{}'); sent = e && e.d === key(new Date()) ? { d: e.d, ids: e.ids || {} } : { d: key(new Date()), ids: {} }; } catch (_) { sent = { d: key(new Date()), ids: {} }; }
+  }
+  function savePrefs() { lsSet(AVISOS, JSON.stringify(prefs)); }
+  function markSent(id) { var t = key(new Date()); if (sent.d !== t) sent = { d: t, ids: {} }; sent.ids[id] = 1; lsSet(ENVIADOS, JSON.stringify(sent)); }
+  function wasSent(id) { return sent.d === key(new Date()) && !!sent.ids[id]; }
+  function permState() { return typeof Notification === 'undefined' ? 'sem-suporte' : Notification.permission; }
+  function mutedAlerts() { return prefs.mute === key(new Date()); }
+
+  /* ---------- estilo comum das janelas extras ---------- */
+  function injectCss() {
+    if (document.getElementById('pa-extra-css')) return;
+    var c = [
+      '.pa-ov{--c:#37e6ff;--c2:#8ff4ff;--t:#d6f7ff;--mut:#7fb7c4;--bg:#030d14;--pn:#071a25;--ln:#37e6ff33;--ln2:#37e6ff77;--fer:#ff6b5e;--fac:#ffb347;--pag:#6ee7a8;--mds:#b48cff;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--hud:"Bahnschrift","DIN Alternate","Segoe UI",system-ui,sans-serif;position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;padding:14px;background:#02090fcc;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);font:13px/1.4 var(--hud);color:var(--t)}',
+      '.pa-ov.on{display:flex}.pa-ov *{box-sizing:border-box}',
+      '.pa-box{position:relative;width:100%;max-width:440px;max-height:calc(100dvh - 28px);overflow-y:auto;overscroll-behavior:contain;background:linear-gradient(180deg,#05202e,#02090f);border:1px solid var(--ln2);box-shadow:0 0 40px #37e6ff22 inset,0 18px 60px #000a;animation:paPop .28s ease-out;clip-path:polygon(0 12px,12px 0,calc(100% - 12px) 0,100% 12px,100% calc(100% - 12px),calc(100% - 12px) 100%,12px 100%,0 calc(100% - 12px))}',
+      '@keyframes paPop{from{transform:translateY(14px) scale(.97);opacity:0}to{transform:none;opacity:1}}@media (prefers-reduced-motion:reduce){.pa-box{animation:none}}',
+      '.pa-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 0}',
+      '.pa-pill{font:700 10px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--c);border:1px solid var(--ln2);padding:4px 10px;border-radius:999px;background:#37e6ff14}',
+      '.pa-x{width:32px;height:32px;border-radius:50%;border:1px solid var(--ln2);background:#03111a;color:var(--t);cursor:pointer;font-size:13px;touch-action:manipulation}',
+      '.pa-in{padding:6px 18px 18px}',
+      '.pa-clock{width:min(100%,190px);margin:4px auto 4px;display:block}',
+      '.pa-date{margin:0;text-align:center;font:600 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mut)}',
+      '.pa-title{margin:6px 0 4px;text-align:center;font-size:19px;font-weight:700;color:var(--c2);letter-spacing:.02em}',
+      '.pa-intro{margin:0 0 12px;text-align:center;color:var(--mut);font-size:12.5px}',
+      '.pa-wk-head{display:flex;justify-content:space-between;align-items:center;font:700 10px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--c);margin:4px 0 6px}',
+      '.pa-count{color:var(--mut)}',
+      '.pa-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px}',
+      '.pa-day{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 0 6px;min-height:52px;background:#03111a;border:1px solid var(--ln);color:var(--t);cursor:pointer;border-radius:3px}',
+      '.pa-day small{font:600 9px var(--mono);color:var(--mut);text-transform:uppercase}.pa-day b{font-size:15px}',
+      '.pa-day.is-today{border-color:var(--c);box-shadow:0 0 10px #37e6ff55;background:#0a2431}.pa-day.is-past{opacity:.6}.pa-day.is-wknd small{color:var(--fac)}',
+      '.pa-n{font:700 10px var(--mono);min-width:16px;text-align:center;color:#03111a;background:var(--c);border-radius:8px;padding:0 4px}.pa-n.late{background:var(--fer)}.pa-n.ok{background:transparent;color:var(--pag)}.pa-n.none{background:transparent;color:transparent}',
+      '.pa-k{position:absolute;top:3px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--fac)}.pa-k.md{background:var(--mds)}',
+      '.pa-today{border:1px solid var(--ln);background:#03111a;padding:8px 10px;margin-bottom:8px;border-radius:3px}',
+      '.pa-tag{display:inline-block;font:700 10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:#03111a;background:var(--c);padding:1px 7px;border-radius:2px;margin-bottom:5px}',
+      '.pa-line{display:flex;gap:7px;align-items:baseline;margin:2px 0}.pa-line i{width:7px;height:7px;border-radius:50%;background:var(--cat,var(--c));flex:none;transform:translateY(-1px)}.pa-line time{font:600 11px var(--mono);color:var(--c2);flex:none}.pa-line span{overflow-wrap:anywhere}',
+      '.pa-chip{display:inline-block;font:600 10px var(--mono);padding:1px 7px;border:1px solid var(--ln2);border-radius:999px;color:var(--fac);margin:0 4px 4px 0}.pa-chip.md{color:var(--mds)}',
+      '.pa-muted{color:var(--mut);font-size:12px}',
+      '.pa-prog{display:flex;align-items:center;gap:8px;margin-top:6px;font:600 10px var(--mono);color:var(--mut)}.pa-prog span{flex:1;height:4px;background:#37e6ff22;border-radius:2px;overflow:hidden}.pa-prog i{display:block;height:100%;background:var(--pag)}',
+      '.pa-late{display:flex;justify-content:space-between;width:100%;margin:0 0 8px;padding:8px 10px;border:1px solid #ff6b5e88;background:#ff6b5e14;color:#ffb3ab;cursor:pointer;font:inherit;border-radius:3px;text-align:left}',
+      '.pa-lbl{font:700 10px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--mut);margin:8px 0 4px}',
+      '.pa-list{list-style:none;margin:0 0 8px;padding:0}.pa-list li{display:flex;gap:8px;padding:5px 0;border-top:1px solid var(--ln)}.pa-list li:first-child{border-top:0}.pa-wd{flex:none;width:76px;font:600 11px var(--mono);color:var(--c2)}',
+      '.pa-sync{display:flex;align-items:center;gap:8px;margin:10px 0;padding:8px 10px;border:1px solid var(--ln);background:#03111a;border-radius:3px;font-size:12px}',
+      '.pa-sync .d{flex:none;width:9px;height:9px;border-radius:50%;background:var(--mut)}.pa-sync[data-s=ok] .d{background:var(--pag);box-shadow:0 0 8px var(--pag)}.pa-sync[data-s=error] .d,.pa-sync[data-s=slow] .d{background:var(--fer)}.pa-sync[data-s=connecting] .d{background:var(--fac);animation:paPulse 1s infinite}.pa-sync[data-s=locked] .d{background:var(--fac)}',
+      '@keyframes paPulse{50%{opacity:.3}}@media (prefers-reduced-motion:reduce){.pa-sync[data-s=connecting] .d{animation:none}}',
+      '.pa-sync .tx{flex:1}.pa-retry{display:none;flex:none}.pa-sync[data-s=error] .pa-retry,.pa-sync[data-s=slow] .pa-retry{display:inline-block}',
+      '.pa-btn{padding:9px 12px;min-height:40px;border:1px solid var(--ln2);background:#03111a;color:var(--t);font:600 12px var(--hud);cursor:pointer;border-radius:3px;touch-action:manipulation}.pa-btn:hover{border-color:var(--c)}.pa-btn.primary{background:linear-gradient(180deg,#37e6ff,#1fb6d4);color:#03111a;border-color:var(--c);font-weight:700}',
+      '.pa-btns{display:grid;gap:8px;margin-top:6px}.pa-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}',
+      '.pa-mute{display:flex;align-items:center;gap:8px;margin-top:12px;color:var(--mut);font-size:12px;cursor:pointer}.pa-mute input{width:16px;height:16px;accent-color:#37e6ff}',
+      '.pa-box label.pa-f{display:block;margin:12px 0 4px;font:700 10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--c)}',
+      '.pa-box select,.pa-box input[type=time]{width:100%;padding:9px;min-height:40px;border:1px solid var(--ln2);background:#03111a;border-radius:3px;color:var(--t);font:13px var(--mono)}',
+      '.pa-row{display:flex;gap:8px;align-items:center;margin-top:12px}.pa-row input[type=checkbox]{width:16px;height:16px;accent-color:#37e6ff}',
+      '.pa-box h3{margin:0;padding:6px 18px 0;font-size:17px;color:var(--c2)}.pa-box p.pa-note{margin:8px 18px 0;color:var(--mut);font-size:12px}',
+      '.pa-ov button:focus-visible,.pa-ov select:focus-visible,.pa-ov input:focus-visible{outline:2px solid var(--c2);outline-offset:1px}',
+      '#pa-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:130;max-width:min(92vw,420px);display:flex;flex-direction:column;gap:2px;text-align:left;padding:10px 14px;border:1px solid #37e6ff;background:#031722f5;color:#d6f7ff;font:13px/1.35 "Bahnschrift","Segoe UI",system-ui,sans-serif;cursor:pointer;box-shadow:0 0 24px #37e6ff55;border-radius:4px}#pa-toast[hidden]{display:none}#pa-toast b{color:#8ff4ff}#pa-toast span{white-space:pre-line;color:#9fd3df}'
+    ].join('\n');
+    var st = document.createElement('style'); st.id = 'pa-extra-css'; st.textContent = c; document.head.appendChild(st);
+  }
+  function overlay(id, inner, label) {
+    injectCss();
+    var o = document.getElementById(id);
+    if (!o) { o = document.createElement('div'); o.id = id; o.className = 'pa-ov'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); document.body.appendChild(o); }
+    o.setAttribute('aria-label', label); o.innerHTML = inner; return o;
+  }
+
+  /* ---------- aviso dentro do app (quando o sistema não está liberado) ---------- */
+  function toast(title, body) {
+    injectCss();
+    var t = document.getElementById('pa-toast');
+    if (!t) { t = document.createElement('button'); t.type = 'button'; t.id = 'pa-toast'; t.onclick = function () { t.hidden = true; open(true); }; document.body.appendChild(t); }
+    t.innerHTML = '<b></b><span></span>'; t.firstChild.textContent = title; t.lastChild.textContent = body; t.hidden = false;
+    clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, 9000);
+  }
+  // Aviso do sistema (pelo service worker, que também funciona no celular). Sem permissão, aparece o cartão dentro do Paulus.
+  function notify(title, body, tag) {
+    var inApp = function () { toast(title, body); return 'app'; };
+    if (permState() !== 'granted') return Promise.resolve(inApp());
+    var opts = { body: body, icon: 'icon-192.png', badge: 'icon-192.png', tag: tag || 'paulus-agenda', renotify: true, data: { abrir: 'agenda' } };
+    var simples = function () { try { var n = new Notification(title, opts); n.onclick = function () { window.focus(); open(true); }; return 'sistema'; } catch (_) { return inApp(); } };
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.ready) return Promise.resolve(simples());
+    return Promise.race([
+      navigator.serviceWorker.ready.then(function (reg) { return reg.showNotification(title, opts).then(function () { return 'sistema'; }); }),
+      new Promise(function (r) { setTimeout(function () { r('lento'); }, 2500); })
+    ]).then(function (r) { return r === 'lento' ? simples() : r; }, function () { return simples(); });
+  }
+
+  /* ---------- verificação periódica: anotações com hora e resumo diário ---------- */
+  function minutes(hm) { var p = hm.split(':'); return +p[0] * 60 + +p[1]; }
+  function dailyText() {
+    var s = weekSummary(), td = s.days.filter(function (d) { return d.isToday; })[0], lines = [], parts = [];
+    var ord = order(td.open.map(function (e) { return e; }));
+    ord.slice(0, 5).forEach(function (i) { var e = td.open[i]; parts.push((cleanTime(e.time) ? e.time + ' ' : '') + e.text); });
+    if (td.open.length > 5) parts.push('+' + (td.open.length - 5));
+    var off = officialName(td.k);
+    if (off) lines.push(off);
+    if (parts.length) lines.push('HOJE: ' + parts.join(' · '));
+    if (s.late) lines.push('⚠ ' + s.late + (s.late === 1 ? ' anotação atrasada' : ' anotações atrasadas'));
+    var next = s.days.filter(function (d) { return !d.isToday && d.k > td.k && (d.open.length || d.o || d.md.length); }).slice(0, 3).map(function (d) { return WEEK[d.d.getDay()] + ' ' + dlabel(d.d) + ' — ' + (d.open[0] ? d.open[0].text : d.o ? officialName(d.k) : mdsText(d.md[0])); });
+    if (next.length) lines.push('Próximos: ' + next.join(' · '));
+    return { title: 'Agenda Paulus — Hoje: ' + (td.open.length ? td.open.length + (td.open.length === 1 ? ' anotação' : ' anotações') : off || 'nada marcado'), body: lines.join('\n'), empty: !td.open.length && !off && !s.late && !next.length };
+  }
   function checkAlerts() {
-    if (!state.key) return;
-    var now = new Date(), k = key(now), hm = pad(now.getHours()) + ':' + pad(now.getMinutes());
+    if (!state.key || mutedAlerts()) return;
+    var now = new Date(), k = key(now), nowMin = now.getHours() * 60 + now.getMinutes(), lead = prefs.lead;
     rows(k).forEach(function (e) {
-      var id = k + '|' + e.createdAt + '|' + e.time;
-      if (e.time === hm && !e.done && !alerted[id]) {
-        alerted[id] = 1;
-        if ('Notification' in window && Notification.permission === 'granted') { try { new Notification('Agenda Paulus', { body: (e.time ? e.time + ' ' : '') + e.text }); } catch (_) { /* sem permissão */ } }
-        if (ui) status('Agora: ' + e.text, false);
+      var t = cleanTime(e.time); if (!t || e.done) return;
+      var id = 'n|' + k + '|' + e.createdAt + '|' + t, at = minutes(t);
+      if (wasSent(id) || alerted[id]) return;
+      if (nowMin >= at - lead && nowMin <= at + 10) {
+        alerted[id] = 1; markSent(id);
+        var falta = at - nowMin;
+        notify((falta > 0 ? 'Em ' + falta + ' min' : 'Agora') + ' · ' + t, e.text + (cleanCat(e.cat) ? ' (' + CATS[e.cat].label + ')' : ''), id);
+        if (ui) status((falta > 0 ? 'Em ' + falta + ' min: ' : 'Agora: ') + e.text, false);
       }
     });
+    if (prefs.daily && !wasSent('resumo|' + k) && nowMin >= minutes(prefs.daily) && nowMin <= minutes(prefs.daily) + 360) {
+      markSent('resumo|' + k);
+      var d = dailyText(); if (!d.empty) notify(d.title, d.body, 'paulus-resumo');
+    }
   }
+
+  /* ---------- janela de configuração dos avisos ---------- */
+  function openAvisos() {
+    var st = permState();
+    var stTxt = { granted: 'Avisos do sistema: ativados neste aparelho.', denied: 'Avisos do sistema: bloqueados pelo navegador. Libere nas configurações do site; até lá, os avisos aparecem aqui dentro.', 'default': 'Avisos do sistema: ainda não ativados. Sem isso, os avisos aparecem só dentro do Paulus.', 'sem-suporte': 'Este navegador não oferece avisos do sistema; os avisos aparecem dentro do Paulus.' }[st];
+    var opts = [[0, 'No horário'], [5, '5 minutos antes'], [15, '15 minutos antes'], [30, '30 minutos antes'], [60, '1 hora antes']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === prefs.lead ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('');
+    var o = overlay('pa-avisos', '<div class="pa-box"><div class="pa-head"><span class="pa-pill">Avisos</span><button type="button" class="pa-x" data-av-x aria-label="Fechar">✕</button></div>' +
+      '<h3>Avisos da agenda</h3><p class="pa-note" data-av-perm>' + esc(stTxt) + '</p>' +
+      '<div class="pa-in"><div class="pa-btns"><button type="button" class="pa-btn primary" data-av-perm-btn' + (st === 'granted' || st === 'sem-suporte' || st === 'denied' ? ' hidden' : '') + '>Ativar avisos do sistema</button></div>' +
+      '<label class="pa-f" for="pa-av-lead">Anotações com horário</label><select id="pa-av-lead" data-av-lead>' + opts + '</select>' +
+      '<div class="pa-row"><input type="checkbox" id="pa-av-d" data-av-daily-on' + (prefs.daily ? ' checked' : '') + '><label for="pa-av-d">Resumo do dia, às</label><input type="time" data-av-daily value="' + esc(prefs.daily || '08:00') + '" style="width:auto"></div>' +
+      '<div class="pa-row"><input type="checkbox" id="pa-av-m" data-av-mute' + (mutedAlerts() ? ' checked' : '') + '><label for="pa-av-m">Silenciar os avisos hoje</label></div>' +
+      '<p class="pa-muted" style="margin:12px 0 0">Os avisos saem com o Paulus aberto (no celular, também com ele em segundo plano, enquanto o navegador o mantiver ativo). Com o app fechado, nada é enviado.</p>' +
+      '<div class="pa-pair" style="margin-top:12px"><button type="button" class="pa-btn" data-av-test>Enviar aviso de teste</button><button type="button" class="pa-btn" data-av-close>Fechar</button></div></div></div>', 'Avisos da agenda');
+    var g = function (s) { return o.querySelector(s); };
+    var fechar = function () { o.classList.remove('on'); };
+    var salvar = function () {
+      prefs.lead = +g('[data-av-lead]').value; prefs.daily = g('[data-av-daily-on]').checked && /^\d\d:\d\d$/.test(g('[data-av-daily]').value) ? g('[data-av-daily]').value : '';
+      prefs.mute = g('[data-av-mute]').checked ? key(new Date()) : ''; savePrefs();
+    };
+    g('[data-av-x]').onclick = g('[data-av-close]').onclick = function () { salvar(); fechar(); };
+    o.onclick = function (e) { if (e.target === o) { salvar(); fechar(); } };
+    o.onkeydown = function (e) { if (e.key === 'Escape') { salvar(); fechar(); } };
+    ['[data-av-lead]', '[data-av-daily-on]', '[data-av-daily]', '[data-av-mute]'].forEach(function (s) { g(s).onchange = salvar; });
+    var pb = g('[data-av-perm-btn]');
+    pb.onclick = function () {
+      Notification.requestPermission().then(function (p) {
+        g('[data-av-perm]').textContent = p === 'granted' ? 'Avisos do sistema: ativados neste aparelho.' : 'Permissão não concedida; os avisos aparecem dentro do Paulus.';
+        pb.hidden = true;
+      });
+    };
+    g('[data-av-test]').onclick = function () { salvar(); notify('Agenda Paulus', 'Aviso de teste: está funcionando.', 'paulus-teste').then(function (r) { g('[data-av-perm]').textContent = r === 'sistema' ? 'Aviso de teste enviado pelo sistema.' : 'Aviso de teste mostrado dentro do Paulus (o sistema não está liberado).'; }); };
+    o.classList.add('on'); g('[data-av-x]').focus();
+  }
+
+  /* ---------- cartão de abertura (igual ao do Argo: relógio, resumo da semana, estado da sincronização) ---------- */
+  var gShownAt = 0, gSlow = 0, gClock = 0, gFocus = null;
+  function mutedToday() { return lsGet(MUDO) === key(new Date()); }
+  function lateCount() { return lateList().length; }
+  function weekSummary() {
+    var now = new Date(), tk = key(now);
+    var days = weekDates(now).map(function (d) {
+      var k = key(d), all = rows(k);
+      return { k: k, d: d, o: official(k), md: mds()[k] || [], open: all.filter(function (e) { return !e.done; }), done: all.filter(function (e) { return e.done; }).length, isToday: k === tk, past: k < tk };
+    });
+    return { tk: tk, days: days, late: lateCount() };
+  }
+  function nextMilestone(from) {
+    for (var i = 1; i <= 120; i++) {
+      var d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i, 12), k = key(d);
+      if (official(k)) return { d: d, days: i, text: officialName(k) };
+      var m = mds()[k]; if (m && m.length) return { d: d, days: i, text: 'MDS: ' + mdsText(m[0]) };
+    }
+    return null;
+  }
+  function whenWord(n) { return n === 1 ? 'amanhã' : 'em ' + n + ' dias'; }
+  function greetWord() { var h = new Date().getHours(); return h < 5 ? 'Boa madrugada' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }
+  function introSeen() { return lsGet(VISTO) === '1'; }
+  function headline() {
+    var w = greetWord();
+    if (!introSeen()) return w + '! Eu sou o Paulus';
+    var s = weekSummary(), td = s.days.filter(function (d) { return d.isToday; })[0], off = officialName(td.k);
+    if (off) return w + '! Hoje: ' + off;
+    if (td.open.length) return w + '! Hoje: ' + td.open.length + (td.open.length === 1 ? ' anotação' : ' anotações');
+    if (s.late) return w + '! ' + s.late + (s.late === 1 ? ' pendência atrasada' : ' pendências atrasadas');
+    return w + '! Eu sou o Paulus';
+  }
+  function syncInfo() {
+    if (!state.code) return { k: 'none', t: 'Sincronização ainda não configurada neste aparelho.' };
+    if (!state.key) return { k: 'locked', t: 'Agenda trancada — desbloqueie com a senha da equipe para ler e sincronizar as anotações.' };
+    if (navigator.onLine === false) return { k: 'error', t: 'Você está offline — a sincronização volta assim que a internet voltar.' };
+    if (state.sync === 'error') return { k: 'error', t: state.msg || 'Sem conexão com a sincronização. Confira a internet.' };
+    if (state.sync === 'ok' && state.lastSync) return { k: 'ok', t: 'Sincronizado às ' + pad(state.lastSync.getHours()) + ':' + pad(state.lastSync.getMinutes()) + ' · anotações em dia' };
+    if (Date.now() - gShownAt > 8000) return { k: 'slow', t: 'A sincronização está demorando — verifique a internet.' };
+    return { k: 'connecting', t: 'Sincronizando anotações…' };
+  }
+  function clockSvg() {
+    var t = '';
+    for (var i = 0; i < 60; i++) { var big = i % 5 === 0, a = i * 6 * Math.PI / 180, r1 = big ? 84 : 89, r2 = 94; t += '<line x1="' + (100 + Math.sin(a) * r1).toFixed(1) + '" y1="' + (100 - Math.cos(a) * r1).toFixed(1) + '" x2="' + (100 + Math.sin(a) * r2).toFixed(1) + '" y2="' + (100 - Math.cos(a) * r2).toFixed(1) + '" stroke="#37e6ff" stroke-opacity="' + (big ? '.9' : '.35') + '" stroke-width="' + (big ? 2 : 1) + '"/>'; }
+    return '<svg class="pa-clock" viewBox="0 0 200 200" role="img" aria-label="Relógio"><circle cx="100" cy="100" r="97" fill="#03111a" stroke="#37e6ff" stroke-opacity=".5"/>' + t +
+      '<text x="100" y="140" text-anchor="middle" fill="#7fb7c4" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="10" letter-spacing="2">PAULUS</text>' +
+      '<line data-h x1="100" y1="100" x2="100" y2="58" stroke="#d6f7ff" stroke-width="5" stroke-linecap="round"/><line data-m x1="100" y1="100" x2="100" y2="38" stroke="#8ff4ff" stroke-width="3.5" stroke-linecap="round"/><line data-s x1="100" y1="112" x2="100" y2="30" stroke="#ff6b5e" stroke-width="1.5" stroke-linecap="round"/><circle cx="100" cy="100" r="4.5" fill="#37e6ff"/></svg>';
+  }
+  function tickClock(box) {
+    var h = box.querySelector('[data-h]'), m = box.querySelector('[data-m]'), s = box.querySelector('[data-s]'); if (!h) return;
+    var n = new Date(), sec = n.getSeconds(), min = n.getMinutes() + sec / 60, hr = (n.getHours() % 12) + min / 60;
+    h.setAttribute('transform', 'rotate(' + (hr * 30).toFixed(1) + ' 100 100)'); m.setAttribute('transform', 'rotate(' + (min * 6).toFixed(1) + ' 100 100)'); s.setAttribute('transform', 'rotate(' + (sec * 6) + ' 100 100)');
+  }
+  function weekHtml() {
+    var s = weekSummary(), tk = s.tk, total = 0;
+    var strip = s.days.map(function (d) {
+      var n = d.open.length; total += n;
+      var badge = n ? '<span class="pa-n' + (d.past ? ' late' : '') + '">' + n + '</span>' : d.done ? '<span class="pa-n ok" aria-hidden="true">✓</span>' : '<span class="pa-n none" aria-hidden="true">0</span>';
+      var lbl = WEEK[d.d.getDay()] + ' ' + d.d.getDate() + (d.o ? ', ' + officialName(d.k) : '') + (n ? ', ' + n + (n === 1 ? ' pendente' : ' pendentes') : d.done ? ', tudo concluído' : ', nada marcado');
+      return '<button type="button" class="pa-day' + (d.isToday ? ' is-today' : '') + (d.past ? ' is-past' : '') + (d.d.getDay() === 0 || d.d.getDay() === 6 ? ' is-wknd' : '') + '" data-d="' + d.k + '" aria-label="' + esc(lbl) + '"><small>' + WEEK[d.d.getDay()] + '</small><b>' + d.d.getDate() + '</b>' + badge + (d.o ? '<i class="pa-k"></i>' : d.md.length ? '<i class="pa-k md"></i>' : '') + '</button>';
+    }).join('');
+    var td = s.days.filter(function (d) { return d.isToday; })[0];
+    var h = '<div class="pa-wk-head"><span>Resumo da semana</span>' + (total ? '<span class="pa-count">' + total + (total === 1 ? ' item' : ' itens') + '</span>' : '') + '</div><div class="pa-strip" role="group" aria-label="Dias desta semana">' + strip + '</div>';
+    var lines = '';
+    if (td.o) lines += '<span class="pa-chip">' + esc(officialName(td.k)) + '</span>';
+    td.md.slice(0, 2).forEach(function (it) { lines += '<span class="pa-chip md">' + esc(mdsCat(it) + ': ' + mdsText(it)) + '</span>'; });
+    order(td.open).slice(0, 4).forEach(function (i) { var e = td.open[i], c = cleanCat(e.cat); lines += '<div class="pa-line"' + (c ? ' style="--cat:' + CATS[c].color + '"' : '') + '><i></i>' + (cleanTime(e.time) ? '<time>' + esc(e.time) + '</time>' : '') + '<span>' + esc(e.text) + '</span></div>'; });
+    if (td.open.length > 4) lines += '<div class="pa-muted">+ ' + (td.open.length - 4) + ' na agenda</div>';
+    var all = td.open.length + td.done;
+    if (all) lines += '<div class="pa-prog" role="img" aria-label="' + td.done + ' de ' + all + ' concluídas"><span><i style="width:' + Math.round(td.done / all * 100) + '%"></i></span>' + td.done + ' de ' + all + '</div>';
+    if (!state.key) lines += '<div class="pa-muted">As anotações estão trancadas; só as datas oficiais aparecem.</div>';
+    h += '<div class="pa-today"><span class="pa-tag">Hoje</span>' + (lines || '<div class="pa-muted">nada marcado</div>') + '</div>';
+    if (s.late) h += '<button type="button" class="pa-late" data-late><span>⚠ ' + s.late + (s.late === 1 ? ' anotação atrasada' : ' anotações atrasadas') + '</span><span>Ver pendências ›</span></button>';
+    var rest = s.days.filter(function (d) { return d.k > tk && (d.open.length || d.o || d.md.length); });
+    if (rest.length) {
+      h += '<div class="pa-lbl">Próximos dias</div><ul class="pa-list">' + rest.slice(0, 4).map(function (d) {
+        var n = Math.round((d.d - day(tk)) / 86400000), c = '';
+        if (d.o) c += '<span class="pa-chip">' + esc(officialName(d.k)) + '</span>';
+        if (d.md[0]) c += '<span class="pa-chip md">' + esc('MDS: ' + mdsText(d.md[0])) + '</span>';
+        if (d.open[0]) c += '<div>' + esc(d.open[0].text) + (d.open.length > 1 ? ' <span class="pa-muted">+' + (d.open.length - 1) + '</span>' : '') + '</div>';
+        return '<li><span class="pa-wd">' + (n === 1 ? 'Amanhã' : WEEK[d.d.getDay()] + ' ' + dlabel(d.d)) + '</span><div>' + c + '</div></li>';
+      }).join('') + '</ul>';
+    } else {
+      var nx = nextMilestone(new Date());
+      if (nx) h += '<div class="pa-lbl">Próximo marco</div><ul class="pa-list"><li><span class="pa-wd">' + WEEK[nx.d.getDay()] + ' ' + dlabel(nx.d) + '</span><div><span class="pa-chip">' + esc(nx.text) + '</span> <span class="pa-muted">' + whenWord(nx.days) + '</span></div></li></ul>';
+      else if (!total) h += '<div class="pa-muted">Nada marcado para esta semana.</div>';
+    }
+    return h;
+  }
+  function refreshGreeting() {
+    var o = document.getElementById('pa-saudacao'); if (!o || !o.classList.contains('on')) return;
+    var w = o.querySelector('[data-g-week]'); if (w) w.innerHTML = weekHtml();
+    var si = syncInfo(), row = o.querySelector('[data-g-sync]'); row.dataset.s = si.k; row.querySelector('.tx').textContent = si.t;
+    o.querySelector('[data-g-yes]').textContent = !state.key ? 'Desbloquear agenda' : state.code ? 'Ver agenda e sincronização' : 'Configurar sincronização';
+  }
+  function dismissGreeting() {
+    var o = document.getElementById('pa-saudacao'); if (!o) return;
+    var c = o.querySelector('[data-g-mute]');
+    if (c) lsSet(MUDO, c.checked ? key(new Date()) : null);
+    clearTimeout(gSlow); clearInterval(gClock); o.classList.remove('on');
+    if (gFocus && gFocus.focus) { try { gFocus.focus(); } catch (_) { /* sem foco */ } }
+  }
+  function greeting() {
+    var first = !introSeen();
+    var o = overlay('pa-saudacao', '<div class="pa-box" tabindex="-1"><div class="pa-head"><span class="pa-pill">🔔 Notificação</span><button type="button" class="pa-x" data-g-x aria-label="Fechar notificação">✕</button></div>' +
+      '<div class="pa-in">' + clockSvg() + '<p class="pa-date" data-g-date></p><h2 class="pa-title" data-g-title></h2><p class="pa-intro" data-g-intro></p>' +
+      '<div data-g-week></div>' +
+      '<div class="pa-sync" data-g-sync data-s="none" role="status" aria-live="polite"><span class="d" aria-hidden="true"></span><span class="tx"></span><button type="button" class="pa-btn pa-retry" data-g-retry>Tentar de novo</button></div>' +
+      '<div class="pa-btns"><button type="button" class="pa-btn primary" data-g-yes>Ver agenda e sincronização</button>' +
+      '<div class="pa-pair"><button type="button" class="pa-btn" data-g-note>＋ Anotar para hoje</button><button type="button" class="pa-btn" data-g-av>Avisos…</button></div>' +
+      '<button type="button" class="pa-btn" data-g-no>Agora não</button></div>' +
+      '<label class="pa-mute"><input type="checkbox" data-g-mute><span>Não mostrar de novo hoje</span></label></div></div>', 'Notificação de abertura da agenda');
+    var g = function (s) { return o.querySelector(s); };
+    var d = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+    g('[data-g-date]').textContent = d.charAt(0).toUpperCase() + d.slice(1);
+    g('[data-g-title]').textContent = headline();
+    g('[data-g-intro]').textContent = first ? 'Sou seu painel de apoio: a agenda da semana, as anotações sincronizadas com o Argo e os avisos nos horários que você marcar — tudo cifrado no aparelho.' : 'Aqui está o resumo antes de começar.';
+    if (first) lsSet(VISTO, '1');
+    gFocus = document.activeElement;
+    gShownAt = Date.now(); o.classList.add('on'); refreshGreeting();
+    tickClock(o); clearInterval(gClock); gClock = setInterval(function () { tickClock(o); }, 1000);
+    // Código salvo e agenda aberta: conecta agora, em segundo plano, para o resumo já sair com as anotações dos outros aparelhos.
+    if (state.code && state.key && !state.unsub && state.sync !== 'connecting') connect(false);
+    clearTimeout(gSlow); gSlow = setTimeout(refreshGreeting, 8100);
+    g('[data-g-x]').onclick = g('[data-g-no]').onclick = dismissGreeting;
+    o.onclick = function (e) {
+      if (e.target === o) { dismissGreeting(); return; }
+      var late = e.target.closest('[data-late]'), dia = e.target.closest('[data-d]');
+      if (late) { dismissGreeting(); tab = 'pending'; open(true); }
+      else if (dia) { var k = dia.dataset.d; dismissGreeting(); open(true); if (state.key) goto(day(k)); }
+    };
+    o.onkeydown = function (e) { if (e.key === 'Escape') dismissGreeting(); };
+    g('[data-g-yes]').onclick = function () { dismissGreeting(); open(true); if (state.key && !state.code) showSetup(); };
+    g('[data-g-note]').onclick = function () { dismissGreeting(); open(true); if (state.key) { var i = q('[data-entry]'); if (i) i.focus(); } };
+    g('[data-g-av]').onclick = function () { dismissGreeting(); openAvisos(); };
+    g('[data-g-retry]').onclick = function () {
+      var b = g('[data-g-retry]'); if (!state.code || !state.key) { dismissGreeting(); open(true); return; }
+      b.disabled = true; b.textContent = 'Tentando…'; gShownAt = Date.now(); connect(true); refreshGreeting();
+      clearTimeout(gSlow); gSlow = setTimeout(refreshGreeting, 8100);
+      setTimeout(function () { b.disabled = false; b.textContent = 'Tentar de novo'; }, 2500);
+    };
+    g('.pa-box').focus({ preventScroll: true });
+  }
+
   function init() {
-    state.code = lsGet(CODE) || ''; loadView();
+    state.code = lsGet(CODE) || ''; loadView(); loadPrefs();
     if (keyRestore()) {
       if (loadLocal()) { if (state.code) connect(false); } else { state.key = null; }
     }
     setInterval(checkAlerts, 15000);
+    // Internet de volta: reconecta sozinho se a sincronização tinha caído; o cartão de abertura acompanha.
+    window.addEventListener('online', function () { if (state.code && state.key && state.sync === 'error') connect(true); refreshGreeting(); });
+    window.addEventListener('offline', refreshGreeting);
+    // Toque num aviso do sistema: o service worker pede para abrir a agenda.
+    if ('serviceWorker' in navigator) { try { navigator.serviceWorker.addEventListener('message', function (e) { if (e.data && e.data.paulusAgenda === 'abrir') open(true); }); } catch (_) { /* sem service worker */ } }
+    if (location.hash === '#agenda') { setTimeout(function () { open(true); }, 400); return; }
+    // Cartão de abertura (como no Argo), a menos que a pessoa tenha pedido para não mostrar hoje.
+    if (!mutedToday()) setTimeout(greeting, 900);
+    checkAlerts();
   }
   window.PaulusAgenda = {
-    abrir: open, init: init,
+    abrir: open, init: init, saudacao: greeting, avisos: openAvisos,
     // Ganchos para teste e para o resto do Paulus (somente leitura).
-    _teste: { derive: derive, enc: enc, dec: dec, parseQuick: parseQuick, computeYear: computeYear, easter: easter, setKey: function (k) { state.key = k; } },
+    _teste: { checkAlerts: checkAlerts, weekSummary: weekSummary, dailyText: dailyText, notify: notify, prefs: function () { return prefs; }, derive: derive, enc: enc, dec: dec, parseQuick: parseQuick, computeYear: computeYear, easter: easter, setKey: function (k) { state.key = k; } },
     pendencias: function (k) { return rows(k || key(new Date())).filter(function (e) { return !e.done; }).map(function (e) { return { texto: e.text, hora: e.time || '', tipo: e.cat || '' }; }); }
   };
 })();
