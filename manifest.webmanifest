@@ -33,5 +33,37 @@
  "categories": [
   "productivity",
   "education"
+ ],
+ "shortcuts": [
+  {
+   "name": "Agenda",
+   "short_name": "Agenda",
+   "description": "Abrir a agenda",
+   "url": "./#agenda",
+   "icons": [
+    {
+     "src": "icon-192.png",
+     "sizes": "192x192",
+     "type": "image/png"
+    }
+   ]
+  },
+  {
+   "name": "Nova anotação",
+   "short_name": "Anotar",
+   "description": "Anotar na agenda",
+   "url": "./#agenda-nova",
+   "icons": [
+    {
+     "src": "icon-192.png",
+     "sizes": "192x192",
+     "type": "image/png"
+    }
+   ]
+  }
+ ],
+ "display_override": [
+  "standalone",
+  "minimal-ui"
  ]
 }
