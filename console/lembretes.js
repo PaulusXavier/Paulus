@@ -168,7 +168,8 @@
   function sistema(l) {
     try {
       if (typeof Notification === 'undefined' || Notification.permission !== 'granted' || document.visibilityState === 'visible') return;
-      var o = { body: l.texto, tag: l.id, icon: 'icon-192.png', badge: 'icon-192.png', lang: 'pt-BR', renotify: true, vibrate: [180, 90, 180], data: { abrir: 'agenda' } };
+      var o = { body: l.texto, tag: l.id, icon: 'icon-192.png', badge: 'icon-192.png', lang: 'pt-BR', renotify: true, vibrate: [180, 90, 180], timestamp: l.quando, data: { abrir: 'agenda', lembrete: l.id } };
+      try { var max = typeof Notification.maxActions === 'number' ? Notification.maxActions : 2; var acts = [{ action: 'adiar10', title: '⏰ +10 min' }, { action: 'adiar60', title: '⏰ +1 h' }].slice(0, max); if (acts.length) o.actions = acts; } catch (e) { /* sem botões */ }
       var simples = function () { try { new Notification('Paulus · lembrete', { body: l.texto, tag: l.id }); } catch (e) { /* segue */ } };
       if (typeof navigator !== 'undefined' && navigator.serviceWorker && navigator.serviceWorker.ready) {
         Promise.race([navigator.serviceWorker.ready.then(function (r) { return r.showNotification('Paulus · lembrete', o); }), new Promise(function (_, no) { setTimeout(no, 2500); })]).catch(simples);
@@ -191,16 +192,31 @@
     }
     return vencidos;
   }
+  // Adiar um lembrete que já avisou: ele volta a valer daqui a "min" minutos (botões do aviso do sistema).
+  function adiar(id, min) {
+    ler(); var l = lista.filter(function (x) { return x.id === id; })[0];
+    if (!l) return false;
+    l.quando = Date.now() + Math.max(1, Math.min(+min || 10, 24 * 60)) * 60000; l.avisado = false;
+    lista.sort(function (a, b) { return a.quando - b.quando; }); gravar(); return true;
+  }
   function init(o) {
     cfg = o || {}; ler();
     if (temporizador) clearInterval(temporizador);
     disparar();
     temporizador = setInterval(function () { disparar(); }, 20000);
     try { document.addEventListener('visibilitychange', aoVoltar); window.addEventListener('pageshow', aoVoltar); } catch (e) { /* sem documento (testes) */ }
+    // Botões do aviso (+10 min / +1 h): o service worker manda a mensagem, ou abre o app com #lembrete!adiar=MIN&id=ID quando ele estava fechado.
+    try {
+      var mh = /^#lembrete!adiar=(\d+)&id=(.+)$/.exec(location.hash || '');
+      if (mh) { adiar(decodeURIComponent(mh[2]), +mh[1]); history.replaceState(null, '', location.pathname + location.search); }
+      if (typeof navigator !== 'undefined' && navigator.serviceWorker && navigator.serviceWorker.addEventListener) {
+        navigator.serviceWorker.addEventListener('message', function (e) { var d = e.data || {}; if (d.paulusLembrete === 'adiar' && typeof d.id === 'string') adiar(d.id, +d.min); });
+      }
+    } catch (e) { /* segue */ }
   }
 
   window.PaulusLembretes = {
-    init: init, interpretar: interpretar, executar: executar, disparar: disparar, pendentes: pendentes,
+    init: init, adiar: adiar, interpretar: interpretar, executar: executar, disparar: disparar, pendentes: pendentes,
     recibo: function () { var r = ultimo; ultimo = null; return r; },
     _quandoDe: quandoDe, _redefinir: function () { lista = null; }
   };

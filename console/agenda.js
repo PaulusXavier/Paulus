@@ -1154,9 +1154,9 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
   }
   /* ---------- avisos (notificações do sistema) ---------- */
   var AVISOS = 'paulus.agenda.avisos', ENVIADOS = 'paulus.agenda.enviados', MUDO = 'paulus.agenda.saudacao-mudo', VISTO = 'paulus.agenda.saudacao-visto';
-  var prefs = { lead: 0, daily: '', mute: '', hide: false, vib: true }, sent = { d: '', ids: {} }, ADIADOS = 'paulus.agenda.adiados', LEMBRAR = 'paulus.agenda.lembrar';
+  var prefs = { lead: 0, daily: '', mute: '', hide: false, vib: true, atTime: true, eve: '', quiet: false, qFrom: '22:00', qTo: '07:00' }, sent = { d: '', ids: {} }, ADIADOS = 'paulus.agenda.adiados', LEMBRAR = 'paulus.agenda.lembrar';
   function loadPrefs() {
-    try { var p = JSON.parse(lsGet(AVISOS) || '{}'); prefs.lead = [0, 5, 15, 30, 60].indexOf(+p.lead) >= 0 ? +p.lead : 0; prefs.daily = /^\d\d:\d\d$/.test(p.daily || '') ? p.daily : ''; prefs.mute = typeof p.mute === 'string' ? p.mute : ''; prefs.hide = !!p.hide; prefs.vib = p.vib !== false; } catch (_) { /* padrão */ }
+    try { var p = JSON.parse(lsGet(AVISOS) || '{}'); prefs.lead = [0, 5, 15, 30, 60, 120].indexOf(+p.lead) >= 0 ? +p.lead : 0; prefs.daily = /^\d\d:\d\d$/.test(p.daily || '') ? p.daily : ''; prefs.mute = typeof p.mute === 'string' ? p.mute : ''; prefs.hide = !!p.hide; prefs.vib = p.vib !== false; prefs.atTime = p.atTime !== false; prefs.eve = /^\d\d:\d\d$/.test(p.eve || '') ? p.eve : ''; prefs.quiet = !!p.quiet; prefs.qFrom = /^\d\d:\d\d$/.test(p.qFrom || '') ? p.qFrom : '22:00'; prefs.qTo = /^\d\d:\d\d$/.test(p.qTo || '') ? p.qTo : '07:00'; } catch (_) { /* padrão */ }
     try { var e = JSON.parse(lsGet(ENVIADOS) || '{}'); sent = e && e.d === key(new Date()) ? { d: e.d, ids: e.ids || {} } : { d: key(new Date()), ids: {} }; } catch (_) { sent = { d: key(new Date()), ids: {} }; }
   }
   function savePrefs() { lsSet(AVISOS, JSON.stringify(prefs)); }
@@ -1255,8 +1255,9 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     if (permState() !== 'granted' || (visible && !extra.forceSystem)) return Promise.resolve(inApp());
     var sysTitle = title, sysBody = body;
     if (prefs.hide && !extra.forceSystem) { sysTitle = 'Agenda Paulus'; sysBody = extra.hidden || 'Você tem um aviso na agenda.'; }
-    var opts = { body: sysBody, icon: 'icon-192.png', badge: 'icon-192.png', tag: tag || 'paulus-agenda', renotify: true, lang: 'pt-BR', timestamp: Date.now(), data: Object.assign({ abrir: 'agenda' }, extra.data || {}) };
-    if (prefs.vib) opts.vibrate = [180, 90, 180];
+    var opts = { body: sysBody, icon: 'icon-192.png', badge: 'icon-192.png', tag: tag || 'paulus-agenda', renotify: true, lang: 'pt-BR', timestamp: extra.when || Date.now(), data: Object.assign({ abrir: 'agenda' }, extra.data || {}) };
+    if (prefs.vib) opts.vibrate = extra.stay ? [250, 100, 250, 100, 400] : [180, 90, 180];
+    if (extra.stay) opts.requireInteraction = true;   // computador: o aviso fica até alguém dispensar (o Android decide sozinho)
     var simples = function () { try { var o2 = Object.assign({}, opts); delete o2.actions; delete o2.vibrate; var n = new Notification(sysTitle, o2); n.onclick = function () { window.focus(); open(true); }; return 'sistema'; } catch (_) { return inApp(); } };
     if (!('serviceWorker' in navigator) || !navigator.serviceWorker.ready) return Promise.resolve(simples());
     if (extra.actions) {
@@ -1297,7 +1298,14 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
       var id = alertId(k, e, t, i), at = minutes(t);
       if (sn[id]) { if (now.getTime() >= sn[id]) out.fresh.push({ id: id, e: e, t: t, k: k, falta: 0, snoozed: true }); return; }
       if (wasSent(id) || alerted[id]) return;
-      if (nowMin >= at - lead) (nowMin <= at + 10 ? out.fresh : out.missed).push({ id: id, e: e, t: t, k: k, falta: at - nowMin });
+      if (nowMin >= at - lead) (nowMin <= at + 10 ? out.fresh : out.missed).push({ id: id, e: e, t: t, k: k, falta: at - nowMin, base: id });
+      // Com antecedência, o aviso volta na hora certa (só depois que o primeiro saiu; o mesmo cartão é trocado, sem empilhar).
+    });
+    if (lead > 0 && prefs.atTime) rows(k).forEach(function (e, i) {
+      var t = cleanTime(e.time); if (!t || e.done) return;
+      var id = alertId(k, e, t, i), id2 = id + '|h', at = minutes(t);
+      if (sn[id] || wasSent(id2) || alerted[id2]) return;
+      if ((wasSent(id) || alerted[id]) && nowMin >= at && nowMin <= at + 10) out.fresh.push({ id: id2, e: e, t: t, k: k, falta: 0, base: id, naHora: true });
     });
     return out;
   }
@@ -1305,13 +1313,32 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     alerted[a.id] = 1; markSent(a.id); if (a.snoozed) snoozeSet(a.id, null);
     var cat = cleanCat(a.e.cat) ? ' (' + CATS[a.e.cat].label + ')' : '';
     var ttl = (a.snoozed ? 'Adiado · ' : a.falta > 0 ? 'Em ' + a.falta + ' min · ' : 'Agora · ') + a.t;
-    notify(ttl, a.e.text + cat, a.id, { actions: true, hidden: 'Compromisso às ' + a.t, data: { id: a.id } });
+    var hm = a.t.split(':'), quando = new Date(); quando.setHours(+hm[0], +hm[1], 0, 0);
+    notify(ttl, a.e.text + cat, a.base || a.id, { actions: true, stay: a.falta <= 0, when: quando.getTime(), hidden: 'Compromisso às ' + a.t, data: { id: a.base || a.id } });
     if (ui) status((a.falta > 0 ? 'Em ' + a.falta + ' min: ' : 'Agora: ') + a.e.text, false);
+  }
+  function inQuiet(now) {
+    if (!prefs.quiet) return false;
+    var n = now.getHours() * 60 + now.getMinutes(), a = minutes(prefs.qFrom), b = minutes(prefs.qTo);
+    return a === b ? false : a < b ? (n >= a && n < b) : (n >= a || n < b);
+  }
+  // Resumo da noite: o que está marcado para amanhã.
+  function eveText() {
+    var t = new Date(), n = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1, 12), k = key(n), open = rows(k).filter(function (e) { return !e.done; }), lines = [], parts = [];
+    var ord = order(open); ord.slice(0, 5).forEach(function (i) { var e = open[i]; parts.push((cleanTime(e.time) ? e.time + ' ' : '') + e.text); });
+    if (open.length > 5) parts.push('+' + (open.length - 5));
+    var off = officialName(k), md = mds()[k] || [];
+    if (off) lines.push(off);
+    if (md.length) lines.push('MDS: ' + mdsText(md[0]));
+    if (parts.length) lines.push('AMANHÃ: ' + parts.join(' · '));
+    var late = lateCount(); if (late) lines.push('⚠ ' + late + (late === 1 ? ' anotação atrasada' : ' anotações atrasadas'));
+    return { title: 'Agenda Paulus — Amanhã: ' + (open.length ? open.length + (open.length === 1 ? ' anotação' : ' anotações') : off || 'nada marcado'), body: lines.join('\n'), empty: !open.length && !off && !md.length };
   }
   function checkAlerts() {
     if (!state.key) return;
     updateBadge();
     if (mutedAlerts()) return;
+    if (inQuiet(new Date())) return;               // horário de silêncio: nada toca; ao terminar, o que passou vira um aviso só
     var now = new Date(), k = key(now), nowMin = now.getHours() * 60 + now.getMinutes(), d = dueAlerts(now);
     d.fresh.forEach(fireAlert);
     if (d.missed.length) {
@@ -1323,12 +1350,17 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
       markSent('resumo|' + k);
       var dt = dailyText(); if (!dt.empty) notify(dt.title, dt.body, 'paulus-resumo', { hidden: 'Seu resumo do dia está pronto' });
     }
+    if (prefs.eve && !wasSent('noite|' + k) && nowMin >= minutes(prefs.eve) && nowMin <= minutes(prefs.eve) + 180) {
+      markSent('noite|' + k);
+      var et = eveText(); if (!et.empty) notify(et.title, et.body, 'paulus-noite', { hidden: 'Seu resumo de amanhã está pronto' });
+    }
   }
 
   /* Toque nos botões do aviso (Concluir / +10 min) ou no aviso: o service worker manda para cá. id = "n|AAAA-MM-DD|criada|HH:MM". */
   var pendingAct = null;
   function applyAction(acao, id) {
     var p = String(id || '').split('|');
+    id = p.slice(0, 4).join('|');                   // tira o sufixo do aviso extra da hora
     if (p[0] !== 'n' || !/^\d{4}-\d\d-\d\d$/.test(p[1] || '') || !cleanTime(p[3])) return false;
     var k = p[1], list = rows(k), idx = -1;
     list.forEach(function (e, i) { if (idx < 0 && cleanTime(e.time) === p[3] && String(e.createdAt || i) === p[2]) idx = i; });
@@ -1352,29 +1384,35 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
   function openAvisos() {
     var st = permState();
     var stTxt = { granted: 'Avisos do sistema: ativados neste aparelho.', denied: 'Avisos do sistema: bloqueados pelo navegador. Libere nas configurações do site (cadeado ao lado do endereço); até lá, os avisos aparecem aqui dentro.', 'default': 'Avisos do sistema: ainda não ativados. Sem isso, os avisos aparecem só dentro do Paulus.', 'sem-suporte': 'Este navegador não oferece avisos do sistema; os avisos aparecem dentro do Paulus.' }[st];
-    var opts = [[0, 'No horário'], [5, '5 minutos antes'], [15, '15 minutos antes'], [30, '30 minutos antes'], [60, '1 hora antes']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === prefs.lead ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('');
+    var opts = [[0, 'No horário'], [5, '5 minutos antes'], [15, '15 minutos antes'], [30, '30 minutos antes'], [60, '1 hora antes'], [120, '2 horas antes']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === prefs.lead ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('');
     var hint = installHint();
     var o = overlay('pa-avisos', '<div class="pa-box"><div class="pa-top" data-grab><div class="pa-grab" aria-hidden="true"><i></i></div><div class="pa-head"><span class="pa-pill">Avisos</span><button type="button" class="pa-x" data-av-x aria-label="Fechar">✕</button></div></div>' +
       '<h3>Avisos da agenda</h3><p class="pa-note" data-av-perm>' + esc(stTxt) + '</p>' + (hint ? '<p class="pa-note pa-hint" data-av-hint>' + esc(hint) + '</p>' : '') +
       '<div class="pa-in"><div class="pa-btns"><button type="button" class="pa-btn primary" data-av-perm-btn' + (st === 'granted' || st === 'sem-suporte' || st === 'denied' ? ' hidden' : '') + '>Ativar avisos do sistema</button>' +
       '<button type="button" class="pa-btn" data-av-install' + (installEvt && !standalone() ? '' : ' hidden') + '>Instalar o Paulus neste aparelho</button></div>' +
       '<label class="pa-f" for="pa-av-lead">Anotações com horário</label><select id="pa-av-lead" data-av-lead>' + opts + '</select>' +
+      '<div class="pa-row"><input type="checkbox" id="pa-av-t" data-av-attime' + (prefs.atTime ? ' checked' : '') + '><label for="pa-av-t">Avisar de novo na hora <span class="pa-muted">(quando há antecedência)</span></label></div>' +
+      '<div class="pa-row"><input type="checkbox" id="pa-av-e" data-av-eve-on' + (prefs.eve ? ' checked' : '') + '><label for="pa-av-e">Resumo de amanhã, às</label><input type="time" data-av-eve value="' + esc(prefs.eve || '20:00') + '" style="width:auto"></div>' +
+      '<div class="pa-row"><input type="checkbox" id="pa-av-q" data-av-quiet-on' + (prefs.quiet ? ' checked' : '') + '><label for="pa-av-q">Silêncio das</label><input type="time" data-av-qfrom value="' + esc(prefs.qFrom) + '" style="width:auto"><span>às</span><input type="time" data-av-qto value="' + esc(prefs.qTo) + '" style="width:auto"></div>' +
       '<div class="pa-row"><input type="checkbox" id="pa-av-d" data-av-daily-on' + (prefs.daily ? ' checked' : '') + '><label for="pa-av-d">Resumo do dia, às</label><input type="time" data-av-daily value="' + esc(prefs.daily || '08:00') + '" style="width:auto"></div>' +
       '<div class="pa-row"><input type="checkbox" id="pa-av-m" data-av-mute' + (mutedAlerts() ? ' checked' : '') + '><label for="pa-av-m">Silenciar os avisos hoje</label></div>' +
       '<div class="pa-row"><input type="checkbox" id="pa-av-h" data-av-hide' + (prefs.hide ? ' checked' : '') + '><label for="pa-av-h">Esconder o texto na tela bloqueada <span class="pa-muted">(mostra só "Compromisso às 14:00")</span></label></div>' +
       '<div class="pa-row"><input type="checkbox" id="pa-av-v" data-av-vib' + (prefs.vib ? ' checked' : '') + '><label for="pa-av-v">Vibrar ao avisar</label></div>' +
-      '<p class="pa-muted" style="margin:12px 0 0">Os avisos saem com o Paulus aberto ou em segundo plano, enquanto o celular o mantiver ativo. Com o app fechado, nada é enviado — por isso, ao abrir, o Paulus avisa o que passou. No aviso, use <b>Concluir</b> ou <b>+10 min</b> sem abrir o app.</p>' +
+      '<p class="pa-muted" style="margin:12px 0 0">Os avisos saem com o Paulus aberto ou em segundo plano, enquanto o celular o mantiver ativo. No Android, para não perder avisos: Configurações → Apps → Paulus → Bateria → "Sem restrições". Com o app fechado, nada é enviado — por isso, ao abrir, o Paulus avisa o que passou. No aviso, use <b>Concluir</b> ou <b>+10 min</b> sem abrir o app.</p>' +
       '<div class="pa-pair" style="margin-top:12px"><button type="button" class="pa-btn" data-av-test>Enviar aviso de teste</button><button type="button" class="pa-btn" data-av-close>Fechar</button></div></div></div>', 'Avisos da agenda');
     var g = function (s) { return o.querySelector(s); };
     var fechar = function () { o.classList.remove('on'); };
     var salvar = function () {
       prefs.lead = +g('[data-av-lead]').value; prefs.daily = g('[data-av-daily-on]').checked && /^\d\d:\d\d$/.test(g('[data-av-daily]').value) ? g('[data-av-daily]').value : '';
-      prefs.mute = g('[data-av-mute]').checked ? key(new Date()) : ''; prefs.hide = g('[data-av-hide]').checked; prefs.vib = g('[data-av-vib]').checked; savePrefs();
+      prefs.mute = g('[data-av-mute]').checked ? key(new Date()) : ''; prefs.hide = g('[data-av-hide]').checked; prefs.vib = g('[data-av-vib]').checked; prefs.atTime = g('[data-av-attime]').checked;
+      prefs.eve = g('[data-av-eve-on]').checked && /^\d\d:\d\d$/.test(g('[data-av-eve]').value) ? g('[data-av-eve]').value : '';
+      prefs.quiet = g('[data-av-quiet-on]').checked && /^\d\d:\d\d$/.test(g('[data-av-qfrom]').value) && /^\d\d:\d\d$/.test(g('[data-av-qto]').value); if (/^\d\d:\d\d$/.test(g('[data-av-qfrom]').value)) prefs.qFrom = g('[data-av-qfrom]').value; if (/^\d\d:\d\d$/.test(g('[data-av-qto]').value)) prefs.qTo = g('[data-av-qto]').value;
+      savePrefs();
     };
     g('[data-av-x]').onclick = g('[data-av-close]').onclick = function () { salvar(); fechar(); };
     o.onclick = function (e) { if (e.target === o) { salvar(); fechar(); } };
     o.onkeydown = function (e) { if (e.key === 'Escape') { salvar(); fechar(); } };
-    ['[data-av-lead]', '[data-av-daily-on]', '[data-av-daily]', '[data-av-mute]', '[data-av-hide]', '[data-av-vib]'].forEach(function (s) { g(s).onchange = salvar; });
+    ['[data-av-lead]', '[data-av-daily-on]', '[data-av-daily]', '[data-av-mute]', '[data-av-hide]', '[data-av-vib]', '[data-av-attime]', '[data-av-eve-on]', '[data-av-eve]', '[data-av-quiet-on]', '[data-av-qfrom]', '[data-av-qto]'].forEach(function (s) { g(s).onchange = salvar; });
     swipeDown(o.querySelector('.pa-box'), o.querySelector('[data-grab]'), function () { salvar(); fechar(); });
     var pb = g('[data-av-perm-btn]');
     pb.onclick = function () {
@@ -1385,7 +1423,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     };
     var ib = g('[data-av-install]');
     ib.onclick = function () { if (!installEvt) return; var ev = installEvt; installEvt = null; ib.hidden = true; try { ev.prompt(); } catch (_) { /* sem instalação */ } };
-    g('[data-av-test]').onclick = function () { salvar(); notify('Agenda Paulus', 'Aviso de teste: está funcionando.', 'paulus-teste', { forceSystem: true, hidden: 'Aviso de teste' }).then(function (r) { g('[data-av-perm]').textContent = r === 'sistema' ? 'Aviso de teste enviado pelo sistema. Se não apareceu, confira as notificações do aparelho.' : 'Aviso de teste mostrado dentro do Paulus (o sistema não está liberado).'; }); };
+    g('[data-av-test]').onclick = function () { salvar(); notify('Agenda Paulus', 'Aviso de teste: está funcionando. Veja os botões Concluir e +10 min.', 'paulus-teste', { forceSystem: true, actions: true, hidden: 'Aviso de teste' }).then(function (r) { g('[data-av-perm]').textContent = r === 'sistema' ? 'Aviso de teste enviado pelo sistema. Se não apareceu, confira as notificações do aparelho.' : 'Aviso de teste mostrado dentro do Paulus (o sistema não está liberado).'; }); };
     o.classList.add('on'); g('[data-av-x]').focus();
   }
   // Arrastar a alça (ou o topo) de uma janela para baixo fecha — gesto comum nas janelas de baixo do celular.
@@ -1583,7 +1621,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
   window.PaulusAgenda = {
     abrir: open, init: init, saudacao: greeting, avisos: openAvisos,
     // Ganchos para teste e para o resto do Paulus (somente leitura).
-    _teste: { checkAlerts: checkAlerts, dueAlerts: dueAlerts, applyAction: applyAction, quickSet: quickSet, snoozed: snoozed, snoozeSet: snoozeSet, alertId: alertId, weekSummary: weekSummary, dailyText: dailyText, notify: notify, prefs: function () { return prefs; }, derive: derive, enc: enc, dec: dec, parseQuick: parseQuick, relDay: relDay, addDays: addDays, dotsHtml: dotsHtml, progressHtml: progressHtml, groupedHtml: groupedHtml, planMove: planMove, cellHtml: cellHtml, setView: function (v) { Object.assign(view, v); }, setDays: function (d) { state.days = d; }, days: function () { return state.days; }, computeYear: computeYear, easter: easter, setKey: function (k) { state.key = k; } },
+    _teste: { checkAlerts: checkAlerts, dueAlerts: dueAlerts, applyAction: applyAction, quickSet: quickSet, snoozed: snoozed, snoozeSet: snoozeSet, alertId: alertId, weekSummary: weekSummary, dailyText: dailyText, eveText: eveText, inQuiet: inQuiet, notify: notify, prefs: function () { return prefs; }, derive: derive, enc: enc, dec: dec, parseQuick: parseQuick, relDay: relDay, addDays: addDays, dotsHtml: dotsHtml, progressHtml: progressHtml, groupedHtml: groupedHtml, planMove: planMove, cellHtml: cellHtml, setView: function (v) { Object.assign(view, v); }, setDays: function (d) { state.days = d; }, days: function () { return state.days; }, computeYear: computeYear, easter: easter, setKey: function (k) { state.key = k; } },
     pendencias: function (k) { return rows(k || key(new Date())).filter(function (e) { return !e.done; }).map(function (e) { return { texto: e.text, hora: e.time || '', tipo: e.cat || '' }; }); }
   };
 })();
