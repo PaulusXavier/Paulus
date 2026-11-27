@@ -1464,6 +1464,16 @@ body{
 .ab-crono table{width:100%;border-collapse:collapse;margin-top:6px}
 .ab-crono th,.ab-crono td{padding:4px 6px;border-bottom:1px solid var(--bd);text-align:left}
 #ab-mes{width:100%;min-height:40px;border-radius:10px}
+.rv-topo{display:flex;align-items:center;gap:6px}
+.rv-itens li{display:grid;gap:4px;padding:6px 0}
+.rv-itens input[type=text]{width:100%;min-height:36px;border-radius:8px;font:12px var(--hud)}
+.rv-st{min-height:1.2em;margin:0;color:var(--mut);font:11px/1.4 var(--hud)}
+.rv-st button{background:none;border:0;color:var(--c2);text-decoration:underline;cursor:pointer;font:inherit}
+.rv-expl{margin:0;color:var(--mut);font:12px/1.5 var(--hud)}
+#rv-total[data-cheio="1"]{color:#f87171}
+#rv-aprendido,#rv-status{overflow-wrap:anywhere;font:13px/1.5 var(--hud)}
+#rv-status{min-height:1.5em;color:var(--c2)}
+.bf-report-actions #rv-apagar{min-height:36px;padding:0 12px;border-radius:10px}
 @media(max-width:520px){.bf-report-inner{padding:18px 14px}.bf-report-grid{grid-template-columns:1fr}}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
@@ -1536,7 +1546,7 @@ body{
 <dialog id="bf-report" class="bf-report" aria-labelledby="bf-report-title">
   <div class="bf-report-inner">
     <div class="bf-report-head">
-      <div><h2 id="bf-report-title">Relatórios locais</h2><p>Etapas 1 a 3 e 5 · tabelas, divisão por técnico, PDFs individuais e abrigos</p></div>
+      <div><h2 id="bf-report-title">Relatórios locais</h2><p>Etapas 1 a 3, 5 e 6 · tabelas, divisão por técnico, PDFs individuais, abrigos e rota de visita</p></div>
       <button id="bf-fechar" class="bf-report-close" type="button" aria-label="Fechar e limpar os ficheiros">×</button>
     </div>
     <p class="bf-report-note">As planilhas são lidas e comparadas neste aparelho. Não são anexadas à conversa, gravadas ou enviadas à rede/IA. Limite: 5 MB por ficheiro.</p>
@@ -1571,6 +1581,18 @@ body{
       <p id="ab-total" role="status">0/60 arquivos</p>
       <div id="ab-lista"></div>
       <p id="ab-status" role="status" aria-live="polite"></p>
+    </section>
+    <section class="bf-report-section" aria-labelledby="bf-rv-title">
+      <h3 id="bf-rv-title">Etapa 6 · Rota de Visita — unificar folhas de família</h3>
+      <p>Junte as folhas resumo (PDF, uma por família) das visitas do dia num só PDF, na ordem de visita: primeiro o Bloco 1, depois o Bloco 2. O Paulus lê só <strong>rua, número e bairro</strong> do quadro de endereço de cada folha (nome, NIS e CPF não entram na leitura); folhas escaneadas passam por OCR no aparelho. Até 30 PDFs e 50 MB. Nada sai do aparelho.</p>
+      <p id="rv-total" role="status">0/30 arquivos</p>
+      <div id="rv-lista"></div>
+      <label class="bf-report-check"><input id="rv-manter" type="checkbox"><span>Manter as folhas na janela depois de gerar o PDF.</span></label>
+      <div class="bf-report-actions"><button id="rv-organizar" class="ab-gerar" type="button" disabled>Organizar rota</button><button id="rv-gerar" class="ab-gerar" type="button" disabled>Gerar PDF unificado da rota</button></div>
+      <p id="rv-aprendido" role="status"></p>
+      <div class="bf-report-actions"><button id="rv-apagar" type="button" disabled>Apagar o que aprendi das ruas</button></div>
+      <p id="rv-status" role="status" aria-live="polite"></p>
+      <p>A ordem é uma sugestão local por texto (partida: Rua Santo Agostinho, nº 193 — Centenário), sem mapa, trânsito nem distância. Confira os endereços e ajuste com ↑ e ↓: o Paulus aprende, neste aparelho, quais ruas você costuma visitar em sequência.</p>
     </section>
     <p class="bf-report-note">Ao fechar esta janela, os dados temporários são removidos. É necessária uma tabela de condicionalidades com a coluna “Efeito” e NIS ou CPF do responsável.</p>
   </div>
@@ -1645,5 +1667,6 @@ body{
 <script src="docs.js"></script>
 <script type="module" src="relatorios-ui.mjs"></script>
 <script type="module" src="abrigos-ui.mjs"></script>
+<script type="module" src="rota-visita-ui.mjs"></script>
 <script src="login.js"></script>
 </body></html>
