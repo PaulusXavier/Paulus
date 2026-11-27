@@ -174,7 +174,7 @@ export function responderPorExtracao(pergunta, achados, opcoes) {
       if (comRotulo.length / raizes.length < (EXT_COBERTURA[tipo] || 0.6)) return;
       if (!tem.length && comRotulo.length < raizes.length) return;
       // definição: a frase tem de ser SOBRE o termo (ele aparece no começo), não citá-lo de passagem
-      if (tipo === 'definicao' && !tem.some(function (r) { const k = nf.indexOf(r); return k >= 0 && k < 70; })) return;
+      if (tipo === 'definicao' && !tem.some(function (r) { const k = nf.indexOf(r); return k >= 0 && k < 100; })) return;
       // definição: "é um/uma..." só vale colado ao termo (no máximo uma palavra no meio); "A gestão do CAPS-AD também é um espaço" fala de outra coisa
       if (tipo === 'definicao' && !EXT_RE_DEF_FORTE.test(nf) && !tem.some(function (r) { const k = nf.indexOf(r); return k >= 0 && /^\S*(?:\s+\S+){0,1}?\s+(?:e|sao)\s+(?:um|uma|o|a|os|as)\b/.test(nf.slice(k)); })) return;
       // pergunta com UMA só palavra de assunto: ela tem de estar no título do trecho ou no começo da frase (senão "depressivos" no fim de uma frase de outro quadro serviria)
