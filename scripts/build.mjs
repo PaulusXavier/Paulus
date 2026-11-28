@@ -118,7 +118,7 @@ export function construir() {
   if (existsSync(dic)) cpSync(dic, join(saida, 'spell'), { recursive: true });
   else console.warn('AVISO: falta vendor/spell: a revisão fica só com as regras, sem o dicionário de português.');
   // instalável (PWA): procura em console/ e, se não achar, na raiz do repositório
-  for (const f of ['manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png']) {
+  for (const f of ['manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png', 'icon-1024.png', 'icon-maskable-512.png']) {
     const origem = [join(RAIZ, 'console', f), join(RAIZ, f)].find(existsSync);
     if (!origem) throw new Error('Falta ' + f + ' (em console/ ou na raiz do repositório).');
     copyFileSync(origem, join(saida, f));
