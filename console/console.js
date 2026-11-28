@@ -602,6 +602,10 @@
       var ul = h('ul'); (r.telefones || []).forEach(function (t) { ul.appendChild(h('li', {}, [h('a', { href: 'tel:' + String(t.numero).replace(/\D/g, ''), text: t.numero }), ' ' + (t.nome || '')])); });
       corpo.appendChild(ul);
     }
+    if (r.tipo === 'revisao' && r.original && window.PaulusOrtografia && window.PaulusOrtografia.disponivel()) {
+      // dicionário de português (o do Verbus), conferido no aparelho sobre o texto já com as correções por regra
+      x.m.appendChild(window.PaulusOrtografia.painel(r.corrigido || r.original));
+    }
     if (r.tipo === 'busca') {
       var lb = h('ul');
       (r.itens || []).forEach(function (it) {
