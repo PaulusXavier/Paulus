@@ -1,11 +1,11 @@
 // Service worker do Console do Paulus: guarda a tela para abrir sem internet. Rede primeiro (atualiza sozinho), cache como reserva.
 // Só arquivos do próprio site; as perguntas à IA (Worker, outro domínio) nunca passam pelo cache.
 var V = 'paulus-console-v7';
-var BASE = ['./', 'index.html', 'paulus.v1.js', 'login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'relatorios-ui.mjs', 'relatorios-bf.mjs', 'relatorios-abrigos.mjs', 'abrigos-ui.mjs', 'rota-folhas.mjs', 'rota-visita-ui.mjs', 'planilhas-mds.mjs', 'planilhas-mds-ui.mjs', 'agenda-pdf.mjs', 'relatorio-individual-pdf.mjs', 'visitas.mjs', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
+var BASE = ['./', 'index.html', 'paulus.v1.js', 'login.js', 'console.js', 'advanced.js', 'ortografia.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'relatorios-ui.mjs', 'relatorios-bf.mjs', 'relatorios-abrigos.mjs', 'abrigos-ui.mjs', 'rota-folhas.mjs', 'rota-visita-ui.mjs', 'planilhas-mds.mjs', 'planilhas-mds-ui.mjs', 'agenda-pdf.mjs', 'relatorio-individual-pdf.mjs', 'visitas.mjs', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
 // Para funcionar sem internet logo na primeira vez: a base de normas, o editor de PDF e o mapa também ficam guardados na instalação.
 // Um a um e sem derrubar a instalação se algum falhar (arquivo pesado, rede lenta, ainda não publicado): o que faltar entra no cache quando for usado.
 // A base entra UMA vez, inteira (é o que o console carrega). Os pacotes geral/psicologia são as duas metades dela e só servem aos apps que os copiam.
-var EXTRAS = ['conhecimento.json', 'pdf-lib.min.js', 'pdf-encrypt.umd.js', 'jspdf.umd.min.js', 'jszip.min.js', 'pdf.min.mjs', 'pdf.worker.min.mjs', 'leaflet.js', 'lugares-boa-vista.json', 'xlsx.bundle.js',
+var EXTRAS = ['spell/pt.aff', 'spell/pt.dic', 'spell/spell-worker.js', 'conhecimento.json', 'pdf-lib.min.js', 'pdf-encrypt.umd.js', 'jspdf.umd.min.js', 'jszip.min.js', 'pdf.min.mjs', 'pdf.worker.min.mjs', 'leaflet.js', 'lugares-boa-vista.json', 'xlsx.bundle.js',
   // OCR da Rota de Visita (folha escaneada): leitor, idioma e núcleo moderno ficam guardados para funcionar em campo sem internet; o núcleo antigo entra se for usado
   'tesseract/tesseract.min.js', 'tesseract/worker.min.js', 'tesseract/lang/por.traineddata.gz', 'tesseract/core/tesseract-core-simd-lstm.wasm.js'];
 // Rede ruim (sinal que "existe" mas não anda): depois deste tempo, se já há cópia guardada, ela é usada em vez de esperar a rede. Sem cópia, espera a rede.
