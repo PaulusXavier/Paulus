@@ -102,7 +102,7 @@ export function construir() {
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'console.html'));
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'index.html')); // a raiz do site (…/Paulus/) abre o console
   // tela de login (carrega o console.js só depois de entrar) e o próprio console.js, se existir
-  for (const f of ['login.js', 'console.js', 'advanced.js', 'ortografia.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'relatorios-ui.mjs', 'relatorio-individual-pdf.mjs', 'abrigos-ui.mjs', 'rota-visita-ui.mjs', 'planilhas-mds-ui.mjs', 'agenda-pdf.mjs', 'mapa-rotas.css', 'mapa-util.js', 'mapa-foco.js', 'mapa-offline.js', 'mapa-folhas.js', 'mapa-nuvem.js', 'mapa-rotas.js', 'mapa-ui.js']) { const o = join(RAIZ, 'console', f); if (existsSync(o)) copyFileSync(o, join(saida, f)); }
+  for (const f of ['login.js', 'console.js', 'advanced.js', 'ortografia.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'relatorios-ui.mjs', 'relatorio-individual-pdf.mjs', 'abrigos-ui.mjs', 'rota-visita-ui.mjs', 'planilhas-mds-ui.mjs', 'agenda-pdf.mjs', 'mapa-rotas.css', 'mapa-util.js', 'mapa-foco.js', 'mapa-offline.js', 'mapa-folhas.js', 'mapa-nuvem.js', 'mapa-rotas.js', 'mapa-ui.js', 'relatorios-nav.js']) { const o = join(RAIZ, 'console', f); if (existsSync(o)) copyFileSync(o, join(saida, f)); }
   copyFileSync(join(RAIZ, 'shared', 'relatorios-bf.mjs'), join(saida, 'relatorios-bf.mjs'));
   copyFileSync(join(RAIZ, 'shared', 'relatorios-abrigos.mjs'), join(saida, 'relatorios-abrigos.mjs'));
   copyFileSync(join(RAIZ, 'shared', 'rota-folhas.mjs'), join(saida, 'rota-folhas.mjs'));
