@@ -36,7 +36,7 @@
   /* ---------- estado ---------- */
   var state = { days: {}, locked: {}, dirty: {}, code: '', key: null, db: null, unsub: null, sync: 'off', lastSync: null, connecting: '' };
   var ui = null, month = new Date(), chosen = new Date(), tab = 'month', editing = null, armed = null, armTimer = null, alerted = {};
-  var view = { week: false, hideDone: false, dots: false, full: false, cat: '' };
+  var view = { week: false, hideDone: false, dots: false, full: false, side: true, fs: true, cat: '' };
 
   /* ---------- utilidades ---------- */
   function pad(n) { return String(n).padStart(2, '0'); }
@@ -210,7 +210,7 @@
     } catch (_) { return false; }
   }
   var MAX_TEXTO = 2000; // caracteres por anotação (antes 500: o fim do texto era cortado sem aviso)
-  function loadView() { try { var v = JSON.parse(lsGet(VIEW) || '{}'); view.week = !!v.week; view.hideDone = false; /* concluídas sempre aparecem ao abrir; o botão Concluídas só esconde nesta sessão */ view.dots = v.dots === undefined ? isMobile() : !!v.dots; view.full = v.full === undefined ? !isMobile() : !!v.full; if (view.full && view.dots) { if (v.full === undefined) view.full = false; else view.dots = false; } view.cat = cleanCat(v.cat); } catch (_) { /* padrão */ } }
+  function loadView() { try { var v = JSON.parse(lsGet(VIEW) || '{}'); view.week = !!v.week; view.hideDone = false; /* concluídas sempre aparecem ao abrir; o botão Concluídas só esconde nesta sessão */ view.dots = v.dots === undefined ? isMobile() : !!v.dots; view.full = v.full === undefined ? !isMobile() : !!v.full; if (view.full && view.dots) { if (v.full === undefined) view.full = false; else view.dots = false; } view.side = v.side !== false; view.fs = v.fs !== false; view.cat = cleanCat(v.cat); } catch (_) { /* padrão */ } }
   function saveView() { lsSet(VIEW, JSON.stringify(view)); }
 
   /* ---------- nuvem (Firestore do Argo) ---------- */
@@ -616,12 +616,13 @@
     var y = month.getFullYear(), m = month.getMonth(), today = key(new Date()), sel = key(chosen), info = yearData(y);
     q('[data-label]').textContent = MONTHS[m]; q('[data-year]').textContent = y; q('[data-select]').value = m;
     q('[data-months]').innerHTML = MONTHS.map(function (n, i) { return '<button type="button" data-m="' + i + '" class="' + (i === m ? 'on' : '') + '" aria-pressed="' + (i === m) + '">' + n.slice(0, 3) + '</button>'; }).join('');
-    var html = '', cells;
+    var html = '', cells, nWeeks = 6;
     if (view.week) { cells = weekDates(chosen); cells.forEach(function (d) { html += cellHtml(d, d.getMonth(), today, sel, true); }); }
-    else { var start = new Date(y, m, 1 - new Date(y, m, 1).getDay(), 12); for (var i = 0; i < 42; i++) html += cellHtml(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i, 12), m, today, sel, false); }
-    var grid = q('[data-grid]'); grid.innerHTML = html; grid.classList.toggle('wk', view.week); grid.classList.toggle('dots', !!view.dots && !view.week); grid.classList.toggle('full', !!view.full && !view.dots && !view.week);
+    else { var start = new Date(y, m, 1 - new Date(y, m, 1).getDay(), 12); nWeeks = Math.ceil((new Date(y, m, 1).getDay() + new Date(y, m + 1, 0).getDate()) / 7); for (var i = 0; i < nWeeks * 7; i++) html += cellHtml(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i, 12), m, today, sel, false); }
+    var grid = q('[data-grid]'); grid.innerHTML = html; grid.style.setProperty('--rows', view.week ? 1 : nWeeks); grid.classList.toggle('wk', view.week); grid.classList.toggle('dots', !!view.dots && !view.week); grid.classList.toggle('full', !!view.full && !view.dots && !view.week);
     q('[data-dots-btn]').setAttribute('aria-pressed', !!view.dots); q('[data-full-btn]').setAttribute('aria-pressed', !!view.full && !view.dots);
     q('[data-dock-view-t]').textContent = view.week ? 'Mês' : 'Semana';
+    ui.classList.toggle('noside', !view.side); q('[data-side-btn]').setAttribute('aria-pressed', !!view.side); q('[data-fs-btn]').setAttribute('aria-pressed', fsActive());
     q('[data-view-week]').setAttribute('aria-pressed', view.week); q('[data-view-month]').setAttribute('aria-pressed', !view.week);
     q('[data-done-btn]').setAttribute('aria-pressed', !view.hideDone);
     q('[data-locked]').hidden = !!state.key;
@@ -859,14 +860,69 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
   ].join('\n');
 
 
+  /* ---------- computador: tela cheia de verdade, calendário grande, anotações legíveis ---------- */
+  var DESK_CSS = [
+    '.ag-spacer{flex:1}.ag-menu{position:relative;display:inline-block}.ag-menu-btn[aria-expanded="true"]{background:#37e6ff26;border-color:var(--c);color:var(--c2)}',
+    '@media(min-width:701px){',
+    /* ocupa a tela inteira: sem margem, sem cantos cortados */
+    'html #pa-agenda{inset:0;clip-path:none;border:0;border-radius:0;box-shadow:none;background:radial-gradient(ellipse 70% 40% at 50% -8%,#0d3550d9,transparent 70%),linear-gradient(180deg,#041722,#02090f);backdrop-filter:none}',
+    'html #pa-agenda::before{opacity:.5}',
+    /* barra do topo enxuta; o que é raro vai para "Mais" */
+    '#pa-agenda>.ag-top{flex-wrap:nowrap;gap:7px;padding:8px 16px;overflow:visible}.ag-top>*{flex:none}.ag-title{margin-right:10px;font-size:15px}.ag-title small{display:none}',
+    '.ag-top .ag-btn,.ag-top select{min-height:34px}',
+    '.ag-menu-list{display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:30;width:236px;padding:8px;flex-direction:column;gap:4px;border:1px solid var(--c);background:linear-gradient(180deg,#0a2a3afa,#05161ffa);box-shadow:0 14px 40px #000b,0 0 24px #37e6ff33;border-radius:4px}',
+    '.ag-menu.open .ag-menu-list{display:flex}.ag-menu-list .ag-btn{width:100%;text-align:left;justify-content:flex-start}.ag-menu-list .ag-zoom{display:flex}.ag-menu-list .ag-zoom .ag-btn{flex:1;text-align:center}',
+    /* faixa de informações e meses: mais baixas, para sobrar altura ao calendário */
+    '.ag-strip{padding:5px 16px}.ag-months{padding:5px 16px 3px;gap:4px}.ag-months button{padding:4px 0}',
+    /* corpo: calendário + painel (que pode ser escondido) */
+    '#pa-agenda>.ag-body{grid-template-columns:minmax(0,1fr) clamp(300px,22vw,400px);gap:0;padding:0}',
+    '#pa-agenda.noside>.ag-body{grid-template-columns:minmax(0,1fr)}#pa-agenda.noside .ag-side{display:none}',
+    '.ag-cal{padding:6px 14px 4px 16px}',
+    '.ag-mlabel{align-items:baseline;gap:14px;padding:0 2px 6px;font-size:clamp(22px,2.3vw,34px);letter-spacing:.12em;line-height:1.1}.ag-mlabel span+span{font-size:clamp(15px,1.4vw,20px)}',
+    '.ag-week div{padding:6px 0;font-size:12px;letter-spacing:.2em}',
+    /* grade: só as semanas do mês, ocupando todo o espaço; a linha cresce se o texto pedir */
+    'html #pa-agenda .ag-grid{grid-template-rows:repeat(var(--rows,6),minmax(min-content,1fr));grid-auto-rows:auto;align-content:stretch;scrollbar-width:thin;scrollbar-color:var(--ln2) transparent}',
+    'html #pa-agenda .ag-grid.wk{grid-template-rows:1fr}',
+    '#pa-agenda .ag-cell{min-height:0;padding:6px 7px 7px;overflow:visible;background:#06202c80}#pa-agenda .ag-cell:hover{background:#0d3a4fb3}',
+    '#pa-agenda .ag-cell.out{opacity:.3}#pa-agenda .ag-cell.out .ag-note{opacity:.8}',
+    '#pa-agenda .ag-cell.today{box-shadow:inset 0 0 0 1px var(--c),0 0 22px #37e6ff33 inset;background:#0d3a4f80}',
+    '#pa-agenda .ag-n{min-width:26px;padding:2px 6px;font:700 clamp(13px,1.1vw,16px) var(--mono)}',
+    '#pa-agenda .ag-tag{margin-top:4px;padding:2px 6px;font-size:clamp(10.5px,.82vw,12px);white-space:normal;overflow-wrap:anywhere}',
+    /* anotações: cartões legíveis, com a cor do tipo */
+    'html #pa-agenda .ag-grid .ag-note{margin-top:4px;padding:3px 7px 4px;font-size:clamp(12px,.96vw,15px);line-height:1.38;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;border-left-width:3px;border-radius:0 3px 3px 0;background:color-mix(in srgb,var(--cat,#7fb7c4) 15%,#08232f)}',
+    'html #pa-agenda .ag-grid .ag-note b{font-size:.92em;color:var(--c2)}',
+    'html #pa-agenda .ag-grid.wk .ag-note{font-size:clamp(13.5px,1.1vw,17px);padding:6px 10px}',
+    'html #pa-agenda .ag-grid.wk .ag-cell{padding:10px 12px}',
+    '.ag-note .ag-ck{width:17px;height:17px}',
+    '.ag-legend{padding:5px 0 0}.ag-filter{padding:5px 0 0}',
+    /* painel do dia */
+    '.ag-side{padding:10px 14px 10px 14px;background:#04141d66;gap:12px}',
+    '.ag-etext{font-size:13.5px;line-height:1.42}.ag-et{font-size:12px}',
+    '.ag-card h3{font-size:12.5px}',
+    '.ag-foot{padding:4px 16px 6px}',
+    '}',
+    '@media(min-width:701px) and (max-width:900px){#pa-agenda>.ag-body{grid-template-columns:minmax(0,1fr) 260px}.ag-top .ag-btn{padding:6px 8px}}',
+    /* celular: o menu "Mais" vira a mesma fila de antes; painel e tela cheia não se aplicam */
+    '@media(max-width:700px){.ag-menu,.ag-menu-list{display:contents}.ag-menu-btn,[data-side-btn],[data-fs-btn],.ag-spacer{display:none!important}}',
+    'body.claro .ag-menu-list{background:#fff;box-shadow:0 14px 40px #0b2a3544}',
+    'body.claro #pa-agenda .ag-grid .ag-note{background:color-mix(in srgb,var(--cat,#46646e) 14%,#fff)}',
+    'body.claro #pa-agenda .ag-cell{background:#ffffffc0}body.claro #pa-agenda .ag-cell:hover{background:#dff0f5}body.claro #pa-agenda .ag-cell.today{background:#0b7a9118;box-shadow:inset 0 0 0 2px var(--c)}',
+    'body.claro html #pa-agenda,html body.claro #pa-agenda{background:linear-gradient(180deg,#f9fcfd,#e8f1f4)}',
+    'body.claro .ag-side{background:#ffffff80}'
+  ].join('\n');
+
   var HTML = '\
 <header class="ag-top"><strong class="ag-title"><i class="ag-led" data-led></i>Agenda <small>PAULUS // SINC. ARGO</small></strong>\
 <button type="button" class="ag-btn" data-prev aria-label="Mês anterior">‹</button><select data-select aria-label="Mês"></select><button type="button" class="ag-btn" data-next aria-label="Próximo mês">›</button>\
 <button type="button" class="ag-btn" data-today>Hoje</button>\
 <span class="ag-seg" role="group" aria-label="Visão"><button type="button" class="ag-btn" data-view-month aria-pressed="true">Mês</button><button type="button" class="ag-btn" data-view-week aria-pressed="false">Semana</button></span>\
 <button type="button" class="ag-btn" data-done-btn aria-pressed="true" title="Mostrar ou ocultar concluídas no calendário">Concluídas</button><button type="button" class="ag-btn" data-dots-btn aria-pressed="false" title="Calendário só com pontos coloridos por tipo (V)">Pontos</button><button type="button" class="ag-btn" data-full-btn aria-pressed="false" title="Mostrar o texto inteiro de cada anotação dentro do dia, com quebra de linha (E)">Textos</button>\
-<button type="button" class="ag-btn" data-stats>Estatísticas</button><button type="button" class="ag-btn" data-print title="Imprimir o mês (ou salvar em PDF)">Imprimir</button><button type="button" class="ag-btn" data-pdf-mes title="Baixar em PDF as anotações do mês (com aviso de LGPD)">PDF do mês</button><button type="button" class="ag-btn" data-pdf-tudo title="Baixar em PDF todas as anotações guardadas">PDF de tudo</button><button type="button" class="ag-btn" data-keys title="Atalhos do teclado" aria-label="Atalhos do teclado">⌨</button><button type="button" class="ag-btn" data-ics title="Baixar feriados, pagamentos e datas do MDS">.ics</button>\
-<button type="button" class="ag-btn" data-notify>Avisos</button><button type="button" class="ag-btn" data-connect>⟳ Sincronizar</button><button type="button" class="ag-btn" data-lock>Trancar</button><span class="ag-zoom" role="group" aria-label="Tamanho"><button type="button" class="ag-btn" data-zoom-out aria-label="Diminuir o tamanho" title="Diminuir">A−</button><button type="button" class="ag-btn" data-zoom-val aria-label="Tamanho atual (clique para seguir o aplicativo)">100%</button><button type="button" class="ag-btn" data-zoom-in aria-label="Aumentar o tamanho" title="Aumentar">A+</button></span><button type="button" class="ag-btn" data-close>✕ Fechar</button></header>\
+<span class="ag-spacer"></span>\
+<button type="button" class="ag-btn" data-side-btn aria-pressed="true" title="Mostrar ou esconder o painel de anotações — esconda para o calendário ocupar a tela toda (B)">Painel</button><button type="button" class="ag-btn" data-fs-btn aria-pressed="false" title="Tela cheia do navegador (F11)">⛶ Tela cheia</button>\
+<div class="ag-menu" data-more><button type="button" class="ag-btn ag-menu-btn" data-more-btn aria-expanded="false" aria-haspopup="true">⋯ Mais</button><div class="ag-menu-list" data-more-list>\
+<button type="button" class="ag-btn" data-stats>Estatísticas</button><button type="button" class="ag-btn" data-print title="Imprimir o mês (ou salvar em PDF)">Imprimir</button><button type="button" class="ag-btn" data-pdf-mes title="Baixar em PDF as anotações do mês (com aviso de LGPD)">PDF do mês</button><button type="button" class="ag-btn" data-pdf-tudo title="Baixar em PDF todas as anotações guardadas">PDF de tudo</button><button type="button" class="ag-btn" data-keys title="Atalhos do teclado" aria-label="Atalhos do teclado">⌨ Atalhos</button><button type="button" class="ag-btn" data-ics title="Baixar feriados, pagamentos e datas do MDS">.ics</button>\
+<button type="button" class="ag-btn" data-notify>Avisos</button><button type="button" class="ag-btn" data-connect>⟳ Sincronizar</button><button type="button" class="ag-btn" data-lock>Trancar</button><span class="ag-zoom" role="group" aria-label="Tamanho"><button type="button" class="ag-btn" data-zoom-out aria-label="Diminuir o tamanho" title="Diminuir">A−</button><button type="button" class="ag-btn" data-zoom-val aria-label="Tamanho atual (clique para seguir o aplicativo)">100%</button><button type="button" class="ag-btn" data-zoom-in aria-label="Aumentar o tamanho" title="Aumentar">A+</button></span></div></div>\
+<button type="button" class="ag-btn" data-close>✕ Fechar</button></header>\
 <div class="ag-strip"><span class="ag-chip" data-date-head></span><span class="ag-chip" data-date-kind></span><span class="ag-chip" data-date-notes></span><button type="button" class="ag-chip late" data-late hidden></button><span class="ag-chip mds" data-mds-next hidden></span><span class="ag-chip" data-sync-chip></span><span class="ag-chip ag-status" data-status role="status" aria-live="polite"></span></div>\
 <div class="ag-months" data-months></div>\
 <div class="ag-body"><section class="ag-cal" aria-label="Calendário"><div class="ag-mlabel"><span data-label></span><span data-year></span></div><div class="ag-week" aria-hidden="true">' + WEEK.map(function (x) { return '<div>' + x + '</div>'; }).join('') + '</div><div class="ag-grid" data-grid role="grid" aria-label="Dias do mês"></div><div class="ag-legend" data-legend></div><div class="ag-filter" data-filter role="group" aria-label="Filtrar por tipo"></div></section>\
@@ -1004,7 +1060,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
   /* ---------- montagem e eventos ---------- */
   function create() {
     if (ui) return;
-    var css = document.createElement('style'); css.textContent = CSS + '\n' + MOBILE_CSS; document.head.appendChild(css); injectTheme();
+    var css = document.createElement('style'); css.textContent = CSS + '\n' + MOBILE_CSS + '\n' + DESK_CSS; document.head.appendChild(css); injectTheme();
     ui = document.createElement('section'); ui.id = 'pa-agenda'; ui.hidden = true; ui.setAttribute('aria-label', 'Agenda Paulus'); ui.innerHTML = HTML;
     document.body.appendChild(ui);
     var sel = q('[data-select]'); MONTHS.forEach(function (n, i) { var o = document.createElement('option'); o.value = i; o.textContent = n; sel.appendChild(o); });
@@ -1037,6 +1093,15 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
       else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); q('[data-entry]').focus(); }
     };
     q('[data-close]').onclick = function () { open(false); };
+    q('[data-side-btn]').onclick = function () { view.side = !view.side; saveView(); render(); };
+    q('[data-fs-btn]').onclick = function () { if (fsActive()) { view.fs = false; fsExit(); } else { view.fs = true; fsEnter(); } saveView(); };
+    document.addEventListener('fullscreenchange', function () { if (!fsActive()) fsOwn = false; if (ui) q('[data-fs-btn]').setAttribute('aria-pressed', fsActive()); });
+    document.addEventListener('webkitfullscreenchange', function () { if (!fsActive()) fsOwn = false; if (ui) q('[data-fs-btn]').setAttribute('aria-pressed', fsActive()); });
+    var more = q('[data-more]'), moreBtn = q('[data-more-btn]');
+    function moreSet(on) { more.classList.toggle('open', on); moreBtn.setAttribute('aria-expanded', on); }
+    moreBtn.onclick = function (e) { e.stopPropagation(); moreSet(!more.classList.contains('open')); };
+    q('[data-more-list]').addEventListener('click', function (e) { if (e.target.closest('button')) setTimeout(function () { moreSet(false); }, 0); });
+    document.addEventListener('click', function (e) { if (more.classList.contains('open') && !more.contains(e.target)) moreSet(false); });
     setupMobile();
     q('[data-zoom-out]').onclick = function () { stepZoom(-1); }; q('[data-zoom-in]').onclick = function () { stepZoom(1); };
     q('[data-zoom-val]').onclick = function () { lsSet(ZKEY, null); applyZoom(); };
@@ -1106,6 +1171,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
       else if (kk === 'd') { view.hideDone = !view.hideDone; saveView(); render(); }
       else if (kk === 'v') { view.dots = !view.dots; if (view.dots) view.full = false; saveView(); render(); }
       else if (kk === 'e') { view.full = !(view.full && !view.dots); if (view.full) view.dots = false; saveView(); render(); }
+      else if (kk === 'b') { view.side = !view.side; saveView(); render(); }
       else if (kk === 'f') { var cs = [''].concat(Object.keys(CATS)); view.cat = cs[(cs.indexOf(view.cat) + 1) % cs.length]; saveView(); render(); }
       else if (kk === '+' || kk === '=') stepZoom(1);
       else if (kk === '-') stepZoom(-1);
@@ -1115,6 +1181,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     }, true);
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape' || !ui || ui.hidden) return;
+      if (q('[data-more]').classList.contains('open')) { q('[data-more-btn]').click(); return; }
       if (!q('[data-stats-modal]').hidden) q('[data-stats-modal]').hidden = true;
       else if (!q('[data-setup]').hidden) hideSetup();
       else if (sheetOpen) closeSheet();
@@ -1138,7 +1205,18 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     });
   }
   function hideSheetNow() { sheetOpen = false; if (ui) { ui.classList.remove('sheet', 'tall', 'sheet-drag'); var sd = q('.ag-side'); if (sd) sd.style.transform = ''; } }
-  function hideAgendaNow() { hideSheetNow(); if (ui) ui.hidden = true; }
+  /* Tela cheia do navegador (no elemento raiz, para os avisos e janelas continuarem visíveis). Só no computador; o app instalado já é tela cheia. */
+  var fsOwn = false;
+  function fsActive() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function fsEnter() {
+    try { var el = document.documentElement, f = el.requestFullscreen || el.webkitRequestFullscreen; if (f) { fsOwn = true; var r = f.call(el); if (r && r.catch) r.catch(function () { fsOwn = false; }); } } catch (_) { fsOwn = false; }
+  }
+  function fsExit() {
+    try { if (fsActive()) { var f = document.exitFullscreen || document.webkitExitFullscreen, r = f && f.call(document); if (r && r.catch) r.catch(function () { /* ok */ }); } } catch (_) { /* ok */ }
+    fsOwn = false;
+  }
+  function standalone() { try { return !!(window.matchMedia && (window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches)); } catch (_) { return false; } }
+  function hideAgendaNow() { hideSheetNow(); if (ui) ui.hidden = true; if (fsOwn) fsExit(); }
   function openSheet(focusInput) {
     if (!ui) return;
     if (!isMobile()) { if (focusInput) q('[data-entry]').focus(); return; }
@@ -1151,6 +1229,7 @@ position:fixed;inset:10px 14px 22px;z-index:80;display:flex;flex-direction:colum
     if (!ui) create();
     if (!v) { if (ui.hidden) return; layerClose('agenda', hideAgendaNow); return; }
     var was = !ui.hidden; ui.hidden = false;
+    if (!was && !isMobile() && view.fs !== false && !fsActive() && !standalone()) fsEnter();
     if (!was && isMobile()) { bindHistory(); layerPush('agenda'); }
     chosen = new Date(); month = new Date(chosen.getFullYear(), chosen.getMonth(), 1, 12);
     render();
