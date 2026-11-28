@@ -2034,7 +2034,7 @@
   // ------------------------------------------------------------ núcleo (reator em arco no cabeçalho)
   // Estados: idle (respira), busy (âmbar, gira rápido, varredura), listen (verde, barras), speak (barras de voz), erro (vermelho, treme).
   function criarNucleo(cv) {
-    var ctx = cv.getContext('2d'), W = 0, H = 0, est = 'idle', estT = 0, amp = 0.05, imp = 0, px = 0, py = 0, ax = 0, ay = 0, img = new Image(), imgOk = false, i, hov = 0, hovAlvo = 0, giro = 0, giroVel = 0, ondas = [], arrasta = false, ultX = 0;
+    var ctx = cv.getContext('2d'), W = 0, H = 0, est = 'idle', estT = 0, amp = 0.05, imp = 0, px = 0, py = 0, ax = 0, ay = 0, img = new Image(), imgOk = false, i, hov = 0, hovAlvo = 0, giro = 0, giroVel = 0, ondas = [], arrasta = false, ultX = 0, incl = 0;
     var COR = { idle: [55, 230, 255], busy: [255, 179, 71], listen: [110, 231, 168], speak: [143, 244, 255], erro: [255, 107, 94] };
     var AMP = { idle: 0.05, busy: 0.3, listen: 0.62, speak: 0.8, erro: 0.1 }, VEL = { idle: 1, busy: 3.4, listen: 1.7, speak: 2, erro: 0.4 };
     var cur = COR.idle.slice();
@@ -2045,6 +2045,106 @@
     function arco(cx, cy, r, ini, tm, lw, al, dash, cap) {
       ctx.beginPath(); ctx.setLineDash(dash || []); ctx.lineCap = cap || 'butt'; ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(' + rgb(al) + ')'; ctx.arc(cx, cy, r, ini, ini + tm); ctx.stroke(); ctx.setLineDash([]);
     }
+    // ---- rosto animado: tudo é desenhado POR CIMA do retrato, em coordenadas da imagem (512 x 512) ----
+    // Piscar natural (às vezes duplo), olhar que segue o ponteiro, boca que fala, olho ciborgue que muda com o estado e fone que acende.
+    var piscaIni = 0, piscaDur = 0, proxPisca = 0, piscaDupla = false, boca = 0, gazeX = 0, gazeY = 0, sacX = 0, sacY = 0, proxSac = 0, olho = [55, 230, 255];
+    function circ(x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); }
+    function amendoa(c1, c2) { ctx.beginPath(); ctx.moveTo(175, 247); ctx.quadraticCurveTo(200, c1, 225, 246); ctx.quadraticCurveTo(200, c2, 175, 247); ctx.closePath(); }
+    function piscar(now) {
+      if (reduzido) return 0;
+      if (!proxPisca) proxPisca = now + 1400 + Math.random() * 1800;
+      if (!piscaDur && now >= proxPisca) { piscaIni = now; piscaDur = est === 'erro' ? 380 : 170 + Math.random() * 50; piscaDupla = Math.random() < 0.22; }
+      if (!piscaDur) return 0;
+      var p = (now - piscaIni) / piscaDur;
+      if (p >= 1) {
+        if (piscaDupla) { piscaDupla = false; piscaIni = now + 90; piscaDur = 150; return 0; }
+        piscaDur = 0; proxPisca = now + (est === 'busy' ? 3800 : 2200) + Math.random() * 3800; return 0;
+      }
+      return p < 0 ? 0 : Math.sin(p * 3.1416);
+    }
+    function olhoNatural(pisca, ox, oy, dil) {
+      ctx.save(); amendoa(227.5, 269.5); ctx.clip();
+      var gs = ctx.createLinearGradient(0, 232, 0, 262); gs.addColorStop(0, '#c9bdb6'); gs.addColorStop(0.3, '#f3eeea'); gs.addColorStop(1, '#e6dcd6');
+      ctx.fillStyle = gs; ctx.fillRect(170, 225, 62, 48);
+      var ix = 202.5 + ox, iy = 248 + oy, gi = ctx.createRadialGradient(ix, iy + 1, 2, ix, iy, 15.8);
+      gi.addColorStop(0, '#1b100a'); gi.addColorStop(0.5, '#3d2312'); gi.addColorStop(0.85, '#6e4524'); gi.addColorStop(1, '#2a160a');
+      ctx.fillStyle = gi; circ(ix, iy, 15.8); ctx.fill();
+      ctx.fillStyle = '#050303'; circ(ix + ox * 0.15, iy + 2 + oy * 0.15, 7.7 * dil); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.96)'; circ(ix + 8, iy - 4.2, 3.4); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.3)'; circ(ix - 8.4, iy - 4.6, 2.4); ctx.fill();
+      var sh = ctx.createLinearGradient(0, 234, 0, 247); sh.addColorStop(0, 'rgba(25,8,4,.55)'); sh.addColorStop(1, 'rgba(25,8,4,0)');
+      ctx.fillStyle = sh; ctx.fillRect(170, 232, 62, 16);
+      ctx.restore();
+      if (pisca > 0.03) {
+        var yc = 227.5 + (272 - 227.5) * Math.min(1, pisca * 1.04);
+        ctx.save(); amendoa(224.5, 272); ctx.clip();
+        ctx.beginPath(); ctx.moveTo(170, 247); ctx.quadraticCurveTo(200, yc, 230, 247); ctx.lineTo(230, 215); ctx.lineTo(170, 215); ctx.closePath();
+        var gl = ctx.createLinearGradient(0, 226, 0, 268); gl.addColorStop(0, '#d9855a'); gl.addColorStop(0.5, '#e8985f'); gl.addColorStop(1, '#eca064');
+        ctx.fillStyle = gl; ctx.fill();
+        ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(28,10,6,.92)'; ctx.beginPath(); ctx.moveTo(173, 247); ctx.quadraticCurveTo(200, yc, 227, 247); ctx.stroke();
+        ctx.restore();
+      }
+    }
+    // boca: a mandíbula desce (a parte de baixo do sorriso é redesenhada mais baixo) e o vão fica escuro, com a língua aparecendo
+    function bocaFalando(d, img0) {
+      if (d < 0.35) return;
+      ctx.save(); ctx.beginPath(); ctx.ellipse(254, 356, 54, 30, 0, 0, 6.2832); ctx.clip();
+      ctx.drawImage(img0, 196, 337, 120, 46, 196, 337 + d, 120, 46);
+      ctx.restore();
+      ctx.save(); ctx.beginPath(); ctx.ellipse(254, 337 + d * 0.5, 40, Math.max(0.5, d * 0.62 + 0.8), 0, 0, 6.2832); ctx.clip();
+      var gb = ctx.createLinearGradient(0, 336, 0, 337 + d); gb.addColorStop(0, '#3a0d12'); gb.addColorStop(1, '#6b1a22');
+      ctx.fillStyle = gb; ctx.fillRect(210, 334, 90, d + 6);
+      ctx.fillStyle = 'rgba(205,92,96,.9)'; ctx.beginPath(); ctx.ellipse(254, 338 + d, 20, Math.max(0.6, d * 0.42), 0, 0, 6.2832); ctx.fill();
+      ctx.restore();
+    }
+    // olho ciborgue: recolore a lente conforme o estado e desenha anéis, retículo e brilho do núcleo
+    function olhoCiborgue(t, now, gx0, gy0, cor, ativo) {
+      var cx0 = 311, cy0 = 259, R0 = 29, dist = Math.abs(cor[0] - 55) + Math.abs(cor[1] - 230) + Math.abs(cor[2] - 255), mix = Math.min(1, dist / 160);
+      var pulso = 0.5 + 0.5 * Math.sin(t * (est === 'busy' ? 9 : 2.2)), fl = est === 'erro' ? (Math.sin(now / 37) > 0.35 ? 0.35 : 1) : 1;
+      ctx.save(); circ(cx0, cy0, R0 + 1.5); ctx.clip();
+      if (mix > 0.02) { ctx.globalCompositeOperation = 'color'; ctx.fillStyle = 'rgba(' + rgb(0.9 * mix) + ')'; ctx.fillRect(cx0 - 34, cy0 - 34, 68, 68); }
+      ctx.globalCompositeOperation = 'lighter';
+      var ox = gx0 * 4, oy = gy0 * 3.2;
+      var gl = ctx.createRadialGradient(cx0 + ox, cy0 + oy, 0, cx0 + ox, cy0 + oy, R0);
+      gl.addColorStop(0, 'rgba(255,255,255,' + (0.5 * fl) + ')'); gl.addColorStop(0.18, 'rgba(' + rgb(0.55 * fl + pulso * 0.15) + ')'); gl.addColorStop(1, 'rgba(' + rgb(0) + ')');
+      ctx.fillStyle = gl; ctx.fillRect(cx0 - R0, cy0 - R0, R0 * 2, R0 * 2);
+      ctx.lineCap = 'round';
+      // anéis segmentados girando em sentidos opostos
+      var sp = est === 'busy' ? 3.2 : est === 'listen' ? 1.4 : est === 'speak' ? 1.8 : 0.6;
+      for (var k = 0; k < 3; k++) {
+        ctx.beginPath(); ctx.lineWidth = 1.6; ctx.strokeStyle = 'rgba(' + rgb(0.85 * fl) + ')'; ctx.arc(cx0, cy0, 22, t * sp + k * 2.0944, t * sp + k * 2.0944 + 1.0); ctx.stroke();
+      }
+      ctx.beginPath(); ctx.lineWidth = 1; ctx.setLineDash([2, 3.4]); ctx.strokeStyle = 'rgba(' + rgb(0.6 * fl) + ')'; ctx.arc(cx0, cy0, 16.5, -t * sp * 1.3, -t * sp * 1.3 + 6.2832); ctx.stroke(); ctx.setLineDash([]);
+      // retículo que acompanha o olhar
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(' + rgb(0.7 * fl) + ')';
+      ctx.beginPath(); ctx.moveTo(cx0 + ox - 9, cy0 + oy); ctx.lineTo(cx0 + ox - 4, cy0 + oy); ctx.moveTo(cx0 + ox + 4, cy0 + oy); ctx.lineTo(cx0 + ox + 9, cy0 + oy);
+      ctx.moveTo(cx0 + ox, cy0 + oy - 9); ctx.lineTo(cx0 + ox, cy0 + oy - 4); ctx.moveTo(cx0 + ox, cy0 + oy + 4); ctx.lineTo(cx0 + ox, cy0 + oy + 9); ctx.stroke();
+      // núcleo brilhante: dilata ao falar/ouvir
+      var rc = 3.4 + pulso * 1.2 + amp * 4.5 + imp * 3; ctx.fillStyle = 'rgba(255,255,255,' + (0.9 * fl) + ')'; circ(cx0 + ox, cy0 + oy, rc); ctx.fill();
+      if (est === 'busy') { // varredura vertical
+        var sy = cy0 - R0 + ((t * 1.2) % 1) * R0 * 2; var gs = ctx.createLinearGradient(0, sy - 8, 0, sy + 1); gs.addColorStop(0, 'rgba(' + rgb(0) + ')'); gs.addColorStop(1, 'rgba(' + rgb(0.7) + ')'); ctx.fillStyle = gs; ctx.fillRect(cx0 - R0, sy - 8, R0 * 2, 9);
+      }
+      if (est === 'listen' || est === 'speak') { // ondas saindo do núcleo
+        for (k = 0; k < 2; k++) { var ph = ((t * (est === 'listen' ? 0.9 : 1.4)) + k * 0.5) % 1; ctx.beginPath(); ctx.lineWidth = 1.2 * (1 - ph); ctx.strokeStyle = 'rgba(' + rgb(0.8 * (1 - ph)) + ')'; ctx.arc(cx0 + ox, cy0 + oy, 4 + ph * 22, 0, 6.2832); ctx.stroke(); }
+      }
+      ctx.restore();
+      // halo de luz sobre o rosto ao redor do olho
+      var hl = ctx.createRadialGradient(cx0, cy0, R0, cx0, cy0, 56); hl.addColorStop(0, 'rgba(' + rgb(0.22 + 0.1 * pulso + amp * 0.18) + ')'); hl.addColorStop(1, 'rgba(' + rgb(0) + ')');
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = hl; ctx.fillRect(cx0 - 60, cy0 - 60, 120, 120); ctx.restore();
+    }
+    // fone de ouvido: faixa e concha acendem; o microfone pisca quando está ouvindo
+    function fone(t) {
+      var pulso = 0.5 + 0.5 * Math.sin(t * (est === 'busy' ? 7 : 2.6));
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      var g1 = ctx.createRadialGradient(404, 275, 0, 404, 275, 22); g1.addColorStop(0, 'rgba(' + rgb(0.5 + 0.3 * pulso + amp * 0.3) + ')'); g1.addColorStop(1, 'rgba(' + rgb(0) + ')');
+      ctx.fillStyle = g1; ctx.fillRect(380, 250, 50, 50);
+      var g2 = ctx.createRadialGradient(379, 236, 0, 379, 236, 30); g2.addColorStop(0, 'rgba(' + rgb(0.22 + 0.14 * pulso) + ')'); g2.addColorStop(1, 'rgba(' + rgb(0) + ')');
+      ctx.fillStyle = g2; ctx.fillRect(350, 205, 60, 64);
+      var on = est === 'listen' ? 0.55 + 0.45 * Math.sin(t * 9) : est === 'idle' ? 0.35 + 0.25 * pulso : 0.7;
+      var g3 = ctx.createRadialGradient(375, 303, 0, 375, 303, 10); g3.addColorStop(0, 'rgba(' + (est === 'listen' ? '160,255,200,' + on : rgb(on)) + ')'); g3.addColorStop(1, 'rgba(' + rgb(0) + ')');
+      ctx.fillStyle = g3; ctx.fillRect(362, 290, 26, 26);
+      ctx.restore();
+    }
     function quadro(now) {
       if (!W) return;
       var t = reduzido ? 2 : now / 1000, R = Math.min(W, H) / 2 - 1, cx = W / 2, cy = H / 2, alvo = COR[est] || COR.idle, vel = VEL[est] || 1;
@@ -2052,7 +2152,7 @@
       amp += ((AMP[est] || 0.05) - amp) * 0.1; imp *= 0.94;
       var tr = est === 'erro' ? Math.sin((now - estT) / 28) * Math.max(0, 1 - (now - estT) / 600) * R * 0.05 : 0;
       cx += tr;
-      var pulso = 0.5 + 0.5 * Math.sin(t * (est === 'busy' ? 8 : 2)), Ri = R * 0.5 * (1 + 0.02 * pulso + imp * 0.06 + hov * 0.07); px += (ax - px) * 0.12; py += (ay - py) * 0.12; hov += (hovAlvo - hov) * 0.12; giro += giroVel; giroVel *= 0.96;
+      var pulso = 0.5 + 0.5 * Math.sin(t * (est === 'busy' ? 8 : 2)), Ri = R * 0.56 * (1 + 0.02 * pulso + imp * 0.06 + hov * 0.07); px += (ax - px) * 0.12; py += (ay - py) * 0.12; hov += (hovAlvo - hov) * 0.12; giro += giroVel; giroVel *= 0.96;
       ctx.clearRect(0, 0, W, H);
       var g = ctx.createRadialGradient(cx, cy, Ri * 0.5, cx, cy, R * 1.02);
       g.addColorStop(0, 'rgba(' + rgb(0.42 + 0.2 * pulso + imp * 0.3) + ')'); g.addColorStop(0.55, 'rgba(' + rgb(0.1) + ')'); g.addColorStop(1, 'rgba(' + rgb(0) + ')');
@@ -2076,7 +2176,7 @@
       if (est === 'busy') { for (i = 0; i < 6; i++) arco(cx, cy, R * 0.7, t * 4.2 - i * 0.09, 0.09, lw * 1.2, 0.9 - i * 0.14, null, 'round'); }
       // anéis finos em sentidos opostos e um satélite com rastro (o "reator" do filme)
       for (i = 0; i < 2; i++) arco(cx, cy, R * 0.95, t * 0.35 * vel + giro * 1.4 + i * 3.1416, 0.75, Math.max(1, lw * 0.5), 0.5 + hov * 0.3);
-      arco(cx, cy, R * 0.62, -t * 0.9 * vel, 6.2832, 0.8, 0.3, [2, R * 0.05]);
+      arco(cx, cy, R * 0.65, -t * 0.9 * vel, 6.2832, 0.8, 0.3, [2, R * 0.05]);
       for (i = 0; i < 6; i++) arco(cx, cy, R * 0.86, t * 1.3 * vel - i * 0.1, 0.1, lw * 0.9, 0.95 - i * 0.15, null, 'round');
       // barras radiais (voz): amplitude do estado
       var NB = 40, barras = est === 'idle' ? 0.35 : 1;
@@ -2093,19 +2193,39 @@
         if (ag >= 1) { ondas.splice(i, 1); continue; }
         ctx.beginPath(); ctx.arc(cx, cy, Ri + (R * 1.25 - Ri) * ag, 0, 6.2832); ctx.lineWidth = Math.max(1, 3 * (1 - ag)); ctx.strokeStyle = 'rgba(' + rgb(0.8 * (1 - ag)) + ')'; ctx.stroke();
       }
-      // rosto (ícone do app) dentro do vidro
+      // rosto (retrato do app) dentro do vidro, agora vivo: respira, inclina, pisca, olha, fala
       ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, Ri, 0, 6.2832); ctx.clip();
       if (imgOk) {
-        var ts = Ri * 2.04 * (1 + hov * 0.07 + (est === 'speak' ? amp * 0.03 * Math.sin(t * 9) : 0) + 0.008 * Math.sin(t * 1.6));
+        var ts = Ri * 2.04 * (1 + hov * 0.07 + 0.008 * Math.sin(t * 1.6)), k = ts / 512, pisca = piscar(now), spk = est === 'speak' && !reduzido;
+        // olhar: segue o ponteiro; pensando, olha para cima e para o lado; pequenos movimentos rápidos (sacadas) dão vida
+        if (!reduzido && now > proxSac) { sacX = (Math.random() - 0.5) * 0.5; sacY = (Math.random() - 0.5) * 0.35; proxSac = now + 700 + Math.random() * 1900; }
+        var alvoGx = est === 'busy' ? 0.75 : est === 'erro' ? 0 : Math.max(-1, Math.min(1, ax * 2.6)) + sacX * 0.4, alvoGy = est === 'busy' ? -0.8 : est === 'erro' ? 0.3 : Math.max(-1, Math.min(1, ay * 2.6)) + sacY * 0.4;
+        gazeX += (Math.max(-1, Math.min(1, alvoGx)) - gazeX) * 0.2; gazeY += (Math.max(-1, Math.min(1, alvoGy)) - gazeY) * 0.2;
+        // boca: ao falar a mandíbula acompanha a sílaba; cada fronteira de palavra da voz (impulso) abre um pouco mais
+        var alvoBoca = spk ? (0.25 + 0.75 * Math.abs(Math.sin(t * 9.2) * (0.6 + 0.4 * Math.sin(t * 3.1 + 1)))) * 6.5 * (0.6 + amp * 0.5) : 0;
+        boca += (alvoBoca + imp * 3.5 - boca) * 0.42;
+        var alvoIncl = est === 'busy' ? 0.07 : est === 'listen' ? -0.035 : 0, tre = est === 'erro' ? Math.sin((now - estT) / 45) * Math.max(0, 1 - (now - estT) / 700) * 0.09 : 0;
+        incl += (alvoIncl - incl) * 0.07;
+        var bob = reduzido ? 0 : Math.sin(t * 1.4) * Ri * 0.012 + (spk ? -Math.abs(Math.sin(t * 9.2)) * Ri * 0.012 * amp : 0);
         // o rosto acompanha o ponteiro: desloca, inclina um pouco (skew) e aproxima no hover
-        ctx.save(); ctx.translate(cx + px * Ri * 0.2, cy + py * Ri * 0.17); ctx.transform(1, py * 0.05, px * 0.05, 1, 0, 0);
-        ctx.drawImage(img, -ts / 2, -ts / 2, ts, ts); ctx.restore();
-        if (est !== 'idle') { ctx.fillStyle = 'rgba(' + rgb(est === 'erro' ? 0.28 : 0.12) + ')'; ctx.fillRect(cx - Ri, cy - Ri, Ri * 2, Ri * 2); }
+        ctx.save(); ctx.translate(cx + px * Ri * 0.2, cy + py * Ri * 0.17 + bob); ctx.rotate(px * 0.05 + incl + tre + (reduzido ? 0 : 0.012 * Math.sin(t * 0.8))); ctx.transform(1, py * 0.05, px * 0.05, 1, 0, 0);
+        ctx.scale(k, k); ctx.translate(-256, -256);
+        ctx.drawImage(img, 0, 0, 512, 512);
+        if (boca > 0.35) bocaFalando(boca, img);
+        olhoNatural(pisca, gazeX * 5.2, gazeY * 3, est === 'busy' ? 1.18 : est === 'erro' ? 0.8 : 1 + imp * 0.22 + hov * 0.1);
+        for (i = 0; i < 3; i++) olho[i] = cur[i];
+        olhoCiborgue(t, now, gazeX, gazeY, olho, est !== 'idle');
+        fone(t);
+        ctx.restore();
+        if (est !== 'idle') { ctx.fillStyle = 'rgba(' + rgb(est === 'erro' ? 0.22 : 0.07) + ')'; ctx.fillRect(cx - Ri, cy - Ri, Ri * 2, Ri * 2); }
         var per = est === 'busy' ? 1.1 : 3.6, ph = ((t / per) % 1.3) - 0.15, sy = cy - Ri + ph * Ri * 2;
         ctx.globalCompositeOperation = 'lighter';
-        var gs = ctx.createLinearGradient(0, sy - Ri * 0.5, 0, sy + 1); gs.addColorStop(0, 'rgba(' + rgb(0) + ')'); gs.addColorStop(1, 'rgba(' + rgb(est === 'busy' ? 0.5 : 0.28) + ')');
+        var gs = ctx.createLinearGradient(0, sy - Ri * 0.5, 0, sy + 1); gs.addColorStop(0, 'rgba(' + rgb(0) + ')'); gs.addColorStop(1, 'rgba(' + rgb(est === 'busy' ? 0.4 : 0.16) + ')');
         ctx.fillStyle = gs; ctx.fillRect(cx - Ri, sy - Ri * 0.5, Ri * 2, Ri * 0.5 + 1);
         ctx.globalCompositeOperation = 'source-over';
+        // reflexo de vidro por cima (brilho fixo no alto à esquerda)
+        var rf = ctx.createLinearGradient(cx - Ri, cy - Ri, cx - Ri * 0.2, cy - Ri * 0.2); rf.addColorStop(0, 'rgba(255,255,255,.2)'); rf.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = rf; ctx.beginPath(); ctx.ellipse(cx - Ri * 0.42, cy - Ri * 0.62, Ri * 0.5, Ri * 0.2, -0.6, 0, 6.2832); ctx.fill();
       } else { ctx.fillStyle = 'rgba(' + rgb(0.9) + ')'; ctx.beginPath(); ctx.arc(cx, cy, Ri * 0.3 * (1 + 0.15 * pulso), 0, 6.2832); ctx.fill(); }
       ctx.restore();
       ctx.beginPath(); ctx.arc(cx, cy, Ri, 0, 6.2832); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(' + rgb(0.85) + ')'; ctx.stroke();
