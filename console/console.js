@@ -454,7 +454,7 @@
     if (!/^\/\S*$/.test(v)) { sl.hidden = true; return; }
     var vb = semAcento(v), termo = vb.slice(1);
     listaSl = ATALHOS.filter(function (a) { return a.c.indexOf(vb) === 0; });
-    if (termo.length > 1) listaSl = listaSl.concat(ATALHOS.filter(function (a) { return listaSl.indexOf(a) < 0 && (a.c.indexOf(termo) > 0 || semAcento(a.d).indexOf(termo) >= 0); }));
+    if (!listaSl.length && termo.length > 1) listaSl = listaSl.concat(ATALHOS.filter(function (a) { return listaSl.indexOf(a) < 0 && (a.c.indexOf(termo) > 0 || semAcento(a.d).indexOf(termo) >= 0); }));
     if (!listaSl.length) { sl.hidden = true; return; }
     selSl = Math.min(selSl, listaSl.length - 1);
     sl.textContent = '';
@@ -477,7 +477,7 @@
   }
   function mostrarAtalhos() {
     var x = msgPaulus(); x.m.setAttribute('data-k', 'acao');
-    pintar(x.corpo, '**Atalhos do teclado**\n\n- **Enter** envia · **Shift+Enter** quebra a linha\n- **↑ / ↓** com o campo vazio: percorre as perguntas anteriores\n- **/** abre os comandos (aceita busca: `/cop`, `/voz`)\n- **Esc** para a resposta em andamento\n- Escreva enquanto o Paulus responde: a pergunta entra na fila e vai sozinha\n- **Ctrl+Shift+N** nova conversa · **Ctrl+Shift+F** modo foco');
+    pintar(x.corpo, '**Atalhos do teclado**\n\n- **Enter** envia · **Shift+Enter** quebra a linha\n- **↑ / ↓** com o campo vazio: percorre as perguntas anteriores\n- **/** abre os comandos (aceita busca: `/cop`, `/voz`)\n- **Esc** para a resposta em andamento\n- Escreva enquanto o Paulus responde: a pergunta entra na fila e vai sozinha\n- **Ctrl+K** vai para a caixa de pergunta · **Ctrl+Shift+N** nova conversa · **Ctrl+Shift+F** modo foco');
   }
   function memoria() {
     var r = ''; try { r = P.memoria.resumo(); } catch (e) { /* segue */ }
@@ -603,6 +603,7 @@
     });
     x.m.appendChild(form);
   }
+  var SEGUE_LOCAL = { calculo: ['explique essa conta passo a passo'], sem_resposta: ['o que você sabe fazer?'] };
   function desenhar(x, r) {
     var corpo = x.corpo;
     fimPensando(x);
@@ -691,6 +692,7 @@
     if (r.tipo !== 'bloqueio' && r.tipo !== 'erro') acoes(x, r);
     var rp = rodape(r); if (rp) x.m.appendChild(rp);
     if (r.habilidades && r.habilidades.length) x.m.appendChild(h('div', { class: 'f', text: 'Habilidades usadas: ' + r.habilidades.join(', ') }));
+    if (!(r.sugestoes && r.sugestoes.length) && SEGUE_LOCAL[r.tipo]) r.sugestoes = SEGUE_LOCAL[r.tipo];   // continuação sugerida no aparelho, sem IA
     if (r.sugestoes && r.sugestoes.length) {
       var sg = h('div', { class: 'sug', role: 'group', 'aria-label': 'Continuar a conversa' }, [h('span', { class: 'sgl', text: 'Continuar' })]);
       r.sugestoes.slice(0, 3).forEach(function (s) { sg.appendChild(h('button', { type: 'button', class: 'sgb', on: { click: function () { enviar(s); } } }, [ico('seta'), h('span', { text: s })])); }); x.m.appendChild(sg);
@@ -931,7 +933,7 @@
       return P.perguntar(texto, {
       arquivos: querPdf ? arqs : docArqs, documento: querPdf ? null : docAtivo, imagem: foto && foto.dados ? foto : undefined,
       imagens: d && d.pdfEscaneado ? d.imagens : undefined, pdfEscaneado: !!(d && d.pdfEscaneado), paginasTotal: d && d.paginasTotal,
-      onToken: function (_p, tudo) { if (!vivo()) return; fimPensando(x); legenda(''); x.streamed = true; x.corpo.classList.add('dig'); pintar(x.corpo, tudo, true); rolar(); }
+      onToken: function (_p, tudo) { if (!vivo()) return; fimPensando(x); legenda(''); x.streamed = true; x.corpo.classList.add('dig'); pintar(x.corpo, tudo, true); rolar(); if (!perto()) { dn.hidden = false; dn.textContent = '↓ Resposta chegando'; } }
       }); }).then(function (r) {
       if (!vivo()) return;
       if (r && r.requerSenha) r.__pdfOrigem = arqs.slice();
@@ -1969,13 +1971,17 @@
 
   document.addEventListener('keydown', function (e) {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'N' || e.key === 'n')) { e.preventDefault(); nova(); }
+    else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); q.focus(); }
     else if (e.key === 'Escape' && ocupado) parar();
     else if (e.key === '/' && document.activeElement !== q && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); q.focus(); q.value = '/'; abrirSl(); }
   });
   document.addEventListener('click', function (e) { if (!sl.contains(e.target) && e.target !== q) sl.hidden = true; });
 
-  log.addEventListener('scroll', function () { dn.hidden = perto(); });
-  dn.addEventListener('click', function () { log.scrollTop = log.scrollHeight; dn.hidden = true; });
+  log.addEventListener('scroll', function () { dn.hidden = perto(); if (dn.hidden) dn.textContent = '↓ Ir para o fim'; });
+  dn.addEventListener('click', function () { log.scrollTop = log.scrollHeight; dn.hidden = true; dn.textContent = '↓ Ir para o fim'; });
+  // exemplos que giram no campo vazio: ensinam o que o Paulus faz sem ocupar a tela
+  var EXEMPLOS = ['Pergunte ou digite /', 'quanto é 15% de 1200?', 'traçar rota saindo daqui: CAPS II', 'corrija a ortografia e a gramática: …', 'qual a diferença entre PAIF e PAEFI?', 'quando a cota da IA renova?'], iEx = 0;
+  setInterval(function () { if (!q.value && !ocupado && document.activeElement !== q) { iEx = (iEx + 1) % EXEMPLOS.length; q.placeholder = EXEMPLOS[iEx] + (iEx ? '' : '  ·  Shift+Enter quebra a linha'); } }, 7000);
   window.addEventListener('resize', function () { ajustarBarra(); if (document.activeElement && document.activeElement.id === 'q') rolar(true); });
 
   // ------------------------------------------------------------ telemetria (números reais da sessão, nada inventado)
