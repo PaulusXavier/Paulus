@@ -44,6 +44,7 @@ import { respostaDeDistritoPolicial, distritosPoliciais } from '../shared/distri
 import { respostaDeSaudeMentalTerritorio, territoriosSaudeMental } from '../shared/saude-mental-territorio.mjs';
 import { respostaDeEquipeCras, equipeCrasCristiana } from '../shared/equipe-cras-cristiana.mjs';
 import { revisarTexto, respostaDeRevisao } from '../shared/revisao-texto.mjs';
+import { ORT_EXTRA, ortPalavras, ortAgrupar, ortAplicar, ortEscolhasSeguras, ortResumo } from '../shared/ortografia.mjs';
 import { respostaDePdf, lerPedidoDePdf, editarPdf, protegerPdfLocal, listaPaginasPdf, resolverPaginasPdf } from '../shared/pdf.mjs';
 import { lerPedidoDeCentral, instrucaoDeCentral, textoDeCentral } from '../shared/pdf-central.mjs';
 import { ordenarVisitas, analisarEnderecoVisita, EXPLICACAO_VISITAS, ordenarComSugestao, ruasDasVisitas, aprenderVizinhanca, vizinhancaVazia, resumoVizinhanca, explicacaoDaOrdem } from '../shared/visitas.mjs';
@@ -1306,7 +1307,7 @@ async function perguntarFluxo(texto, opcoes) {
   // (o texto a corrigir pode ter nome). Não entra no histórico.
   if (!o.semRevisao) {
     const rev = respostaDeRevisao(t);
-    if (rev) return { tipo: 'revisao', texto: rev.texto, apontamentos: rev.apontamentos, corrigido: rev.corrigido, sensivel: true, fontes: [], avisos: ['Correção feita neste aparelho, sem IA e sem rede. Não foi guardada no histórico. Só pega erros comuns: leia o resultado.'], pergunta: '', docs: [] };
+    if (rev) return { tipo: 'revisao', texto: rev.texto, apontamentos: rev.apontamentos, corrigido: rev.corrigido, original: rev.original, sensivel: true, fontes: [], avisos: ['Correção feita neste aparelho, sem IA e sem rede. Não foi guardada no histórico. Só pega erros comuns: leia o resultado.'], pergunta: '', docs: [] };
   }
 
   // Datas e prazos ("30 dias úteis a partir de 02/12/2026", "idade de quem nasceu em 15/05/1990"): no aparelho, antes do filtro, porque a data de
@@ -1600,7 +1601,8 @@ const Paulus = { init, perguntar,
   investigacao: { iniciar: iniciarInvestigacao, estado: estadoInvestigacao },
   vozIA: { transcrever: transcreverAudio },
   rotinas: { criarGestor: createRoutineManager, armazenamentoLocal: createLocalStorageAdapter },
-  temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao }, versao: '0.40.0',
+  temDadoPessoal, detectarCrise, revisao: { revisar: revisarTexto, responder: respostaDeRevisao },
+  ortografia: { extra: ORT_EXTRA, palavras: ortPalavras, agrupar: ortAgrupar, aplicar: ortAplicar, escolhasSeguras: ortEscolhasSeguras, resumo: ortResumo }, versao: '0.41.0',
   // Memória da conversa inteira (estado, resumo do que já foi perguntado e regra do esclarecimento), para os apps usarem do mesmo jeito.
   conversa: { sanearEstado, mesclarEstado, estadoComoTexto, deveEsclarecer, compactarHistorico, soPerguntou },
   // Para apps com cérebro próprio (Argo): reconhece "continue", "tem certeza?" e "de onde tirou isso?" ANTES de reescrever a pergunta,
