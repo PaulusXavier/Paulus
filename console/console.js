@@ -1937,7 +1937,7 @@
       else if (!tem && pv.firstChild) { pv.textContent = ''; ajustarBarra(); }
     }, 220);
   }
-  q.addEventListener('input', function () { autoAltura(); selSl = 0; abrirSl(); if (nucleo) nucleo.impulso(); dicaPessoal(); });
+  q.addEventListener('input', function () { autoAltura(); selSl = 0; abrirSl(); if (nucleo) nucleo.impulso(); dicaPessoal(); if (nucleo && nucleo.digitando) nucleo.digitando(); });
   q.addEventListener('keydown', function (e) {
     // seta para cima com o campo vazio: traz a última pergunta para editar
     if (sl.hidden && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && hist.length && (!q.value || hiHist >= 0)) {
@@ -2034,7 +2034,7 @@
   // ------------------------------------------------------------ núcleo (reator em arco no cabeçalho)
   // Estados: idle (respira), busy (âmbar, gira rápido, varredura), listen (verde, barras), speak (barras de voz), erro (vermelho, treme).
   function criarNucleo(cv) {
-    var ctx = cv.getContext('2d'), W = 0, H = 0, est = 'idle', estT = 0, amp = 0.05, imp = 0, px = 0, py = 0, ax = 0, ay = 0, img = new Image(), imgOk = false, i, hov = 0, hovAlvo = 0, giro = 0, giroVel = 0, ondas = [], arrasta = false, ultX = 0, incl = 0;
+    var ctx = cv.getContext('2d'), W = 0, H = 0, est = 'idle', estT = 0, amp = 0.05, imp = 0, px = 0, py = 0, ax = 0, ay = 0, img = new Image(), imgOk = false, i, hov = 0, hovAlvo = 0, giro = 0, giroVel = 0, ondas = [], arrasta = false, ultX = 0, incl = 0, dig = 0, wink = 0;
     var COR = { idle: [55, 230, 255], busy: [255, 179, 71], listen: [110, 231, 168], speak: [143, 244, 255], erro: [255, 107, 94] };
     var AMP = { idle: 0.05, busy: 0.3, listen: 0.62, speak: 0.8, erro: 0.1 }, VEL = { idle: 1, busy: 3.4, listen: 1.7, speak: 2, erro: 0.4 };
     var cur = COR.idle.slice();
@@ -2056,8 +2056,8 @@
       if (!piscaDur && now >= proxPisca) { piscaIni = now; piscaDur = est === 'erro' ? 380 : 170 + Math.random() * 50; piscaDupla = Math.random() < 0.22; }
       if (!piscaDur) return 0;
       var p = (now - piscaIni) / piscaDur;
-      if (p >= 1) {
-        if (piscaDupla) { piscaDupla = false; piscaIni = now + 90; piscaDur = 150; return 0; }
+      if (p >= 1 || now - piscaIni > 1500) {
+        if (piscaDupla && p < 3) { piscaDupla = false; piscaIni = now + 90; piscaDur = 150; return 0; }
         piscaDur = 0; proxPisca = now + (est === 'busy' ? 3800 : 2200) + Math.random() * 3800; return 0;
       }
       return p < 0 ? 0 : Math.sin(p * 3.1416);
@@ -2196,15 +2196,17 @@
       // rosto (retrato do app) dentro do vidro, agora vivo: respira, inclina, pisca, olha, fala
       ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, Ri, 0, 6.2832); ctx.clip();
       if (imgOk) {
-        var ts = Ri * 2.04 * (1 + hov * 0.07 + 0.008 * Math.sin(t * 1.6)), k = ts / 512, pisca = piscar(now), spk = est === 'speak' && !reduzido;
+        var ts = Ri * 2.04 * (1 + hov * 0.07 + 0.008 * Math.sin(t * 1.6)), k = ts / 512, pisca = piscar(now), spk = est === 'speak' && !reduzido, lendo = !reduzido && now - dig < 1600, wk = wink ? (now - wink) / 650 : 2;
+        if (wk >= 0 && wk < 1) pisca = Math.max(pisca, Math.sin(wk * 3.1416)); else if (wk >= 1) wink = 0;
         // olhar: segue o ponteiro; pensando, olha para cima e para o lado; pequenos movimentos rápidos (sacadas) dão vida
         if (!reduzido && now > proxSac) { sacX = (Math.random() - 0.5) * 0.5; sacY = (Math.random() - 0.5) * 0.35; proxSac = now + 700 + Math.random() * 1900; }
-        var alvoGx = est === 'busy' ? 0.75 : est === 'erro' ? 0 : Math.max(-1, Math.min(1, ax * 2.6)) + sacX * 0.4, alvoGy = est === 'busy' ? -0.8 : est === 'erro' ? 0.3 : Math.max(-1, Math.min(1, ay * 2.6)) + sacY * 0.4;
+        // digitando: o olhar desce até a caixa de texto e vai e volta, como quem lê o que você escreve
+        var alvoGx = est === 'busy' ? 0.75 : est === 'erro' ? 0 : lendo ? Math.sin(t * 2.4) * 0.45 : Math.max(-1, Math.min(1, ax * 2.6)) + sacX * 0.4, alvoGy = est === 'busy' ? -0.8 : est === 'erro' ? 0.3 : lendo ? 0.85 : Math.max(-1, Math.min(1, ay * 2.6)) + sacY * 0.4;
         gazeX += (Math.max(-1, Math.min(1, alvoGx)) - gazeX) * 0.2; gazeY += (Math.max(-1, Math.min(1, alvoGy)) - gazeY) * 0.2;
         // boca: ao falar a mandíbula acompanha a sílaba; cada fronteira de palavra da voz (impulso) abre um pouco mais
         var alvoBoca = spk ? (0.25 + 0.75 * Math.abs(Math.sin(t * 9.2) * (0.6 + 0.4 * Math.sin(t * 3.1 + 1)))) * 6.5 * (0.6 + amp * 0.5) : 0;
         boca += (alvoBoca + imp * 3.5 - boca) * 0.42;
-        var alvoIncl = est === 'busy' ? 0.07 : est === 'listen' ? -0.035 : 0, tre = est === 'erro' ? Math.sin((now - estT) / 45) * Math.max(0, 1 - (now - estT) / 700) * 0.09 : 0;
+        var alvoIncl = est === 'busy' ? 0.07 : est === 'listen' ? -0.035 : lendo ? 0.03 : 0, tre = est === 'erro' ? Math.sin((now - estT) / 45) * Math.max(0, 1 - (now - estT) / 700) * 0.09 : 0;
         incl += (alvoIncl - incl) * 0.07;
         var bob = reduzido ? 0 : Math.sin(t * 1.4) * Ri * 0.012 + (spk ? -Math.abs(Math.sin(t * 9.2)) * Ri * 0.012 * amp : 0);
         // o rosto acompanha o ponteiro: desloca, inclina um pouco (skew) e aproxima no hover
@@ -2234,7 +2236,7 @@
     tam(); window.addEventListener('resize', function () { tam(); if (reduzido) quadro(performance.now()); });
     if (typeof ResizeObserver !== 'undefined') { try { new ResizeObserver(function () { tam(); if (reduzido) quadro(performance.now()); }).observe(cv); } catch (e) { /* segue */ } }
     if (reduzido) quadro(performance.now()); else requestAnimationFrame(laco);
-    return { estado: function (e) { est = e; estT = performance.now(); if (reduzido) quadro(estT); }, impulso: function () { imp = 1; ondas.push(performance.now()); }, hover: function (v) { hovAlvo = v ? 1 : 0; }, girar: function (dv) { giroVel = Math.max(-0.5, Math.min(0.5, giroVel + dv)); }, olhar: function (x, y) { ax = Math.max(-1, Math.min(1, x)); ay = Math.max(-1, Math.min(1, y)); } };
+    return { estado: function (e) { est = e; estT = performance.now(); if (reduzido) quadro(estT); }, impulso: function () { imp = 1; ondas.push(performance.now()); }, hover: function (v) { hovAlvo = v ? 1 : 0; }, girar: function (dv) { giroVel = Math.max(-0.5, Math.min(0.5, giroVel + dv)); }, digitando: function () { dig = performance.now(); }, piscadela: function () { if (!reduzido) wink = performance.now(); }, olhar: function (x, y) { ax = Math.max(-1, Math.min(1, x)); ay = Math.max(-1, Math.min(1, y)); } };
   }
   var cvCore = $('core');
   if (cvCore && cvCore.getContext) {
@@ -2247,7 +2249,7 @@
       clearTimeout(tfala); tfala = setTimeout(function () { bolha.classList.remove('on'); }, 2400);
     }
     cvCore.setAttribute('role', 'button'); cvCore.setAttribute('tabindex', '0'); cvCore.setAttribute('aria-label', 'Paulus: toque para cumprimentar');
-    function tocar() { nucleo.impulso(); bip(660, 990, 0.1, 0.04); falar(FALAS[ifala++ % FALAS.length]); }
+    function tocar() { nucleo.impulso(); nucleo.piscadela(); bip(660, 990, 0.1, 0.04); falar(FALAS[ifala++ % FALAS.length]); }
     cvCore.addEventListener('pointerenter', function () { nucleo.hover(true); });
     cvCore.addEventListener('pointerleave', function () { nucleo.hover(false); arrastando = false; });
     cvCore.addEventListener('focus', function () { nucleo.hover(true); }); cvCore.addEventListener('blur', function () { nucleo.hover(false); });
