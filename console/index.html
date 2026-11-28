@@ -7,7 +7,8 @@
 <meta name="paulus-endpoint" content="https://paulus-ia.paulo-ae18.workers.dev">
 <!-- Login pelo Firebase (opcional): chave web do projeto (Firebase → Configurações do projeto → Geral → Chave de API da Web). Vazio = sem Firebase. -->
 <meta name="paulus-firebase-key" content="AIzaSyAIj8Un7IVal25a-aaJGspcL_C1O6-SZno">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'unsafe-inline'; connect-src 'self' https://firestore.googleapis.com https://*.workers.dev https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://routing.openstreetmap.de; img-src 'self' data: https://tile.openstreetmap.org; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://firestore.googleapis.com https://*.workers.dev https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://routing.openstreetmap.de https://router.project-osrm.org https://nominatim.openstreetmap.org https://overpass-api.de https://overpass.kumi.systems https://overpass.private.coffee; img-src 'self' data: blob: https://tile.openstreetmap.org https://server.arcgisonline.com; object-src 'none'; base-uri 'none'; form-action 'none'">
+<link rel="stylesheet" href="mapa-rotas.css">
 <style>
 /* =====================================================================
    PAULUS_IA · CONSOLE — interface estilo J.A.R.V.I.S.
@@ -1554,6 +1555,7 @@ textarea:focus-visible,select:focus-visible,input:focus-visible,summary:focus-vi
 <button id="sair" class="hb" hidden title="Sair" aria-label="Sair da conta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
 <button id="ex" class="hb" title="Salvar a conversa em arquivo (.md)" aria-label="Salvar a conversa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg></button>
 <button id="rb" class="hb" title="Gerar tabelas e relatórios neste aparelho, sem IA" aria-label="Relatórios locais"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h4"/><path d="M7 4v16M17 4v16" opacity=".45"/></svg></button>
+<button id="mr" class="hb" title="Mapa e rotas: buscar endereço, paradas, GPS e mapa offline" aria-label="Mapa e rotas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.3"/></svg></button>
 <button id="fo" class="hb" title="Modo foco: esconde painéis e efeitos (Ctrl+Shift+F)" aria-label="Modo foco" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4"/><circle cx="12" cy="12" r="2.2"/></svg></button>
 <button id="nv" class="hb" title="Nova conversa (Ctrl+Shift+N)" aria-label="Nova conversa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4"/></svg></button>
 <button id="cq" class="hb" title="Cota da IA: quanto resta, quando acaba e quando renova" aria-label="Cota da IA" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4.2-5.2"/><path d="M12 6.2v1.4M6.3 9l1 1M17.7 9l-1 1"/></svg></button>
@@ -1640,6 +1642,198 @@ textarea:focus-visible,select:focus-visible,input:focus-visible,summary:focus-vi
     <p class="bf-report-note">Ao fechar esta janela, os dados temporários são removidos; só as planilhas guardadas na etapa 7 ficam neste aparelho até você apagá-las. É necessária uma tabela de condicionalidades com a coluna “Efeito” e NIS ou CPF do responsável.</p>
   </div>
 </dialog>
+<dialog id="mp-dialog" aria-labelledby="mp-titulo">
+  <div class="mp-inner">
+    <div class="mp-head"><h2 id="mp-titulo">Mapa e rotas</h2><button id="mp-fechar" class="mp-fechar" type="button" aria-label="Fechar o mapa">×</button></div>
+  <section id="mapaRotas" aria-labelledby="mapaTitulo">
+    <div class="mp-cab">
+      <h3 id="mapaTitulo" class="sr-only">Mapa e rotas</h3>
+      <button type="button" id="mapaTelaCheia" class="mp-btn mp-btn-sec mp-btn-peq" aria-pressed="false">⛶ Tela cheia</button>
+    </div>
+    <details class="mp-ajuda mb-3" id="mapaAjuda"><summary>Como usar o mapa e as rotas</summary>
+      <ul class="mp-intro mp-guia">
+        <li><strong>Buscar:</strong> digite ou fale o endereço, toque no mapa, ou cole coordenadas / um link do Google Maps. Arraste o pino para acertar o ponto e escolha entre as rotas alternativas.</li>
+        <li><strong>Várias visitas:</strong> toque em <strong>+</strong> para guardar o endereço como parada e buscar o próximo — ou cole uma <strong>lista de endereços</strong> (um por linha) e o app monta a rota. Também dá para <strong>importar as folhas resumo (PDF)</strong>: o app lê só o endereço de cada folha e monta a rota (até 31 endereços por rota: 30 paradas mais o destino; acima disso, divide em grupos). <strong>Melhor ordem</strong> reorganiza as paradas (acima de 10 pontos, em trechos de 9 paradas por proximidade: o 1º trecho é a vizinhança mais perto da partida, o 2º a mais perto de onde o 1º termina, e assim por diante — cada trecho vira um link do Google Maps) e <strong>Voltar à partida</strong> fecha o circuito.</li>
+        <li><strong>Horários:</strong> informe a hora de saída, o tempo de visita (o mesmo para todas as paradas ou um por parada) e o horário limite do expediente: o app mostra a chegada em cada parada e avisa se a rota passar do horário.</li>
+        <li><strong>Na rua:</strong> <strong>Acompanhar</strong> destaca cada passo, fala as curvas (voz do aparelho), mostra quanto falta e recalcula se você sair da rota. <strong>Concluir parada</strong> (visita feita) e <strong>Pular parada</strong> (fica para depois) avançam para o próximo endereço sem esperar o GPS; cada parada da lista também tem ✓ Concluir e Pular, e as já resolvidas ficam abaixo com Desfazer/Retomar. No celular, <strong>Tela cheia</strong> deixa o mapa maior.</li>
+        <li><strong>Enviar aos meus aparelhos:</strong> com a rota montada, abra <em>Enviar ou salvar a rota</em> e toque em <strong>Enviar aos meus aparelhos</strong>: nos outros aparelhos em que você entrou na sua conta aparece “Rota recebida — Abrir”. <strong>Rotas salvas:</strong> em <em>Rotas salvas</em>, dê um nome (ex.: “Terça — Araceli”) e toque em <strong>Salvar rota</strong>. A rota — partida, paradas, destino, horários e tempo de visita — fica na sua conta e aparece em todos os seus aparelhos; toque no nome para abri-la de novo. Salvar com o mesmo nome atualiza a rota.</li>
+        <li><strong>Enviar:</strong> Google Maps, Waze, WhatsApp ou <strong>Copiar roteiro</strong> ou baixar o <strong>Roteiro em PDF</strong> (A4, com horários). O botão <strong>Satélite</strong> mostra a imagem aérea onde o mapa de ruas não tem a casa.</li>
+        <li><strong>Sem internet?</strong> Baixe o mapa offline uma vez (em <em>Partida, posição e mapa offline</em>) e a busca, o mapa e as rotas funcionam sem conexão.</li>
+      </ul>
+    </details>
+    <div class="mp-grid">
+      <div class="mp-painel">
+        <div class="mp-topo">
+          <form id="mapaForm" class="mp-busca" role="search">
+            <button type="button" id="mapaSairCheia" class="mp-voz mp-sair hidden" aria-label="Sair da tela cheia" title="Sair da tela cheia">←</button>
+            <label for="mapaBusca" class="sr-only">Endereço de destino</label>
+            <input id="mapaBusca" type="search" class="access-input" placeholder="Destino: digite ou fale" autocomplete="off" enterkeyhint="search" inputmode="search" autocapitalize="words" spellcheck="false">
+            <button type="button" id="mapaVoz" class="mp-voz" aria-label="Falar o endereço de destino" aria-pressed="false" title="Falar o endereço">🎤</button>
+            <button type="submit" class="mp-btn" id="mapaBuscar"><span class="mp-txt-busca">Buscar</span></button>
+          </form>
+          <div class="mp-focos" role="group" aria-label="Buscar só num bairro">
+            <span class="mp-focos-t">Buscar em:</span>
+            <button type="button" data-foco="13s" aria-pressed="false">13 de Setembro</button>
+            <button type="button" data-foco="araceli" aria-pressed="false">Araceli</button>
+          </div>
+          <div id="mapaRecentes" class="mp-focos mp-recentes hidden" role="group" aria-label="Destinos recentes desta sessão"></div>
+          <ul id="mapaResultados" class="mp-resultados hidden"></ul>
+          <details class="mp-lista" id="mapaListaBox">
+            <summary>☰ Colar lista de endereços</summary>
+            <label for="mapaLista" class="sr-only">Endereços, um por linha</label>
+            <textarea id="mapaLista" class="access-input" rows="4" placeholder="Um endereço por linha (até 31):&#10;Rua Santo Agostinho, 193, Centenário&#10;Av. Ville Roy, 1200, Centro&#10;…" autocomplete="off" spellcheck="false"></textarea>
+            <label class="mp-off-sempre"><input type="checkbox" id="mapaListaOrdem" checked> Escolher a melhor ordem (o último vira o destino)</label>
+            <div class="mp-acoes"><button type="button" id="mapaListaMontar" class="mp-btn">Montar rota com a lista</button></div>
+            <div class="mp-acoes">
+              <label class="mp-btn mp-btn-arq" for="mapaFolhasArq">Importar folhas resumo (PDF)</label>
+              <input type="file" id="mapaFolhasArq" accept="application/pdf,.pdf" class="sr-only">
+              <button type="button" id="mapaFolhasProx" class="mp-btn hidden"></button>
+              <button type="button" id="mapaFolhasLimpar" class="mp-btn mp-btn-sec" disabled>🗑 Limpar lista</button>
+            </div>
+            <small class="mp-lista-dica">Só o endereço — nada de nome de pessoa, NIS ou CPF. No PDF, o app lê só o quadro “Endereço da família”.</small>
+          </details>
+
+          <div id="mapaRecebida" class="mp-recebida hidden" role="status" aria-live="polite">
+            <span id="mapaRecebidaTxt"></span>
+            <button type="button" id="mapaRecebidaAbrir" class="mp-btn">Abrir</button>
+            <button type="button" id="mapaRecebidaFechar" class="mp-mini mp-mini-peq" aria-label="Dispensar">✕</button>
+          </div>
+
+          <details class="mp-lista mp-salvas" id="mapaSalvasBox">
+            <summary>Rotas salvas <span id="mapaSalvasN" class="mp-salvas-n"></span></summary>
+            <div class="mp-busca">
+              <label for="mapaSalvaNome" class="sr-only">Nome da rota</label>
+              <input id="mapaSalvaNome" type="text" class="access-input" maxlength="60" placeholder="Nome da rota (ex.: Terça — Araceli)" autocomplete="off" spellcheck="false">
+              <button type="button" id="mapaSalvar" class="mp-btn" disabled><span>Salvar rota</span></button>
+            </div>
+            <p id="mapaSalvasMsg" class="mp-lista-dica" role="status" aria-live="polite"></p>
+            <ul id="mapaSalvasLista" class="mp-salvas-lista"></ul>
+            <small class="mp-lista-dica">Fica na sua conta e aparece em todos os seus aparelhos. Só endereço e nome da rota — nada de nome de pessoa, NIS ou CPF.</small>
+          </details>
+
+          <div class="mp-modos" role="group" aria-label="Meio de transporte">
+            <button type="button" data-modo="carro" aria-pressed="true">Carro/moto</button>
+            <button type="button" data-modo="pe" aria-pressed="false">A pé</button>
+            <button type="button" data-modo="bike" aria-pressed="false">Bicicleta</button>
+          </div>
+
+          <div class="mp-mais">
+            <button type="button" id="mapaMais" class="mp-mais-btn hidden" aria-expanded="true">Partida, posição e mapa offline ▾</button>
+            <div class="mp-mais-corpo">
+              <div class="mp-linha">
+                <label for="mapaOrigem">Partir de</label>
+                <select id="mapaOrigem" class="mp-select">
+                  <option value="pos">Minha posição</option>
+                  <option value="partida">Rua Santo Agostinho, 193 — Centenário</option>
+                  <option value="outro">Outro endereço…</option>
+                </select>
+              </div>
+              <div id="mapaOrigemBox" class="mp-busca hidden">
+                <input id="mapaOrigemTexto" type="text" class="access-input" placeholder="Partida: digite ou fale o endereço" autocomplete="off" aria-label="Endereço de partida">
+                <button type="button" id="mapaVozOrigem" class="mp-voz" aria-label="Falar o endereço de partida" aria-pressed="false" title="Falar o endereço">🎤</button>
+              </div>
+              <div class="mp-acoes">
+                <button type="button" id="mapaMinhaPos" class="mp-btn mp-btn-sec">◎Usar minha posição</button>
+                <button type="button" id="mapaLimpar" class="mp-btn mp-btn-sec">✕Limpar</button>
+              </div>
+              <div id="mapaOffBox" class="mp-off" role="group" aria-label="Mapa offline">
+                <p id="mapaOffTexto" class="mp-off-texto">Verificando o mapa offline…</p>
+                <progress id="mapaOffProg" class="mp-off-prog hidden" max="100" value="0" aria-label="Andamento do download do mapa offline"></progress>
+                <div class="mp-acoes">
+                  <button type="button" id="mapaOffBaixar" class="mp-btn mp-btn-sec">Baixar mapa offline</button>
+                  <button type="button" id="mapaOffCancelar" class="mp-btn mp-btn-sec hidden">Cancelar download</button>
+                  <button type="button" id="mapaOffApagar" class="mp-btn mp-btn-sec hidden">Apagar</button>
+                </div>
+                <label id="mapaOffSempreBox" class="mp-off-sempre hidden"><input type="checkbox" id="mapaOffSempre"> Usar sempre o mapa offline (não gasta internet)</label>
+                <label id="mapaOffAmpBox" class="mp-off-sempre"><input type="checkbox" id="mapaOffAmp"> Incluir estradas e povoados do entorno (zona rural; download maior)</label>
+              </div>
+            </div>
+          </div>
+
+          <p id="mapaStatus" class="mp-status hidden" role="status" aria-live="polite"></p>
+          <div id="mapaDestinoBox" class="mp-destino hidden">
+            <div class="mp-destino-txt"><b>Destino:</b> <span id="mapaDestinoTexto"></span><small>Arraste o pino vermelho para ajustar o ponto.</small><small id="mapaDestinoEta" class="mp-eta hidden"></small></div>
+            <button type="button" id="mapaAddParada" class="mp-mini" aria-label="Adicionar este endereço como parada e buscar outro" title="Adicionar como parada e buscar outro endereço"><i data-lucide="plus" class="w-4 h-4">+</i></button>
+            <button type="button" id="mapaVoltar" class="mp-mini" aria-label="Voltar à partida no fim: o destino vira parada e a partida vira o destino final" title="Voltar à partida no fim"><i data-lucide="undo-2" class="w-4 h-4">↩</i></button>
+            <button type="button" id="mapaInverter" class="mp-mini" aria-label="Inverter partida e destino" title="Inverter partida e destino"><i data-lucide="arrow-up-down" class="w-4 h-4">⇅</i></button>
+          </div>
+          <div id="mapaParadasBox" class="mp-paradas hidden">
+            <div class="mp-paradas-cab"><b>Paradas no caminho</b> <button type="button" id="mapaOtimizar" class="mp-btn mp-btn-sec mp-btn-peq hidden">Melhor ordem</button></div>
+            <ol id="mapaParadas" class="mp-paradas-lista"></ol>
+            <p id="mapaParadasResumo" class="mp-paradas-resumo hidden" role="status"></p>
+            <ol id="mapaFeitas" class="mp-paradas-lista mp-feitas hidden"></ol>
+          </div>
+        </div>
+
+        <div class="mp-base">
+          <div id="mapaResumo" class="mp-resumo hidden">
+            <button type="button" id="mapaAlca" class="mp-alca" aria-label="Mostrar ou ocultar o passo a passo" aria-controls="mapaPassos"><span></span></button>
+            <div class="mp-total"><strong id="mapaTempo"></strong> <span id="mapaDist"></span></div>
+            <p id="mapaChegada" class="mp-chegada"></p>
+            <p id="mapaDeAte" class="mp-deate"></p>
+            <div class="mp-plano" role="group" aria-label="Horário de saída e tempo de visita">
+              <label for="mapaSaida">Sair às <input id="mapaSaida" type="time" class="mp-select" aria-describedby="mapaSaidaDica"></label>
+              <label id="mapaVisitaBox" for="mapaVisita" class="hidden">Visita por parada
+                <select id="mapaVisita" class="mp-select">
+                  <option value="0">sem tempo</option><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">1 h</option>
+                </select>
+              </label>
+              <label for="mapaLimite">Terminar até <input id="mapaLimite" type="time" class="mp-select"></label>
+              <small id="mapaSaidaDica">Deixe a saída vazia para “saindo agora”. Com “Terminar até”, o app avisa se a rota passar do expediente.</small>
+            </div>
+            <p id="mapaFolga" class="mp-folga hidden" role="status" aria-live="polite"></p>
+            <div id="mapaAlternativas" class="mp-alts hidden" role="group" aria-label="Rotas alternativas"></div>
+            <p id="mapaProximo" class="mp-proximo hidden" role="status" aria-live="polite"></p>
+            <p id="mapaFaltam" class="mp-faltam hidden" role="status"></p>
+            <div class="mp-acoes mp-acoes-prim">
+              <button type="button" id="mapaSeguir" class="mp-btn hidden" aria-pressed="false">➤ <span>Acompanhar</span></button>
+              <div class="mp-par-acoes">
+                <p id="mapaProximaParada" class="mp-prox-parada hidden"></p>
+                <button type="button" id="mapaCheguei" class="mp-btn hidden"><span>Concluir parada 1</span></button>
+                <button type="button" id="mapaPular" class="mp-btn mp-btn-sec hidden">⏭ <span>Pular parada 1</span></button>
+                <button type="button" id="mapaDesfazer" class="mp-btn mp-btn-sec mp-desfazer hidden">↶ <span>Desfazer</span></button>
+              </div>
+              <button type="button" id="mapaVozNav" class="mp-btn mp-btn-sec hidden" aria-pressed="true" title="Avisos falados das curvas no modo Acompanhar">🔈<span>Voz ligada</span></button>
+              <button type="button" id="mapaPassosBtn" class="mp-btn mp-btn-sec mp-so-cheia" aria-expanded="false"><span>Passo a passo</span></button>
+            </div>
+            <details class="mp-envio" id="mapaEnvio">
+              <summary>Enviar ou salvar a rota</summary>
+              <div class="mp-acoes mp-acoes-env">
+                <a id="mapaGoogle" class="mp-btn mp-btn-sec" href="#" target="_blank" rel="noopener"><span>Google Maps</span></a>
+                <a id="mapaWaze" class="mp-btn mp-btn-sec" href="#" target="_blank" rel="noopener">➤ <span id="mapaWazeTxt">Waze</span></a>
+                <button type="button" id="mapaNuvem" class="mp-btn" title="Manda esta rota para a sua conta: abre nos outros aparelhos em que você entrou"><span>Enviar aos meus aparelhos</span></button>
+                <button type="button" id="mapaLink" class="mp-btn mp-btn-sec" disabled title="Gera um link do app com a rota inteira: quem abrir (em outro aparelho ou conta) vê “Rota recebida — Abrir”"><span>Link para outro aparelho</span></button>
+                <button type="button" id="mapaCompartilhar" class="mp-btn mp-btn-sec">Compartilhar</button>
+                <button type="button" id="mapaWhats" class="mp-btn mp-btn-sec">WhatsApp</button>
+                <button type="button" id="mapaPdf" class="mp-btn mp-btn-sec">Roteiro em PDF</button>
+                <button type="button" id="mapaCopiar" class="mp-btn mp-btn-sec hidden">Copiar roteiro</button>
+              </div>
+            </details>
+            <ol id="mapaPassos" class="mp-passos"></ol>
+          </div>
+
+          <details class="tv-more mp-priv">
+            <summary>Privacidade</summary>
+            <ul class="tv-hint mp-guia">
+              <li><strong>O que sai do aparelho:</strong> o texto do endereço (vai ao OpenStreetMap/Nominatim para achar o ponto) e as coordenadas da partida, das paradas e do destino (vão ao serviço de rotas, routing.openstreetmap.de; se ele estiver fora do ar, o carro/moto tenta o servidor reserva router.project-osrm.org, que recebe as mesmas coordenadas). Os blocos do mapa vêm do OpenStreetMap; se você ligar o <em>Satélite</em>, vêm da Esri — nessa hora o serviço recebe a região que você está vendo e o seu IP.</li>
+              <li><strong>Sua posição</strong> só é lida quando você pede (ou enquanto <em>Acompanhar</em> estiver ligado) e não é guardada; ao recalcular uma rota, só as coordenadas vão ao serviço de rotas.</li>
+              <li><strong>Rotas salvas e envio aos seus aparelhos:</strong> só quando você toca em <em>Salvar rota</em> ou <em>Enviar aos meus aparelhos</em>, o app guarda na sua conta (Firebase/Google, só você lê) o nome da rota, os endereços e coordenadas da partida (se for um endereço fixo — “Minha posição” nunca é guardada), das paradas e do destino, o tempo de visita e os horários. Apague quando quiser. Não use nome de pessoa, NIS ou CPF no nome da rota nem no endereço. “Limpar aparelho” apaga a cópia deste aparelho; a da nuvem só some se você apagar a rota.</li>
+              <li><strong>Endereços buscados</strong>, destinos recentes, paradas e a lista colada (enquanto você não salvar a rota) ficam só na memória da página, nunca no aparelho. O que fica guardado são suas preferências (meio de transporte, partida, voz, satélite, tempo de visita, horário limite) e as coordenadas da partida padrão.</li>
+              <li><strong>Compartilhar, WhatsApp e Copiar roteiro</strong> só enviam ou copiam o que você escolher; o roteiro traz os endereços que você digitou: não coloque nome de pessoa nele. Hora de saída, tempo de visita e horário limite são só contas feitas no aparelho.</li>
+              <li><strong>Voz:</strong> se usar o microfone, o <strong>áudio é enviado ao serviço de voz do próprio navegador</strong> (no Chrome, o do Google) para virar texto. Os avisos falados do <em>Acompanhar</em> usam a voz do próprio aparelho.</li>
+              <li><strong>Importar folhas resumo (PDF):</strong> o arquivo é lido só no aparelho (leitor de PDF do próprio app) e dele sai apenas o endereço — rua, número e bairro do quadro “Endereço da família”. Nome, CPF, NIS e código da família nem são lidos, e o PDF não é enviado nem guardado. Depois disso valem as mesmas regras da lista colada: o texto de cada endereço vai ao OpenStreetMap/Nominatim para achar o ponto.</li>
+              <li><strong>Não diga nem digite nome, NIS ou CPF</strong> — só o endereço. O Paulus e as planilhas das famílias não participam desta busca.</li>
+              <li><strong>Mapa offline:</strong> ao baixar, o app pede ao servidor público Overpass (OpenStreetMap) as ruas, bairros e locais da área de Boa Vista — nenhum dado seu vai junto — e guarda tudo só neste aparelho. Com o mapa offline em uso, nada do que você digita ou marca sai do aparelho.</li>
+            </ul>
+          </details>
+        </div>
+      </div>
+      <div class="mp-mapa"><div id="mapaCanvas" role="application" aria-label="Mapa de Boa Vista"></div><button type="button" id="mapaLocalizar" class="mp-localizar" aria-label="Centralizar o mapa na minha posição" title="Minha posição">◎</button><button type="button" id="mapaCamada" class="mp-camada" aria-pressed="false" title="Alternar entre mapa de ruas e imagem de satélite">🛰 <span>Satélite</span></button><button type="button" id="mapaToqueAbrir" class="mp-toque-abrir" aria-label="Abrir o mapa em tela cheia"><span>⛶ Toque para abrir o mapa</span></button></div>
+    </div>
+  </section>
+
+  </div>
+</dialog>
 <aside id="rl" class="rail" aria-label="Sistemas">
 <section class="pn"><h3 class="pt">Sistemas</h3>
 <dl class="kv">
@@ -1713,5 +1907,12 @@ textarea:focus-visible,select:focus-visible,input:focus-visible,summary:focus-vi
 <script type="module" src="abrigos-ui.mjs"></script>
 <script type="module" src="rota-visita-ui.mjs"></script>
 <script type="module" src="planilhas-mds-ui.mjs"></script>
+<script src="mapa-util.js"></script>
+<script src="mapa-foco.js"></script>
+<script src="mapa-offline.js"></script>
+<script src="mapa-folhas.js"></script>
+<script src="mapa-nuvem.js"></script>
+<script src="mapa-rotas.js"></script>
+<script src="mapa-ui.js"></script>
 <script src="login.js"></script>
 </body></html>
