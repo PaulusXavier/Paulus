@@ -1500,6 +1500,46 @@ textarea:focus-visible,select:focus-visible,input:focus-visible,summary:focus-vi
   .ac .bi,.ac button,.ac a,.ort button{min-height:44px}
   .ac .bi.so{width:44px;min-width:44px}
 }
+
+/* ===== Relatórios locais: etapas em abas, mais contraste e botões claros ===== */
+#bf-report .bf-report-inner{max-width:1180px;padding-bottom:64px;gap:16px}
+#bf-report .bf-report-head{padding:14px 0}
+#bf-report .bf-report-head h2{font-size:24px}
+#bf-report .bf-report-head p{font-size:14px}
+#bf-report .bf-report-close{width:46px;height:46px;min-height:46px;font-size:24px;border:1px solid var(--bd2);background:var(--panel);color:var(--t)}
+#bf-report .bf-report-close:hover{background:var(--c);color:var(--bg)}
+#bf-report .bf-nav{position:sticky;top:0;z-index:3;display:flex;gap:8px;overflow-x:auto;padding:10px 0;margin:-6px 0 0;background:var(--bg);border-bottom:1px solid var(--bd);scrollbar-width:thin}
+#bf-report .bf-nav button{flex:0 0 auto;display:inline-flex;align-items:center;gap:9px;min-height:46px;padding:0 16px 0 8px;border-radius:999px;border:1.5px solid var(--bd2);background:var(--panel);color:var(--t);font:600 14px var(--hud);cursor:pointer;white-space:nowrap}
+#bf-report .bf-nav button:hover{border-color:var(--c)}
+#bf-report .bf-nav .n{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--panel2);color:var(--c2);font:700 14px var(--hud);border:1px solid var(--bd2)}
+#bf-report .bf-nav button[aria-selected="true"]{background:var(--c);border-color:var(--c);color:var(--bg)}
+#bf-report .bf-nav button[aria-selected="true"] .n{background:var(--bg);color:var(--c);border-color:transparent}
+#bf-report .bf-nav button:focus-visible,#bf-report button:focus-visible,#bf-report input:focus-visible,#bf-report select:focus-visible{outline:3px solid var(--a);outline-offset:2px}
+#bf-report .bf-report-note{padding:11px 14px;border:1px solid var(--bd2);border-left:4px solid var(--ok);border-radius:10px;background:var(--panel);color:var(--t);font-size:14px}
+#bf-report .bf-report-section{display:grid;gap:14px;padding:22px;border:1px solid var(--bd2);border-radius:18px;background:var(--panel)}
+#bf-report .bf-report-section[hidden]{display:none}
+#bf-report .bf-report-section h3{font-size:20px;color:var(--t)}
+#bf-report .bf-report-section>p,#bf-report .bf-report-field p,#bf-report .bf-report-check{font-size:14px;line-height:1.55;color:var(--t)}
+#bf-report .bf-report-section>p:not([role]){color:var(--mut)}
+#bf-report .bf-report-field{padding:16px;border:1.5px dashed var(--bd2);border-radius:14px;background:var(--bg)}
+#bf-report .bf-report-field label{font-size:15px;color:var(--t)}
+#bf-report input[type=file]{font-size:14px;color:var(--t)}
+#bf-report input[type=file]::file-selector-button,#bf-report .mds-restaurar{margin-right:12px;min-height:40px;padding:0 16px;border-radius:10px;border:1.5px solid var(--c);background:var(--panel);color:var(--c);font:700 14px var(--hud);cursor:pointer}
+#bf-report input[type=file]::file-selector-button:hover{background:var(--c);color:var(--bg)}
+#bf-report select{min-height:44px;font-size:14px;color:var(--t);background:var(--panel);border:1.5px solid var(--bd2);border-radius:10px;padding:0 10px}
+#bf-report [role=status]:not(:empty){padding:9px 12px;border-radius:10px;background:var(--panel2);border-left:4px solid var(--c);color:var(--t);font-size:14px;line-height:1.5}
+#bf-report .bf-report-field [role=status]{background:transparent;border-left:0;padding:0;min-height:0}
+#bf-report [role=status]:empty{display:none}
+#bf-report .bf-report-actions button{min-height:50px;padding:0 24px;border-radius:12px;font:700 15px var(--hud);cursor:pointer;border:2px solid var(--c);background:var(--panel);color:var(--c)}
+#bf-report .bf-report-actions button:hover:not(:disabled){background:var(--panel2)}
+#bf-report .bf-report-actions #bf-gerar,#bf-report .bf-report-actions #bf-div-gerar,#bf-report .bf-report-actions #bf-pdf-gerar,#bf-report .bf-report-actions .ab-gerar{background:var(--c);color:var(--bg);border-color:var(--c)}
+#bf-report .bf-report-actions #bf-gerar:hover:not(:disabled),#bf-report .bf-report-actions #bf-div-gerar:hover:not(:disabled),#bf-report .bf-report-actions #bf-pdf-gerar:hover:not(:disabled),#bf-report .bf-report-actions .ab-gerar:hover:not(:disabled){background:var(--c2)}
+#bf-report .bf-report-actions button:disabled,#bf-report .bf-report-actions #bf-gerar:disabled,#bf-report .bf-report-actions #bf-div-gerar:disabled,#bf-report .bf-report-actions #bf-pdf-gerar:disabled,#bf-report .bf-report-actions .ab-gerar:disabled{opacity:1;background:var(--panel2);color:var(--mut);border:2px dashed var(--bd2);cursor:not-allowed}
+#bf-report .bf-passo{display:flex;justify-content:space-between;gap:10px;margin-top:6px;padding-top:16px;border-top:1px solid var(--bd)}
+#bf-report .bf-passo button{min-height:46px;padding:0 20px;border-radius:12px;border:1.5px solid var(--bd2);background:var(--panel);color:var(--t);font:600 14px var(--hud);cursor:pointer}
+#bf-report .bf-passo button:hover{border-color:var(--c);color:var(--c)}
+#bf-report .bf-passo .prox{margin-left:auto}
+@media(max-width:520px){#bf-report .bf-report-section{padding:14px}#bf-report .bf-nav .t{display:none}#bf-report .bf-nav button{padding:0 8px}#bf-report .bf-nav button[aria-selected="true"] .t{display:inline}}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
 <svg id="hx" aria-hidden="true" focusable="false"><defs><pattern id="hxp" width="56" height="97" patternUnits="userSpaceOnUse" patternTransform="scale(.9)"><path d="M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z M28 62 L28 95 M54 47 L82 62 M2 47 L-26 62" fill="none" stroke="currentColor" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#hxp)"/></svg>
@@ -1573,23 +1613,27 @@ textarea:focus-visible,select:focus-visible,input:focus-visible,summary:focus-vi
   <div class="bf-report-inner">
     <div class="bf-report-head">
       <div><h2 id="bf-report-title">Relatórios locais</h2><p>Etapas 1 a 3 e 5 a 7 · tabelas, divisão por técnico, PDFs individuais, abrigos, rota de visita e planilhas do MDS</p></div>
-      <button id="bf-fechar" class="bf-report-close" type="button" aria-label="Fechar e limpar os ficheiros">×</button>
+      <button id="bf-fechar" class="bf-report-close" type="button" aria-label="Fechar e limpar os arquivos">×</button>
     </div>
-    <p class="bf-report-note">As planilhas são lidas e comparadas neste aparelho. Não são anexadas à conversa, gravadas ou enviadas à rede/IA. Limite: 5 MB por ficheiro.</p>
+    <nav class="bf-nav" id="bf-nav" aria-label="Etapas dos relatórios"></nav>
+    <p class="bf-report-note">As planilhas são lidas e comparadas neste aparelho. Não são anexadas à conversa, gravadas ou enviadas à rede/IA. Limite: 5 MB por arquivo.</p>
+    <section class="bf-report-section" id="bf-etapa-1" data-curto="Comparar meses" aria-labelledby="bf-cmp-title">
+      <h3 id="bf-cmp-title">Etapa 1 · Comparar mês anterior e atual</h3>
     <div class="bf-report-grid">
       <div class="bf-report-field"><label for="bf-ant">Planilha do mês anterior (.xlsx, .xls ou .csv)</label><input id="bf-ant" type="file" accept=".xlsx,.xls,.csv"><p id="bf-ant-status" role="status">Ainda não escolhida.</p></div>
       <div class="bf-report-field"><label for="bf-atual">Planilha do mês atual (.xlsx, .xls ou .csv)</label><input id="bf-atual" type="file" accept=".xlsx,.xls,.csv"><p id="bf-atual-status" role="status">Ainda não escolhida.</p></div>
     </div>
-    <div class="bf-report-actions"><button id="bf-gerar" type="button" disabled>Gerar Excel</button><button id="bf-limpar" type="button">Limpar ficheiros</button></div>
+    <div class="bf-report-actions"><button id="bf-gerar" type="button" disabled>Gerar Excel</button><button id="bf-limpar" type="button">Limpar arquivos</button></div>
     <p id="bf-status" role="status" aria-live="polite"></p>
-    <section class="bf-report-section" aria-labelledby="bf-div-title">
+    </section>
+    <section class="bf-report-section" data-curto="Dividir por técnico" aria-labelledby="bf-div-title">
       <h3 id="bf-div-title">Etapa 2 · Divisão por técnico — Território Volante</h3>
       <p>Escolha a planilha de condicionalidades do Território Volante. As famílias são ordenadas de A a Z pelo nome do responsável e distribuídas em partes tão iguais quanto possível por Paulo Xavier, Danilo Braga e Keomara Teles. Os integrantes de cada família permanecem juntos.</p>
       <div class="bf-report-field"><label for="bf-div-input">Planilha para dividir (.xlsx, .xls ou .csv)</label><input id="bf-div-input" type="file" accept=".xlsx,.xls,.csv"><p id="bf-div-status" role="status" aria-live="polite">Ainda não escolhida.</p></div>
       <div class="bf-report-actions"><button id="bf-div-gerar" type="button" disabled>Dividir e gerar Excel</button></div>
       <p>O Excel terá uma aba de resumo e uma aba por técnico. A planilha original não é alterada.</p>
     </section>
-    <section class="bf-report-section" aria-labelledby="bf-pdf-title">
+    <section class="bf-report-section" data-curto="PDF individual" aria-labelledby="bf-pdf-title">
       <h3 id="bf-pdf-title">Etapa 3 · Relatório Individual em PDF</h3>
       <p>Depois de preparar a divisão da etapa 2, gere um relatório PDF por técnico sem voltar a escolher a planilha. Com vários técnicos, os PDFs são descarregados juntos num ZIP.</p>
       <p id="bf-pdf-status" role="status" aria-live="polite">Aguardando a divisão da planilha na etapa 2.</p>
@@ -1598,7 +1642,7 @@ textarea:focus-visible,select:focus-visible,input:focus-visible,summary:focus-vi
       <div class="bf-report-actions"><button id="bf-pdf-gerar" type="button" disabled>Gerar PDF(s) individual(is)</button></div>
       <p>Cada PDF inclui resumo por efeito e por bloco, e começa o detalhamento de cada bloco numa página nova. A ordem é uma sugestão local por texto, sem mapa, trânsito nem cálculo de distância; confirme endereços e ajuste a sequência antes da visita.</p>
     </section>
-    <section class="bf-report-section" aria-labelledby="bf-ab-title">
+    <section class="bf-report-section" data-curto="Abrigos" aria-labelledby="bf-ab-title">
       <h3 id="bf-ab-title">Etapa 5 · Relatórios dos Abrigos (Operação Acolhida)</h3>
       <p>Junte as folhas resumo (PDF, uma por família) de cada abrigo num único PDF, com capa e uma divisória por efeito: Alerta, Bloqueio e Suspensão. Até 60 PDFs e 80 MB no total. Os arquivos não saem do aparelho.</p>
       <div class="bf-report-field"><label id="ab-mes-rotulo" for="ab-mes">Mês de repercussão</label><select id="ab-mes"><option value="">Escolher…</option></select></div>
@@ -1608,7 +1652,7 @@ textarea:focus-visible,select:focus-visible,input:focus-visible,summary:focus-vi
       <div id="ab-lista"></div>
       <p id="ab-status" role="status" aria-live="polite"></p>
     </section>
-    <section class="bf-report-section" aria-labelledby="bf-rv-title">
+    <section class="bf-report-section" data-curto="Rota de visita" aria-labelledby="bf-rv-title">
       <h3 id="bf-rv-title">Etapa 6 · Rota de Visita — unificar folhas de família</h3>
       <p>Junte as folhas resumo (PDF, uma por família) das visitas do dia num só PDF, na ordem de visita: primeiro o Bloco 1, depois o Bloco 2. O Paulus lê só <strong>rua, número e bairro</strong> do quadro de endereço de cada folha (nome, NIS e CPF não entram na leitura); folhas escaneadas passam por OCR no aparelho. Até 30 PDFs e 50 MB. Nada sai do aparelho.</p>
       <p id="rv-total" role="status">0/30 arquivos</p>
@@ -1620,7 +1664,7 @@ textarea:focus-visible,select:focus-visible,input:focus-visible,summary:focus-vi
       <p id="rv-status" role="status" aria-live="polite"></p>
       <p>A ordem é uma sugestão local por texto (partida: Rua Santo Agostinho, nº 193 — Centenário), sem mapa, trânsito nem distância. Confira os endereços e ajuste com ↑ e ↓: o Paulus aprende, neste aparelho, quais ruas você costuma visitar em sequência.</p>
     </section>
-    <section class="bf-report-section" aria-labelledby="bf-mds-title">
+    <section class="bf-report-section" data-curto="Planilhas MDS" aria-labelledby="bf-mds-title">
       <h3 id="bf-mds-title">Etapa 7 · Planilhas do MDS guardadas neste aparelho</h3>
       <p>Envie a planilha bruta de Repercussão de Condicionalidades. O Paulus organiza por técnico do CRAS (Resumo + uma aba por técnico), baixa o Excel e guarda uma cópia <strong>só neste navegador</strong>: nada vai à nuvem nem à IA. A cópia tem NIS, CPF e nomes; em outro aparelho ela não aparece, por isso use o backup. Até 5 MB por planilha.</p>
       <div class="bf-report-field"><label for="mds-input">Planilha bruta do MDS (.xlsx, .xls ou .csv)</label><input id="mds-input" type="file" accept=".xlsx,.xls,.csv"></div>
@@ -1914,5 +1958,6 @@ textarea:focus-visible,select:focus-visible,input:focus-visible,summary:focus-vi
 <script src="mapa-nuvem.js"></script>
 <script src="mapa-rotas.js"></script>
 <script src="mapa-ui.js"></script>
+<script src="relatorios-nav.js"></script>
 <script src="login.js"></script>
 </body></html>
