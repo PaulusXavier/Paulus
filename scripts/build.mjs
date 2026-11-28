@@ -17,7 +17,7 @@ import { dirname, join } from 'node:path';
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Ordem importa: quem é usado vem antes de quem usa.
-const MODULOS = ['shared/espanhol-dados.mjs', 'shared/espanhol.mjs', 'shared/ingles-dados.mjs', 'shared/ingles.mjs', 'shared/idioma-estudo.mjs', 'shared/idioma.mjs', 'shared/pii.mjs', 'shared/pseudonimo.mjs', 'shared/documento.mjs', 'shared/crise.mjs', 'shared/busca.mjs', 'shared/pedido.mjs', 'shared/conversa.mjs', 'shared/verificacao.mjs', 'shared/calculo.mjs', 'shared/datas.mjs', 'shared/calculo-mais.mjs', 'shared/matematica.mjs', 'shared/prova-local.mjs', 'shared/matematica-local.mjs', 'shared/psicometria.mjs', 'shared/est-nucleo.mjs', 'shared/est-posthoc.mjs', 'shared/grafico.mjs', 'shared/territorio-ct.mjs', 'shared/distrito-policial.mjs', 'shared/saude-mental-territorio.mjs', 'shared/equipe-cras-cristiana.mjs', 'shared/geo.mjs', 'shared/diretorio-boa-vista.mjs', 'shared/mapa-bairros.mjs', 'shared/resposta-local.mjs', 'shared/rota.mjs', 'shared/modelos.mjs', 'shared/qrcode.mjs', 'shared/revisao-texto.mjs', 'shared/pdf.mjs', 'shared/pdf-central.mjs', 'shared/visitas.mjs', 'shared/suicidio.mjs', 'shared/sugestoes.mjs', 'shared/fala.mjs', 'shared/resposta-extrativa.mjs', 'shared/saudacao-local.mjs', 'shared/rotinas.mjs', 'client/skins.mjs', 'client/memoria.mjs', 'client/paulus.mjs'];
+const MODULOS = ['shared/espanhol-dados.mjs', 'shared/espanhol.mjs', 'shared/ingles-dados.mjs', 'shared/ingles.mjs', 'shared/idioma-estudo.mjs', 'shared/idioma.mjs', 'shared/pii.mjs', 'shared/pseudonimo.mjs', 'shared/documento.mjs', 'shared/crise.mjs', 'shared/busca.mjs', 'shared/pedido.mjs', 'shared/conversa.mjs', 'shared/verificacao.mjs', 'shared/calculo.mjs', 'shared/datas.mjs', 'shared/calculo-mais.mjs', 'shared/matematica.mjs', 'shared/prova-local.mjs', 'shared/matematica-local.mjs', 'shared/psicometria.mjs', 'shared/est-nucleo.mjs', 'shared/est-posthoc.mjs', 'shared/grafico.mjs', 'shared/territorio-ct.mjs', 'shared/distrito-policial.mjs', 'shared/saude-mental-territorio.mjs', 'shared/equipe-cras-cristiana.mjs', 'shared/geo.mjs', 'shared/diretorio-boa-vista.mjs', 'shared/mapa-bairros.mjs', 'shared/resposta-local.mjs', 'shared/rota.mjs', 'shared/modelos.mjs', 'shared/qrcode.mjs', 'shared/revisao-texto.mjs', 'shared/ortografia.mjs', 'shared/pdf.mjs', 'shared/pdf-central.mjs', 'shared/visitas.mjs', 'shared/suicidio.mjs', 'shared/sugestoes.mjs', 'shared/fala.mjs', 'shared/resposta-extrativa.mjs', 'shared/saudacao-local.mjs', 'shared/rotinas.mjs', 'client/skins.mjs', 'client/memoria.mjs', 'client/paulus.mjs'];
 
 const CABECALHO = '/*! Paulus v1 — gerado por scripts/build.mjs. Não edite: altere shared/ e client/. */\n(function (root) {\n\'use strict\';\n';
 const RODAPE = '})(typeof self !== \'undefined\' ? self : this);\n';
@@ -47,7 +47,7 @@ export function juntar() {
 
 // Impressão digital dos arquivos que os apps baixam. Muda só quando o conteúdo muda; é o que permite atualizar sozinho (versao.json)
 // e fazer o service worker do console trocar de cache a cada publicação.
-const ARQUIVOS_VERSIONADOS = ['paulus.v1.js', 'conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'pdf-encrypt.umd.js', 'jspdf.umd.min.js', 'jszip.min.js', 'relatorio-individual-pdf.mjs', 'visitas.mjs', 'leaflet.js', 'lugares-boa-vista.json', 'login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'docs.js', 'relatorios-ui.mjs', 'relatorios-bf.mjs', 'relatorios-abrigos.mjs', 'abrigos-ui.mjs', 'rota-folhas.mjs', 'rota-visita-ui.mjs', 'planilhas-mds.mjs', 'planilhas-mds-ui.mjs', 'agenda-pdf.mjs', 'xlsx.bundle.js', 'index.html'];
+const ARQUIVOS_VERSIONADOS = ['paulus.v1.js', 'conhecimento.json', 'conhecimento-geral.json', 'conhecimento-psicologia.json', 'pdf-lib.min.js', 'pdf-encrypt.umd.js', 'jspdf.umd.min.js', 'jszip.min.js', 'relatorio-individual-pdf.mjs', 'visitas.mjs', 'leaflet.js', 'lugares-boa-vista.json', 'login.js', 'console.js', 'advanced.js', 'ortografia.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'docs.js', 'relatorios-ui.mjs', 'relatorios-bf.mjs', 'relatorios-abrigos.mjs', 'abrigos-ui.mjs', 'rota-folhas.mjs', 'rota-visita-ui.mjs', 'planilhas-mds.mjs', 'planilhas-mds-ui.mjs', 'agenda-pdf.mjs', 'xlsx.bundle.js', 'index.html'];
 export function gerarVersao(saida, extra) {
   const arquivos = {};
   for (const n of ARQUIVOS_VERSIONADOS) {
@@ -102,7 +102,7 @@ export function construir() {
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'console.html'));
   copyFileSync(join(RAIZ, 'console', 'index.html'), join(saida, 'index.html')); // a raiz do site (…/Paulus/) abre o console
   // tela de login (carrega o console.js só depois de entrar) e o próprio console.js, se existir
-  for (const f of ['login.js', 'console.js', 'advanced.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'relatorios-ui.mjs', 'relatorio-individual-pdf.mjs', 'abrigos-ui.mjs', 'rota-visita-ui.mjs', 'planilhas-mds-ui.mjs', 'agenda-pdf.mjs']) { const o = join(RAIZ, 'console', f); if (existsSync(o)) copyFileSync(o, join(saida, f)); }
+  for (const f of ['login.js', 'console.js', 'advanced.js', 'ortografia.js', 'confirmar.js', 'lembretes.js', 'notas.js', 'agenda.js', 'agenda-datas.js', 'agenda-mds.js', 'docs.js', 'relatorios-ui.mjs', 'relatorio-individual-pdf.mjs', 'abrigos-ui.mjs', 'rota-visita-ui.mjs', 'planilhas-mds-ui.mjs', 'agenda-pdf.mjs']) { const o = join(RAIZ, 'console', f); if (existsSync(o)) copyFileSync(o, join(saida, f)); }
   copyFileSync(join(RAIZ, 'shared', 'relatorios-bf.mjs'), join(saida, 'relatorios-bf.mjs'));
   copyFileSync(join(RAIZ, 'shared', 'relatorios-abrigos.mjs'), join(saida, 'relatorios-abrigos.mjs'));
   copyFileSync(join(RAIZ, 'shared', 'rota-folhas.mjs'), join(saida, 'rota-folhas.mjs'));
@@ -113,6 +113,10 @@ export function construir() {
   const ocr = join(RAIZ, 'vendor', 'tesseract');
   if (existsSync(ocr)) cpSync(ocr, join(saida, 'tesseract'), { recursive: true });
   else console.warn('AVISO: falta vendor/tesseract: a Rota de Visita não vai ler endereço de folha escaneada (veja docs/RELATORIOS-LOCAIS.md).');
+  // Dicionário de português do corretor (Hunspell + pt-BR do LibreOffice/VERO, o mesmo do Verbus): roda num Worker no aparelho. Pesa ~6 MB; só é baixado quando se pede revisão.
+  const dic = join(RAIZ, 'vendor', 'spell');
+  if (existsSync(dic)) cpSync(dic, join(saida, 'spell'), { recursive: true });
+  else console.warn('AVISO: falta vendor/spell: a revisão fica só com as regras, sem o dicionário de português.');
   // instalável (PWA): procura em console/ e, se não achar, na raiz do repositório
   for (const f of ['manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png']) {
     const origem = [join(RAIZ, 'console', f), join(RAIZ, f)].find(existsSync);
