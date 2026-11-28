@@ -103,12 +103,14 @@
 
   // ---------------------------------------------------------------- estado de interação compartilhado pelo ícone e pelo fundo
   // pt: para onde o ícone "olha" (-1..1, suavizado); olho: 1 = aberto, ~0.15 = recolhido (senha oculta em foco); imp: impulso da digitação/toque.
-  var pt = { x: 0, y: 0, ax: 0, ay: 0, t: 0 }, ui = { olho: 1, olhoAlvo: 1, imp: 0, rajada: false };
+  var pt = { x: 0, y: 0, ax: 0, ay: 0, t: 0 }, ui = { olho: 1, olhoAlvo: 1, imp: 0, rajada: false, tecla: 0, wink: 0 };
   function mirar(x, y) { pt.ax = Math.max(-1, Math.min(1, x)); pt.ay = Math.max(-1, Math.min(1, y)); pt.t = performance.now(); }
   function suavizar(now) {
     if (now - pt.t > 2500 && pt.t) { pt.ax *= 0.96; pt.ay *= 0.96; }
     pt.x += (pt.ax - pt.x) * 0.09; pt.y += (pt.ay - pt.y) * 0.09;
-    ui.olho += (ui.olhoAlvo - ui.olho) * 0.12; ui.imp *= 0.93;
+    var af = document.activeElement;
+    ui.olhoAlvo = af && af.id === 'lgp' && af.type === 'password' && now - ui.tecla < 1100 ? 0.12 : 1; // fecha só enquanto digita a senha; reabre sozinho
+    ui.olho += (ui.olhoAlvo - ui.olho) * 0.22; ui.imp *= 0.93;
   }
 
   // ---------------------------------------------------------------- ícone animado (canvas)
@@ -142,8 +144,8 @@
       if (!piscaDur && now >= proxPisca) { piscaIni = now; piscaDur = est === 'erro' ? 380 : 170 + Math.random() * 50; piscaDupla = Math.random() < 0.22; }
       if (!piscaDur) return 0;
       var p = (now - piscaIni) / piscaDur;
-      if (p >= 1) {
-        if (piscaDupla) { piscaDupla = false; piscaIni = now + 90; piscaDur = 150; return 0; }
+      if (p >= 1 || now - piscaIni > 1500) {
+        if (piscaDupla && p < 3) { piscaDupla = false; piscaIni = now + 90; piscaDur = 150; return 0; }
         piscaDur = 0; proxPisca = now + (est === 'busy' ? 3800 : 2200) + Math.random() * 3800; return 0;
       }
       return p < 0 ? 0 : Math.sin(p * 3.1416);
@@ -265,8 +267,9 @@
         if (!reduzido && now > proxSac) { sacX = (Math.random() - 0.5) * 0.5; sacY = (Math.random() - 0.5) * 0.35; proxSac = now + 700 + Math.random() * 1900; }
         var gxA = est === 'busy' ? 0.75 : est === 'erro' ? 0 : est === 'lock' ? 0.1 : pt.x + sacX * 0.4, gyA = est === 'busy' ? -0.8 : est === 'erro' ? 0.3 : est === 'lock' ? 0.6 : pt.y + sacY * 0.4;
         gazeX += (Math.max(-1, Math.min(1, gxA)) - gazeX) * 0.2; gazeY += (Math.max(-1, Math.min(1, gyA)) - gazeY) * 0.2;
-        // senha oculta em foco: o olho natural fecha de vez (privacidade); o ciborgue já recolhe o brilho
-        var fecha = Math.max(piscar(now), Math.min(1, (1 - ui.olho) / 0.85));
+        // digitando a senha oculta: o olho natural fecha (privacidade) e reabre sozinho ~1 s depois da última tecla; no acesso liberado ele dá uma piscadela
+        var wk = ui.wink ? (now - ui.wink) / 650 : 2;
+        var fecha = Math.max(piscar(now), Math.min(1, (1 - ui.olho) / 0.85), wk >= 0 && wk < 1 ? Math.sin(wk * 3.1416) : 0); if (wk >= 1) ui.wink = 0;
         boca += ((reduzido ? 0 : ui.imp * 6 + (est === 'ok' ? 3 * Math.sin(Math.min(1, k) * 3.14) : 0)) - boca) * 0.4;
         ctx.save(); ctx.translate(cx + dx, cy + dy + flut); ctx.rotate(pt.x * 0.04 + (est === 'erro' ? tremor * 0.012 : 0) + (reduzido ? 0 : 0.012 * Math.sin(t * 0.8)));
         ctx.scale(tam / 512, tam / 512); ctx.translate(-256, -256);
@@ -304,7 +307,7 @@
     window.addEventListener('resize', function () { tamanho(); if (reduzido) quadro(performance.now()); });
     if (reduzido) quadro(performance.now()); else raf = requestAnimationFrame(laco);
     return {
-      estado: function (e) { est = e; estT = performance.now(); if (reduzido) quadro(estT); },
+      estado: function (e) { est = e; estT = performance.now(); if (e === 'ok' && !reduzido) ui.wink = estT + 350; if (reduzido) quadro(estT); },
       parar: function () { rodando = false; cancelAnimationFrame(raf); }
     };
   }
@@ -593,18 +596,21 @@
     function caps(e) { if (e.getModifierState) $('lgc').hidden = !e.getModifierState('CapsLock'); }
     $('lgp').addEventListener('keydown', caps); $('lgp').addEventListener('keyup', caps);
     $('lgp').addEventListener('blur', function () { $('lgc').hidden = true; });
-    ['lgu', 'lgp'].forEach(function (id) { $(id).addEventListener('input', function () { marcaErro(false); ui.imp = Math.min(1, ui.imp + 0.35); }); });
+    ['lgu', 'lgp'].forEach(function (id) { $(id).addEventListener('input', function () {
+      marcaErro(false); ui.imp = Math.min(1, ui.imp + 0.35); ui.tecla = performance.now();
+      if (id === 'lgu') mirar(-0.75 + Math.min(1, this.value.length / 26) * 1.5, 0.7); // o olhar acompanha o texto sendo digitado
+    }); });
     // olhar: o ícone segue o mouse/toque; com o teclado, olha para o formulário; senha oculta em foco recolhe o olho
     function mirarEvento(e) { var r = $('lgo').getBoundingClientRect(); mirar((e.clientX - (r.left + r.width / 2)) / (window.innerWidth * 0.5), (e.clientY - (r.top + r.height / 2)) / (window.innerHeight * 0.5)); }
     window.addEventListener('pointermove', mirarEvento, { passive: true });
     window.addEventListener('touchmove', function (e) { if (e.touches[0]) mirarEvento(e.touches[0]); }, { passive: true });
-    function olhoDoCampo() { ui.olhoAlvo = document.activeElement === $('lgp') && $('lgp').type === 'password' ? 0.12 : 1; }
+    function olhoDoCampo() { /* o olho agora reage à digitação (ver suavizar) */ }
     ['lgu', 'lgp'].forEach(function (id) {
       $(id).addEventListener('focus', function () { mirar(0, 0.75); olhoDoCampo(); });
       $(id).addEventListener('blur', function () { setTimeout(olhoDoCampo, 0); });
     });
     // tocar no ícone: pulso e rajada de sonar
-    $('lgo').addEventListener('pointerdown', function () { ui.imp = 1; ui.rajada = true; });
+    $('lgo').addEventListener('pointerdown', function () { ui.imp = 1; ui.rajada = true; if (!ui.wink) ui.wink = performance.now(); }); // tocar no rosto: pulso e uma piscadela
     // Enter no usuário vai para a senha; Esc na senha limpa
     $('lgu').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !$('lgp').value) { e.preventDefault(); $('lgp').focus(); } });
     $('lgp').addEventListener('keydown', function (e) { if (e.key === 'Escape') { $('lgp').value = ''; marcaErro(false); } });
