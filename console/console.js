@@ -131,6 +131,7 @@
   // ícones de traço (24×24); cada "|" separa um caminho
   var ICO = {
     copiar: 'M9 9h11v11H9z|M5 15V6a2 2 0 0 1 2-2h9',
+    compartilhar: 'M12 15V4|M8 8l4-4 4 4|M5 13v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6',
     certo: 'M5 12.5l4.5 4.5L19 7.5',
     util: 'M7 11v9H4v-9z|M7 11l3.6-6.6A2 2 0 0 1 14 5.4V9h5.2a1.6 1.6 0 0 1 1.6 1.9l-1.2 6.4A2 2 0 0 1 17.7 19H7',
     naoutil: 'M17 13V4h3v9z|M17 13l-3.6 6.6A2 2 0 0 1 10 18.6V15H4.8a1.6 1.6 0 0 1-1.6-1.9l1.2-6.4A2 2 0 0 1 6.3 5H17',
@@ -524,6 +525,12 @@
   function acoes(x, r) {
     var ac = h('div', { class: 'ac ar', role: 'group', 'aria-label': 'Ações da resposta' });
     ac.appendChild(bi('Copiar', 'copiar', function (e) { copiar(r.texto || '', e.currentTarget); try { P.avaliar(r, 'copiou'); } catch (er) { /* segue */ } }, 'Copiar a resposta'));
+    if (typeof navigator.share === 'function' && r.tipo !== 'crise' && String(r.texto || '').trim()) {
+      ac.appendChild(bi('Compartilhar', 'compartilhar', function () {
+        // abre o menu do celular (WhatsApp, e-mail, Drive...). Só o texto da resposta, e só quando a pessoa toca.
+        navigator.share({ title: 'Paulus', text: String(r.texto || '').slice(0, 8000) }).catch(function () { /* cancelou ou não deu */ });
+      }, 'Compartilhar a resposta', true));
+    }
     if (ENDPOINT && window.speechSynthesis) ac.appendChild(bi('Ouvir', 'ouvir', function () { falar(r.texto || '', 'tudo'); }, 'Ouvir a resposta', true));
     if (r.tipo === 'ia' || r.tipo === 'norma') {
       var bUtil, bNao, voto = function (v, esse, outro) {
@@ -1827,6 +1834,25 @@
   window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); instalar = e; ins.hidden = false; });
   ins.addEventListener('click', function () { if (!instalar) return; instalar.prompt(); instalar = null; ins.hidden = true; });
   window.addEventListener('appinstalled', function () { ins.hidden = true; });
+  // iPhone/iPad (Safari) não oferece o botão de instalar: mostra o botão e explica o caminho do menu Compartilhar.
+  (function () {
+    var ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var instalado = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    if (!ios || instalado) return;
+    ins.hidden = false;
+    ins.addEventListener('click', function () { if (!instalar) aviso('No iPhone: toque em Compartilhar (o quadrado com a seta) e depois em Adicionar à Tela de Início.'); });
+  })();
+  // Texto compartilhado de outro app (Compartilhar → Paulus, com o app instalado no Android): vai para a caixa de pergunta, sem enviar.
+  (function () {
+    var u; try { u = new URL(location.href); } catch (e) { return; }
+    var partes = ['title', 'text', 'url'].map(function (k) { return (u.searchParams.get(k) || '').trim(); }).filter(Boolean);
+    if (!partes.length) return;
+    ['title', 'text', 'url'].forEach(function (k) { u.searchParams.delete(k); });
+    try { history.replaceState(null, '', u.pathname + (u.search || '') + u.hash); } catch (e) { /* segue */ }
+    q.value = partes.filter(function (p, i) { return partes.indexOf(p) === i; }).join('\n').slice(0, 6000);
+    q.dispatchEvent(new Event('input', { bubbles: true }));
+    setTimeout(function () { q.focus(); try { q.setSelectionRange(0, 0); } catch (e) { /* segue */ } aviso('Texto recebido. Escreva o que quer fazer com ele, por exemplo "corrija a ortografia e a gramática:".'); }, 400);
+  })();
 
   var rel = $('hr');
   function relogio() { var d = new Date(); rel.textContent = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); }
