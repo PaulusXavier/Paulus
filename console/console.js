@@ -396,8 +396,9 @@
     x.corpo.appendChild(h('div', { class: 'pens', role: 'status' }, [h('span', { class: 'bars', 'aria-hidden': 'true' }, [h('i'), h('i'), h('i'), h('i'), h('i')]), rot, h('span', { class: 'sc', 'aria-hidden': 'true' })]));
     x.fase = setTimeout(function () { if (rot.isConnected) rot.textContent = 'CONSULTANDO A BASE'; }, 1600);
     x.fase2 = setTimeout(function () { if (rot.isConnected) rot.textContent = 'COMPONDO A RESPOSTA'; }, 4200);
+    x.fase3 = setTimeout(function () { if (rot.isConnected) rot.textContent = 'DEMORANDO MAIS QUE O NORMAL · ESC PARA PARAR'; }, 12000);
   }
-  function fimPensando(x) { clearTimeout(x.fase); clearTimeout(x.fase2); }
+  function fimPensando(x) { clearTimeout(x.fase); clearTimeout(x.fase2); clearTimeout(x.fase3); }
   function dataHud() { var d = new Date(); return (d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/[.,]/g, '').toUpperCase() + ' · ' + hora2() + ' · BOA VISTA'); }
   function saudacao() { var hr = new Date().getHours(); return hr < 5 ? 'Boa madrugada' : hr < 12 ? 'Bom dia' : hr < 18 ? 'Boa tarde' : 'Boa noite'; }
   function nomeDoUsuario() {
@@ -430,6 +431,8 @@
   // ------------------------------------------------------------ atalhos
   var ATALHOS = [
     { c: '/nova', d: 'Nova conversa', f: function () { nova(); } },
+    { c: '/copiar', d: 'Copiar a última resposta', f: function () { copiarUltima(); } },
+    { c: '/atalhos', d: 'Ver os atalhos do teclado', f: function () { mostrarAtalhos(); } },
     { c: '/salvar', d: 'Salvar conversa em .md', f: function () { exportar(); } },
     { c: '/ajuda', d: 'O que o Paulus sabe fazer', t: 'o que você sabe fazer?' },
     { c: '/pdf', d: 'Editar PDF (anexe o arquivo)', t: 'juntar os PDFs anexados' },
@@ -449,7 +452,9 @@
   function abrirSl() {
     var v = q.value;
     if (!/^\/\S*$/.test(v)) { sl.hidden = true; return; }
-    listaSl = ATALHOS.filter(function (a) { return a.c.indexOf(v.toLowerCase()) === 0; });
+    var vb = semAcento(v), termo = vb.slice(1);
+    listaSl = ATALHOS.filter(function (a) { return a.c.indexOf(vb) === 0; });
+    if (termo.length > 1) listaSl = listaSl.concat(ATALHOS.filter(function (a) { return listaSl.indexOf(a) < 0 && (a.c.indexOf(termo) > 0 || semAcento(a.d).indexOf(termo) >= 0); }));
     if (!listaSl.length) { sl.hidden = true; return; }
     selSl = Math.min(selSl, listaSl.length - 1);
     sl.textContent = '';
@@ -464,6 +469,15 @@
     sl.hidden = true; q.value = '';
     if (a.f) a.f(); else { q.value = a.t; q.focus(); }
     autoAltura();
+  }
+  function copiarUltima() {
+    var t = ''; for (var i = transcricao.length - 1; i >= 0; i--) if (transcricao[i].papel === 'Paulus') { t = transcricao[i].texto; break; }
+    if (!t) { aviso('Ainda não há resposta para copiar.'); return; }
+    try { navigator.clipboard.writeText(t).then(function () { aviso('Última resposta copiada.'); }, function () { aviso('Não consegui copiar.'); }); } catch (e) { aviso('Não consegui copiar.'); }
+  }
+  function mostrarAtalhos() {
+    var x = msgPaulus(); x.m.setAttribute('data-k', 'acao');
+    pintar(x.corpo, '**Atalhos do teclado**\n\n- **Enter** envia · **Shift+Enter** quebra a linha\n- **↑ / ↓** com o campo vazio: percorre as perguntas anteriores\n- **/** abre os comandos (aceita busca: `/cop`, `/voz`)\n- **Esc** para a resposta em andamento\n- Escreva enquanto o Paulus responde: a pergunta entra na fila e vai sozinha\n- **Ctrl+Shift+N** nova conversa · **Ctrl+Shift+F** modo foco');
   }
   function memoria() {
     var r = ''; try { r = P.memoria.resumo(); } catch (e) { /* segue */ }
@@ -867,10 +881,16 @@
     return true;
   }
   function pesquisaEnviar(texto) { var m=/^\/pesquisar\s+([\s\S]+)$/i.exec(texto.trim()); if(!m) return false; enviarPesquisa(m[1].trim()); return true; }
+  var hist = [], hiHist = -1, fila = null;   // histórico e fila ficam só na memória da aba (nada vai para o disco)
+  function enfileirar() {
+    var t = q.value.trim(); if (!t) return;
+    fila = t; q.value = ''; autoAltura(); aviso('Na fila: envio assim que o Paulus terminar. Esc cancela a resposta atual.');
+  }
   function enviar(texto) {
     texto = String(texto == null ? q.value : texto).trim();
     if (ocupado || (!texto && !anexos.length)) return;
     texto = sanitizarPedidoComSenha(texto, anexos.length > 0);
+    if (texto && hist[hist.length - 1] !== texto) { hist.push(texto); if (hist.length > 50) hist.shift(); } hiHist = -1;
     var DI = window.PaulusDocs, soFoto = !!(DI && DI.ehImagem && anexos.length && anexos.every(DI.ehImagem));
     if (!texto) texto = soFoto ? 'Descreva esta imagem e diga o que nela é útil para o meu trabalho.' : 'o que posso fazer com este arquivo?';
     var arqs = anexos.slice(), nomes = arqs.map(function (a) { return a.name; });
@@ -931,13 +951,25 @@
         if (r.tipo === 'erro') { estadoUI('erro'); setTimeout(function () { if (estadoAtual === 'erro') estadoUI('idle'); }, 1400); }
       });
     }).catch(function () {
-      if (vivo()) { fimPensando(x); x.corpo.classList.remove('dig'); x.m.setAttribute('data-k', 'erro'); var k2 = x.m.querySelector('.mh .k'); if (k2) k2.textContent = KIND.erro; x.corpo.textContent = 'Algo deu errado. Tente de novo.'; estadoUI('erro'); setTimeout(function () { if (estadoAtual === 'erro') estadoUI('idle'); }, 1400); }
-    }).then(function () { if (vivo()) { atual = null; if (estadoAtual !== 'erro') mudarBotao(false); else { go.textContent = 'Enviar'; go.classList.remove('stop'); ocupado = false; } } });
+      if (vivo()) { fimPensando(x); x.corpo.classList.remove('dig'); x.m.setAttribute('data-k', 'erro'); var k2 = x.m.querySelector('.mh .k'); if (k2) k2.textContent = KIND.erro; x.corpo.textContent = 'Algo deu errado. Tente de novo.'; if (ultimoPedido) { var pe = ultimoPedido; x.m.appendChild(h('div', { class: 'ac' }, [btn('Tentar de novo', function () { enviar(pe); })])); } estadoUI('erro'); setTimeout(function () { if (estadoAtual === 'erro') estadoUI('idle'); }, 1400); }
+    }).then(function () { if (vivo()) { atual = null; if (estadoAtual !== 'erro') mudarBotao(false); else { go.textContent = 'Enviar'; go.classList.remove('stop'); ocupado = false; } if (!vozLigada && document.activeElement === document.body) q.focus(); despacharFila(); } });
   }
+  function despacharFila() { if (fila && !ocupado) { var t = fila; fila = null; setTimeout(function () { enviar(t); }, 250); } }
   function parar() {
     envioAtual++;                                   // a chamada em andamento passa a ser ignorada
-    if (atual) { fimPensando(atual); atual.m.remove(); atual = null; }
-    legenda(''); mudarBotao(false); aviso('Interrompido.');
+    if (atual) {
+      var xa = atual; fimPensando(xa); atual = null;
+      if (xa.streamed && xa.corpo.textContent.trim()) {
+        // mantém o que já chegou, marcado como interrompido, com saída para continuar ou refazer
+        xa.corpo.classList.remove('dig'); xa.m.setAttribute('data-k', 'ia');
+        var ki = xa.m.querySelector('.mh .k'); if (ki) ki.textContent = 'INTERROMPIDA';
+        var pp = ultimoPedido;
+        xa.m.appendChild(h('div', { class: 'ac' }, [btn('Continuar', function () { enviar('continue de onde parou'); }), pp ? btn('Refazer', function () { enviar(pp); }) : null].filter(Boolean)));
+      } else {
+        xa.m.remove(); if (ultimoPedido && !q.value) { q.value = ultimoPedido; autoAltura(); }   // devolve a pergunta para editar
+      }
+    }
+    legenda(''); mudarBotao(false); aviso('Interrompido.'); despacharFila();
   }
 
   // ------------------------------------------------------------ anexos
@@ -1906,7 +1938,13 @@
   q.addEventListener('input', function () { autoAltura(); selSl = 0; abrirSl(); if (nucleo) nucleo.impulso(); dicaPessoal(); });
   q.addEventListener('keydown', function (e) {
     // seta para cima com o campo vazio: traz a última pergunta para editar
-    if (e.key === 'ArrowUp' && !q.value && ultimoPedido && sl.hidden) { e.preventDefault(); q.value = ultimoPedido; autoAltura(); return; }
+    if (sl.hidden && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && hist.length && (!q.value || hiHist >= 0)) {
+      if (e.key === 'ArrowUp') { if (hiHist < 0) hiHist = hist.length - 1; else if (hiHist > 0) hiHist--; }
+      else { if (hiHist < 0) return; hiHist++; }
+      e.preventDefault();
+      if (hiHist >= hist.length) { hiHist = -1; q.value = ''; } else q.value = hist[hiHist];
+      autoAltura(); return;
+    }
     if (!sl.hidden) {
       if (e.key === 'ArrowDown') { e.preventDefault(); selSl = (selSl + 1) % listaSl.length; abrirSl(); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); selSl = (selSl - 1 + listaSl.length) % listaSl.length; abrirSl(); return; }
@@ -1916,7 +1954,7 @@
     if (e.key === 'ArrowUp' && !q.value && sl.hidden) {
       for (var i = transcricao.length - 1; i >= 0; i--) if (transcricao[i].papel === 'Você') { e.preventDefault(); q.value = transcricao[i].texto; autoAltura(); break; }
     }
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!ocupado) enviar(); }
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!ocupado) enviar(); else enfileirar(); }
   });
   go.addEventListener('click', function () { if (ocupado) parar(); else enviar(); });
   $('at').addEventListener('click', function () { $('fi').click(); });
