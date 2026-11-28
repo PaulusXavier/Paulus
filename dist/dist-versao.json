@@ -1,0 +1,135 @@
+{
+ "versao": "0.41.0",
+ "build": "0408d56807b0",
+ "commit": null,
+ "arquivos": {
+  "paulus.v1.js": {
+   "sha256": "84bffacfe9cccb26",
+   "bytes": 1269730
+  },
+  "conhecimento.json": {
+   "sha256": "f1fc25a0cd5a5906",
+   "bytes": 13300974
+  },
+  "conhecimento-geral.json": {
+   "sha256": "4a7b49d3dcb6577d",
+   "bytes": 5090815
+  },
+  "conhecimento-psicologia.json": {
+   "sha256": "ec7f92f6d2000803",
+   "bytes": 8210160
+  },
+  "pdf-lib.min.js": {
+   "sha256": "0f9a5cad07941f08",
+   "bytes": 525099
+  },
+  "pdf-encrypt.umd.js": {
+   "sha256": "5331d84c0cf6bc74",
+   "bytes": 59251
+  },
+  "jspdf.umd.min.js": {
+   "sha256": "85ba2cc3ff858a20",
+   "bytes": 365730
+  },
+  "jszip.min.js": {
+   "sha256": "acc7e41455a80765",
+   "bytes": 97630
+  },
+  "relatorio-individual-pdf.mjs": {
+   "sha256": "4e6a8b3f569b50b5",
+   "bytes": 18549
+  },
+  "visitas.mjs": {
+   "sha256": "74faf253b7b1ade8",
+   "bytes": 29191
+  },
+  "leaflet.js": {
+   "sha256": "db49d009c841f5ca",
+   "bytes": 147552
+  },
+  "login.js": {
+   "sha256": "f7fd6b0e9a3dc64e",
+   "bytes": 46291
+  },
+  "console.js": {
+   "sha256": "fa30fa97f4b3341d",
+   "bytes": 188753
+  },
+  "advanced.js": {
+   "sha256": "7c5c9b174b43dc9b",
+   "bytes": 16877
+  },
+  "ortografia.js": {
+   "sha256": "f45f344e7b983fee",
+   "bytes": 9753
+  },
+  "confirmar.js": {
+   "sha256": "f736caf68293100c",
+   "bytes": 2731
+  },
+  "lembretes.js": {
+   "sha256": "2ffba4ca6c01f28f",
+   "bytes": 17337
+  },
+  "notas.js": {
+   "sha256": "68c49304561a1e3e",
+   "bytes": 24307
+  },
+  "agenda.js": {
+   "sha256": "1bb46a8c814879e2",
+   "bytes": 190642
+  },
+  "agenda-datas.js": {
+   "sha256": "08dafb313e11b1f4",
+   "bytes": 2209
+  },
+  "docs.js": {
+   "sha256": "5cbcd14c84b5456a",
+   "bytes": 19932
+  },
+  "relatorios-ui.mjs": {
+   "sha256": "2c78adf94003b18d",
+   "bytes": 16493
+  },
+  "relatorios-bf.mjs": {
+   "sha256": "7ace32cdfe7ecf79",
+   "bytes": 33733
+  },
+  "relatorios-abrigos.mjs": {
+   "sha256": "cd8a434defc4b130",
+   "bytes": 10338
+  },
+  "abrigos-ui.mjs": {
+   "sha256": "690dddac3327d3fb",
+   "bytes": 7977
+  },
+  "rota-folhas.mjs": {
+   "sha256": "a43f52369265d77b",
+   "bytes": 17442
+  },
+  "rota-visita-ui.mjs": {
+   "sha256": "49157f6a12987b41",
+   "bytes": 18320
+  },
+  "planilhas-mds.mjs": {
+   "sha256": "bd24ca8ad95f30d9",
+   "bytes": 22011
+  },
+  "planilhas-mds-ui.mjs": {
+   "sha256": "c3ba24a601622d46",
+   "bytes": 18908
+  },
+  "agenda-pdf.mjs": {
+   "sha256": "8ef3a04e0617ac59",
+   "bytes": 8985
+  },
+  "xlsx.bundle.js": {
+   "sha256": "1c7abf2993ff2cd6",
+   "bytes": 425020
+  },
+  "index.html": {
+   "sha256": "bcf8d09792b03f8f",
+   "bytes": 178948
+  }
+ }
+}
