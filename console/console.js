@@ -2039,8 +2039,20 @@
     var AMP = { idle: 0.05, busy: 0.3, listen: 0.62, speak: 0.8, erro: 0.1 }, VEL = { idle: 1, busy: 3.4, listen: 1.7, speak: 2, erro: 0.4 };
     var cur = COR.idle.slice();
     img.onload = function () { imgOk = true; if (reduzido) quadro(performance.now()); };
-    img.src = 'icon-512.png';
-    function tam() { var r = cv.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2); W = r.width; H = r.height; cv.width = Math.round(W * d); cv.height = Math.round(H * d); ctx.setTransform(d, 0, 0, d, 0, 0); }
+    img.onerror = function () { if (img.src.indexOf('icon-1024') >= 0) img.src = 'icon-512.png'; };
+    img.src = 'icon-1024.png';
+    // retrato em alta (1024 px) com redução em etapas: nítido em qualquer tamanho de tela, sem serrilhado (cai para 512 px se faltar)
+    var mip = null, mipW = 0, dprQ = 1;
+    function fonte(alvo) {
+      var base = img.naturalWidth || 512, w = Math.max(96, Math.round(alvo));
+      if (w >= base * 0.75) return img;
+      if (mip && Math.abs(mipW - w) < w * 0.12) return mip;
+      var src = img, sw = base, c, x;
+      while (sw / 2 > w) { var h2 = Math.round(sw / 2); c = document.createElement('canvas'); c.width = c.height = h2; x = c.getContext('2d'); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, h2, h2); src = c; sw = h2; }
+      c = document.createElement('canvas'); c.width = c.height = w; x = c.getContext('2d'); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, w, w);
+      mip = c; mipW = w; return c;
+    }
+    function tam() { var r = cv.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2); W = r.width; H = r.height; dprQ = d; cv.width = Math.round(W * d); cv.height = Math.round(H * d); ctx.setTransform(d, 0, 0, d, 0, 0); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; }
     function rgb(a) { return Math.round(cur[0]) + ',' + Math.round(cur[1]) + ',' + Math.round(cur[2]) + ',' + a; }
     function arco(cx, cy, r, ini, tm, lw, al, dash, cap) {
       ctx.beginPath(); ctx.setLineDash(dash || []); ctx.lineCap = cap || 'butt'; ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(' + rgb(al) + ')'; ctx.arc(cx, cy, r, ini, ini + tm); ctx.stroke(); ctx.setLineDash([]);
@@ -2088,8 +2100,9 @@
     // boca: a mandíbula desce (a parte de baixo do sorriso é redesenhada mais baixo) e o vão fica escuro, com a língua aparecendo
     function bocaFalando(d, img0) {
       if (d < 0.35) return;
+      var S = (img0.naturalWidth || img0.width) / 512;
       ctx.save(); ctx.beginPath(); ctx.ellipse(254, 356, 54, 30, 0, 0, 6.2832); ctx.clip();
-      ctx.drawImage(img0, 196, 337, 120, 46, 196, 337 + d, 120, 46);
+      ctx.drawImage(img0, 196 * S, 337 * S, 120 * S, 46 * S, 196, 337 + d, 120, 46);
       ctx.restore();
       ctx.save(); ctx.beginPath(); ctx.ellipse(254, 337 + d * 0.5, 40, Math.max(0.5, d * 0.62 + 0.8), 0, 0, 6.2832); ctx.clip();
       var gb = ctx.createLinearGradient(0, 336, 0, 337 + d); gb.addColorStop(0, '#3a0d12'); gb.addColorStop(1, '#6b1a22');
@@ -2212,8 +2225,9 @@
         // o rosto acompanha o ponteiro: desloca, inclina um pouco (skew) e aproxima no hover
         ctx.save(); ctx.translate(cx + px * Ri * 0.2, cy + py * Ri * 0.17 + bob); ctx.rotate(px * 0.05 + incl + tre + (reduzido ? 0 : 0.012 * Math.sin(t * 0.8))); ctx.transform(1, py * 0.05, px * 0.05, 1, 0, 0);
         ctx.scale(k, k); ctx.translate(-256, -256);
-        ctx.drawImage(img, 0, 0, 512, 512);
-        if (boca > 0.35) bocaFalando(boca, img);
+        var fnt = fonte(R * 0.56 * 2.04 * 1.15 * dprQ);
+        ctx.drawImage(fnt, 0, 0, 512, 512);
+        if (boca > 0.35) bocaFalando(boca, fnt);
         olhoNatural(pisca, gazeX * 5.2, gazeY * 3, est === 'busy' ? 1.18 : est === 'erro' ? 0.8 : 1 + imp * 0.22 + hov * 0.1);
         for (i = 0; i < 3; i++) olho[i] = cur[i];
         olhoCiborgue(t, now, gazeX, gazeY, olho, est !== 'idle');

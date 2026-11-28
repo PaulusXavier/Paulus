@@ -121,11 +121,23 @@
     var W = 0, H = 0, est = 'idle', estT = 0, raf = 0, rodando = true, parts = [], i;
     var img = new Image(), imgOk = false;
     img.onload = function () { imgOk = true; if (reduzido) quadro(performance.now()); };
-    img.src = 'icon-512.png';
+    img.onerror = function () { if (img.src.indexOf('icon-1024') >= 0) img.src = 'icon-512.png'; };
+    img.src = 'icon-1024.png';
+    // retrato em alta (1024 px) com redução em etapas: nítido em qualquer tamanho de tela, sem serrilhado (cai para 512 px se faltar)
+    var mip = null, mipW = 0, dprQ = 1;
+    function fonte(alvo) {
+      var base = img.naturalWidth || 512, w = Math.max(96, Math.round(alvo));
+      if (w >= base * 0.75) return img;
+      if (mip && Math.abs(mipW - w) < w * 0.12) return mip;
+      var src = img, sw = base, c, x;
+      while (sw / 2 > w) { var h2 = Math.round(sw / 2); c = document.createElement('canvas'); c.width = c.height = h2; x = c.getContext('2d'); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, h2, h2); src = c; sw = h2; }
+      c = document.createElement('canvas'); c.width = c.height = w; x = c.getContext('2d'); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, w, w);
+      mip = c; mipW = w; return c;
+    }
     for (i = 0; i < 34; i++) parts.push({ a: Math.random() * 6.283, r: 1.3 + Math.random() * 0.45, v: (0.15 + Math.random() * 0.45) * (Math.random() < 0.5 ? -1 : 1), s: 0.7 + Math.random() * 1.5, f: Math.random() * 6.283 });
     function tamanho() {
       var r = cv.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2);
-      W = r.width; H = r.height; cv.width = Math.round(W * d); cv.height = Math.round(H * d); ctx.setTransform(d, 0, 0, d, 0, 0);
+      W = r.width; H = r.height; dprQ = d; cv.width = Math.round(W * d); cv.height = Math.round(H * d); ctx.setTransform(d, 0, 0, d, 0, 0); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     }
     function cor() { return est === 'erro' ? '255,107,94' : est === 'ok' ? '110,231,168' : est === 'lock' ? '255,179,71' : '55,230,255'; }
     function anel(cx, cy, r, ini, tam, dash, lw, al, c) {
@@ -176,8 +188,9 @@
     // boca: a mandíbula desce (a parte de baixo do sorriso é redesenhada mais baixo) e o vão fica escuro, com a língua aparecendo
     function bocaFalando(d, img0) {
       if (d < 0.35) return;
+      var S = (img0.naturalWidth || img0.width) / 512;
       ctx.save(); ctx.beginPath(); ctx.ellipse(254, 356, 54, 30, 0, 0, 6.2832); ctx.clip();
-      ctx.drawImage(img0, 196, 337, 120, 46, 196, 337 + d, 120, 46);
+      ctx.drawImage(img0, 196 * S, 337 * S, 120 * S, 46 * S, 196, 337 + d, 120, 46);
       ctx.restore();
       ctx.save(); ctx.beginPath(); ctx.ellipse(254, 337 + d * 0.5, 40, Math.max(0.5, d * 0.62 + 0.8), 0, 0, 6.2832); ctx.clip();
       var gb = ctx.createLinearGradient(0, 336, 0, 337 + d); gb.addColorStop(0, '#3a0d12'); gb.addColorStop(1, '#6b1a22');
@@ -273,8 +286,9 @@
         boca += ((reduzido ? 0 : ui.imp * 6 + (est === 'ok' ? 3 * Math.sin(Math.min(1, k) * 3.14) : 0)) - boca) * 0.4;
         ctx.save(); ctx.translate(cx + dx, cy + dy + flut); ctx.rotate(pt.x * 0.04 + (est === 'erro' ? tremor * 0.012 : 0) + (reduzido ? 0 : 0.012 * Math.sin(t * 0.8)));
         ctx.scale(tam / 512, tam / 512); ctx.translate(-256, -256);
-        ctx.drawImage(img, 0, 0, 512, 512);
-        if (boca > 0.35) bocaFalando(boca, img);
+        var fnt = fonte(tam * dprQ);
+        ctx.drawImage(fnt, 0, 0, 512, 512);
+        if (boca > 0.35) bocaFalando(boca, fnt);
         olhoNatural(fecha, gazeX * 5.2, gazeY * 3, est === 'busy' ? 1.18 : est === 'erro' ? 0.8 : 1 + ui.imp * 0.22);
         olhoCiborgue(t, now, gazeX, gazeY);
         fone(t);
