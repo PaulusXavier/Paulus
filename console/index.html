@@ -1487,6 +1487,18 @@ body{
 .bf-report-actions #mds-baixar,.bf-report-actions #mds-apagar,.bf-report-actions #mds-backup,.bf-report-actions #mds-apagar-tudo{min-height:44px}
 .bf-report-actions #mds-baixar:disabled,.bf-report-actions #mds-apagar:disabled,.bf-report-actions #mds-backup:disabled,.bf-report-actions #mds-apagar-tudo:disabled{opacity:.48;cursor:not-allowed}
 @media(max-width:520px){.bf-report-inner{padding:14px}.bf-report-grid{grid-template-columns:1fr}}
+
+/* =====================================================================
+   v8 · FOCO E TOQUE. Só pele: nenhum id, classe ou texto mudou.
+   Para desfazer, apague daqui até o fim do <style>.
+   Foco visível também nos campos e botões de ação com tamanho de dedo.
+   ===================================================================== */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+textarea:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+@media(pointer:coarse){
+  .ac .bi,.ac button,.ac a,.ort button{min-height:44px}
+  .ac .bi.so{width:44px;min-width:44px}
+}
 </style></head><body class="lock" data-estado="idle">
 <canvas id="bgc" aria-hidden="true"></canvas>
 <svg id="hx" aria-hidden="true" focusable="false"><defs><pattern id="hxp" width="56" height="97" patternUnits="userSpaceOnUse" patternTransform="scale(.9)"><path d="M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z M28 62 L28 95 M54 47 L82 62 M2 47 L-26 62" fill="none" stroke="currentColor" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#hxp)"/></svg>
