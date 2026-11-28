@@ -48,6 +48,7 @@ const REV_REGRAS = [
   [/\b\d{1,2}(?:hs|hrs)\b/, 'h (ex.: 14h)', 'Hora se abrevia "h": "14h".', function (t) { return t.replace(/(?:hs|hrs)$/i, 'h'); }],
   [/\betc\.{2,}/, 'etc.', '"Etc." leva um ponto só.', function () { return 'etc.'; }],
   [/ {2,}/, 'um espaço', 'Espaço duplo.', function () { return ' '; }],
+  [/(?<=[a-z]{2})(?<![@\/]\S*)[,;:!?](?=[a-z])/, 'espaço depois da pontuação', 'Falta espaço depois de vírgula, ponto e vírgula, dois-pontos, ! ou ?.', function (t) { return t + ' '; }],
   [/ +(?=[,;:!?])/, 'sem espaço antes', 'Sem espaço antes de vírgula, ponto e vírgula, dois-pontos, ! e ?.', function () { return ''; }],
   [/\b(?:cras|creas|caps|ubs|ong)'s\b/, 'plural sem apóstrofo', 'Sigla no plural não leva apóstrofo: "os CRAS", "as ONGs".', function (t) { return t.replace(/'s$/i, /^[a-z]/.test(t) ? 's' : 's'); }],
   [new RegExp('\\bpara mim (?:' + REV_VERBOS + ')\\b'), 'para eu + verbo', 'O sujeito do infinitivo é "eu": "para eu fazer".', function (t) { return t.replace(/^para mim/i, function (m) { return revCaixa(m, 'para eu'); }); }],
@@ -127,5 +128,5 @@ export function respostaDeRevisao(pergunta) {
   for (const a of r.apontamentos.slice(0, 30)) linhas.push('- "' + a.trecho.trim() + '" → ' + a.sugestao + '. ' + a.regra);
   if (r.apontamentos.length > 30) linhas.push('(e mais ' + (r.apontamentos.length - 30) + ' pontos)');
   if (r.corrigido !== texto) linhas.push('', 'Texto com as correções seguras:', r.corrigido);
-  return { texto: linhas.join('\n'), apontamentos: r.apontamentos, corrigido: r.corrigido };
+  return { texto: linhas.join('\n'), apontamentos: r.apontamentos, corrigido: r.corrigido, original: texto };
 }
